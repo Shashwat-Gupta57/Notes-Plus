@@ -1,11 +1,12 @@
 package org.flexstudios.notes.plus;
 
-import android.Manifest;
-import android.annotation.SuppressLint;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -14,12 +15,13 @@ import android.os.Vibrator;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.LinearLayout;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
+import androidx.lifecycle.ProcessLifecycleOwner;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -27,6 +29,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 
+import java.io.File;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -42,6 +45,15 @@ public class MainActivity extends AppCompatActivity {
     private Runnable secretRunnable;
     private boolean isSecretTriggering = false;
     private float initialTouchX, initialTouchY;
+
+    private final BroadcastReceiver updateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (UpdateDownloadReceiver.ACTION_UPDATE_DOWNLOADED.equals(intent.getAction())) {
+                showInstallPrompt();
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,8 +97,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         setupSecretGesture(recyclerView);
-        // Permission check removed from here, will be handled when entering Secret Gallery
-
+        
         new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT | ItemTouchHelper.RIGHT) {
             @Override
             public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
@@ -108,6 +119,88 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         }).attachToRecyclerView(recyclerView);
+
+        // Update system initialization
+        ProcessLifecycleOwner.get().getLifecycle().addObserver(new AppLifecycleObserver(this));
+        
+        IntentFilter filter = new IntentFilter(UpdateDownloadReceiver.ACTION_UPDATE_DOWNLOADED);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(updateReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(updateReceiver, filter);
+        }
+
+        checkUpdates();
+    }
+
+    private void checkUpdates() {
+        new UpdateManager(this).checkForUpdates(new UpdateManager.UpdateCallback() {
+            @Override
+            public void onUpdateFound(int versionCode, String versionName, boolean forced, String changelog) {
+                showUpdateDialog(versionName, forced, changelog);
+            }
+
+            @Override
+            public void onNoUpdate() {}
+
+            @Override
+            public void onError(Exception e) {}
+        });
+    }
+
+    private void showUpdateDialog(String versionName, boolean forced, String changelog) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle("New Update Available (v" + versionName + ")")
+                .setMessage(changelog + (forced ? "\n\nThis update is required to continue using the app." : ""))
+                .setPositiveButton(forced ? "Exit & Update" : "Download", (dialog, which) -> {
+                    if (forced) {
+                        Toast.makeText(this, "Downloading required update...", Toast.LENGTH_LONG).show();
+                    }
+                });
+        
+        if (!forced) {
+            builder.setNegativeButton("Later", null);
+        } else {
+            builder.setCancelable(false);
+        }
+        
+        builder.show();
+    }
+
+    private void showInstallPrompt() {
+        new AlertDialog.Builder(this)
+                .setTitle("Update Ready")
+                .setMessage("The latest version of Notes+ has been downloaded. Would you like to install it now?")
+                .setPositiveButton("Install & Restart", (dialog, which) -> {
+                    triggerInstallation();
+                })
+                .setNegativeButton("Later", null)
+                .show();
+    }
+
+    private void triggerInstallation() {
+        SharedPreferences prefs = getSharedPreferences("update_prefs", Context.MODE_PRIVATE);
+        String apkPath = prefs.getString("pending_apk_path", null);
+        
+        if (apkPath != null) {
+            File apkFile = new File(apkPath);
+            if (apkFile.exists()) {
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                Uri apkUri = FileProvider.getUriForFile(this, getPackageName() + ".provider", apkFile);
+                intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                
+                startActivity(intent);
+                prefs.edit().remove("pending_apk_path").apply();
+            }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(updateReceiver);
     }
 
     private void setupSecretGesture(RecyclerView recyclerView) {
@@ -125,11 +218,10 @@ public class MainActivity extends AppCompatActivity {
                         float dx = initialTouchX - event.getX();
                         float dy = Math.abs(initialTouchY - event.getY());
 
-                        // Detect left swipe (50px threshold) and ensure it's primarily horizontal
                         if (dx > 50 && dx > dy * 2 && !isSecretTriggering) {
                             isSecretTriggering = true;
                             startSecretTimer();
-                            return true; // Intercept: stop RecyclerView from scrolling
+                            return true;
                         }
                         break;
 

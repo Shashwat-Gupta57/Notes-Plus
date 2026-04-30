@@ -205,6 +205,40 @@
                     android:text="After 1 minute"
                     android:textSize="16sp" />
             </RadioGroup>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="0.5dp"
+                android:layout_marginTop="16dp"
+                android:background="#E5E5EA" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingTop="24dp"
+                android:paddingBottom="8dp"
+                android:text="UPDATES"
+                android:textColor="#8E8E93"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/textUpdateStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="16dp"
+                android:text="App is up to date"
+                android:textColor="#8E8E93"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/btnCheckUpdates"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Check for Updates"
+                android:textColor="#FFCC00" />
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

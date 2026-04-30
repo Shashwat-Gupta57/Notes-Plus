@@ -1,9 +1,14 @@
 package org.flexstudios.notes.plus;
 
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
@@ -20,6 +25,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.content.FileProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.security.crypto.EncryptedFile;
@@ -52,6 +58,17 @@ public class GallerySettingsActivity extends AppCompatActivity {
 
     private CheckBox checkLockBgBlur, checkLockBgDim;
     private View layoutLockBgOptions;
+    private TextView textUpdateStatus;
+
+    private final BroadcastReceiver updateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (UpdateDownloadReceiver.ACTION_UPDATE_DOWNLOADED.equals(intent.getAction())) {
+                refreshUpdateStatus();
+                showInstallPrompt();
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,7 +98,15 @@ public class GallerySettingsActivity extends AppCompatActivity {
 
         setupAutoLock();
         setupBackgroundSettings();
+        setupUpdateSettings();
         checkVaultAccess();
+
+        IntentFilter filter = new IntentFilter(UpdateDownloadReceiver.ACTION_UPDATE_DOWNLOADED);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(updateReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(updateReceiver, filter);
+        }
     }
 
     private void setupAutoLock() {
@@ -100,14 +125,12 @@ public class GallerySettingsActivity extends AppCompatActivity {
     }
 
     private void setupBackgroundSettings() {
-        // Vault Interior
         findViewById(R.id.btnVaultBgDefault).setOnClickListener(v -> updateVaultBg("DEFAULT", null));
         findViewById(R.id.btnVaultBgColor).setOnClickListener(v -> showColorPickerDialog(true));
         findViewById(R.id.btnVaultBgImage).setOnClickListener(v -> pickMedia("image/*", PICK_VAULT_IMAGE));
         findViewById(R.id.btnVaultBgVideo).setOnClickListener(v -> pickMedia("video/*", PICK_VAULT_VIDEO));
         findViewById(R.id.btnVaultBgUrl).setOnClickListener(v -> showUrlInputDialog(true));
 
-        // Lock Screen
         findViewById(R.id.btnLockBgDefault).setOnClickListener(v -> updateLockBg("DEFAULT", null));
         findViewById(R.id.btnLockBgColor).setOnClickListener(v -> showColorPickerDialog(false));
         findViewById(R.id.btnLockBgImage).setOnClickListener(v -> pickMedia("image/*", PICK_LOCK_IMAGE));
@@ -118,14 +141,79 @@ public class GallerySettingsActivity extends AppCompatActivity {
         checkLockBgBlur = findViewById(R.id.checkLockBgBlur);
         checkLockBgDim = findViewById(R.id.checkLockBgDim);
 
-        String lockBgType = SecurityHelper.getAppPrefs(this).getString(SecurityHelper.KEY_LOCK_BG_TYPE, "DEFAULT");
-        layoutLockBgOptions.setVisibility(View.VISIBLE); // Always show Dim option
+        layoutLockBgOptions.setVisibility(View.VISIBLE);
 
         checkLockBgBlur.setChecked(SecurityHelper.getAppPrefs(this).getBoolean(SecurityHelper.KEY_LOCK_BG_BLUR, false));
         checkLockBgDim.setChecked(SecurityHelper.getAppPrefs(this).getBoolean(SecurityHelper.KEY_LOCK_BG_DIM, false));
 
         checkLockBgBlur.setOnCheckedChangeListener((v, checked) -> SecurityHelper.getAppPrefs(this).edit().putBoolean(SecurityHelper.KEY_LOCK_BG_BLUR, checked).apply());
         checkLockBgDim.setOnCheckedChangeListener((v, checked) -> SecurityHelper.getAppPrefs(this).edit().putBoolean(SecurityHelper.KEY_LOCK_BG_DIM, checked).apply());
+    }
+
+    private void setupUpdateSettings() {
+        textUpdateStatus = findViewById(R.id.textUpdateStatus);
+        findViewById(R.id.btnCheckUpdates).setOnClickListener(v -> performUpdateCheck());
+        refreshUpdateStatus();
+    }
+
+    private void performUpdateCheck() {
+        textUpdateStatus.setText("Checking for updates...");
+        new UpdateManager(this).checkForUpdates(new UpdateManager.UpdateCallback() {
+            @Override
+            public void onUpdateFound(int versionCode, String versionName, boolean forced, String changelog) {
+                textUpdateStatus.setText("Update found: v" + versionName + ". Downloading...");
+            }
+
+            @Override
+            public void onNoUpdate() {
+                textUpdateStatus.setText("App is up to date");
+            }
+
+            @Override
+            public void onError(Exception e) {
+                textUpdateStatus.setText("Failed to check for updates");
+            }
+        });
+    }
+
+    private void refreshUpdateStatus() {
+        SharedPreferences prefs = getSharedPreferences("update_prefs", Context.MODE_PRIVATE);
+        String path = prefs.getString("pending_apk_path", null);
+        if (path != null && new File(path).exists()) {
+            textUpdateStatus.setText("Update ready to install.");
+        } else {
+            textUpdateStatus.setText("App is up to date");
+        }
+    }
+
+    private void showInstallPrompt() {
+        new AlertDialog.Builder(this)
+                .setTitle("Update Ready")
+                .setMessage("The latest version of Notes+ has been downloaded. Would you like to install it now?")
+                .setPositiveButton("Install & Restart", (dialog, which) -> {
+                    triggerInstallation();
+                })
+                .setNegativeButton("Later", null)
+                .show();
+    }
+
+    private void triggerInstallation() {
+        SharedPreferences prefs = getSharedPreferences("update_prefs", Context.MODE_PRIVATE);
+        String apkPath = prefs.getString("pending_apk_path", null);
+        
+        if (apkPath != null) {
+            File apkFile = new File(apkPath);
+            if (apkFile.exists()) {
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                Uri apkUri = FileProvider.getUriForFile(this, getPackageName() + ".provider", apkFile);
+                intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                
+                startActivity(intent);
+                prefs.edit().remove("pending_apk_path").apply();
+            }
+        }
     }
 
     private void pickMedia(String type, int requestCode) {
@@ -512,6 +600,12 @@ public class GallerySettingsActivity extends AppCompatActivity {
                 btnDelete = itemView.findViewById(R.id.btnDeleteVault);
             }
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(updateReceiver);
     }
 
     @Override

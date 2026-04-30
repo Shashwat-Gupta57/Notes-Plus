@@ -10,8 +10,8 @@ android {
         applicationId = "org.flexstudios.notes.plus"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.00"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -51,6 +51,7 @@ dependencies {
     // Glide for image loading
     implementation(libs.glide)
     annotationProcessor(libs.glide.compiler)
+    implementation(libs.glide.transformations)
 
     // ExoPlayer (Media3)
     implementation(libs.media3.exoplayer)

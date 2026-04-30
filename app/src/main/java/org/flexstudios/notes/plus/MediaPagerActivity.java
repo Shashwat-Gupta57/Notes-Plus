@@ -7,6 +7,8 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -34,6 +36,7 @@ public class MediaPagerActivity extends AppCompatActivity {
     private AppDatabase database;
     private int savedPosition = -1;
     private int currentVaultId = 1;
+    private ImageButton btnFavourite, btnAddToAlbum;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,11 +52,24 @@ public class MediaPagerActivity extends AppCompatActivity {
         }
 
         viewPager = findViewById(R.id.mediaViewPager);
+        btnFavourite = findViewById(R.id.actionFavourite);
+        btnAddToAlbum = findViewById(R.id.actionAddToAlbum);
+        
         findViewById(R.id.pagerBackButton).setOnClickListener(v -> finish());
         findViewById(R.id.actionShare).setOnClickListener(v -> shareCurrentItem());
         findViewById(R.id.actionInfo).setOnClickListener(v -> showInfo());
         findViewById(R.id.btnRestore).setOnClickListener(v -> restoreCurrentItem());
         findViewById(R.id.btnDelete).setOnClickListener(v -> deleteCurrentItem());
+        
+        btnFavourite.setOnClickListener(v -> toggleFavourite());
+        btnAddToAlbum.setOnClickListener(v -> onAddToAlbumClicked());
+
+        viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
+            @Override
+            public void onPageSelected(int position) {
+                updateUIForPosition(position);
+            }
+        });
 
         GestureDetector gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override
@@ -73,6 +89,101 @@ public class MediaPagerActivity extends AppCompatActivity {
         });
 
         loadMedia();
+    }
+
+    private void onAddToAlbumClicked() {
+        if (mediaItems.isEmpty()) return;
+        int currentPos = viewPager.getCurrentItem();
+        SecretItem currentItem = mediaItems.get(currentPos);
+
+        executor.execute(() -> {
+            SecretEntity entity = database.secretDao().getSecretByFileName(currentItem.getFile().getName());
+            if (entity != null && entity.getAlbumId() != null) {
+                AlbumEntity album = database.albumDao().getAlbumById(entity.getAlbumId());
+                String albumName = (album != null) ? album.getName() : "an album";
+                runOnUiThread(() -> showRemoveFromAlbumDialog(entity, albumName));
+            } else {
+                runOnUiThread(this::showAddToAlbumDialog);
+            }
+        });
+    }
+
+    private void showRemoveFromAlbumDialog(SecretEntity entity, String albumName) {
+        new AlertDialog.Builder(this)
+                .setTitle("Remove from Album")
+                .setMessage("This item is already in \"" + albumName + "\". Do you want to remove it?")
+                .setPositiveButton("Remove", (dialog, which) -> {
+                    executor.execute(() -> {
+                        entity.setAlbumId(null);
+                        database.secretDao().update(entity);
+                        runOnUiThread(() -> {
+                            Toast.makeText(this, "Removed from album", Toast.LENGTH_SHORT).show();
+                            updateUIForPosition(viewPager.getCurrentItem());
+                        });
+                    });
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void showAddToAlbumDialog() {
+        if (mediaItems.isEmpty()) return;
+        int currentPos = viewPager.getCurrentItem();
+        SecretItem currentItem = mediaItems.get(currentPos);
+
+        executor.execute(() -> {
+            List<AlbumEntity> allAlbums = database.albumDao().getAlbumsForVaultDirect(currentVaultId);
+            runOnUiThread(() -> {
+                String[] names = new String[allAlbums.size() + 1];
+                names[0] = "+ Create New Album";
+                for (int i = 0; i < allAlbums.size(); i++) names[i+1] = allAlbums.get(i).getName();
+
+                new AlertDialog.Builder(this)
+                        .setTitle("Add to Album")
+                        .setItems(names, (dialog, which) -> {
+                            if (which == 0) {
+                                showCreateAlbumDialogForCurrent(currentItem);
+                            } else {
+                                moveItemToAlbum(currentItem, allAlbums.get(which - 1).getId());
+                            }
+                        })
+                        .show();
+            });
+        });
+    }
+
+    private void showCreateAlbumDialogForCurrent(SecretItem item) {
+        EditText input = new EditText(this);
+        input.setHint("Album Name");
+        new AlertDialog.Builder(this)
+                .setTitle("New Album")
+                .setView(input)
+                .setPositiveButton("Create", (d, w) -> {
+                    String name = input.getText().toString().trim();
+                    if (name.isEmpty()) name = "New Album";
+                    String finalName = name;
+                    executor.execute(() -> {
+                        AlbumEntity album = new AlbumEntity(finalName, currentVaultId, null);
+                        int id = (int) database.albumDao().insert(album);
+                        moveItemToAlbum(item, id);
+                    });
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void moveItemToAlbum(SecretItem item, int albumId) {
+        executor.execute(() -> {
+            SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
+            if (entity != null) {
+                entity.setAlbumId(albumId);
+                database.secretDao().update(entity);
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Added to album", Toast.LENGTH_SHORT).show();
+                    updateUIForPosition(viewPager.getCurrentItem());
+                });
+            }
+        });
     }
 
     private void loadMedia() {
@@ -104,7 +215,45 @@ public class MediaPagerActivity extends AppCompatActivity {
                         }
                     }
                 }
+                updateUIForPosition(viewPager.getCurrentItem());
             });
+        });
+    }
+
+    private void toggleFavourite() {
+        if (mediaItems.isEmpty()) return;
+        int pos = viewPager.getCurrentItem();
+        SecretItem item = mediaItems.get(pos);
+        executor.execute(() -> {
+            SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
+            if (entity != null) {
+                entity.setFavourite(!entity.isFavourite());
+                database.secretDao().update(entity);
+                runOnUiThread(() -> {
+                    btnFavourite.setImageResource(entity.isFavourite() ? R.drawable.ic_heart_filled : R.drawable.ic_heart_empty);
+                    btnFavourite.animate().scaleX(1.2f).scaleY(1.2f).setDuration(100).withEndAction(() -> 
+                        btnFavourite.animate().scaleX(1.0f).scaleY(1.0f).setDuration(100).start()
+                    ).start();
+                });
+            }
+        });
+    }
+
+    private void updateUIForPosition(int position) {
+        if (mediaItems.isEmpty() || position < 0 || position >= mediaItems.size()) return;
+        SecretItem item = mediaItems.get(position);
+        executor.execute(() -> {
+            SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
+            if (entity != null) {
+                runOnUiThread(() -> {
+                    btnFavourite.setImageResource(entity.isFavourite() ? R.drawable.ic_heart_filled : R.drawable.ic_heart_empty);
+                    if (entity.getAlbumId() != null) {
+                        btnAddToAlbum.setImageResource(R.drawable.ic_check_circle_filled);
+                    } else {
+                        btnAddToAlbum.setImageResource(android.R.drawable.ic_menu_add);
+                    }
+                });
+            }
         });
     }
 
@@ -113,7 +262,6 @@ public class MediaPagerActivity extends AppCompatActivity {
         SecretItem item = mediaItems.get(viewPager.getCurrentItem());
         executor.execute(() -> {
             try {
-                // Get the original extension from DB to ensure format is preserved
                 String extension = item.isVideo() ? ".mp4" : ".jpg";
                 SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
                 if (entity != null && entity.getOriginalPath() != null) {
@@ -153,7 +301,6 @@ public class MediaPagerActivity extends AppCompatActivity {
                     
                     decryptToFile(item.getFile(), target);
                     
-                    // Restore original timestamp
                     if (entity.getDateTaken() != 0) {
                         target.setLastModified(entity.getDateTaken());
                     }
@@ -200,6 +347,7 @@ public class MediaPagerActivity extends AppCompatActivity {
                 finish();
             } else {
                 adapter.notifyItemRemoved(position);
+                updateUIForPosition(viewPager.getCurrentItem());
             }
         }
     }
@@ -224,7 +372,6 @@ public class MediaPagerActivity extends AppCompatActivity {
                 encryptedFile, this, masterKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
         ).build();
         
-        // Ensure extension starts with a dot
         if (!extension.startsWith(".")) extension = "." + extension;
         
         File tempFile = new File(getCacheDir(), "share_" + encryptedFile.getName() + extension);

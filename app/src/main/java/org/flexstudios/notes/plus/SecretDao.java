@@ -31,4 +31,25 @@ public interface SecretDao {
     
     @Query("SELECT * FROM secrets WHERE fileName = :fileName LIMIT 1")
     SecretEntity getSecretByFileName(String fileName);
+
+    @Query("SELECT * FROM secrets WHERE isFavourite = 1 AND vaultId = :vaultId ORDER BY dateTaken DESC")
+    LiveData<List<SecretEntity>> getFavouritesForVault(int vaultId);
+
+    @Query("SELECT * FROM secrets WHERE albumId = :albumId AND vaultId = :vaultId ORDER BY dateTaken DESC")
+    LiveData<List<SecretEntity>> getSecretsForAlbum(int albumId, int vaultId);
+
+    @Query("SELECT COUNT(*) FROM secrets WHERE isFavourite = 1 AND vaultId = :vaultId")
+    int getFavouriteCount(int vaultId);
+
+    @Query("SELECT COUNT(*) FROM secrets WHERE albumId = :albumId")
+    int getSecretCountForAlbum(int albumId);
+
+    @Query("SELECT * FROM secrets WHERE albumId = :albumId ORDER BY id DESC LIMIT 1")
+    SecretEntity getLatestForAlbum(int albumId);
+    
+    @Query("SELECT * FROM secrets WHERE isFavourite = 1 AND vaultId = :vaultId ORDER BY id DESC LIMIT 1")
+    SecretEntity getLatestFavourite(int vaultId);
+
+    @Query("UPDATE secrets SET albumId = NULL WHERE albumId = :albumId")
+    void unsetAlbumId(int albumId);
 }

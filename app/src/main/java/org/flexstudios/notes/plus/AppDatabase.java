@@ -11,19 +11,20 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import java.util.concurrent.Executors;
 
-@Database(entities = {NoteEntity.class, SecretEntity.class, VaultEntity.class}, version = 4, exportSchema = false)
+@Database(entities = {NoteEntity.class, SecretEntity.class, VaultEntity.class, AlbumEntity.class}, version = 5, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static AppDatabase instance;
 
     public abstract NoteDao noteDao();
     public abstract SecretDao secretDao();
     public abstract VaultDao vaultDao();
+    public abstract AlbumDao albumDao();
 
     public static synchronized AppDatabase getInstance(Context context) {
         if (instance == null) {
             instance = Room.databaseBuilder(context.getApplicationContext(),
                             AppDatabase.class, "notes_database")
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .addCallback(new Callback() {
                         @Override
                         public void onOpen(@NonNull SupportSQLiteDatabase db) {
@@ -59,10 +60,7 @@ public abstract class AppDatabase extends RoomDatabase {
     static final Migration MIGRATION_2_3 = new Migration(2, 3) {
         @Override
         public void migrate(SupportSQLiteDatabase database) {
-            // Create vaults table
             database.execSQL("CREATE TABLE IF NOT EXISTS `vaults` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, `lockType` TEXT, `lockValue` TEXT, `isMain` INTEGER NOT NULL, `sortOrder` INTEGER NOT NULL)");
-            
-            // Add vaultId column to secrets table
             database.execSQL("ALTER TABLE `secrets` ADD COLUMN `vaultId` INTEGER NOT NULL DEFAULT 1");
         }
     };
@@ -72,6 +70,18 @@ public abstract class AppDatabase extends RoomDatabase {
         public void migrate(SupportSQLiteDatabase database) {
             database.execSQL("ALTER TABLE `vaults` ADD COLUMN `bgType` TEXT DEFAULT 'DEFAULT'");
             database.execSQL("ALTER TABLE `vaults` ADD COLUMN `bgValue` TEXT");
+        }
+    };
+
+    static final Migration MIGRATION_4_5 = new Migration(4, 5) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            // Add isFavourite and albumId to secrets
+            database.execSQL("ALTER TABLE `secrets` ADD COLUMN `isFavourite` INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE `secrets` ADD COLUMN `albumId` INTEGER");
+            
+            // Create albums table
+            database.execSQL("CREATE TABLE IF NOT EXISTS `albums` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, `vaultId` INTEGER NOT NULL, `coverFileName` TEXT)");
         }
     };
 }

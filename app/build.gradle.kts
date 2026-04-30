@@ -10,8 +10,8 @@ android {
         applicationId = "org.flexstudios.notes.plus"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "2.00"
+        versionCode = 3
+        versionName = "3.50"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

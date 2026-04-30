@@ -2,7 +2,6 @@ package org.flexstudios.notes.plus;
 
 import android.app.AlertDialog;
 import android.content.ClipData;
-import android.content.ContentResolver;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Color;
@@ -11,12 +10,12 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
-import android.provider.OpenableColumns;
 import android.provider.Settings;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Toast;
@@ -38,6 +37,7 @@ import androidx.security.crypto.EncryptedFile;
 import androidx.security.crypto.MasterKeys;
 
 import com.bumptech.glide.Glide;
+import com.google.android.material.tabs.TabLayout;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -62,6 +62,7 @@ public class SecretGalleryActivity extends AppCompatActivity {
     private static final int MANAGE_STORAGE_REQUEST = 102;
     
     private SecretGalleryAdapter adapter;
+    private AlbumAdapter albumAdapter;
     private List<SecretItem> secretItems = new ArrayList<>();
     private View selectionBottomBar;
     private LinearLayout emptyState;
@@ -77,6 +78,12 @@ public class SecretGalleryActivity extends AppCompatActivity {
     private PlayerView videoBgView;
     private ExoPlayer exoPlayer;
 
+    private RecyclerView recyclerViewGallery, recyclerViewAlbums;
+    private TabLayout tabLayout;
+    
+    private Integer filterAlbumId = null;
+    private boolean filterFavourites = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -90,7 +97,8 @@ public class SecretGalleryActivity extends AppCompatActivity {
         Toolbar toolbar = findViewById(R.id.toolbarGallery);
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle("Notes+"); // Always Notes+
+            getSupportActionBar().setTitle("Notes+");
+            getSupportActionBar().setDisplayHomeAsUpEnabled(false);
         }
 
         vaultDir = new File(getFilesDir(), "vault");
@@ -104,7 +112,9 @@ public class SecretGalleryActivity extends AppCompatActivity {
 
         selectionBottomBar = findViewById(R.id.selectionBottomBar);
         emptyState = findViewById(R.id.emptyStateGallery);
-        RecyclerView recyclerView = findViewById(R.id.recyclerViewGallery);
+        recyclerViewGallery = findViewById(R.id.recyclerViewGallery);
+        recyclerViewAlbums = findViewById(R.id.recyclerViewAlbums);
+        tabLayout = findViewById(R.id.tabLayoutGallery);
         
         GridLayoutManager layoutManager = new GridLayoutManager(this, 3);
         layoutManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
@@ -113,7 +123,7 @@ public class SecretGalleryActivity extends AppCompatActivity {
                 return (adapter != null && adapter.getItemViewType(position) == 0) ? 3 : 1;
             }
         });
-        recyclerView.setLayoutManager(layoutManager);
+        recyclerViewGallery.setLayoutManager(layoutManager);
         
         adapter = new SecretGalleryAdapter(secretItems, new ArrayList<>(), new SecretGalleryAdapter.OnItemClickListener() {
             @Override
@@ -141,21 +151,64 @@ public class SecretGalleryActivity extends AppCompatActivity {
                 invalidateOptionsMenu();
             }
         });
-        recyclerView.setAdapter(adapter);
+        recyclerViewGallery.setAdapter(adapter);
+
+        recyclerViewAlbums.setLayoutManager(new GridLayoutManager(this, 2));
+        albumAdapter = new AlbumAdapter(album -> {
+            if (album.id == -1) {
+                showFilteredGallery(null, true, "Favourites");
+            } else {
+                showFilteredGallery(album.id, false, album.name);
+            }
+        }, album -> {
+            if (album.id != -1) {
+                showAlbumOptionsDialog(album);
+            }
+        });
+        recyclerViewAlbums.setAdapter(albumAdapter);
+
+        tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
+            @Override
+            public void onTabSelected(TabLayout.Tab tab) {
+                if (tab.getPosition() == 0) {
+                    recyclerViewGallery.setVisibility(View.VISIBLE);
+                    recyclerViewAlbums.setVisibility(View.GONE);
+                    observeVault();
+                } else {
+                    recyclerViewGallery.setVisibility(View.GONE);
+                    recyclerViewAlbums.setVisibility(View.VISIBLE);
+                    observeAlbums();
+                }
+                invalidateOptionsMenu();
+            }
+            @Override
+            public void onTabUnselected(TabLayout.Tab tab) {}
+            @Override
+            public void onTabReselected(TabLayout.Tab tab) {}
+        });
 
         findViewById(R.id.fabAddSecret).setOnClickListener(v -> {
-            if (checkStoragePermission()) pickFile();
+            if (tabLayout.getSelectedTabPosition() == 0 || filterAlbumId != null || filterFavourites) {
+                if (checkStoragePermission()) pickFile();
+            } else {
+                showCreateAlbumDialog(null);
+            }
         });
 
         findViewById(R.id.btnSelectionShare).setOnClickListener(v -> shareSelectedItems());
         findViewById(R.id.btnSelectionRestore).setOnClickListener(v -> restoreSelectedItems());
         findViewById(R.id.btnSelectionDelete).setOnClickListener(v -> deleteSelectedItems());
+        findViewById(R.id.btnSelectionMoveToAlbum).setOnClickListener(v -> showMoveToAlbumDialog());
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
                 if (adapter != null && adapter.isSelectionMode()) {
                     adapter.setSelectionMode(false);
+                    return;
+                }
+                if (filterAlbumId != null || filterFavourites) {
+                    onBackPressed();
                     return;
                 }
                 Intent intent = new Intent(SecretGalleryActivity.this, MainActivity.class);
@@ -168,6 +221,217 @@ public class SecretGalleryActivity extends AppCompatActivity {
 
         observeVault();
         checkStoragePermission();
+    }
+
+    private void showAlbumOptionsDialog(AlbumAdapter.AlbumItem album) {
+        new AlertDialog.Builder(this)
+                .setTitle(album.name)
+                .setItems(new String[]{"Delete Album"}, (dialog, which) -> {
+                    if (which == 0) {
+                        deleteAlbum(album);
+                    }
+                })
+                .show();
+    }
+
+    private void deleteAlbum(AlbumAdapter.AlbumItem album) {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Album?")
+                .setMessage("Items inside will not be deleted.")
+                .setPositiveButton("Delete", (d, w) -> {
+                    executor.execute(() -> {
+                        database.secretDao().unsetAlbumId(album.id);
+                        AlbumEntity entity = database.albumDao().getAlbumById(album.id);
+                        if (entity != null) database.albumDao().delete(entity);
+                    });
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void showFilteredGallery(Integer albumId, boolean favs, String title) {
+        filterAlbumId = albumId;
+        filterFavourites = favs;
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(title);
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
+        
+        recyclerViewGallery.setVisibility(View.VISIBLE);
+        recyclerViewAlbums.setVisibility(View.GONE);
+        tabLayout.setVisibility(View.GONE);
+        
+        observeVault();
+        invalidateOptionsMenu();
+    }
+
+    private void observeVault() {
+        if (filterFavourites) {
+            database.secretDao().getFavouritesForVault(currentVaultId).removeObservers(this);
+            database.secretDao().getFavouritesForVault(currentVaultId).observe(this, this::updateGrid);
+        } else if (filterAlbumId != null) {
+            database.secretDao().getSecretsForAlbum(filterAlbumId, currentVaultId).removeObservers(this);
+            database.secretDao().getSecretsForAlbum(filterAlbumId, currentVaultId).observe(this, this::updateGrid);
+        } else {
+            database.secretDao().getSecretsForVault(currentVaultId).removeObservers(this);
+            database.secretDao().getSecretsForVault(currentVaultId).observe(this, this::updateGrid);
+        }
+    }
+
+    private void updateGrid(List<SecretEntity> entities) {
+        executor.execute(() -> {
+            List<SecretItem> newItems = new ArrayList<>();
+            for (SecretEntity entity : entities) {
+                File file = new File(vaultDir, entity.getFileName());
+                if (file.exists()) {
+                    newItems.add(new SecretItem(file, entity.isVideo()));
+                }
+            }
+            runOnUiThread(() -> {
+                secretItems.clear();
+                secretItems.addAll(newItems);
+                if (adapter != null) {
+                    adapter.updateData(secretItems, entities);
+                }
+                emptyState.setVisibility(entities.isEmpty() ? View.VISIBLE : View.GONE);
+            });
+        });
+    }
+
+    private void observeAlbums() {
+        database.albumDao().getAlbumsForVault(currentVaultId).observe(this, albumEntities -> {
+            executor.execute(() -> {
+                List<AlbumAdapter.AlbumItem> items = new ArrayList<>();
+                
+                int favCount = database.secretDao().getFavouriteCount(currentVaultId);
+                if (favCount > 0) {
+                    SecretEntity latestFav = database.secretDao().getLatestFavourite(currentVaultId);
+                    items.add(new AlbumAdapter.AlbumItem(-1, "Favourites", favCount, 
+                        latestFav != null ? latestFav.getFileName() : null,
+                        latestFav != null && latestFav.isVideo()));
+                }
+
+                for (AlbumEntity album : albumEntities) {
+                    int count = database.secretDao().getSecretCountForAlbum(album.getId());
+                    SecretEntity latest = database.secretDao().getLatestForAlbum(album.getId());
+                    items.add(new AlbumAdapter.AlbumItem(album.getId(), album.getName(), count, 
+                        latest != null ? latest.getFileName() : null,
+                        latest != null && latest.isVideo()));
+                }
+                
+                runOnUiThread(() -> {
+                    albumAdapter.setAlbums(items);
+                    if (tabLayout.getSelectedTabPosition() == 1 && filterAlbumId == null && !filterFavourites) {
+                        emptyState.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+                    }
+                });
+            });
+        });
+    }
+
+    private void showMoveToAlbumDialog() {
+        List<SecretItem> selected = adapter.getSelectedItems();
+        if (selected.isEmpty()) return;
+
+        executor.execute(() -> {
+            boolean someAlreadyInAlbum = false;
+            for (SecretItem item : selected) {
+                SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
+                if (entity != null && entity.getAlbumId() != null) {
+                    someAlreadyInAlbum = true;
+                    break;
+                }
+            }
+
+            if (someAlreadyInAlbum) {
+                runOnUiThread(() -> {
+                    new AlertDialog.Builder(this)
+                            .setTitle("Move items?")
+                            .setMessage("Some selected items are already in an album. Do you want to move them all to the new album?")
+                            .setPositiveButton("Move All", (dialog, which) -> showAlbumListDialog(selected))
+                            .setNeutralButton("Only Non-Album items", (dialog, which) -> {
+                                List<SecretItem> filtered = new ArrayList<>();
+                                executor.execute(() -> {
+                                    for (SecretItem item : selected) {
+                                        SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
+                                        if (entity != null && entity.getAlbumId() == null) {
+                                            filtered.add(item);
+                                        }
+                                    }
+                                    runOnUiThread(() -> showAlbumListDialog(filtered));
+                                });
+                            })
+                            .setNegativeButton("Cancel", null)
+                            .show();
+                });
+            } else {
+                showAlbumListDialog(selected);
+            }
+        });
+    }
+
+    private void showAlbumListDialog(List<SecretItem> items) {
+        if (items.isEmpty()) {
+            Toast.makeText(this, "No items to move", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        executor.execute(() -> {
+            List<AlbumEntity> allAlbums = database.albumDao().getAlbumsForVaultDirect(currentVaultId);
+            runOnUiThread(() -> {
+                String[] names = new String[allAlbums.size() + 1];
+                names[0] = "+ Create New Album";
+                for (int i = 0; i < allAlbums.size(); i++) names[i+1] = allAlbums.get(i).getName();
+
+                new AlertDialog.Builder(this)
+                        .setTitle("Select Album")
+                        .setItems(names, (dialog, which) -> {
+                            if (which == 0) {
+                                showCreateAlbumDialog(items);
+                            } else {
+                                moveItemsToAlbum(items, allAlbums.get(which - 1).getId());
+                            }
+                        })
+                        .show();
+            });
+        });
+    }
+
+    private void showCreateAlbumDialog(List<SecretItem> itemsToMove) {
+        EditText input = new EditText(this);
+        input.setHint("Album Name");
+        new AlertDialog.Builder(this)
+                .setTitle("New Album")
+                .setView(input)
+                .setPositiveButton("Create", (d, w) -> {
+                    String name = input.getText().toString().trim();
+                    if (name.isEmpty()) name = "New Album";
+                    String finalName = name;
+                    executor.execute(() -> {
+                        AlbumEntity album = new AlbumEntity(finalName, currentVaultId, null);
+                        int id = (int) database.albumDao().insert(album);
+                        if (itemsToMove != null) {
+                            moveItemsToAlbum(itemsToMove, id);
+                        }
+                    });
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void moveItemsToAlbum(List<SecretItem> items, int albumId) {
+        executor.execute(() -> {
+            for (SecretItem item : items) {
+                SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
+                if (entity != null) {
+                    entity.setAlbumId(albumId);
+                    database.secretDao().update(entity);
+                }
+            }
+            runOnUiThread(() -> {
+                adapter.setSelectionMode(false);
+                Toast.makeText(this, "Moved to album", Toast.LENGTH_SHORT).show();
+            });
+        });
     }
 
     private void applyVaultBackground() {
@@ -221,7 +485,7 @@ public class SecretGalleryActivity extends AppCompatActivity {
         exoPlayer = new ExoPlayer.Builder(this).build();
         videoBgView.setPlayer(exoPlayer);
         exoPlayer.setRepeatMode(Player.REPEAT_MODE_ALL);
-        exoPlayer.setVolume(0f); // Mute audio
+        exoPlayer.setVolume(0f);
         
         Uri uri;
         if (source.startsWith("http")) {
@@ -302,28 +566,6 @@ public class SecretGalleryActivity extends AppCompatActivity {
         }
     }
 
-    private void observeVault() {
-        database.secretDao().getSecretsForVault(currentVaultId).observe(this, entities -> {
-            executor.execute(() -> {
-                List<SecretItem> newItems = new ArrayList<>();
-                for (SecretEntity entity : entities) {
-                    File file = new File(vaultDir, entity.getFileName());
-                    if (file.exists()) {
-                        newItems.add(new SecretItem(file, entity.isVideo()));
-                    }
-                }
-                runOnUiThread(() -> {
-                    secretItems.clear();
-                    secretItems.addAll(newItems);
-                    if (adapter != null) {
-                        adapter.updateData(secretItems, entities);
-                    }
-                    emptyState.setVisibility(entities.isEmpty() ? View.VISIBLE : View.GONE);
-                });
-            });
-        });
-    }
-
     private void pickFile() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
@@ -375,6 +617,8 @@ public class SecretGalleryActivity extends AppCompatActivity {
                         while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
                     }
                     SecretEntity entity = new SecretEntity(fileName, originalPath, dateTaken, dateAdded, isVideo, currentVaultId);
+                    if (filterAlbumId != null) entity.setAlbumId(filterAlbumId);
+                    
                     database.secretDao().insert(entity);
 
                     if (originalPath != null) {
@@ -599,17 +843,22 @@ public class SecretGalleryActivity extends AppCompatActivity {
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
         MenuItem selectAllItem = menu.findItem(R.id.action_select_all);
+        
         if (selectAllItem != null) {
             selectAllItem.setVisible(adapter != null && adapter.isSelectionMode());
             selectAllItem.setIcon(isAllSelected ? R.drawable.ic_check_circle_filled : R.drawable.ic_check_circle_empty);
         }
+        
         return super.onPrepareOptionsMenu(menu);
     }
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
-        if (id == R.id.action_settings) {
+        if (id == android.R.id.home) {
+            onBackPressed();
+            return true;
+        } else if (id == R.id.action_settings) {
             Intent intent = new Intent(this, GallerySettingsActivity.class);
             intent.putExtra(UnlockActivity.EXTRA_VAULT_ID, currentVaultId);
             startActivity(intent);
@@ -624,8 +873,26 @@ public class SecretGalleryActivity extends AppCompatActivity {
     }
 
     @Override
-    public boolean onSupportNavigateUp() {
-        onBackPressed();
-        return true;
+    public void onBackPressed() {
+        if (adapter != null && adapter.isSelectionMode()) {
+            adapter.setSelectionMode(false);
+            return;
+        }
+        if (filterAlbumId != null || filterFavourites) {
+            filterAlbumId = null;
+            filterFavourites = false;
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setTitle("Notes+");
+                getSupportActionBar().setDisplayHomeAsUpEnabled(false);
+            }
+            recyclerViewGallery.setVisibility(View.GONE);
+            recyclerViewAlbums.setVisibility(View.VISIBLE);
+            tabLayout.setVisibility(View.VISIBLE);
+            tabLayout.selectTab(tabLayout.getTabAt(1));
+            observeAlbums();
+            invalidateOptionsMenu();
+            return;
+        }
+        super.onBackPressed();
     }
 }

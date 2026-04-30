@@ -13,6 +13,10 @@ public class SecretEntity {
     private long dateAdded;
     private boolean isVideo;
     private int vaultId;
+    
+    // New fields for Albums and Favourites
+    private boolean isFavourite;
+    private Integer albumId;
 
     public SecretEntity(String fileName, String originalPath, long dateTaken, long dateAdded, boolean isVideo, int vaultId) {
         this.fileName = fileName;
@@ -21,6 +25,8 @@ public class SecretEntity {
         this.dateAdded = dateAdded;
         this.isVideo = isVideo;
         this.vaultId = vaultId;
+        this.isFavourite = false;
+        this.albumId = null;
     }
 
     public int getId() { return id; }
@@ -37,4 +43,9 @@ public class SecretEntity {
     public void setVideo(boolean video) { isVideo = video; }
     public int getVaultId() { return vaultId; }
     public void setVaultId(int vaultId) { this.vaultId = vaultId; }
+
+    public boolean isFavourite() { return isFavourite; }
+    public void setFavourite(boolean favourite) { isFavourite = favourite; }
+    public Integer getAlbumId() { return albumId; }
+    public void setAlbumId(Integer albumId) { this.albumId = albumId; }
 }

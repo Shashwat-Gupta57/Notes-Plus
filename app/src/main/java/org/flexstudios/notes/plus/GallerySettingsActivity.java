@@ -455,6 +455,9 @@ public class GallerySettingsActivity extends AppCompatActivity {
             }
             dir.delete();
         }
+        Executors.newSingleThreadExecutor().execute(() -> {
+            database.albumDao().deleteAlbumsForVault(vault.getId());
+        });
     }
 
     private void restoreFile(SecretEntity s) throws GeneralSecurityException, IOException {

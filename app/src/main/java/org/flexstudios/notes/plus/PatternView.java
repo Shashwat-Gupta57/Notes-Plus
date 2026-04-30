@@ -23,6 +23,12 @@ public class PatternView extends View {
     private Path linePath = new Path();
     private float lastTouchX, lastTouchY;
     private OnPatternListener listener;
+    private OnTouchInteractionListener touchListener;
+
+    public interface OnTouchInteractionListener {
+        void onTouchStarted();
+        void onTouchEnded();
+    }
 
     public PatternView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
@@ -35,7 +41,7 @@ public class PatternView extends View {
         dotPaint.setStyle(Paint.Style.FILL);
 
         linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        linePaint.setColor(Color.parseColor("#FFCC00")); // Yellow like Apple Notes
+        linePaint.setColor(Color.parseColor("#FFCC00")); 
         linePaint.setStyle(Paint.Style.STROKE);
         linePaint.setStrokeWidth(12f);
         linePaint.setStrokeCap(Paint.Cap.ROUND);
@@ -80,7 +86,9 @@ public class PatternView extends View {
         float y = event.getY();
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
+                if (touchListener != null) touchListener.onTouchStarted();
                 resetPattern();
+                // fall through
             case MotionEvent.ACTION_MOVE:
                 lastTouchX = x;
                 lastTouchY = y;
@@ -88,6 +96,7 @@ public class PatternView extends View {
                 invalidate();
                 break;
             case MotionEvent.ACTION_UP:
+                if (touchListener != null) touchListener.onTouchEnded();
                 if (listener != null && !selectedDots.isEmpty()) {
                     listener.onPatternComplete(getPatternString());
                 }
@@ -104,7 +113,7 @@ public class PatternView extends View {
             if (!selectedDots.contains(dot)) {
                 float dx = x - dot.x;
                 float dy = y - dot.y;
-                if (Math.sqrt(dx * dx + dy * dy) < 80) { // Increased hit area slightly
+                if (Math.sqrt(dx * dx + dy * dy) < 80) { 
                     if (!selectedDots.isEmpty()) {
                         Dot last = selectedDots.get(selectedDots.size() - 1);
                         Dot between = getDotBetween(last, dot);
@@ -123,10 +132,7 @@ public class PatternView extends View {
         int c1 = d1.id % GRID_SIZE;
         int r2 = d2.id / GRID_SIZE;
         int c2 = d2.id % GRID_SIZE;
-
-        // Check if there is a dot exactly in the middle (integer division check)
         if (Math.abs(r1 - r2) % 2 == 0 && Math.abs(c1 - c2) % 2 == 0) {
-            // Check if they are collinear (horizontal, vertical, or diagonal)
             if (r1 == r2 || c1 == c2 || Math.abs(r1 - r2) == Math.abs(c1 - c2)) {
                 int midR = (r1 + r2) / 2;
                 int midC = (c1 + c2) / 2;
@@ -151,6 +157,10 @@ public class PatternView extends View {
 
     public void setOnPatternListener(OnPatternListener listener) {
         this.listener = listener;
+    }
+
+    public void setOnTouchInteractionListener(OnTouchInteractionListener touchListener) {
+        this.touchListener = touchListener;
     }
 
     public interface OnPatternListener {

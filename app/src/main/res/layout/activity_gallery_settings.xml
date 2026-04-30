@@ -22,61 +22,112 @@
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <TextView
-        android:id="@+id/optionChangeLock"
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true"
-        android:padding="16dp"
-        android:text="Change Lock"
-        android:textColor="#000000"
-        android:textSize="18sp" />
+        android:layout_height="match_parent">
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="0.5dp"
-        android:layout_marginStart="16dp"
-        android:background="#E5E5EA" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingStart="16dp"
-        android:paddingTop="24dp"
-        android:paddingBottom="8dp"
-        android:text="AUTO-LOCK"
-        android:textColor="#8E8E93"
-        android:textSize="12sp" />
-
-    <RadioGroup
-        android:id="@+id/radioGroupAutoLock"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp">
-
-        <RadioButton
-            android:id="@+id/radioImmediately"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Immediately"
-            android:textSize="16sp" />
+            android:orientation="vertical">
 
-        <RadioButton
-            android:id="@+id/radio30s"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="After 30 seconds"
-            android:textSize="16sp" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingTop="24dp"
+                android:paddingBottom="8dp"
+                android:text="VAULT MANAGEMENT"
+                android:textColor="#8E8E93"
+                android:textSize="12sp" />
 
-        <RadioButton
-            android:id="@+id/radio1m"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="After 1 minute"
-            android:textSize="16sp" />
-    </RadioGroup>
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerViewVaults"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false" />
 
+            <Button
+                android:id="@+id/btnAddVault"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="+ Create New Vault"
+                android:textColor="#FFCC00" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="0.5dp"
+                android:layout_marginTop="16dp"
+                android:background="#E5E5EA" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingTop="24dp"
+                android:paddingBottom="8dp"
+                android:text="SECURITY"
+                android:textColor="#8E8E93"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/optionChangeLock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:padding="16dp"
+                android:text="Change Main Vault Lock"
+                android:textColor="#000000"
+                android:textSize="18sp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="0.5dp"
+                android:layout_marginStart="16dp"
+                android:background="#E5E5EA" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingTop="24dp"
+                android:paddingBottom="8dp"
+                android:text="AUTO-LOCK"
+                android:textColor="#8E8E93"
+                android:textSize="12sp" />
+
+            <RadioGroup
+                android:id="@+id/radioGroupAutoLock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp">
+
+                <RadioButton
+                    android:id="@+id/radioImmediately"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Immediately"
+                    android:textSize="16sp" />
+
+                <RadioButton
+                    android:id="@+id/radio30s"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="After 30 seconds"
+                    android:textSize="16sp" />
+
+                <RadioButton
+                    android:id="@+id/radio1m"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="After 1 minute"
+                    android:textSize="16sp" />
+            </RadioGroup>
+        </LinearLayout>
+    </ScrollView>
 </LinearLayout>

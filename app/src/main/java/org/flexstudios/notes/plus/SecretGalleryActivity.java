@@ -62,6 +62,7 @@ public class SecretGalleryActivity extends AppCompatActivity {
     private AppDatabase database;
     private boolean skipAutoLockOnce = false;
     private boolean isAllSelected = false;
+    private int currentVaultId = 1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,10 +71,14 @@ public class SecretGalleryActivity extends AppCompatActivity {
         setContentView(R.layout.activity_secret_gallery);
 
         database = AppDatabase.getInstance(this);
-        // Removed handleIntent call since method was missing
+        currentVaultId = getIntent().getIntExtra(UnlockActivity.EXTRA_VAULT_ID, 1);
+        handleIntent(getIntent());
 
         Toolbar toolbar = findViewById(R.id.toolbarGallery);
         setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle("Notes+"); // Always Notes+
+        }
 
         vaultDir = new File(getFilesDir(), "vault");
         if (!vaultDir.exists()) vaultDir.mkdirs();
@@ -97,6 +102,7 @@ public class SecretGalleryActivity extends AppCompatActivity {
             public void onItemClick(SecretItem item) {
                 Intent intent = new Intent(SecretGalleryActivity.this, MediaPagerActivity.class);
                 intent.putExtra("initial_file_path", item.getFile().getAbsolutePath());
+                intent.putExtra(UnlockActivity.EXTRA_VAULT_ID, currentVaultId);
                 startActivity(intent);
             }
 
@@ -105,7 +111,9 @@ public class SecretGalleryActivity extends AppCompatActivity {
 
             @Override
             public void onSelectionChanged(int count) {
-                selectionBottomBar.setVisibility(count > 0 ? View.VISIBLE : View.GONE);
+                if (selectionBottomBar != null) {
+                    selectionBottomBar.setVisibility(count > 0 ? View.VISIBLE : View.GONE);
+                }
                 invalidateOptionsMenu();
             }
 
@@ -144,35 +152,183 @@ public class SecretGalleryActivity extends AppCompatActivity {
         checkStoragePermission();
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.gallery_menu, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onPrepareOptionsMenu(Menu menu) {
-        MenuItem selectAllItem = menu.findItem(R.id.action_select_all);
-        if (selectAllItem != null) {
-            selectAllItem.setVisible(adapter != null && adapter.isSelectionMode());
-            selectAllItem.setIcon(isAllSelected ? R.drawable.ic_check_circle_filled : R.drawable.ic_check_circle_empty);
+    private void handleIntent(Intent intent) {
+        if (intent != null && intent.getBooleanExtra(UnlockActivity.EXTRA_UNLOCKED_FLAG, false)) {
+            skipAutoLockOnce = true;
         }
-        return super.onPrepareOptionsMenu(menu);
     }
 
     @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        int id = item.getItemId();
-        if (id == R.id.action_settings) {
-            startActivity(new Intent(this, GallerySettingsActivity.class));
-            return true;
-        } else if (id == R.id.action_select_all) {
-            if (adapter != null) {
-                adapter.selectAll(!isAllSelected);
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIntent(intent);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!skipAutoLockOnce) {
+            checkAutoLock();
+        }
+        skipAutoLockOnce = false;
+        SecurityHelper.updateLastActiveTime(this);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        SecurityHelper.updateLastActiveTime(this);
+    }
+
+    private void checkAutoLock() {
+        long delay = SecurityHelper.getAutoLockDelay(this);
+        long lastActive = SecurityHelper.getLastActiveTime(this);
+        long now = System.currentTimeMillis();
+        long effectiveDelay = (delay == 0) ? 2000 : delay;
+        if (lastActive > 0 && (now - lastActive) > effectiveDelay) {
+            Intent intent = new Intent(this, UnlockActivity.class);
+            intent.putExtra(UnlockActivity.EXTRA_VAULT_ID, currentVaultId);
+            startActivity(intent);
+            finish();
+        }
+    }
+
+    private void observeVault() {
+        database.secretDao().getSecretsForVault(currentVaultId).observe(this, entities -> {
+            executor.execute(() -> {
+                List<SecretItem> newItems = new ArrayList<>();
+                for (SecretEntity entity : entities) {
+                    File file = new File(vaultDir, entity.getFileName());
+                    if (file.exists()) {
+                        newItems.add(new SecretItem(file, entity.isVideo()));
+                    }
+                }
+                runOnUiThread(() -> {
+                    secretItems.clear();
+                    secretItems.addAll(newItems);
+                    if (adapter != null) {
+                        adapter.updateData(secretItems, entities);
+                    }
+                    emptyState.setVisibility(entities.isEmpty() ? View.VISIBLE : View.GONE);
+                });
+            });
+        });
+    }
+
+    private void pickFile() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        intent.setType("image/* video/*");
+        startActivityForResult(intent, PICK_FILE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == MANAGE_STORAGE_REQUEST) {
+            if (checkStoragePermission()) Toast.makeText(this, "Permission Granted!", Toast.LENGTH_SHORT).show();
+        } else if (resultCode == RESULT_OK && data != null) {
+            if (requestCode == PICK_FILE) {
+                if (data.getClipData() != null) {
+                    ClipData clipData = data.getClipData();
+                    List<Uri> uris = new ArrayList<>();
+                    for (int i = 0; i < clipData.getItemCount(); i++) uris.add(clipData.getItemAt(i).getUri());
+                    processUris(uris);
+                } else if (data.getData() != null) {
+                    processUris(Collections.singletonList(data.getData()));
+                }
             }
-            return true;
         }
-        return super.onOptionsItemSelected(item);
+    }
+
+    private void processUris(List<Uri> uris) {
+        AtomicInteger processedCount = new AtomicInteger(0);
+        int total = uris.size();
+        for (Uri uri : uris) {
+            executor.execute(() -> {
+                try {
+                    String mimeType = getContentResolver().getType(uri);
+                    boolean isVideo = mimeType != null && mimeType.startsWith("video");
+                    String originalPath = getActualPath(uri);
+                    long dateTaken = recoverOriginalDate(uri, originalPath, isVideo);
+                    long dateAdded = System.currentTimeMillis();
+                    String fileName = (isVideo ? "VID_" : "IMG_") + dateAdded + "_" + processedCount.get();
+                    File encryptedFile = new File(vaultDir, fileName);
+                    String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
+                    EncryptedFile encryptedStorage = new EncryptedFile.Builder(
+                            encryptedFile, this, masterKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
+                    ).build();
+
+                    try (InputStream in = getContentResolver().openInputStream(uri);
+                         OutputStream out = encryptedStorage.openFileOutput()) {
+                        byte[] buffer = new byte[8192];
+                        int len;
+                        while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
+                    }
+                    SecretEntity entity = new SecretEntity(fileName, originalPath, dateTaken, dateAdded, isVideo, currentVaultId);
+                    database.secretDao().insert(entity);
+
+                    if (originalPath != null) {
+                        File originalFile = new File(originalPath);
+                        if (originalFile.exists()) {
+                            originalFile.delete();
+                            Intent scanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+                            scanIntent.setData(Uri.fromFile(originalFile));
+                            sendBroadcast(scanIntent);
+                        }
+                    }
+                    if (processedCount.incrementAndGet() == total) {
+                        runOnUiThread(() -> Toast.makeText(this, "Secured " + total + " items", Toast.LENGTH_SHORT).show());
+                    }
+                } catch (Exception e) { e.printStackTrace(); }
+            });
+        }
+    }
+
+    private String getActualPath(Uri uri) {
+        String path = null;
+        String[] projection = { MediaStore.MediaColumns.DATA };
+        try (Cursor cursor = getContentResolver().query(uri, projection, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(MediaStore.MediaColumns.DATA);
+                if (index != -1) path = cursor.getString(index);
+            }
+        }
+        return path;
+    }
+
+    private long recoverOriginalDate(Uri uri, String path, boolean isVideo) {
+        if (!isVideo) {
+            try (InputStream inputStream = getContentResolver().openInputStream(uri)) {
+                if (inputStream != null) {
+                    ExifInterface exif = new ExifInterface(inputStream);
+                    String dateString = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL);
+                    if (dateString == null) dateString = exif.getAttribute(ExifInterface.TAG_DATETIME);
+                    if (dateString != null) {
+                        SimpleDateFormat fmt = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault());
+                        Date d = fmt.parse(dateString);
+                        if (d != null) return d.getTime();
+                    }
+                }
+            } catch (Exception e) {}
+        }
+        if (path != null && path.toLowerCase().contains("whatsapp")) {
+            Pattern waPattern = Pattern.compile("(IMG|VID)-(\\d{8})-WA");
+            Matcher matcher = waPattern.matcher(new File(path).getName());
+            if (matcher.find()) {
+                try {
+                    SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd", Locale.US);
+                    Date d = fmt.parse(matcher.group(2));
+                    if (d != null) return d.getTime();
+                } catch (Exception e) {}
+            }
+        }
+        if (path != null) {
+            File f = new File(path);
+            if (f.exists()) return f.lastModified();
+        }
+        return System.currentTimeMillis();
     }
 
     private void shareSelectedItems() {
@@ -232,7 +388,6 @@ public class SecretGalleryActivity extends AppCompatActivity {
             runOnUiThread(() -> {
                 Toast.makeText(this, "Restored " + finalCount + " items", Toast.LENGTH_SHORT).show();
                 adapter.setSelectionMode(false);
-                observeVault(); 
             });
         });
     }
@@ -251,10 +406,7 @@ public class SecretGalleryActivity extends AppCompatActivity {
                             if (entity != null) database.secretDao().delete(entity);
                             item.getFile().delete();
                         }
-                        runOnUiThread(() -> {
-                            adapter.setSelectionMode(false);
-                            observeVault();
-                        });
+                        runOnUiThread(() -> adapter.setSelectionMode(false));
                     });
                 })
                 .setNegativeButton("Cancel", null)
@@ -330,145 +482,42 @@ public class SecretGalleryActivity extends AppCompatActivity {
         }
     }
 
-    private void observeVault() {
-        database.secretDao().getAllSecrets().observe(this, entities -> {
-            executor.execute(() -> {
-                List<SecretItem> newItems = new ArrayList<>();
-                for (SecretEntity entity : entities) {
-                    File file = new File(vaultDir, entity.getFileName());
-                    if (file.exists()) newItems.add(new SecretItem(file, entity.isVideo()));
-                }
-                runOnUiThread(() -> {
-                    secretItems.clear();
-                    secretItems.addAll(newItems);
-                    if (adapter != null) adapter.updateData(secretItems, entities);
-                    emptyState.setVisibility(entities.isEmpty() ? View.VISIBLE : View.GONE);
-                });
-            });
-        });
-    }
-
-    private void pickFile() {
-        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-        intent.setType("image/* video/*");
-        startActivityForResult(intent, PICK_FILE);
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.gallery_menu, menu);
+        return true;
     }
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == MANAGE_STORAGE_REQUEST) {
-            if (checkStoragePermission()) Toast.makeText(this, "Permission Granted!", Toast.LENGTH_SHORT).show();
-        } else if (resultCode == RESULT_OK && data != null) {
-            if (requestCode == PICK_FILE) {
-                if (data.getClipData() != null) {
-                    ClipData clipData = data.getClipData();
-                    List<Uri> uris = new ArrayList<>();
-                    for (int i = 0; i < clipData.getItemCount(); i++) uris.add(clipData.getItemAt(i).getUri());
-                    processUris(uris);
-                } else if (data.getData() != null) {
-                    processUris(Collections.singletonList(data.getData()));
-                }
-            }
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        MenuItem selectAllItem = menu.findItem(R.id.action_select_all);
+        if (selectAllItem != null) {
+            selectAllItem.setVisible(adapter != null && adapter.isSelectionMode());
+            selectAllItem.setIcon(isAllSelected ? R.drawable.ic_check_circle_filled : R.drawable.ic_check_circle_empty);
         }
-    }
-
-    private void processUris(List<Uri> uris) {
-        AtomicInteger processedCount = new AtomicInteger(0);
-        int total = uris.size();
-        for (Uri uri : uris) {
-            executor.execute(() -> {
-                try {
-                    String mimeType = getContentResolver().getType(uri);
-                    boolean isVideo = mimeType != null && mimeType.startsWith("video");
-                    String originalPath = getActualPath(uri);
-                    long dateTaken = recoverOriginalDate(uri, originalPath, isVideo);
-                    long dateAdded = System.currentTimeMillis();
-                    String fileName = (isVideo ? "VID_" : "IMG_") + dateAdded + "_" + processedCount.get();
-                    File encryptedFile = new File(vaultDir, fileName);
-                    String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
-                    EncryptedFile encryptedStorage = new EncryptedFile.Builder(
-                            encryptedFile, this, masterKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
-                    ).build();
-
-                    try (InputStream in = getContentResolver().openInputStream(uri);
-                         OutputStream out = encryptedStorage.openFileOutput()) {
-                        byte[] buffer = new byte[8192];
-                        int len;
-                        while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
-                    }
-                    SecretEntity entity = new SecretEntity(fileName, originalPath, dateTaken, dateAdded, isVideo);
-                    database.secretDao().insert(entity);
-
-                    if (originalPath != null) {
-                        File originalFile = new File(originalPath);
-                        if (originalFile.exists()) {
-                            originalFile.delete();
-                            Intent scanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-                            scanIntent.setData(Uri.fromFile(originalFile));
-                            sendBroadcast(scanIntent);
-                        }
-                    }
-                    if (processedCount.incrementAndGet() == total) {
-                        runOnUiThread(() -> {
-                            Toast.makeText(this, "Secured " + total + " items", Toast.LENGTH_SHORT).show();
-                            observeVault();
-                        });
-                    }
-                } catch (Exception e) { e.printStackTrace(); }
-            });
-        }
-    }
-
-    private String getActualPath(Uri uri) {
-        String path = null;
-        String[] projection = { MediaStore.MediaColumns.DATA };
-        try (Cursor cursor = getContentResolver().query(uri, projection, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int index = cursor.getColumnIndex(MediaStore.MediaColumns.DATA);
-                if (index != -1) path = cursor.getString(index);
-            }
-        }
-        return path;
-    }
-
-    private long recoverOriginalDate(Uri uri, String path, boolean isVideo) {
-        if (!isVideo) {
-            try (InputStream inputStream = getContentResolver().openInputStream(uri)) {
-                if (inputStream != null) {
-                    ExifInterface exif = new ExifInterface(inputStream);
-                    String dateString = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL);
-                    if (dateString == null) dateString = exif.getAttribute(ExifInterface.TAG_DATETIME);
-                    if (dateString != null) {
-                        SimpleDateFormat fmt = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault());
-                        Date d = fmt.parse(dateString);
-                        if (d != null) return d.getTime();
-                    }
-                }
-            } catch (Exception e) {}
-        }
-        if (path != null && path.toLowerCase().contains("whatsapp")) {
-            Pattern waPattern = Pattern.compile("(IMG|VID)-(\\d{8})-WA");
-            Matcher matcher = waPattern.matcher(new File(path).getName());
-            if (matcher.find()) {
-                try {
-                    SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd", Locale.US);
-                    Date d = fmt.parse(matcher.group(2));
-                    if (d != null) return d.getTime();
-                } catch (Exception e) {}
-            }
-        }
-        if (path != null) {
-            File f = new File(path);
-            if (f.exists()) return f.lastModified();
-        }
-        return System.currentTimeMillis();
+        return super.onPrepareOptionsMenu(menu);
     }
 
     @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.action_settings) {
+            Intent intent = new Intent(this, GallerySettingsActivity.class);
+            intent.putExtra(UnlockActivity.EXTRA_VAULT_ID, currentVaultId);
+            startActivity(intent);
+            return true;
+        } else if (id == R.id.action_select_all) {
+            if (adapter != null) {
+                adapter.selectAll(!isAllSelected);
+            }
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public boolean onSupportNavigateUp() {
+        onBackPressed();
+        return true;
     }
 }

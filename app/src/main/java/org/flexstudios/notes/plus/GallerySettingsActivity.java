@@ -2,6 +2,7 @@ package org.flexstudios.notes.plus;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -9,10 +10,9 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageButton;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -37,12 +37,19 @@ import java.util.List;
 import java.util.concurrent.Executors;
 
 public class GallerySettingsActivity extends AppCompatActivity {
+    private static final int PICK_VAULT_BG = 1001;
+    private static final int PICK_LOCK_BG = 1002;
+
     private RecyclerView recyclerViewVaults;
     private VaultSettingsAdapter adapter;
     private AppDatabase database;
     private List<VaultEntity> vaults = new ArrayList<>();
     private int currentVaultId = 1;
+    private VaultEntity currentVault;
     private boolean isMainVaultSettings = true;
+
+    private CheckBox checkLockBgBlur, checkLockBgDim;
+    private View layoutLockBgOptions;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,20 +73,18 @@ public class GallerySettingsActivity extends AppCompatActivity {
         recyclerViewVaults.setAdapter(adapter);
 
         findViewById(R.id.btnAddVault).setOnClickListener(v -> showCreateVaultDialog());
-
         findViewById(R.id.optionChangeLock).setOnClickListener(v -> {
-            // Find current vault to change its lock
-            Executors.newSingleThreadExecutor().execute(() -> {
-                VaultEntity currentVault = database.vaultDao().getVaultById(currentVaultId);
-                if (currentVault != null) {
-                    runOnUiThread(() -> showEditVaultDialog(currentVault));
-                }
-            });
+            if (currentVault != null) showEditVaultDialog(currentVault);
         });
 
-        RadioGroup radioGroup = findViewById(R.id.radioGroupAutoLock);
+        setupAutoLock();
+        setupBackgroundSettings();
+        checkVaultAccess();
+    }
+
+    private void setupAutoLock() {
+        android.widget.RadioGroup radioGroup = findViewById(R.id.radioGroupAutoLock);
         long currentDelay = SecurityHelper.getAutoLockDelay(this);
-        
         if (currentDelay == 0) radioGroup.check(R.id.radioImmediately);
         else if (currentDelay == 30000) radioGroup.check(R.id.radio30s);
         else if (currentDelay == 60000) radioGroup.check(R.id.radio1m);
@@ -90,18 +95,126 @@ public class GallerySettingsActivity extends AppCompatActivity {
             else if (checkedId == R.id.radio1m) delay = 60000;
             SecurityHelper.setAutoLockDelay(this, delay);
         });
+    }
 
-        checkVaultAccess();
+    private void setupBackgroundSettings() {
+        // Vault Interior
+        findViewById(R.id.btnVaultBgDefault).setOnClickListener(v -> updateVaultBg("DEFAULT", null));
+        findViewById(R.id.btnVaultBgColor).setOnClickListener(v -> showColorPickerDialog(true));
+        findViewById(R.id.btnVaultBgImage).setOnClickListener(v -> pickImage(PICK_VAULT_BG));
+
+        // Lock Screen
+        findViewById(R.id.btnLockBgDefault).setOnClickListener(v -> updateLockBg("DEFAULT", null));
+        findViewById(R.id.btnLockBgColor).setOnClickListener(v -> showColorPickerDialog(false));
+        findViewById(R.id.btnLockBgImage).setOnClickListener(v -> pickImage(PICK_LOCK_BG));
+
+        layoutLockBgOptions = findViewById(R.id.layoutLockBgOptions);
+        checkLockBgBlur = findViewById(R.id.checkLockBgBlur);
+        checkLockBgDim = findViewById(R.id.checkLockBgDim);
+
+        String lockBgType = SecurityHelper.getAppPrefs(this).getString(SecurityHelper.KEY_LOCK_BG_TYPE, "DEFAULT");
+        layoutLockBgOptions.setVisibility("IMAGE".equals(lockBgType) ? View.VISIBLE : View.GONE);
+
+        checkLockBgBlur.setChecked(SecurityHelper.getAppPrefs(this).getBoolean(SecurityHelper.KEY_LOCK_BG_BLUR, false));
+        checkLockBgDim.setChecked(SecurityHelper.getAppPrefs(this).getBoolean(SecurityHelper.KEY_LOCK_BG_DIM, false));
+
+        checkLockBgBlur.setOnCheckedChangeListener((v, checked) -> SecurityHelper.getAppPrefs(this).edit().putBoolean(SecurityHelper.KEY_LOCK_BG_BLUR, checked).apply());
+        checkLockBgDim.setOnCheckedChangeListener((v, checked) -> SecurityHelper.getAppPrefs(this).edit().putBoolean(SecurityHelper.KEY_LOCK_BG_DIM, checked).apply());
+    }
+
+    private void pickImage(int requestCode) {
+        Intent intent = new Intent(Intent.ACTION_PICK);
+        intent.setType("image/*");
+        startActivityForResult(intent, requestCode);
+    }
+
+    private void showColorPickerDialog(boolean forVault) {
+        EditText input = new EditText(this);
+        input.setHint("#RRGGBB");
+        new AlertDialog.Builder(this)
+                .setTitle("Enter Hex Color")
+                .setView(input)
+                .setPositiveButton("Set", (d, w) -> {
+                    String color = input.getText().toString().trim();
+                    try {
+                        Color.parseColor(color);
+                        if (forVault) updateVaultBg("COLOR", color);
+                        else updateLockBg("COLOR", color);
+                    } catch (Exception e) {
+                        Toast.makeText(this, "Invalid color format", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void updateVaultBg(String type, String value) {
+        if (currentVault == null) return;
+        currentVault.setBgType(type);
+        currentVault.setBgValue(value);
+        Executors.newSingleThreadExecutor().execute(() -> database.vaultDao().update(currentVault));
+        Toast.makeText(this, "Vault background updated", Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateLockBg(String type, String value) {
+        SecurityHelper.getAppPrefs(this).edit()
+                .putString(SecurityHelper.KEY_LOCK_BG_TYPE, type)
+                .putString(SecurityHelper.KEY_LOCK_BG_VALUE, value)
+                .apply();
+        layoutLockBgOptions.setVisibility("IMAGE".equals(type) ? View.VISIBLE : View.GONE);
+        Toast.makeText(this, "Lock screen background updated", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+            Uri imageUri = data.getData();
+            if (requestCode == PICK_VAULT_BG) {
+                saveBgImage(imageUri, true);
+            } else if (requestCode == PICK_LOCK_BG) {
+                saveBgImage(imageUri, false);
+            }
+        }
+    }
+
+    private void saveBgImage(Uri uri, boolean forVault) {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                File dir = forVault ? new File(getFilesDir(), "bg_vault_" + currentVaultId) : new File(getFilesDir(), "bg_lock");
+                if (!dir.exists()) dir.mkdirs();
+                
+                String fileName = "bg_" + System.currentTimeMillis() + ".jpg";
+                File file = new File(dir, fileName);
+                
+                // Delete old images in the dir
+                File[] oldFiles = dir.listFiles();
+                if (oldFiles != null) {
+                    for (File f : oldFiles) f.delete();
+                }
+
+                try (InputStream in = getContentResolver().openInputStream(uri);
+                     FileOutputStream out = new FileOutputStream(file)) {
+                    byte[] buffer = new byte[8192];
+                    int len;
+                    while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
+                }
+
+                runOnUiThread(() -> {
+                    if (forVault) updateVaultBg("IMAGE", file.getAbsolutePath());
+                    else updateLockBg("IMAGE", file.getAbsolutePath());
+                });
+            } catch (IOException e) { e.printStackTrace(); }
+        });
     }
 
     private void checkVaultAccess() {
         Executors.newSingleThreadExecutor().execute(() -> {
-            VaultEntity current = database.vaultDao().getVaultById(currentVaultId);
-            isMainVaultSettings = (current != null && current.isMain());
+            currentVault = database.vaultDao().getVaultById(currentVaultId);
+            isMainVaultSettings = (currentVault != null && currentVault.isMain());
             runOnUiThread(() -> {
                 findViewById(R.id.recyclerViewVaults).setVisibility(isMainVaultSettings ? View.VISIBLE : View.GONE);
                 findViewById(R.id.btnAddVault).setVisibility(isMainVaultSettings ? View.VISIBLE : View.GONE);
-                // Option title change if secondary
                 TextView optionTitle = findViewById(R.id.optionChangeLock);
                 optionTitle.setText(isMainVaultSettings ? "Change Main Vault Lock" : "Change Vault Lock");
                 if (isMainVaultSettings) loadVaults();
@@ -269,12 +382,12 @@ public class GallerySettingsActivity extends AppCompatActivity {
                             .setNeutralButton("Cancel", null)
                             .setNegativeButton("Delete Everything", (d, w) -> {
                                 Executors.newSingleThreadExecutor().execute(() -> {
-                                    // Delete all files and db records
                                     List<SecretEntity> secrets = database.secretDao().getSecretsForVaultDirect(vault.getId());
                                     for (SecretEntity s : secrets) {
                                         new File(getFilesDir(), "vault/" + s.getFileName()).delete();
                                         database.secretDao().delete(s);
                                     }
+                                    deleteVaultResources(vault);
                                     database.vaultDao().delete(vault);
                                 });
                             })
@@ -287,6 +400,7 @@ public class GallerySettingsActivity extends AppCompatActivity {
                                             database.secretDao().delete(s);
                                         } catch (Exception e) { e.printStackTrace(); }
                                     }
+                                    deleteVaultResources(vault);
                                     database.vaultDao().delete(vault);
                                 });
                             })
@@ -296,13 +410,27 @@ public class GallerySettingsActivity extends AppCompatActivity {
                             .setTitle("Delete Vault?")
                             .setMessage("Are you sure you want to delete this empty vault?")
                             .setPositiveButton("Delete", (d, w) -> {
-                                Executors.newSingleThreadExecutor().execute(() -> database.vaultDao().delete(vault));
+                                Executors.newSingleThreadExecutor().execute(() -> {
+                                    deleteVaultResources(vault);
+                                    database.vaultDao().delete(vault);
+                                });
                             })
                             .setNegativeButton("Cancel", null)
                             .show();
                 }
             });
         });
+    }
+
+    private void deleteVaultResources(VaultEntity vault) {
+        File dir = new File(getFilesDir(), "bg_vault_" + vault.getId());
+        if (dir.exists()) {
+            File[] files = dir.listFiles();
+            if (files != null) {
+                for (File f : files) f.delete();
+            }
+            dir.delete();
+        }
     }
 
     private void restoreFile(SecretEntity s) throws GeneralSecurityException, IOException {

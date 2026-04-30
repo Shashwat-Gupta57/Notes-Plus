@@ -1,20 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="8dp"
-    android:background="#F2F2F7">
+    android:padding="8dp">
 
-    <TextView
-        android:id="@+id/dateHeaderText"
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
         android:layout_centerVertical="true"
-        android:padding="8dp"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:textColor="#8E8E93" />
+        app:cardBackgroundColor="#A6FFFFFF"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="0dp"
+        app:strokeWidth="0dp">
+
+        <TextView
+            android:id="@+id/dateHeaderText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:text="Date"
+            android:textColor="#333333"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+    </com.google.android.material.card.MaterialCardView>
 
     <FrameLayout
         android:id="@+id/headerSelectionContainer"
@@ -29,8 +41,8 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:layout_gravity="center"
-            android:src="@drawable/ic_check_circle_empty"
-            android:alpha="0.5" />
+            android:alpha="0.5"
+            android:src="@drawable/ic_check_circle_empty" />
 
         <ImageView
             android:id="@+id/headerCheckCircleFilled"

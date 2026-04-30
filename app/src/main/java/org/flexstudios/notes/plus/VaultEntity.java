@@ -12,6 +12,10 @@ public class VaultEntity {
     private String lockValue;
     private boolean isMain;
     private int sortOrder;
+    
+    // Background customization
+    private String bgType; // "DEFAULT", "COLOR", "IMAGE"
+    private String bgValue; // Hex color or filename
 
     public VaultEntity(String name, String lockType, String lockValue, boolean isMain, int sortOrder) {
         this.name = name;
@@ -19,6 +23,7 @@ public class VaultEntity {
         this.lockValue = lockValue;
         this.isMain = isMain;
         this.sortOrder = sortOrder;
+        this.bgType = "DEFAULT";
     }
 
     public int getId() { return id; }
@@ -33,4 +38,9 @@ public class VaultEntity {
     public void setMain(boolean main) { isMain = main; }
     public int getSortOrder() { return sortOrder; }
     public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
+
+    public String getBgType() { return bgType; }
+    public void setBgType(String bgType) { this.bgType = bgType; }
+    public String getBgValue() { return bgValue; }
+    public void setBgValue(String bgValue) { this.bgValue = bgValue; }
 }

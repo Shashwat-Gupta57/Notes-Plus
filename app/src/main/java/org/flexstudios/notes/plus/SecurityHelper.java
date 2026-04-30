@@ -18,6 +18,12 @@ public class SecurityHelper {
     public static final String KEY_AUTO_LOCK_TIME = "auto_lock_time"; // in milliseconds
     public static final String KEY_LAST_ACTIVE_TIME = "last_active_time";
 
+    // Universal Lock Screen Background
+    public static final String KEY_LOCK_BG_TYPE = "lock_bg_type"; // "DEFAULT", "COLOR", "IMAGE"
+    public static final String KEY_LOCK_BG_VALUE = "lock_bg_value";
+    public static final String KEY_LOCK_BG_BLUR = "lock_bg_blur";
+    public static final String KEY_LOCK_BG_DIM = "lock_bg_dim";
+
     public static SharedPreferences getEncryptedPrefs(Context context) {
         try {
             String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
@@ -68,5 +74,9 @@ public class SecurityHelper {
     public static long getLastActiveTime(Context context) {
         return context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
                 .getLong(KEY_LAST_ACTIVE_TIME, 0);
+    }
+
+    public static SharedPreferences getAppPrefs(Context context) {
+        return context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE);
     }
 }

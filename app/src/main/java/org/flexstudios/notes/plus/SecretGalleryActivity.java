@@ -5,6 +5,7 @@ import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.Intent;
 import android.database.Cursor;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -16,6 +17,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
@@ -30,6 +32,8 @@ import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.security.crypto.EncryptedFile;
 import androidx.security.crypto.MasterKeys;
+
+import com.bumptech.glide.Glide;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -64,6 +68,9 @@ public class SecretGalleryActivity extends AppCompatActivity {
     private boolean isAllSelected = false;
     private int currentVaultId = 1;
 
+    private ImageView vaultBackground;
+    private View blurCircle, galleryRoot;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -83,6 +90,10 @@ public class SecretGalleryActivity extends AppCompatActivity {
         vaultDir = new File(getFilesDir(), "vault");
         if (!vaultDir.exists()) vaultDir.mkdirs();
         createNoMediaFile();
+
+        vaultBackground = findViewById(R.id.vaultBackground);
+        blurCircle = findViewById(R.id.blurCircle);
+        galleryRoot = findViewById(R.id.galleryRoot);
 
         selectionBottomBar = findViewById(R.id.selectionBottomBar);
         emptyState = findViewById(R.id.emptyStateGallery);
@@ -149,7 +160,48 @@ public class SecretGalleryActivity extends AppCompatActivity {
         });
 
         observeVault();
+        applyVaultBackground();
         checkStoragePermission();
+    }
+
+    private void applyVaultBackground() {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            VaultEntity vault = database.vaultDao().getVaultById(currentVaultId);
+            if (vault != null) {
+                runOnUiThread(() -> {
+                    String type = vault.getBgType();
+                    String value = vault.getBgValue();
+
+                    if ("COLOR".equals(type) && value != null) {
+                        try {
+                            galleryRoot.setBackgroundColor(Color.parseColor(value));
+                            vaultBackground.setVisibility(View.GONE);
+                            blurCircle.setVisibility(View.GONE);
+                        } catch (Exception e) {
+                            restoreDefaultBackground();
+                        }
+                    } else if ("IMAGE".equals(type) && value != null) {
+                        File imgFile = new File(value);
+                        if (imgFile.exists()) {
+                            vaultBackground.setVisibility(View.VISIBLE);
+                            blurCircle.setVisibility(View.GONE);
+                            galleryRoot.setBackgroundColor(Color.TRANSPARENT);
+                            Glide.with(this).load(imgFile).into(vaultBackground);
+                        } else {
+                            restoreDefaultBackground();
+                        }
+                    } else {
+                        restoreDefaultBackground();
+                    }
+                });
+            }
+        });
+    }
+
+    private void restoreDefaultBackground() {
+        galleryRoot.setBackgroundColor(Color.parseColor("#F2F2F7"));
+        vaultBackground.setVisibility(View.GONE);
+        blurCircle.setVisibility(View.VISIBLE);
     }
 
     private void handleIntent(Intent intent) {
@@ -173,6 +225,7 @@ public class SecretGalleryActivity extends AppCompatActivity {
         }
         skipAutoLockOnce = false;
         SecurityHelper.updateLastActiveTime(this);
+        applyVaultBackground(); // Refresh if background was changed in settings
     }
 
     @Override

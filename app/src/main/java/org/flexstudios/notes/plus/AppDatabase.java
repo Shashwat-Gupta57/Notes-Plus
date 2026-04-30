@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import java.util.concurrent.Executors;
 
-@Database(entities = {NoteEntity.class, SecretEntity.class, VaultEntity.class}, version = 3, exportSchema = false)
+@Database(entities = {NoteEntity.class, SecretEntity.class, VaultEntity.class}, version = 4, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static AppDatabase instance;
 
@@ -23,7 +23,7 @@ public abstract class AppDatabase extends RoomDatabase {
         if (instance == null) {
             instance = Room.databaseBuilder(context.getApplicationContext(),
                             AppDatabase.class, "notes_database")
-                    .addMigrations(MIGRATION_2_3)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                     .addCallback(new Callback() {
                         @Override
                         public void onOpen(@NonNull SupportSQLiteDatabase db) {
@@ -64,6 +64,14 @@ public abstract class AppDatabase extends RoomDatabase {
             
             // Add vaultId column to secrets table
             database.execSQL("ALTER TABLE `secrets` ADD COLUMN `vaultId` INTEGER NOT NULL DEFAULT 1");
+        }
+    };
+
+    static final Migration MIGRATION_3_4 = new Migration(3, 4) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE `vaults` ADD COLUMN `bgType` TEXT DEFAULT 'DEFAULT'");
+            database.execSQL("ALTER TABLE `vaults` ADD COLUMN `bgValue` TEXT");
         }
     };
 }

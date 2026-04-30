@@ -29,7 +29,8 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:paddingBottom="32dp">
 
             <TextView
                 android:layout_width="match_parent"
@@ -55,6 +56,118 @@
                 android:layout_marginStart="8dp"
                 android:text="+ Create New Vault"
                 android:textColor="#FFCC00" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="0.5dp"
+                android:layout_marginTop="16dp"
+                android:background="#E5E5EA" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingTop="24dp"
+                android:paddingBottom="8dp"
+                android:text="VAULT INTERIOR BACKGROUND (CURRENT)"
+                android:textColor="#8E8E93"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp">
+                <Button
+                    android:id="@+id/btnVaultBgDefault"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Default"
+                    style="@style/Widget.Material3.Button.OutlinedButton"/>
+                <Button
+                    android:id="@+id/btnVaultBgColor"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="Color"
+                    style="@style/Widget.Material3.Button.OutlinedButton"/>
+                <Button
+                    android:id="@+id/btnVaultBgImage"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="Image"
+                    style="@style/Widget.Material3.Button.OutlinedButton"/>
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="0.5dp"
+                android:layout_marginTop="16dp"
+                android:background="#E5E5EA" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingTop="24dp"
+                android:paddingBottom="8dp"
+                android:text="LOCK SCREEN BACKGROUND (GLOBAL)"
+                android:textColor="#8E8E93"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp">
+                <Button
+                    android:id="@+id/btnLockBgDefault"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Default"
+                    style="@style/Widget.Material3.Button.OutlinedButton"/>
+                <Button
+                    android:id="@+id/btnLockBgColor"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="Color"
+                    style="@style/Widget.Material3.Button.OutlinedButton"/>
+                <Button
+                    android:id="@+id/btnLockBgImage"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="Image"
+                    style="@style/Widget.Material3.Button.OutlinedButton"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/layoutLockBgOptions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:visibility="gone">
+                <CheckBox
+                    android:id="@+id/checkLockBgBlur"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Blur Background Image"/>
+                <CheckBox
+                    android:id="@+id/checkLockBgDim"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Dim Background Image"/>
+            </LinearLayout>
 
             <View
                 android:layout_width="match_parent"

@@ -10,8 +10,8 @@ android {
         applicationId = "org.flexstudios.notes.plus"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "3.50"
+        versionCode = 5
+        versionName = "5.00"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -65,6 +65,9 @@ dependencies {
 
     // PhotoView for Zoom
     implementation(libs.photoview)
+
+    // Lifecycle Process for Updates
+    implementation(libs.lifecycle.process)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)

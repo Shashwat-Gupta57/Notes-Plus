@@ -20,11 +20,11 @@ public interface SecretDao {
     @Delete
     void delete(SecretEntity secret);
 
-    @Query("SELECT * FROM secrets ORDER BY dateTaken DESC, dateAdded DESC")
-    LiveData<List<SecretEntity>> getAllSecrets();
+    @Query("SELECT * FROM secrets WHERE vaultId = :vaultId ORDER BY dateTaken DESC, dateAdded DESC")
+    LiveData<List<SecretEntity>> getSecretsForVault(int vaultId);
 
-    @Query("SELECT * FROM secrets ORDER BY dateTaken DESC, dateAdded DESC")
-    List<SecretEntity> getAllSecretsDirect();
+    @Query("SELECT * FROM secrets WHERE vaultId = :vaultId ORDER BY dateTaken DESC, dateAdded DESC")
+    List<SecretEntity> getSecretsForVaultDirect(int vaultId);
 
     @Query("SELECT * FROM secrets WHERE id = :id")
     SecretEntity getSecretById(int id);

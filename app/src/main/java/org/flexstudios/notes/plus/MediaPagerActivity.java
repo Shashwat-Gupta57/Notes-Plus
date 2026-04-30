@@ -33,6 +33,7 @@ public class MediaPagerActivity extends AppCompatActivity {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private AppDatabase database;
     private int savedPosition = -1;
+    private int currentVaultId = 1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,6 +42,8 @@ public class MediaPagerActivity extends AppCompatActivity {
         setContentView(R.layout.activity_media_pager);
 
         database = AppDatabase.getInstance(this);
+        currentVaultId = getIntent().getIntExtra(UnlockActivity.EXTRA_VAULT_ID, 1);
+        
         if (savedInstanceState != null) {
             savedPosition = savedInstanceState.getInt(KEY_CURRENT_POS, -1);
         }
@@ -74,7 +77,7 @@ public class MediaPagerActivity extends AppCompatActivity {
 
     private void loadMedia() {
         executor.execute(() -> {
-            List<SecretEntity> entities = database.secretDao().getAllSecretsDirect();
+            List<SecretEntity> entities = database.secretDao().getSecretsForVaultDirect(currentVaultId);
             List<SecretItem> loadedItems = new ArrayList<>();
             File vaultDir = new File(getFilesDir(), "vault");
             for (SecretEntity entity : entities) {

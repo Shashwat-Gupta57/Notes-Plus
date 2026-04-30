@@ -37,8 +37,10 @@ import java.util.List;
 import java.util.concurrent.Executors;
 
 public class GallerySettingsActivity extends AppCompatActivity {
-    private static final int PICK_VAULT_BG = 1001;
-    private static final int PICK_LOCK_BG = 1002;
+    private static final int PICK_VAULT_IMAGE = 1001;
+    private static final int PICK_VAULT_VIDEO = 1002;
+    private static final int PICK_LOCK_IMAGE = 1003;
+    private static final int PICK_LOCK_VIDEO = 1004;
 
     private RecyclerView recyclerViewVaults;
     private VaultSettingsAdapter adapter;
@@ -101,19 +103,23 @@ public class GallerySettingsActivity extends AppCompatActivity {
         // Vault Interior
         findViewById(R.id.btnVaultBgDefault).setOnClickListener(v -> updateVaultBg("DEFAULT", null));
         findViewById(R.id.btnVaultBgColor).setOnClickListener(v -> showColorPickerDialog(true));
-        findViewById(R.id.btnVaultBgImage).setOnClickListener(v -> pickImage(PICK_VAULT_BG));
+        findViewById(R.id.btnVaultBgImage).setOnClickListener(v -> pickMedia("image/*", PICK_VAULT_IMAGE));
+        findViewById(R.id.btnVaultBgVideo).setOnClickListener(v -> pickMedia("video/*", PICK_VAULT_VIDEO));
+        findViewById(R.id.btnVaultBgUrl).setOnClickListener(v -> showUrlInputDialog(true));
 
         // Lock Screen
         findViewById(R.id.btnLockBgDefault).setOnClickListener(v -> updateLockBg("DEFAULT", null));
         findViewById(R.id.btnLockBgColor).setOnClickListener(v -> showColorPickerDialog(false));
-        findViewById(R.id.btnLockBgImage).setOnClickListener(v -> pickImage(PICK_LOCK_BG));
+        findViewById(R.id.btnLockBgImage).setOnClickListener(v -> pickMedia("image/*", PICK_LOCK_IMAGE));
+        findViewById(R.id.btnLockBgVideo).setOnClickListener(v -> pickMedia("video/*", PICK_LOCK_VIDEO));
+        findViewById(R.id.btnLockBgUrl).setOnClickListener(v -> showUrlInputDialog(false));
 
         layoutLockBgOptions = findViewById(R.id.layoutLockBgOptions);
         checkLockBgBlur = findViewById(R.id.checkLockBgBlur);
         checkLockBgDim = findViewById(R.id.checkLockBgDim);
 
         String lockBgType = SecurityHelper.getAppPrefs(this).getString(SecurityHelper.KEY_LOCK_BG_TYPE, "DEFAULT");
-        layoutLockBgOptions.setVisibility("IMAGE".equals(lockBgType) ? View.VISIBLE : View.GONE);
+        layoutLockBgOptions.setVisibility(View.VISIBLE); // Always show Dim option
 
         checkLockBgBlur.setChecked(SecurityHelper.getAppPrefs(this).getBoolean(SecurityHelper.KEY_LOCK_BG_BLUR, false));
         checkLockBgDim.setChecked(SecurityHelper.getAppPrefs(this).getBoolean(SecurityHelper.KEY_LOCK_BG_DIM, false));
@@ -122,10 +128,28 @@ public class GallerySettingsActivity extends AppCompatActivity {
         checkLockBgDim.setOnCheckedChangeListener((v, checked) -> SecurityHelper.getAppPrefs(this).edit().putBoolean(SecurityHelper.KEY_LOCK_BG_DIM, checked).apply());
     }
 
-    private void pickImage(int requestCode) {
+    private void pickMedia(String type, int requestCode) {
         Intent intent = new Intent(Intent.ACTION_PICK);
-        intent.setType("image/*");
+        intent.setType(type);
         startActivityForResult(intent, requestCode);
+    }
+
+    private void showUrlInputDialog(boolean forVault) {
+        EditText input = new EditText(this);
+        input.setHint("https://example.com/media.mp4");
+        new AlertDialog.Builder(this)
+                .setTitle("Enter Media URL")
+                .setMessage("Supports Images, GIFs, and Videos")
+                .setView(input)
+                .setPositiveButton("Set", (d, w) -> {
+                    String url = input.getText().toString().trim();
+                    if (!url.isEmpty()) {
+                        if (forVault) updateVaultBg("URL", url);
+                        else updateLockBg("URL", url);
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void showColorPickerDialog(boolean forVault) {
@@ -161,7 +185,6 @@ public class GallerySettingsActivity extends AppCompatActivity {
                 .putString(SecurityHelper.KEY_LOCK_BG_TYPE, type)
                 .putString(SecurityHelper.KEY_LOCK_BG_VALUE, value)
                 .apply();
-        layoutLockBgOptions.setVisibility("IMAGE".equals(type) ? View.VISIBLE : View.GONE);
         Toast.makeText(this, "Lock screen background updated", Toast.LENGTH_SHORT).show();
     }
 
@@ -169,25 +192,25 @@ public class GallerySettingsActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode == RESULT_OK && data != null && data.getData() != null) {
-            Uri imageUri = data.getData();
-            if (requestCode == PICK_VAULT_BG) {
-                saveBgImage(imageUri, true);
-            } else if (requestCode == PICK_LOCK_BG) {
-                saveBgImage(imageUri, false);
+            Uri uri = data.getData();
+            if (requestCode == PICK_VAULT_IMAGE || requestCode == PICK_VAULT_VIDEO) {
+                saveBgMedia(uri, true, requestCode == PICK_VAULT_VIDEO);
+            } else if (requestCode == PICK_LOCK_IMAGE || requestCode == PICK_LOCK_VIDEO) {
+                saveBgMedia(uri, false, requestCode == PICK_LOCK_VIDEO);
             }
         }
     }
 
-    private void saveBgImage(Uri uri, boolean forVault) {
+    private void saveBgMedia(Uri uri, boolean forVault, boolean isVideo) {
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
                 File dir = forVault ? new File(getFilesDir(), "bg_vault_" + currentVaultId) : new File(getFilesDir(), "bg_lock");
                 if (!dir.exists()) dir.mkdirs();
                 
-                String fileName = "bg_" + System.currentTimeMillis() + ".jpg";
+                String ext = isVideo ? ".mp4" : ".jpg";
+                String fileName = "bg_" + System.currentTimeMillis() + ext;
                 File file = new File(dir, fileName);
                 
-                // Delete old images in the dir
                 File[] oldFiles = dir.listFiles();
                 if (oldFiles != null) {
                     for (File f : oldFiles) f.delete();
@@ -195,14 +218,15 @@ public class GallerySettingsActivity extends AppCompatActivity {
 
                 try (InputStream in = getContentResolver().openInputStream(uri);
                      FileOutputStream out = new FileOutputStream(file)) {
-                    byte[] buffer = new byte[8192];
+                    byte[] buffer = new byte[16384];
                     int len;
                     while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
                 }
 
                 runOnUiThread(() -> {
-                    if (forVault) updateVaultBg("IMAGE", file.getAbsolutePath());
-                    else updateLockBg("IMAGE", file.getAbsolutePath());
+                    String type = isVideo ? "VIDEO" : "IMAGE";
+                    if (forVault) updateVaultBg(type, file.getAbsolutePath());
+                    else updateLockBg(type, file.getAbsolutePath());
                 });
             } catch (IOException e) { e.printStackTrace(); }
         });

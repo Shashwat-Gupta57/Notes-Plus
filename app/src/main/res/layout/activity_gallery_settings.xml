@@ -73,35 +73,17 @@
                 android:textColor="#8E8E93"
                 android:textSize="12sp" />
 
-            <LinearLayout
+            <com.google.android.material.chip.ChipGroup
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="16dp">
-                <Button
-                    android:id="@+id/btnVaultBgDefault"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Default"
-                    style="@style/Widget.Material3.Button.OutlinedButton"/>
-                <Button
-                    android:id="@+id/btnVaultBgColor"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="8dp"
-                    android:text="Color"
-                    style="@style/Widget.Material3.Button.OutlinedButton"/>
-                <Button
-                    android:id="@+id/btnVaultBgImage"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="8dp"
-                    android:text="Image"
-                    style="@style/Widget.Material3.Button.OutlinedButton"/>
-            </LinearLayout>
+                android:padding="16dp"
+                app:singleLine="false">
+                <Button android:id="@+id/btnVaultBgDefault" android:text="Default" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btnVaultBgColor" android:text="Color" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btnVaultBgImage" android:text="Image" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btnVaultBgVideo" android:text="Video" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btnVaultBgUrl" android:text="URL" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+            </com.google.android.material.chip.ChipGroup>
 
             <View
                 android:layout_width="match_parent"
@@ -119,35 +101,17 @@
                 android:textColor="#8E8E93"
                 android:textSize="12sp" />
 
-            <LinearLayout
+            <com.google.android.material.chip.ChipGroup
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="16dp">
-                <Button
-                    android:id="@+id/btnLockBgDefault"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Default"
-                    style="@style/Widget.Material3.Button.OutlinedButton"/>
-                <Button
-                    android:id="@+id/btnLockBgColor"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="8dp"
-                    android:text="Color"
-                    style="@style/Widget.Material3.Button.OutlinedButton"/>
-                <Button
-                    android:id="@+id/btnLockBgImage"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="8dp"
-                    android:text="Image"
-                    style="@style/Widget.Material3.Button.OutlinedButton"/>
-            </LinearLayout>
+                android:padding="16dp"
+                app:singleLine="false">
+                <Button android:id="@+id/btnLockBgDefault" android:text="Default" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btnLockBgColor" android:text="Color" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btnLockBgImage" android:text="Image" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btnLockBgVideo" android:text="Video" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+                <Button android:id="@+id/btnLockBgUrl" android:text="URL" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+            </com.google.android.material.chip.ChipGroup>
 
             <LinearLayout
                 android:id="@+id/layoutLockBgOptions"
@@ -161,12 +125,12 @@
                     android:id="@+id/checkLockBgBlur"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Blur Background Image"/>
+                    android:text="Blur (Images only)"/>
                 <CheckBox
                     android:id="@+id/checkLockBgDim"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Dim Background Image"/>
+                    android:text="Dim Overlay"/>
             </LinearLayout>
 
             <View

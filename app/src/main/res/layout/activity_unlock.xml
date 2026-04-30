@@ -6,6 +6,14 @@
     android:layout_height="match_parent"
     android:background="#FFFFFF">
 
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/videoBgView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        app:use_controller="false"
+        app:resize_mode="fill" />
+
     <ImageView
         android:id="@+id/lockBackground"
         android:layout_width="match_parent"

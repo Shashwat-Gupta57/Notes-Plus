@@ -28,6 +28,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.content.FileProvider;
 import androidx.exifinterface.media.ExifInterface;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.Player;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.PlayerView;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.security.crypto.EncryptedFile;
@@ -70,6 +74,8 @@ public class SecretGalleryActivity extends AppCompatActivity {
 
     private ImageView vaultBackground;
     private View blurCircle, galleryRoot;
+    private PlayerView videoBgView;
+    private ExoPlayer exoPlayer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -94,6 +100,7 @@ public class SecretGalleryActivity extends AppCompatActivity {
         vaultBackground = findViewById(R.id.vaultBackground);
         blurCircle = findViewById(R.id.blurCircle);
         galleryRoot = findViewById(R.id.galleryRoot);
+        videoBgView = findViewById(R.id.videoBgView);
 
         selectionBottomBar = findViewById(R.id.selectionBottomBar);
         emptyState = findViewById(R.id.emptyStateGallery);
@@ -160,7 +167,6 @@ public class SecretGalleryActivity extends AppCompatActivity {
         });
 
         observeVault();
-        applyVaultBackground();
         checkStoragePermission();
     }
 
@@ -171,12 +177,15 @@ public class SecretGalleryActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     String type = vault.getBgType();
                     String value = vault.getBgValue();
+                    
+                    stopVideoBackground();
 
                     if ("COLOR".equals(type) && value != null) {
                         try {
                             galleryRoot.setBackgroundColor(Color.parseColor(value));
                             vaultBackground.setVisibility(View.GONE);
                             blurCircle.setVisibility(View.GONE);
+                            videoBgView.setVisibility(View.GONE);
                         } catch (Exception e) {
                             restoreDefaultBackground();
                         }
@@ -185,11 +194,18 @@ public class SecretGalleryActivity extends AppCompatActivity {
                         if (imgFile.exists()) {
                             vaultBackground.setVisibility(View.VISIBLE);
                             blurCircle.setVisibility(View.GONE);
+                            videoBgView.setVisibility(View.GONE);
                             galleryRoot.setBackgroundColor(Color.TRANSPARENT);
                             Glide.with(this).load(imgFile).into(vaultBackground);
                         } else {
                             restoreDefaultBackground();
                         }
+                    } else if (("VIDEO".equals(type) || "URL".equals(type)) && value != null) {
+                        vaultBackground.setVisibility(View.GONE);
+                        blurCircle.setVisibility(View.GONE);
+                        videoBgView.setVisibility(View.VISIBLE);
+                        galleryRoot.setBackgroundColor(Color.BLACK);
+                        startVideoBackground(value);
                     } else {
                         restoreDefaultBackground();
                     }
@@ -198,10 +214,42 @@ public class SecretGalleryActivity extends AppCompatActivity {
         });
     }
 
+    private void startVideoBackground(String source) {
+        if (exoPlayer != null) {
+            exoPlayer.release();
+        }
+        exoPlayer = new ExoPlayer.Builder(this).build();
+        videoBgView.setPlayer(exoPlayer);
+        exoPlayer.setRepeatMode(Player.REPEAT_MODE_ALL);
+        exoPlayer.setVolume(0f); // Mute audio
+        
+        Uri uri;
+        if (source.startsWith("http")) {
+            uri = Uri.parse(source);
+        } else {
+            uri = Uri.fromFile(new File(source));
+        }
+        
+        MediaItem mediaItem = MediaItem.fromUri(uri);
+        exoPlayer.setMediaItem(mediaItem);
+        exoPlayer.prepare();
+        exoPlayer.play();
+    }
+
+    private void stopVideoBackground() {
+        if (exoPlayer != null) {
+            exoPlayer.stop();
+            exoPlayer.release();
+            exoPlayer = null;
+        }
+    }
+
     private void restoreDefaultBackground() {
         galleryRoot.setBackgroundColor(Color.parseColor("#F2F2F7"));
         vaultBackground.setVisibility(View.GONE);
+        videoBgView.setVisibility(View.GONE);
         blurCircle.setVisibility(View.VISIBLE);
+        stopVideoBackground();
     }
 
     private void handleIntent(Intent intent) {
@@ -225,13 +273,20 @@ public class SecretGalleryActivity extends AppCompatActivity {
         }
         skipAutoLockOnce = false;
         SecurityHelper.updateLastActiveTime(this);
-        applyVaultBackground(); // Refresh if background was changed in settings
+        applyVaultBackground();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         SecurityHelper.updateLastActiveTime(this);
+        stopVideoBackground();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        stopVideoBackground();
     }
 
     private void checkAutoLock() {

@@ -2,6 +2,7 @@ package org.flexstudios.notes.plus;
 
 import android.content.Intent;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.view.View;
@@ -9,6 +10,10 @@ import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.Player;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.PlayerView;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.bumptech.glide.Glide;
@@ -34,6 +39,8 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
 
     private ImageView lockBackground;
     private View lockDimOverlay, unlockRoot;
+    private PlayerView videoBgView;
+    private ExoPlayer exoPlayer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,6 +54,7 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
         lockBackground = findViewById(R.id.lockBackground);
         lockDimOverlay = findViewById(R.id.lockDimOverlay);
         unlockRoot = findViewById(R.id.unlockRoot);
+        videoBgView = findViewById(R.id.videoBgView);
 
         UnlockPagerAdapter adapter = new UnlockPagerAdapter(this);
         viewPager.setAdapter(adapter);
@@ -61,20 +69,24 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
         boolean blur = SecurityHelper.getAppPrefs(this).getBoolean(SecurityHelper.KEY_LOCK_BG_BLUR, false);
         boolean dim = SecurityHelper.getAppPrefs(this).getBoolean(SecurityHelper.KEY_LOCK_BG_DIM, false);
 
+        stopVideoBackground();
+
         if ("COLOR".equals(type) && value != null) {
             try {
                 unlockRoot.setBackgroundColor(Color.parseColor(value));
                 lockBackground.setVisibility(View.GONE);
                 lockDimOverlay.setVisibility(View.GONE);
+                videoBgView.setVisibility(View.GONE);
             } catch (Exception e) {
                 restoreDefaultBackground();
             }
         } else if ("IMAGE".equals(type) && value != null) {
             File imgFile = new File(value);
-            if (imgFile.exists()) {
+            if (imgFile.exists() || value.startsWith("http")) {
                 lockBackground.setVisibility(View.VISIBLE);
                 lockDimOverlay.setVisibility(dim ? View.VISIBLE : View.GONE);
                 unlockRoot.setBackgroundColor(Color.TRANSPARENT);
+                videoBgView.setVisibility(View.GONE);
 
                 RequestOptions options = new RequestOptions();
                 if (blur) {
@@ -82,14 +94,50 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
                 }
 
                 Glide.with(this)
-                        .load(imgFile)
+                        .load(value.startsWith("http") ? value : imgFile)
                         .apply(options)
                         .into(lockBackground);
             } else {
                 restoreDefaultBackground();
             }
+        } else if (("VIDEO".equals(type) || "URL".equals(type)) && value != null) {
+            lockBackground.setVisibility(View.GONE);
+            lockDimOverlay.setVisibility(dim ? View.VISIBLE : View.GONE);
+            unlockRoot.setBackgroundColor(Color.BLACK);
+            videoBgView.setVisibility(View.VISIBLE);
+            startVideoBackground(value);
         } else {
             restoreDefaultBackground();
+        }
+    }
+
+    private void startVideoBackground(String source) {
+        if (exoPlayer != null) {
+            exoPlayer.release();
+        }
+        exoPlayer = new ExoPlayer.Builder(this).build();
+        videoBgView.setPlayer(exoPlayer);
+        exoPlayer.setRepeatMode(Player.REPEAT_MODE_ALL);
+        exoPlayer.setVolume(0f); // Mute audio
+        
+        Uri uri;
+        if (source.startsWith("http")) {
+            uri = Uri.parse(source);
+        } else {
+            uri = Uri.fromFile(new File(source));
+        }
+        
+        MediaItem mediaItem = MediaItem.fromUri(uri);
+        exoPlayer.setMediaItem(mediaItem);
+        exoPlayer.prepare();
+        exoPlayer.play();
+    }
+
+    private void stopVideoBackground() {
+        if (exoPlayer != null) {
+            exoPlayer.stop();
+            exoPlayer.release();
+            exoPlayer = null;
         }
     }
 
@@ -97,6 +145,8 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
         unlockRoot.setBackgroundColor(Color.WHITE);
         lockBackground.setVisibility(View.GONE);
         lockDimOverlay.setVisibility(View.GONE);
+        videoBgView.setVisibility(View.GONE);
+        stopVideoBackground();
     }
 
     private void loadVaults() {
@@ -169,5 +219,27 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
 
     public void setSwipeEnabled(boolean enabled) {
         viewPager.setUserInputEnabled(enabled);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (exoPlayer != null && !exoPlayer.isPlaying()) {
+            exoPlayer.play();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (exoPlayer != null) {
+            exoPlayer.pause();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        stopVideoBackground();
     }
 }

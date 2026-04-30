@@ -1,0 +1,474 @@
+package org.flexstudios.notes.plus;
+
+import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ContentResolver;
+import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.provider.OpenableColumns;
+import android.provider.Settings;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.LinearLayout;
+import android.widget.Toast;
+
+import androidx.activity.OnBackPressedCallback;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.core.content.FileProvider;
+import androidx.exifinterface.media.ExifInterface;
+import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.security.crypto.EncryptedFile;
+import androidx.security.crypto.MasterKeys;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.security.GeneralSecurityException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class SecretGalleryActivity extends AppCompatActivity {
+    private static final int PICK_FILE = 100;
+    private static final int MANAGE_STORAGE_REQUEST = 102;
+    
+    private SecretGalleryAdapter adapter;
+    private List<SecretItem> secretItems = new ArrayList<>();
+    private View selectionBottomBar;
+    private LinearLayout emptyState;
+    private final ExecutorService executor = Executors.newFixedThreadPool(4);
+    private File vaultDir;
+    private AppDatabase database;
+    private boolean skipAutoLockOnce = false;
+    private boolean isAllSelected = false;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
+        setContentView(R.layout.activity_secret_gallery);
+
+        database = AppDatabase.getInstance(this);
+        // Removed handleIntent call since method was missing
+
+        Toolbar toolbar = findViewById(R.id.toolbarGallery);
+        setSupportActionBar(toolbar);
+
+        vaultDir = new File(getFilesDir(), "vault");
+        if (!vaultDir.exists()) vaultDir.mkdirs();
+        createNoMediaFile();
+
+        selectionBottomBar = findViewById(R.id.selectionBottomBar);
+        emptyState = findViewById(R.id.emptyStateGallery);
+        RecyclerView recyclerView = findViewById(R.id.recyclerViewGallery);
+        
+        GridLayoutManager layoutManager = new GridLayoutManager(this, 3);
+        layoutManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
+            @Override
+            public int getSpanSize(int position) {
+                return (adapter != null && adapter.getItemViewType(position) == 0) ? 3 : 1;
+            }
+        });
+        recyclerView.setLayoutManager(layoutManager);
+        
+        adapter = new SecretGalleryAdapter(secretItems, new ArrayList<>(), new SecretGalleryAdapter.OnItemClickListener() {
+            @Override
+            public void onItemClick(SecretItem item) {
+                Intent intent = new Intent(SecretGalleryActivity.this, MediaPagerActivity.class);
+                intent.putExtra("initial_file_path", item.getFile().getAbsolutePath());
+                startActivity(intent);
+            }
+
+            @Override
+            public void onItemLongClick(SecretItem item) { }
+
+            @Override
+            public void onSelectionChanged(int count) {
+                selectionBottomBar.setVisibility(count > 0 ? View.VISIBLE : View.GONE);
+                invalidateOptionsMenu();
+            }
+
+            @Override
+            public void onAllItemsSelectionChanged(boolean allSelected) {
+                isAllSelected = allSelected;
+                invalidateOptionsMenu();
+            }
+        });
+        recyclerView.setAdapter(adapter);
+
+        findViewById(R.id.fabAddSecret).setOnClickListener(v -> {
+            if (checkStoragePermission()) pickFile();
+        });
+
+        findViewById(R.id.btnSelectionShare).setOnClickListener(v -> shareSelectedItems());
+        findViewById(R.id.btnSelectionRestore).setOnClickListener(v -> restoreSelectedItems());
+        findViewById(R.id.btnSelectionDelete).setOnClickListener(v -> deleteSelectedItems());
+
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (adapter != null && adapter.isSelectionMode()) {
+                    adapter.setSelectionMode(false);
+                    return;
+                }
+                Intent intent = new Intent(SecretGalleryActivity.this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivity(intent);
+                finish();
+                overridePendingTransition(0, 0);
+            }
+        });
+
+        observeVault();
+        checkStoragePermission();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.gallery_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        MenuItem selectAllItem = menu.findItem(R.id.action_select_all);
+        if (selectAllItem != null) {
+            selectAllItem.setVisible(adapter != null && adapter.isSelectionMode());
+            selectAllItem.setIcon(isAllSelected ? R.drawable.ic_check_circle_filled : R.drawable.ic_check_circle_empty);
+        }
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.action_settings) {
+            startActivity(new Intent(this, GallerySettingsActivity.class));
+            return true;
+        } else if (id == R.id.action_select_all) {
+            if (adapter != null) {
+                adapter.selectAll(!isAllSelected);
+            }
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void shareSelectedItems() {
+        List<SecretItem> selected = adapter.getSelectedItems();
+        if (selected.isEmpty()) return;
+
+        executor.execute(() -> {
+            ArrayList<Uri> uris = new ArrayList<>();
+            try {
+                for (SecretItem item : selected) {
+                    SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
+                    String ext = item.isVideo() ? ".mp4" : ".jpg";
+                    if (entity != null && entity.getOriginalPath() != null) {
+                        String path = entity.getOriginalPath();
+                        int lastDot = path.lastIndexOf('.');
+                        if (lastDot != -1) ext = path.substring(lastDot);
+                    }
+                    File tempFile = decryptToCache(item.getFile(), ext);
+                    uris.add(FileProvider.getUriForFile(this, getPackageName() + ".provider", tempFile));
+                }
+                
+                Intent intent = new Intent(Intent.ACTION_SEND_MULTIPLE);
+                intent.setType("*/*");
+                intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivity(Intent.createChooser(intent, "Share " + selected.size() + " items"));
+                
+                runOnUiThread(() -> adapter.setSelectionMode(false));
+            } catch (Exception e) { e.printStackTrace(); }
+        });
+    }
+
+    private void restoreSelectedItems() {
+        List<SecretItem> selected = adapter.getSelectedItems();
+        if (selected.isEmpty()) return;
+
+        executor.execute(() -> {
+            int count = 0;
+            for (SecretItem item : selected) {
+                SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
+                if (entity != null && entity.getOriginalPath() != null) {
+                    try {
+                        File target = new File(entity.getOriginalPath());
+                        File parent = target.getParentFile();
+                        if (parent != null && !parent.exists()) parent.mkdirs();
+                        
+                        decryptToFile(item.getFile(), target);
+                        if (entity.getDateTaken() != 0) target.setLastModified(entity.getDateTaken());
+                        
+                        database.secretDao().delete(entity);
+                        item.getFile().delete();
+                        count++;
+                    } catch (Exception e) { e.printStackTrace(); }
+                }
+            }
+            final int finalCount = count;
+            runOnUiThread(() -> {
+                Toast.makeText(this, "Restored " + finalCount + " items", Toast.LENGTH_SHORT).show();
+                adapter.setSelectionMode(false);
+                observeVault(); 
+            });
+        });
+    }
+
+    private void deleteSelectedItems() {
+        List<SecretItem> selected = adapter.getSelectedItems();
+        if (selected.isEmpty()) return;
+
+        new AlertDialog.Builder(this)
+                .setTitle("Delete " + selected.size() + " items?")
+                .setMessage("These files will be permanently erased.")
+                .setPositiveButton("Delete", (d, w) -> {
+                    executor.execute(() -> {
+                        for (SecretItem item : selected) {
+                            SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
+                            if (entity != null) database.secretDao().delete(entity);
+                            item.getFile().delete();
+                        }
+                        runOnUiThread(() -> {
+                            adapter.setSelectionMode(false);
+                            observeVault();
+                        });
+                    });
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private File decryptToCache(File encryptedFile, String extension) throws GeneralSecurityException, IOException {
+        String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
+        EncryptedFile encryptedStorage = new EncryptedFile.Builder(
+                encryptedFile, this, masterKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
+        ).build();
+        if (!extension.startsWith(".")) extension = "." + extension;
+        File tempFile = new File(getCacheDir(), "share_" + encryptedFile.getName() + extension);
+        try (InputStream in = encryptedStorage.openFileInput();
+             FileOutputStream out = new FileOutputStream(tempFile)) {
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
+            out.flush();
+        }
+        return tempFile;
+    }
+
+    private void decryptToFile(File encryptedFile, File target) throws GeneralSecurityException, IOException {
+        String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
+        EncryptedFile encryptedStorage = new EncryptedFile.Builder(
+                encryptedFile, this, masterKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
+        ).build();
+        try (InputStream in = encryptedStorage.openFileInput();
+             FileOutputStream out = new FileOutputStream(target)) {
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
+            out.flush();
+        }
+    }
+
+    private boolean checkStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                showPermissionDialog();
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void showPermissionDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Permission Required")
+                .setMessage("To move files to the secure vault, Notes+ needs permission to manage files. Please enable it in the next screen.")
+                .setPositiveButton("Settings", (d, w) -> {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                        intent.setData(Uri.parse("package:" + getPackageName()));
+                        startActivityForResult(intent, MANAGE_STORAGE_REQUEST);
+                    } catch (Exception e) {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                        startActivityForResult(intent, MANAGE_STORAGE_REQUEST);
+                    }
+                })
+                .setNegativeButton("Cancel", (d, w) -> finish())
+                .setCancelable(false)
+                .show();
+    }
+
+    private void createNoMediaFile() {
+        File noMedia = new File(vaultDir, ".nomedia");
+        if (!noMedia.exists()) {
+            try {
+                noMedia.createNewFile();
+            } catch (IOException e) { e.printStackTrace(); }
+        }
+    }
+
+    private void observeVault() {
+        database.secretDao().getAllSecrets().observe(this, entities -> {
+            executor.execute(() -> {
+                List<SecretItem> newItems = new ArrayList<>();
+                for (SecretEntity entity : entities) {
+                    File file = new File(vaultDir, entity.getFileName());
+                    if (file.exists()) newItems.add(new SecretItem(file, entity.isVideo()));
+                }
+                runOnUiThread(() -> {
+                    secretItems.clear();
+                    secretItems.addAll(newItems);
+                    if (adapter != null) adapter.updateData(secretItems, entities);
+                    emptyState.setVisibility(entities.isEmpty() ? View.VISIBLE : View.GONE);
+                });
+            });
+        });
+    }
+
+    private void pickFile() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        intent.setType("image/* video/*");
+        startActivityForResult(intent, PICK_FILE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == MANAGE_STORAGE_REQUEST) {
+            if (checkStoragePermission()) Toast.makeText(this, "Permission Granted!", Toast.LENGTH_SHORT).show();
+        } else if (resultCode == RESULT_OK && data != null) {
+            if (requestCode == PICK_FILE) {
+                if (data.getClipData() != null) {
+                    ClipData clipData = data.getClipData();
+                    List<Uri> uris = new ArrayList<>();
+                    for (int i = 0; i < clipData.getItemCount(); i++) uris.add(clipData.getItemAt(i).getUri());
+                    processUris(uris);
+                } else if (data.getData() != null) {
+                    processUris(Collections.singletonList(data.getData()));
+                }
+            }
+        }
+    }
+
+    private void processUris(List<Uri> uris) {
+        AtomicInteger processedCount = new AtomicInteger(0);
+        int total = uris.size();
+        for (Uri uri : uris) {
+            executor.execute(() -> {
+                try {
+                    String mimeType = getContentResolver().getType(uri);
+                    boolean isVideo = mimeType != null && mimeType.startsWith("video");
+                    String originalPath = getActualPath(uri);
+                    long dateTaken = recoverOriginalDate(uri, originalPath, isVideo);
+                    long dateAdded = System.currentTimeMillis();
+                    String fileName = (isVideo ? "VID_" : "IMG_") + dateAdded + "_" + processedCount.get();
+                    File encryptedFile = new File(vaultDir, fileName);
+                    String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
+                    EncryptedFile encryptedStorage = new EncryptedFile.Builder(
+                            encryptedFile, this, masterKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
+                    ).build();
+
+                    try (InputStream in = getContentResolver().openInputStream(uri);
+                         OutputStream out = encryptedStorage.openFileOutput()) {
+                        byte[] buffer = new byte[8192];
+                        int len;
+                        while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
+                    }
+                    SecretEntity entity = new SecretEntity(fileName, originalPath, dateTaken, dateAdded, isVideo);
+                    database.secretDao().insert(entity);
+
+                    if (originalPath != null) {
+                        File originalFile = new File(originalPath);
+                        if (originalFile.exists()) {
+                            originalFile.delete();
+                            Intent scanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+                            scanIntent.setData(Uri.fromFile(originalFile));
+                            sendBroadcast(scanIntent);
+                        }
+                    }
+                    if (processedCount.incrementAndGet() == total) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(this, "Secured " + total + " items", Toast.LENGTH_SHORT).show();
+                            observeVault();
+                        });
+                    }
+                } catch (Exception e) { e.printStackTrace(); }
+            });
+        }
+    }
+
+    private String getActualPath(Uri uri) {
+        String path = null;
+        String[] projection = { MediaStore.MediaColumns.DATA };
+        try (Cursor cursor = getContentResolver().query(uri, projection, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(MediaStore.MediaColumns.DATA);
+                if (index != -1) path = cursor.getString(index);
+            }
+        }
+        return path;
+    }
+
+    private long recoverOriginalDate(Uri uri, String path, boolean isVideo) {
+        if (!isVideo) {
+            try (InputStream inputStream = getContentResolver().openInputStream(uri)) {
+                if (inputStream != null) {
+                    ExifInterface exif = new ExifInterface(inputStream);
+                    String dateString = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL);
+                    if (dateString == null) dateString = exif.getAttribute(ExifInterface.TAG_DATETIME);
+                    if (dateString != null) {
+                        SimpleDateFormat fmt = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault());
+                        Date d = fmt.parse(dateString);
+                        if (d != null) return d.getTime();
+                    }
+                }
+            } catch (Exception e) {}
+        }
+        if (path != null && path.toLowerCase().contains("whatsapp")) {
+            Pattern waPattern = Pattern.compile("(IMG|VID)-(\\d{8})-WA");
+            Matcher matcher = waPattern.matcher(new File(path).getName());
+            if (matcher.find()) {
+                try {
+                    SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd", Locale.US);
+                    Date d = fmt.parse(matcher.group(2));
+                    if (d != null) return d.getTime();
+                } catch (Exception e) {}
+            }
+        }
+        if (path != null) {
+            File f = new File(path);
+            if (f.exists()) return f.lastModified();
+        }
+        return System.currentTimeMillis();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+    }
+}

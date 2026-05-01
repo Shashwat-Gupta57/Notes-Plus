@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import java.util.concurrent.Executors;
 
-@Database(entities = {NoteEntity.class, SecretEntity.class, VaultEntity.class, AlbumEntity.class}, version = 5, exportSchema = false)
+@Database(entities = {NoteEntity.class, SecretEntity.class, VaultEntity.class, AlbumEntity.class}, version = 7, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static AppDatabase instance;
 
@@ -24,7 +24,7 @@ public abstract class AppDatabase extends RoomDatabase {
         if (instance == null) {
             instance = Room.databaseBuilder(context.getApplicationContext(),
                             AppDatabase.class, "notes_database")
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .addCallback(new Callback() {
                         @Override
                         public void onOpen(@NonNull SupportSQLiteDatabase db) {
@@ -44,16 +44,19 @@ public abstract class AppDatabase extends RoomDatabase {
 
     private static void seedMainVault(Context context) {
         VaultDao dao = getInstance(context).vaultDao();
-        VaultEntity mainVault = dao.getMainVault();
-        if (mainVault == null) {
+        VaultEntity existingMain = dao.getMainVault();
+        VaultEntity vault1 = dao.getVaultById(1);
+        
+        if (existingMain == null && vault1 == null) {
             SharedPreferences prefs = SecurityHelper.getEncryptedPrefs(context);
             String lockType = prefs.getString(SecurityHelper.KEY_LOCK_TYPE, "PIN");
             String lockValue = prefs.getString(SecurityHelper.KEY_LOCK_VALUE, "");
             
-            // Seed vault 1 as the main vault
-            VaultEntity vault = new VaultEntity("Main Vault", lockType, lockValue, true, 0);
-            vault.setId(1); // Force ID 1 to match existing secrets default
-            dao.insert(vault);
+            if (lockValue != null && !lockValue.isEmpty()) {
+                VaultEntity vault = new VaultEntity("Main Vault", lockType, lockValue, true, 0);
+                vault.setId(1);
+                dao.insert(vault);
+            }
         }
     }
 
@@ -82,6 +85,20 @@ public abstract class AppDatabase extends RoomDatabase {
             
             // Create albums table
             database.execSQL("CREATE TABLE IF NOT EXISTS `albums` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, `vaultId` INTEGER NOT NULL, `coverFileName` TEXT)");
+        }
+    };
+
+    static final Migration MIGRATION_5_6 = new Migration(5, 6) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE `secrets` ADD COLUMN `syncedLocally` INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
+    static final Migration MIGRATION_6_7 = new Migration(6, 7) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE `secrets` ADD COLUMN `syncedToDrive` INTEGER NOT NULL DEFAULT 0");
         }
     };
 }

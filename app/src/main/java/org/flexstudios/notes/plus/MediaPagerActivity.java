@@ -307,6 +307,10 @@ public class MediaPagerActivity extends AppCompatActivity {
                     
                     database.secretDao().delete(entity);
                     item.getFile().delete();
+
+                    if (SecurityHelper.isAutoSyncEnabled(this)) {
+                        SyncWorker.enqueue(this, SyncWorker.ACTION_DELETE, entity.getFileName(), currentVaultId);
+                    }
                     
                     runOnUiThread(() -> {
                         Toast.makeText(this, "Restored to gallery", Toast.LENGTH_SHORT).show();
@@ -331,7 +335,12 @@ public class MediaPagerActivity extends AppCompatActivity {
                 .setPositiveButton("Delete", (d, w) -> {
                     executor.execute(() -> {
                         SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
-                        if (entity != null) database.secretDao().delete(entity);
+                        if (entity != null) {
+                            database.secretDao().delete(entity);
+                            if (SecurityHelper.isAutoSyncEnabled(this)) {
+                                SyncWorker.enqueue(this, SyncWorker.ACTION_DELETE, entity.getFileName(), currentVaultId);
+                            }
+                        }
                         item.getFile().delete();
                         runOnUiThread(() -> removeMediaItemAt(currentPos));
                     });

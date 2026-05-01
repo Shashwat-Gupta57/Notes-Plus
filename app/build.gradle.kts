@@ -10,8 +10,8 @@ android {
         applicationId = "org.flexstudios.notes.plus"
         minSdk = 24
         targetSdk = 36
-        versionCode = 5
-        versionName = "5.00"
+        versionCode = 6
+        versionName = "6.00"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -23,6 +23,16 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+    packaging {
+        resources {
+            excludes += "/META-INF/DEPENDENCIES"
+            excludes += "/META-INF/LICENSE"
+            excludes += "/META-INF/NOTICE"
+            excludes += "/META-INF/LICENSE.txt"
+            excludes += "/META-INF/NOTICE.txt"
+            excludes += "/META-INF/ASL2.0"
         }
     }
     compileOptions {
@@ -68,6 +78,15 @@ dependencies {
 
     // Lifecycle Process for Updates
     implementation(libs.lifecycle.process)
+
+    // Google Drive and Auth
+    implementation(libs.google.auth)
+    implementation(libs.google.drive) {
+        exclude(group = "org.apache.httpcomponents")
+    }
+    implementation(libs.google.api.client)
+    implementation(libs.google.http.client)
+    implementation(libs.work.runtime)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)

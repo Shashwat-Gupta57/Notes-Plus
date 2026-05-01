@@ -31,4 +31,7 @@ public interface AlbumDao {
 
     @Query("DELETE FROM albums WHERE vaultId = :vaultId")
     void deleteAlbumsForVault(int vaultId);
+
+    @Query("SELECT * FROM albums")
+    List<AlbumEntity> getAllAlbumsDirect();
 }

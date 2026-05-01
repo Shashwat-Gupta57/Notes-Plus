@@ -24,6 +24,13 @@ public class SecurityHelper {
     public static final String KEY_LOCK_BG_BLUR = "lock_bg_blur";
     public static final String KEY_LOCK_BG_DIM = "lock_bg_dim";
 
+    public static final String KEY_SYNC_MODE = "sync_mode"; // "MANUAL", "AUTO"
+
+    public static boolean isAutoSyncEnabled(Context context) {
+        return "AUTO".equals(context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                .getString(KEY_SYNC_MODE, "MANUAL"));
+    }
+
     public static SharedPreferences getEncryptedPrefs(Context context) {
         try {
             String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);

@@ -189,15 +189,9 @@ body::before {
 .navbar-brand .brand-icon {
   width: 36px;
   height: 36px;
-  border-radius: var(--border-radius-sm);
-  background: linear-gradient(135deg, var(--accent-yellow), #FFB800);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-size-lg);
-  font-weight: 800;
-  color: #0A0A0F;
-  box-shadow: 0 2px 12px var(--accent-yellow-dim);
+  border-radius: 8px;
+  object-fit: cover;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
 }
 
 .navbar-brand .brand-plus {

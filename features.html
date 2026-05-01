@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Features — Notes+</title>
+  <meta name="description" content="Explore every feature of Notes+ — a clean notepad, hidden encrypted vault, AES-256 gallery, multi-vault system, cloud backup, and full customization.">
+  <meta name="theme-color" content="#0A0A0F">
+  <meta name="author" content="Shashwat Gupta">
+
+  <meta property="og:title" content="Features — Notes+">
+  <meta property="og:description" content="Everything Notes+ can do — from clean note-taking to a secret encrypted vault.">
+  <meta property="og:type" content="website">
+
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23FFCC00'/><text x='50' y='70' font-family='sans-serif' font-weight='900' font-size='55' text-anchor='middle' fill='%230A0A0F'>N+</text></svg>">
+</head>
+<body>
+
+  <!-- ========== NAVBAR ========== -->
+  <nav class="navbar" id="navbar" role="navigation" aria-label="Main navigation">
+    <div class="container">
+      <a href="index.html" class="navbar-brand" aria-label="Notes+ Home">
+        <span class="brand-icon" aria-hidden="true">N+</span>
+        Notes<span class="brand-plus">+</span>
+      </a>
+      <div class="nav-links" id="navLinks" role="menubar">
+        <a href="features.html" role="menuitem">Features</a>
+        <a href="screenshots.html" role="menuitem">Screenshots</a>
+        <a href="download.html" role="menuitem">Download</a>
+        <a href="privacy.html" role="menuitem">Privacy</a>
+      </div>
+      <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+  <div class="nav-overlay" id="navOverlay"></div>
+
+  <!-- ========== PAGE HEADER ========== -->
+  <header class="page-header">
+    <div class="container">
+      <span class="section-label anim-hero-text">— Deep Dive —</span>
+      <h1 class="anim-hero-text-delay-1">Built different. <span style="background:linear-gradient(135deg,var(--accent-yellow),#FFE066);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">On purpose.</span></h1>
+      <p class="anim-hero-text-delay-2">Every feature in Notes+ exists because you needed it — not because a product manager said so.</p>
+    </div>
+  </header>
+
+  <!-- ========== FEATURES ========== -->
+  <main class="features-page">
+
+    <!-- ────────────────────────────────────
+         1. SMART NOTEPAD
+         ──────────────────────────────────── -->
+    <section class="feature-section" id="feature-notepad">
+      <div class="container">
+        <div class="feature-row">
+          <div class="feature-text reveal">
+            <span class="feature-label feature-label--yellow">
+              <!-- Pencil -->
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              Notepad
+            </span>
+            <h2>A notepad that<br>feels like <span class="highlight">home</span></h2>
+            <p class="feature-desc">
+              Inspired by Apple Notes, Notes+ gives you a distraction‑free writing experience 
+              on Android. No clutter, no learning curve — just open and type. Your notes are 
+              listed cleanly with titles, dates, and previews.
+            </p>
+            <ul class="feature-list">
+              <li>Clean list view with date stamps and content preview</li>
+              <li>Full-screen editor with auto-save</li>
+              <li>Swipe to delete with undo support</li>
+              <li>Minimal UI inspired by iOS Notes</li>
+              <li>Works completely offline</li>
+            </ul>
+          </div>
+
+          <div class="feature-visual reveal reveal-delay-2">
+            <div class="feature-phones">
+              <div class="phone-mockup">
+                <div class="phone-frame">
+                  <img src="res/ss-1.png" alt="Notes+ note list showing clean entries with dates and previews" width="256" height="554" loading="lazy">
+                </div>
+              </div>
+              <div class="phone-mockup">
+                <div class="phone-frame">
+                  <img src="res/ss-2.png" alt="Notes+ editor view with a note open for editing" width="256" height="554" loading="lazy">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────
+         2. THE HIDDEN VAULT
+         ──────────────────────────────────── -->
+    <section class="feature-section" id="feature-vault">
+      <div class="container">
+        <div class="feature-row">
+          <div class="feature-text reveal">
+            <span class="feature-label feature-label--blue">
+              <!-- Eye-off -->
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              Hidden
+            </span>
+            <h2>The vault <span class="highlight-blue">nobody</span><br>knows about</h2>
+            <p class="feature-desc">
+              Hold the title bar for 2 seconds. That's it — a secret gesture that opens a 
+              completely hidden lock screen. No app icon, no launcher shortcut, no evidence 
+              it even exists. To everyone else, Notes+ is just a notepad.
+            </p>
+            <ul class="feature-list blue">
+              <li>Secret 2‑second long‑press gesture to enter</li>
+              <li>Choose PIN, Password, or Pattern lock</li>
+              <li>Swipe to switch between lock types instantly</li>
+              <li>No visible trace — looks like a normal notes app</li>
+              <li>Wrong attempts don't reveal the vault exists</li>
+            </ul>
+          </div>
+
+          <div class="feature-visual reveal reveal-delay-2">
+            <div class="phone-mockup">
+              <div class="phone-frame">
+                <img src="res/ss-3.png" alt="Notes+ secret vault lock screen with pattern grid overlay" width="256" height="554" loading="lazy">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────
+         3. ENCRYPTED GALLERY
+         ──────────────────────────────────── -->
+    <section class="feature-section" id="feature-gallery">
+      <div class="container">
+        <div class="feature-row">
+          <div class="feature-text reveal">
+            <span class="feature-label feature-label--yellow">
+              <!-- Image -->
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              Gallery
+            </span>
+            <h2>Your photos,<br><span class="highlight">encrypted</span> at rest</h2>
+            <p class="feature-desc">
+              Every photo and video inside the vault is encrypted with AES‑256 — the same 
+              standard used by banks and governments. Files are organized by date in a 
+              beautiful grid, and you can multi‑select to share, delete, or restore.
+            </p>
+            <ul class="feature-list">
+              <li>AES‑256 encryption for all stored media</li>
+              <li>Date‑grouped grid layout with smooth scrolling</li>
+              <li>Multi‑select mode for batch operations</li>
+              <li>Full‑screen viewer with share, restore, and delete</li>
+              <li>Video playback support inside the vault</li>
+            </ul>
+          </div>
+
+          <div class="feature-visual reveal reveal-delay-2">
+            <div class="feature-phones">
+              <div class="phone-mockup">
+                <div class="phone-frame">
+                  <img src="res/ss-4.png" alt="Notes+ vault gallery showing photos organized by date" width="256" height="554" loading="lazy">
+                </div>
+              </div>
+              <div class="phone-mockup">
+                <div class="phone-frame">
+                  <img src="res/ss-5.png" alt="Notes+ media viewer with restore and delete buttons" width="256" height="554" loading="lazy">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────
+         4. ALBUMS & FAVOURITES
+         ──────────────────────────────────── -->
+    <section class="feature-section" id="feature-albums">
+      <div class="container">
+        <div class="feature-row">
+          <div class="feature-text reveal">
+            <span class="feature-label feature-label--blue">
+              <!-- Heart -->
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+              Albums
+            </span>
+            <h2>Organize with<br><span class="highlight-blue">albums</span> & favourites</h2>
+            <p class="feature-desc">
+              Create custom albums inside the vault to keep things tidy. Tap the heart 
+              in the media viewer to add photos to your Favourites — a virtual album 
+              that always sits at the top of your collection.
+            </p>
+            <ul class="feature-list blue">
+              <li>Create unlimited custom albums</li>
+              <li>Heart button to favourite any photo or video</li>
+              <li>Virtual Favourites album — always at the top</li>
+              <li>Album grid with cover previews and item counts</li>
+              <li>Move media between albums freely</li>
+            </ul>
+          </div>
+
+          <div class="feature-visual reveal reveal-delay-2">
+            <div class="phone-mockup">
+              <div class="phone-frame">
+                <img src="res/ss-6.png" alt="Notes+ vault albums view showing Favourites, custom albums with cover images" width="256" height="554" loading="lazy">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────
+         5. MULTI-VAULT SYSTEM
+         ──────────────────────────────────── -->
+    <section class="feature-section" id="feature-multivault">
+      <div class="container">
+        <div class="feature-row">
+          <div class="feature-text reveal">
+            <span class="feature-label feature-label--yellow">
+              <!-- Layers -->
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              Multi-Vault
+            </span>
+            <h2>Multiple vaults.<br><span class="highlight">One app.</span></h2>
+            <p class="feature-desc">
+              Create separate vaults, each with their own lock type and password. 
+              Use a decoy vault with harmless content for plausible deniability — 
+              if someone forces you to unlock, show them the decoy. Vault management 
+              is only accessible from the main vault, so secondary vaults can't 
+              reveal each other.
+            </p>
+            <ul class="feature-list">
+              <li>Create unlimited independent vaults</li>
+              <li>Each vault has its own PIN, password, or pattern</li>
+              <li>Decoy vault for plausible deniability</li>
+              <li>Vault management hidden inside the main vault</li>
+              <li>Delete a vault and its contents are wiped permanently</li>
+            </ul>
+          </div>
+
+          <div class="feature-visual feature-icon-visual reveal reveal-delay-2">
+            <div class="feature-icon-block">
+              <!-- Vault/Layers icon -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-yellow)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                <polyline points="2 17 12 22 22 17"/>
+                <polyline points="2 12 12 17 22 12"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────
+         6. BACKUP & RESTORE
+         ──────────────────────────────────── -->
+    <section class="feature-section" id="feature-backup">
+      <div class="container">
+        <div class="feature-row">
+          <div class="feature-text reveal">
+            <span class="feature-label feature-label--blue">
+              <!-- Cloud -->
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
+              Backup
+            </span>
+            <h2>Never lose<br><span class="highlight-blue">anything</span></h2>
+            <p class="feature-desc">
+              Back up your entire vault locally as a .bak file to your Documents folder, 
+              or connect Google Drive for incremental cloud sync. Choose automatic sync 
+              on every change or trigger it manually. Restoring gives you merge or replace 
+              options so you never accidentally overwrite.
+            </p>
+            <ul class="feature-list blue">
+              <li>Local .bak backup to Documents folder</li>
+              <li>Google Drive incremental sync</li>
+              <li>Automatic or manual sync modes</li>
+              <li>Full restore with merge or replace options</li>
+              <li>Backup includes all vaults, albums, and settings</li>
+            </ul>
+          </div>
+
+          <div class="feature-visual reveal reveal-delay-2">
+            <div class="phone-mockup">
+              <div class="phone-frame">
+                <img src="res/ss-7.png" alt="Notes+ settings showing backup options with Google Drive sync connected" width="256" height="554" loading="lazy">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────
+         7. CUSTOMIZATION
+         ──────────────────────────────────── -->
+    <section class="feature-section" id="feature-customization">
+      <div class="container">
+        <div class="feature-row">
+          <div class="feature-text reveal">
+            <span class="feature-label feature-label--yellow">
+              <!-- Palette -->
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.5-.67 1.5-1.5 0-.38-.14-.72-.38-1-.24-.28-.38-.62-.38-1 0-.83.67-1.5 1.5-1.5H16c3.31 0 6-2.69 6-6 0-5.5-4.5-10-10-10z"/></svg>
+              Customization
+            </span>
+            <h2>Make it <span class="highlight">yours</span></h2>
+            <p class="feature-desc">
+              Every vault can have its own interior background — choose a color, image, 
+              video, or even a URL. The lock screen background is universal across vaults, 
+              with a blur toggle for images. The glassmorphism design carries through 
+              every screen for a consistent, premium feel.
+            </p>
+            <ul class="feature-list">
+              <li>Per‑vault interior backgrounds (color, image, video, URL)</li>
+              <li>Universal lock screen background with blur toggle</li>
+              <li>Dim overlay option for readability</li>
+              <li>Glassmorphism UI throughout the vault</li>
+              <li>Settings only accessible from the main vault</li>
+            </ul>
+          </div>
+
+          <div class="feature-visual reveal reveal-delay-2">
+            <div class="phone-mockup">
+              <div class="phone-frame">
+                <img src="res/ss-8.png" alt="Notes+ vault management settings showing multiple vaults with different lock types" width="256" height="554" loading="lazy">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========== CTA BANNER ========== -->
+  <section class="highlights" style="padding-bottom: var(--space-4xl);">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-label">— Ready? —</span>
+        <h2 class="section-title">That's Notes+ in a nutshell.</h2>
+        <p class="section-subtitle">Download the APK and see for yourself.</p>
+        <div style="margin-top: var(--space-xl);">
+          <a href="#" class="btn btn-primary anim-btn-glow" data-version-link data-version-text>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Download APK</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== FOOTER ========== -->
+  <footer class="footer" id="footer">
+    <div class="container">
+      <div class="footer-brand">Notes<span class="brand-plus">+</span></div>
+      <div class="footer-links">
+        <a href="features.html">Features</a>
+        <a href="screenshots.html">Screenshots</a>
+        <a href="download.html">Download</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+      <p class="footer-credit">Made with ♥ by <span class="credit-name">Shashwat Gupta</span></p>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
+  <script src="js/version.js"></script>
+</body>
+</html>

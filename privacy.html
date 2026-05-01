@@ -4,13 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Privacy Policy — Notes+</title>
-  <meta name="description" content="Notes+ privacy policy — your data stays on your device.">
+  <meta name="description" content="Notes+ privacy policy — no data collection, no analytics, no ads, no servers. Your data stays on your device.">
   <meta name="theme-color" content="#0A0A0F">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/animations.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23FFCC00'/><text x='50' y='70' font-family='sans-serif' font-weight='900' font-size='55' text-anchor='middle' fill='%230A0A0F'>N+</text></svg>">
 </head>
 <body>
+
+  <!-- NAVBAR -->
   <nav class="navbar" id="navbar" role="navigation" aria-label="Main navigation">
     <div class="container">
       <a href="index.html" class="navbar-brand" aria-label="Notes+ Home">
@@ -30,11 +32,94 @@
   </nav>
   <div class="nav-overlay" id="navOverlay"></div>
 
-  <div class="page-header">
-    <h1>Privacy Policy</h1>
-    <p>Coming soon.</p>
-  </div>
+  <!-- PAGE HEADER -->
+  <header class="page-header">
+    <div class="container">
+      <span class="section-label anim-hero-text">— Privacy —</span>
+      <h1 class="anim-hero-text-delay-1">No fine print. Just facts.</h1>
+      <p class="anim-hero-text-delay-2">Plain English, no legalese. Here's exactly what Notes+ does — and doesn't do — with your data.</p>
+    </div>
+  </header>
 
+  <!-- PRIVACY CONTENT -->
+  <main class="privacy-page">
+    <div class="container">
+      <div class="privacy-content">
+
+        <!-- No Data Collection -->
+        <div class="privacy-section reveal">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            No data collection
+          </h2>
+          <p><strong>Notes+ does not collect, transmit, or store any of your data on external servers.</strong> There is no backend. There is no database. There are no API calls to any server we control. Everything you create — notes, photos, videos — lives on your device and nowhere else.</p>
+        </div>
+
+        <!-- Encryption -->
+        <div class="privacy-section reveal">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            On-device encryption
+          </h2>
+          <p>All media stored in the vault is encrypted using <strong>AES-256</strong>, the same encryption standard used by financial institutions and governments. Encryption and decryption happen entirely on your device. Your vault password is never stored in plaintext — it's used to derive the encryption key locally.</p>
+          <p>If you uninstall the app without backing up, your encrypted data is gone. We can't recover it for you, because we never had it.</p>
+        </div>
+
+        <!-- Google Drive -->
+        <div class="privacy-section reveal">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
+            Google Drive backup
+          </h2>
+          <p>Notes+ offers optional Google Drive sync. If you choose to enable it, your backup is uploaded to <strong>your own Google Drive account</strong> — specifically to the app-specific folder that only Notes+ can access. We do not have access to your Google account, your Drive contents, or your backup files.</p>
+          <p>Backup is entirely user-initiated. You decide when to sync, and you can disconnect at any time. No data leaves your device unless you explicitly tell it to.</p>
+        </div>
+
+        <!-- No Analytics -->
+        <div class="privacy-section reveal">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            No analytics or tracking
+          </h2>
+          <p><strong>There is no Firebase, no Google Analytics, no Crashlytics, no Mixpanel, no anything.</strong> We don't know how many people use Notes+, how often they open it, or what features they use. That's intentional. We don't need to know, and you shouldn't have to tell us.</p>
+        </div>
+
+        <!-- No Ads -->
+        <div class="privacy-section reveal">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+            No ads, ever
+          </h2>
+          <p>Notes+ has no ads and never will. There are no ad SDKs in the app, no ad networks, no sponsored content. The app is free because it's a personal project, not a business.</p>
+        </div>
+
+        <!-- Permissions -->
+        <div class="privacy-section reveal">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Permissions
+          </h2>
+          <p><strong>Storage:</strong> Required to save and read encrypted media files on your device. Notes+ accesses only its own app directory — it does not scan your gallery, contacts, or any other files.</p>
+          <p><strong>Internet:</strong> Used only for Google Drive sync (if enabled) and checking for app updates. No other network requests are made.</p>
+          <p><strong>Camera:</strong> Not requested. Notes+ imports from your existing gallery — it doesn't take photos directly.</p>
+        </div>
+
+        <!-- Contact -->
+        <div class="privacy-section reveal">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Questions?
+          </h2>
+          <p>If you have any privacy concerns, the source is available on <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer" style="color:var(--accent-yellow);border-bottom:1px solid rgba(255,204,0,0.3);">GitHub</a>. You can inspect every line of code yourself. This app has nothing to hide — that's the whole point.</p>
+        </div>
+
+        <p class="privacy-updated">Last updated: May 2026</p>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
   <footer class="footer" id="footer">
     <div class="container">
       <div class="footer-brand">Notes<span class="brand-plus">+</span></div>
@@ -44,13 +129,14 @@
         <a href="download.html">Download</a>
         <a href="privacy.html">Privacy</a>
         <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
           GitHub
         </a>
       </div>
       <p class="footer-credit">Made with ♥ by <span class="credit-name">Shashwat Gupta</span></p>
     </div>
   </footer>
+
   <script src="js/main.js"></script>
 </body>
 </html>

@@ -24,9 +24,13 @@ async function loadVersionInfo() {
       el.textContent = `Download v${data.versionName}`;
     });
 
-    // Download links
+    // Download links — use direct redirect for reliable mobile downloads
     document.querySelectorAll('[data-version-link]').forEach(el => {
       el.setAttribute('href', data.apkUrl);
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.location.href = data.apkUrl;
+      });
     });
 
     // Plain version name

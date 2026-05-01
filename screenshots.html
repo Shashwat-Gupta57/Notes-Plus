@@ -4,13 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Screenshots — Notes+</title>
-  <meta name="description" content="See Notes+ in action — screenshots of the notepad, secret vault, albums, and settings.">
+  <meta name="description" content="See Notes+ in action — screenshots of the notepad, secret vault lock screen, encrypted gallery, albums, and settings.">
   <meta name="theme-color" content="#0A0A0F">
+  <meta name="author" content="Shashwat Gupta">
+
+  <meta property="og:title" content="Screenshots — Notes+">
+  <meta property="og:description" content="See every screen of Notes+ — from the clean notepad to the hidden vault.">
+  <meta property="og:type" content="website">
+
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/animations.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23FFCC00'/><text x='50' y='70' font-family='sans-serif' font-weight='900' font-size='55' text-anchor='middle' fill='%230A0A0F'>N+</text></svg>">
 </head>
 <body>
+
+  <!-- ========== NAVBAR ========== -->
   <nav class="navbar" id="navbar" role="navigation" aria-label="Main navigation">
     <div class="container">
       <a href="index.html" class="navbar-brand" aria-label="Notes+ Home">
@@ -30,11 +38,123 @@
   </nav>
   <div class="nav-overlay" id="navOverlay"></div>
 
-  <div class="page-header">
-    <h1>Screenshots</h1>
-    <p>Coming soon.</p>
+  <!-- ========== PAGE HEADER ========== -->
+  <header class="page-header">
+    <div class="container">
+      <span class="section-label anim-hero-text">— Gallery —</span>
+      <h1 class="anim-hero-text-delay-1">See it in action</h1>
+      <p class="anim-hero-text-delay-2">Every screen of Notes+, from the clean notepad to the deepest vault settings.</p>
+    </div>
+  </header>
+
+  <!-- ========== SCREENSHOTS GRID ========== -->
+  <main class="screenshots-page">
+    <div class="container">
+      <div class="screenshots-grid">
+
+        <!-- 1 -->
+        <div class="screenshot-item reveal reveal-delay-1" data-index="0" onclick="openLightbox(0)">
+          <div class="phone-mockup">
+            <div class="phone-frame">
+              <img src="res/ss-1.png" alt="Notes list view" width="256" height="554" loading="lazy">
+            </div>
+          </div>
+          <p class="screenshot-caption">Clean note list with titles, dates, and content previews</p>
+        </div>
+
+        <!-- 2 -->
+        <div class="screenshot-item reveal reveal-delay-2" data-index="1" onclick="openLightbox(1)">
+          <div class="phone-mockup">
+            <div class="phone-frame">
+              <img src="res/ss-2.png" alt="Note editor view" width="256" height="554" loading="lazy">
+            </div>
+          </div>
+          <p class="screenshot-caption">Distraction-free note editor with auto-save</p>
+        </div>
+
+        <!-- 3 -->
+        <div class="screenshot-item reveal reveal-delay-3" data-index="2" onclick="openLightbox(2)">
+          <div class="phone-mockup">
+            <div class="phone-frame">
+              <img src="res/ss-3.png" alt="Vault lock screen" width="256" height="554" loading="lazy">
+            </div>
+          </div>
+          <p class="screenshot-caption">Secret vault lock screen with pattern unlock</p>
+        </div>
+
+        <!-- 4 -->
+        <div class="screenshot-item reveal reveal-delay-4" data-index="3" onclick="openLightbox(3)">
+          <div class="phone-mockup">
+            <div class="phone-frame">
+              <img src="res/ss-4.png" alt="Vault gallery view" width="256" height="554" loading="lazy">
+            </div>
+          </div>
+          <p class="screenshot-caption">Encrypted gallery with date-grouped photo grid</p>
+        </div>
+
+        <!-- 5 -->
+        <div class="screenshot-item reveal reveal-delay-1" data-index="4" onclick="openLightbox(4)">
+          <div class="phone-mockup">
+            <div class="phone-frame">
+              <img src="res/ss-5.png" alt="Media viewer" width="256" height="554" loading="lazy">
+            </div>
+          </div>
+          <p class="screenshot-caption">Full-screen viewer with restore and delete options</p>
+        </div>
+
+        <!-- 6 -->
+        <div class="screenshot-item reveal reveal-delay-2" data-index="5" onclick="openLightbox(5)">
+          <div class="phone-mockup">
+            <div class="phone-frame">
+              <img src="res/ss-6.png" alt="Albums view" width="256" height="554" loading="lazy">
+            </div>
+          </div>
+          <p class="screenshot-caption">Albums view with cover previews and item counts</p>
+        </div>
+
+        <!-- 7 -->
+        <div class="screenshot-item reveal reveal-delay-3" data-index="6" onclick="openLightbox(6)">
+          <div class="phone-mockup">
+            <div class="phone-frame">
+              <img src="res/ss-7.png" alt="Backup settings" width="256" height="554" loading="lazy">
+            </div>
+          </div>
+          <p class="screenshot-caption">Settings — backup, cloud sync, and lock screen options</p>
+        </div>
+
+        <!-- 8 -->
+        <div class="screenshot-item reveal reveal-delay-4" data-index="7" onclick="openLightbox(7)">
+          <div class="phone-mockup">
+            <div class="phone-frame">
+              <img src="res/ss-8.png" alt="Vault management" width="256" height="554" loading="lazy">
+            </div>
+          </div>
+          <p class="screenshot-caption">Multi-vault management with individual lock types</p>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- ========== LIGHTBOX ========== -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-label="Screenshot viewer">
+    <button class="lightbox-close" id="lightboxClose" aria-label="Close viewer">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <button class="lightbox-arrow lightbox-arrow--prev" id="lightboxPrev" aria-label="Previous screenshot">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="lightbox-content">
+      <img id="lightboxImg" src="" alt="Screenshot preview">
+      <p class="lightbox-caption" id="lightboxCaption"></p>
+    </div>
+    <button class="lightbox-arrow lightbox-arrow--next" id="lightboxNext" aria-label="Next screenshot">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <div class="lightbox-counter" id="lightboxCounter"></div>
   </div>
 
+  <!-- ========== FOOTER ========== -->
   <footer class="footer" id="footer">
     <div class="container">
       <div class="footer-brand">Notes<span class="brand-plus">+</span></div>
@@ -51,6 +171,73 @@
       <p class="footer-credit">Made with ♥ by <span class="credit-name">Shashwat Gupta</span></p>
     </div>
   </footer>
+
   <script src="js/main.js"></script>
+  <script>
+    /* ========== Lightbox Logic ========== */
+    const screenshots = [
+      { src: 'res/ss-1.png', caption: 'Clean note list with titles, dates, and content previews' },
+      { src: 'res/ss-2.png', caption: 'Distraction-free note editor with auto-save' },
+      { src: 'res/ss-3.png', caption: 'Secret vault lock screen with pattern unlock' },
+      { src: 'res/ss-4.png', caption: 'Encrypted gallery with date-grouped photo grid' },
+      { src: 'res/ss-5.png', caption: 'Full-screen viewer with restore and delete options' },
+      { src: 'res/ss-6.png', caption: 'Albums view with cover previews and item counts' },
+      { src: 'res/ss-7.png', caption: 'Settings — backup, cloud sync, and lock screen options' },
+      { src: 'res/ss-8.png', caption: 'Multi-vault management with individual lock types' },
+    ];
+
+    let currentIndex = 0;
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightboxImg');
+    const lightboxCaption = document.getElementById('lightboxCaption');
+    const lightboxCounter = document.getElementById('lightboxCounter');
+
+    function openLightbox(index) {
+      currentIndex = index;
+      updateLightbox();
+      lightbox.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+      lightbox.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    function updateLightbox() {
+      const ss = screenshots[currentIndex];
+      lightboxImg.src = ss.src;
+      lightboxImg.alt = ss.caption;
+      lightboxCaption.textContent = ss.caption;
+      lightboxCounter.textContent = `${currentIndex + 1} / ${screenshots.length}`;
+    }
+
+    function prevScreenshot() {
+      currentIndex = (currentIndex - 1 + screenshots.length) % screenshots.length;
+      updateLightbox();
+    }
+
+    function nextScreenshot() {
+      currentIndex = (currentIndex + 1) % screenshots.length;
+      updateLightbox();
+    }
+
+    document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
+    document.getElementById('lightboxPrev').addEventListener('click', prevScreenshot);
+    document.getElementById('lightboxNext').addEventListener('click', nextScreenshot);
+
+    // Close on background click
+    lightbox.addEventListener('click', (e) => {
+      if (e.target === lightbox) closeLightbox();
+    });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (!lightbox.classList.contains('active')) return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') prevScreenshot();
+      if (e.key === 'ArrowRight') nextScreenshot();
+    });
+  </script>
 </body>
 </html>

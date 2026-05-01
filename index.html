@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notes+ — Your Notes. Your Secrets. Your Business.</title>
+  <meta name="description" content="Notes+ is a clean, powerful notepad for Android with a hidden encrypted vault for your private photos and videos. Download the APK now.">
+  <meta name="theme-color" content="#0A0A0F">
+  <meta name="author" content="Shashwat Gupta">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Notes+ — Your Notes. Your Secrets. Your Business.">
+  <meta property="og:description" content="A clean notepad with a hidden encrypted vault. For Android.">
+  <meta property="og:type" content="website">
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/animations.css">
+
+  <!-- Favicon (yellow N+ square) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23FFCC00'/><text x='50' y='70' font-family='sans-serif' font-weight='900' font-size='55' text-anchor='middle' fill='%230A0A0F'>N+</text></svg>">
+</head>
+<body>
+
+  <!-- ========== NAVBAR ========== -->
+  <nav class="navbar" id="navbar" role="navigation" aria-label="Main navigation">
+    <div class="container">
+      <a href="index.html" class="navbar-brand" aria-label="Notes+ Home">
+        <span class="brand-icon" aria-hidden="true">N+</span>
+        Notes<span class="brand-plus">+</span>
+      </a>
+
+      <div class="nav-links" id="navLinks" role="menubar">
+        <a href="features.html" role="menuitem">Features</a>
+        <a href="screenshots.html" role="menuitem">Screenshots</a>
+        <a href="download.html" role="menuitem">Download</a>
+        <a href="privacy.html" role="menuitem">Privacy</a>
+      </div>
+
+      <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+  <div class="nav-overlay" id="navOverlay"></div>
+
+  <!-- ========== HERO ========== -->
+  <section class="hero" id="hero">
+    <!-- Background glows -->
+    <div class="hero-glow hero-glow--yellow anim-glow" aria-hidden="true"></div>
+    <div class="hero-glow hero-glow--blue anim-glow" aria-hidden="true"></div>
+
+    <div class="container">
+      <!-- Left: Text content -->
+      <div class="hero-content">
+        <div class="hero-badge anim-hero-text">
+          <span class="badge-dot" aria-hidden="true"></span>
+          Android App — Sideload via APK
+        </div>
+
+        <h1 class="hero-title anim-hero-text-delay-1">
+          Your notes.<br>
+          Your <span class="highlight">secrets</span>.<br>
+          Your business.
+        </h1>
+
+        <p class="hero-subtitle anim-hero-text-delay-2">
+          A clean, distraction‑free notepad on the surface — with a hidden 
+          encrypted vault for your private photos and videos, unlocked 
+          only by you.
+        </p>
+
+        <div class="hero-actions anim-hero-text-delay-3">
+          <a href="#" class="btn btn-primary anim-btn-glow" id="heroDownloadBtn"
+             data-version-link data-version-text
+             aria-label="Download Notes+ APK">
+            <!-- JS fills this -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Download APK</span>
+          </a>
+          <a href="features.html" class="btn btn-secondary">
+            Explore Features
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+        </div>
+
+        <p class="hero-version anim-hero-text-delay-4">
+          Latest: <span data-version-name>loading…</span>
+        </p>
+      </div>
+
+      <!-- Right: Phone mockup -->
+      <div class="hero-visual anim-hero-visual">
+        <div class="phone-ring phone-ring--1" aria-hidden="true"></div>
+        <div class="phone-ring phone-ring--2" aria-hidden="true"></div>
+        <div class="phone-mockup anim-float">
+          <div class="phone-frame">
+            <img src="res/ss-1.png"
+                 alt="Notes+ app showing a clean note list with entries like Gifts and Important stuff"
+                 width="256" height="554" loading="eager">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== HIGHLIGHTS ========== -->
+  <section class="highlights" id="highlights">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-label" aria-hidden="true">— Why Notes+ —</span>
+        <h2 class="section-title">Everything you need, nothing you don't.</h2>
+        <p class="section-subtitle">
+          Simple on the outside. Powerful where it counts.
+        </p>
+      </div>
+
+      <div class="highlights-grid">
+        <!-- Card 1 — Notes -->
+        <div class="glass-card reveal reveal-delay-1" id="highlight-notes">
+          <div class="card-icon card-icon--yellow" aria-hidden="true">
+            <!-- Pencil icon -->
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          </div>
+          <h3>Clean Notes</h3>
+          <p>An Apple Notes‑style notepad that stays out of your way. Write, organize, and find your thoughts instantly.</p>
+        </div>
+
+        <!-- Card 2 — Privacy -->
+        <div class="glass-card reveal reveal-delay-2" id="highlight-privacy">
+          <div class="card-icon card-icon--blue" aria-hidden="true">
+            <!-- Shield icon -->
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3>Hidden Vault</h3>
+          <p>A secret encrypted space for photos and videos — invisible to anyone who doesn't know it exists.</p>
+        </div>
+
+        <!-- Card 3 — Security -->
+        <div class="glass-card reveal reveal-delay-3" id="highlight-security">
+          <div class="card-icon card-icon--white" aria-hidden="true">
+            <!-- Lock icon -->
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <h3>Your Lock, Your Rules</h3>
+          <p>PIN, password, or pattern — with multiple vaults and custom lock screen backgrounds to match your style.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== FOOTER ========== -->
+  <footer class="footer" id="footer">
+    <div class="container">
+      <div class="footer-brand">
+        Notes<span class="brand-plus">+</span>
+      </div>
+
+      <div class="footer-links">
+        <a href="features.html">Features</a>
+        <a href="screenshots.html">Screenshots</a>
+        <a href="download.html">Download</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer">
+          <!-- GitHub icon -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+
+      <p class="footer-credit">
+        Made with ♥ by <span class="credit-name">Shashwat Gupta</span>
+      </p>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="js/main.js"></script>
+  <script src="js/version.js"></script>
+</body>
+</html>

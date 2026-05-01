@@ -20,6 +20,13 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
+import androidx.work.Data;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.WorkManager;
+
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -621,6 +628,11 @@ public class SecretGalleryActivity extends AppCompatActivity {
                     
                     database.secretDao().insert(entity);
 
+                    // Handle Background Sync if Automatic
+                    if (SecurityHelper.isAutoSyncEnabled(this)) {
+                        SyncWorker.enqueue(this, SyncWorker.ACTION_UPLOAD, fileName, currentVaultId);
+                    }
+
                     if (originalPath != null) {
                         File originalFile = new File(originalPath);
                         if (originalFile.exists()) {
@@ -754,8 +766,14 @@ public class SecretGalleryActivity extends AppCompatActivity {
                 .setPositiveButton("Delete", (d, w) -> {
                     executor.execute(() -> {
                         for (SecretItem item : selected) {
-                            SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
-                            if (entity != null) database.secretDao().delete(entity);
+                            String fileName = item.getFile().getName();
+                            SecretEntity entity = database.secretDao().getSecretByFileName(fileName);
+                            if (entity != null) {
+                                database.secretDao().delete(entity);
+                                if (SecurityHelper.isAutoSyncEnabled(this)) {
+                                    SyncWorker.enqueue(this, SyncWorker.ACTION_DELETE, fileName, currentVaultId);
+                                }
+                            }
                             item.getFile().delete();
                         }
                         runOnUiThread(() -> adapter.setSelectionMode(false));

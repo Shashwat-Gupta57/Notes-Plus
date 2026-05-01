@@ -52,4 +52,16 @@ public interface SecretDao {
 
     @Query("UPDATE secrets SET albumId = NULL WHERE albumId = :albumId")
     void unsetAlbumId(int albumId);
+
+    @Query("UPDATE secrets SET syncedLocally = 1")
+    void markAllAsSynced();
+
+    @Query("SELECT * FROM secrets")
+    List<SecretEntity> getAllSecretsDirect();
+
+    @Query("SELECT * FROM secrets WHERE syncedToDrive = 0")
+    List<SecretEntity> getUnsyncedToDriveSecrets();
+
+    @Query("UPDATE secrets SET syncedToDrive = 1 WHERE id = :id")
+    void markAsSyncedToDrive(int id);
 }

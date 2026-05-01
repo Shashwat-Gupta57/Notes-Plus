@@ -17,6 +17,8 @@ public class SecretEntity {
     // New fields for Albums and Favourites
     private boolean isFavourite;
     private Integer albumId;
+    private boolean syncedLocally;
+    private boolean syncedToDrive;
 
     public SecretEntity(String fileName, String originalPath, long dateTaken, long dateAdded, boolean isVideo, int vaultId) {
         this.fileName = fileName;
@@ -27,6 +29,8 @@ public class SecretEntity {
         this.vaultId = vaultId;
         this.isFavourite = false;
         this.albumId = null;
+        this.syncedLocally = false;
+        this.syncedToDrive = false;
     }
 
     public int getId() { return id; }
@@ -48,4 +52,8 @@ public class SecretEntity {
     public void setFavourite(boolean favourite) { isFavourite = favourite; }
     public Integer getAlbumId() { return albumId; }
     public void setAlbumId(Integer albumId) { this.albumId = albumId; }
+    public boolean isSyncedLocally() { return syncedLocally; }
+    public void setSyncedLocally(boolean syncedLocally) { this.syncedLocally = syncedLocally; }
+    public boolean isSyncedToDrive() { return syncedToDrive; }
+    public void setSyncedToDrive(boolean syncedToDrive) { this.syncedToDrive = syncedToDrive; }
 }

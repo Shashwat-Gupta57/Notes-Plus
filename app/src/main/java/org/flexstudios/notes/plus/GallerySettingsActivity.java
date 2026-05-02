@@ -1,5 +1,6 @@
 package org.flexstudios.notes.plus;
 
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -97,6 +98,7 @@ public class GallerySettingsActivity extends AppCompatActivity {
         }
     };
 
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -706,16 +708,21 @@ public class GallerySettingsActivity extends AppCompatActivity {
                 Toast.makeText(this, "Sign in failed: " + e.getStatusCode(), Toast.LENGTH_SHORT).show();
             }
         } else if (requestCode == 2001 && resultCode == RESULT_OK && data != null && data.getData() != null) {
-            try (InputStream is = getContentResolver().openInputStream(data.getData())) {
-                File tempFile = new File(getCacheDir(), "local_restore.bak");
-                try (FileOutputStream fos = new FileOutputStream(tempFile)) {
-                    byte[] buffer = new byte[8192];
-                    int len;
-                    if (is != null) {
-                        while ((len = is.read(buffer)) > 0) fos.write(buffer, 0, len);
+            try {
+                Uri uri = data.getData();
+                if (uri != null) {
+                    try (InputStream is = getContentResolver().openInputStream(uri)) {
+                        File tempFile = new File(getCacheDir(), "local_restore.bak");
+                        try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                            byte[] buffer = new byte[8192];
+                            int len;
+                            if (is != null) {
+                                while ((len = is.read(buffer)) > 0) fos.write(buffer, 0, len);
+                            }
+                        }
+                        showRestoreOptionsDialog(tempFile);
                     }
                 }
-                showRestoreOptionsDialog(tempFile);
             } catch (Exception e) {
                 Toast.makeText(this, "Failed to load backup", Toast.LENGTH_SHORT).show();
             }

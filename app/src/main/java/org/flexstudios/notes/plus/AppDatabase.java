@@ -44,20 +44,26 @@ public abstract class AppDatabase extends RoomDatabase {
 
     private static void seedMainVault(Context context) {
         VaultDao dao = getInstance(context).vaultDao();
-        VaultEntity existingMain = dao.getMainVault();
-        VaultEntity vault1 = dao.getVaultById(1);
-        
-        if (existingMain == null && vault1 == null) {
-            SharedPreferences prefs = SecurityHelper.getEncryptedPrefs(context);
-            String lockType = prefs.getString(SecurityHelper.KEY_LOCK_TYPE, "PIN");
-            String lockValue = prefs.getString(SecurityHelper.KEY_LOCK_VALUE, "");
+        Executors.newSingleThreadExecutor().execute(() -> {
+            VaultEntity existingMain = dao.getMainVault();
+            VaultEntity vault1 = dao.getVaultById(1);
             
-            if (lockValue != null && !lockValue.isEmpty()) {
-                VaultEntity vault = new VaultEntity("Main Vault", lockType, lockValue, true, 0);
-                vault.setId(1);
-                dao.insert(vault);
+            if (existingMain == null && vault1 == null) {
+                SharedPreferences prefs = SecurityHelper.getEncryptedPrefs(context);
+                String lockType = prefs.getString(SecurityHelper.KEY_LOCK_TYPE, "PIN");
+                String lockValue = prefs.getString(SecurityHelper.KEY_LOCK_VALUE, "");
+                
+                if (lockValue != null && !lockValue.isEmpty()) {
+                    VaultEntity vault = new VaultEntity("Main Vault", lockType, lockValue, true, 0);
+                    vault.setId(1);
+                    try {
+                        dao.insert(vault);
+                    } catch (Exception e) {
+                        // Vault 1 might have been inserted between check and insert
+                    }
+                }
             }
-        }
+        });
     }
 
     static final Migration MIGRATION_2_3 = new Migration(2, 3) {

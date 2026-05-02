@@ -1,6 +1,7 @@
 package org.flexstudios.notes.plus;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -65,6 +66,12 @@ public class BackupManager {
                 JSONObject settings = new JSONObject();
                 settings.put("auto_lock_time", SecurityHelper.getAutoLockDelay(context));
                 settings.put("lock_setup_done", SecurityHelper.isSetupDone(context));
+                
+                SharedPreferences appPrefs = SecurityHelper.getAppPrefs(context);
+                settings.put("lock_bg_type", appPrefs.getString(SecurityHelper.KEY_LOCK_BG_TYPE, "DEFAULT"));
+                settings.put("lock_bg_value", appPrefs.getString(SecurityHelper.KEY_LOCK_BG_VALUE, null));
+                settings.put("lock_bg_blur", appPrefs.getBoolean(SecurityHelper.KEY_LOCK_BG_BLUR, false));
+                settings.put("lock_bg_dim", appPrefs.getBoolean(SecurityHelper.KEY_LOCK_BG_DIM, false));
                 
                 JSONArray vaultsArray = new JSONArray();
                 for (VaultEntity v : vaults) {
@@ -144,6 +151,30 @@ public class BackupManager {
                             }
                         }
                     }
+
+                    // Zip background images (skip videos as per instruction)
+                    File[] appFiles = context.getFilesDir().listFiles();
+                    if (appFiles != null) {
+                        for (File dir : appFiles) {
+                            if (dir.isDirectory() && dir.getName().startsWith("bg_")) {
+                                File[] bgFiles = dir.listFiles();
+                                if (bgFiles != null) {
+                                    for (File f : bgFiles) {
+                                        if (f.isFile() && !f.getName().endsWith(".mp4")) {
+                                            ZipEntry entry = new ZipEntry("backgrounds/" + dir.getName() + "/" + f.getName());
+                                            zos.putNextEntry(entry);
+                                            try (InputStream is = new FileInputStream(f)) {
+                                                byte[] buffer = new byte[16384];
+                                                int len;
+                                                while ((len = is.read(buffer)) > 0) zos.write(buffer, 0, len);
+                                            }
+                                            zos.closeEntry();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 updateProgress(80, "Encrypting backup...");
@@ -193,6 +224,7 @@ public class BackupManager {
                 }
 
                 if (settings == null) throw new Exception("Invalid backup: Missing settings.json");
+                final JSONObject finalSettings = settings;
 
                 // Start Transaction/Rollback point
                 if (replaceMedia && vaultDir.exists()) {
@@ -209,40 +241,82 @@ public class BackupManager {
                         if (entry.getName().startsWith("media/")) {
                             String fileName = entry.getName().substring(6);
                             File target = new File(vaultDir, fileName);
-                            
                             if (!replaceMedia && target.exists()) continue; // Merge: skip existing
-
                             if (target.exists()) target.delete();
-
                             EncryptedFile encryptedStorage = new EncryptedFile.Builder(
                                     target, context, restoreKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
                             ).build();
-
                             try (OutputStream os = encryptedStorage.openFileOutput()) {
                                 byte[] buffer = new byte[16384];
                                 int len;
                                 while ((len = zis.read(buffer)) > 0) os.write(buffer, 0, len);
+                            }
+                        } else if (entry.getName().startsWith("backgrounds/")) {
+                            String path = entry.getName().substring(12);
+                            File target = new File(context.getFilesDir(), path);
+                            if (!target.getParentFile().exists()) target.getParentFile().mkdirs();
+                            try (FileOutputStream fos = new FileOutputStream(target)) {
+                                byte[] buffer = new byte[16384];
+                                int len;
+                                while ((len = zis.read(buffer)) > 0) fos.write(buffer, 0, len);
                             }
                         }
                     }
                 }
 
                 updateProgress(80, "Updating database...");
-                // Note: Direct DB manipulation in a background thread for restore
                 if (replaceSettings) {
-                    db.clearAllTables();
+                    updateProgress(80, "Updating vault configurations...");
                     
-                    JSONArray vaults = settings.getJSONArray("vaults");
-                    for (int i = 0; i < vaults.length(); i++) {
-                        JSONObject vo = vaults.getJSONObject(i);
-                        VaultEntity v = new VaultEntity(vo.getString("name"), vo.getString("lockType"), 
-                                vo.getString("lockValue"), vo.getBoolean("isMain"), vo.getInt("sortOrder"));
-                        v.setId(vo.getInt("id"));
-                        v.setBgType(vo.optString("bgType", "DEFAULT"));
-                        v.setBgValue(vo.optString("bgValue", null));
-                        db.vaultDao().insert(v);
+                    db.runInTransaction(() -> {
+                        db.clearAllTables();
+                        try {
+                            JSONArray vaults = finalSettings.getJSONArray("vaults");
+                            for (int i = 0; i < vaults.length(); i++) {
+                                JSONObject vo = vaults.getJSONObject(i);
+                                VaultEntity v = new VaultEntity(vo.getString("name"), vo.getString("lockType"), 
+                                        vo.getString("lockValue"), vo.getBoolean("isMain"), vo.getInt("sortOrder"));
+                                v.setId(vo.getInt("id"));
+                                v.setBgType(vo.optString("bgType", "DEFAULT"));
+                                
+                                // Fix path portability for backgrounds
+                                String bgValue = vo.optString("bgValue", null);
+                                if (bgValue != null && bgValue.contains("/files/bg_")) {
+                                    String fileName = new File(bgValue).getName();
+                                    String dirName = new File(bgValue).getParentFile().getName();
+                                    bgValue = new File(new File(context.getFilesDir(), dirName), fileName).getAbsolutePath();
+                                }
+                                v.setBgValue(bgValue);
+                                db.vaultDao().insert(v);
+
+                                if (v.isMain()) {
+                                    // Restore core lock prefs immediately to prevent lockout
+                                    SecurityHelper.getEncryptedPrefs(context).edit()
+                                            .putString(SecurityHelper.KEY_LOCK_TYPE, v.getLockType())
+                                            .putString(SecurityHelper.KEY_LOCK_VALUE, v.getLockValue())
+                                            .apply();
+                                    SecurityHelper.setSetupDone(context, true);
+                                }
+                            }
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+
+                    SecurityHelper.setAutoLockDelay(context, finalSettings.getLong("auto_lock_time"));
+                    
+                    // Restore lock screen settings
+                    SharedPreferences.Editor editor = SecurityHelper.getAppPrefs(context).edit();
+                    editor.putString(SecurityHelper.KEY_LOCK_BG_TYPE, finalSettings.optString("lock_bg_type", "DEFAULT"));
+                    String lockBgValue = finalSettings.optString("lock_bg_value", null);
+                    if (lockBgValue != null && lockBgValue.contains("/files/bg_lock")) {
+                        String fileName = new File(lockBgValue).getName();
+                        lockBgValue = new File(new File(context.getFilesDir(), "bg_lock"), fileName).getAbsolutePath();
                     }
-                    SecurityHelper.setAutoLockDelay(context, settings.getLong("auto_lock_time"));
+                    editor.putString(SecurityHelper.KEY_LOCK_BG_VALUE, lockBgValue);
+                    editor.putBoolean(SecurityHelper.KEY_LOCK_BG_BLUR, finalSettings.optBoolean("lock_bg_blur", false));
+                    editor.putBoolean(SecurityHelper.KEY_LOCK_BG_DIM, finalSettings.optBoolean("lock_bg_dim", false));
+                    editor.apply();
                 }
 
                 if (replaceMedia) {
@@ -254,7 +328,7 @@ public class BackupManager {
                     }
                 }
 
-                JSONArray secrets = settings.getJSONArray("secrets");
+                JSONArray secrets = finalSettings.getJSONArray("secrets");
                 int totalSecrets = secrets.length();
                 
                 // Optimized duplicate detection
@@ -293,8 +367,8 @@ public class BackupManager {
                     }
                 }
 
-                if (settings.has("albums")) {
-                    JSONArray albums = settings.getJSONArray("albums");
+                if (finalSettings.has("albums")) {
+                    JSONArray albums = finalSettings.getJSONArray("albums");
                     for (int i = 0; i < albums.length(); i++) {
                         JSONObject ao = albums.getJSONObject(i);
                         AlbumEntity a = new AlbumEntity(ao.getString("name"), ao.getInt("vaultId"), ao.optString("coverFileName", null));

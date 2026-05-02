@@ -9,6 +9,9 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.view.Menu;
@@ -74,9 +77,11 @@ public class SecretGalleryActivity extends AppCompatActivity {
     private View selectionBottomBar;
     private LinearLayout emptyState;
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private File vaultDir;
     private AppDatabase database;
     private boolean skipAutoLockOnce = false;
+    private boolean isImporting = false;
     private boolean isAllSelected = false;
     private int currentVaultId = 1;
 
@@ -561,6 +566,8 @@ public class SecretGalleryActivity extends AppCompatActivity {
     }
 
     private void checkAutoLock() {
+        if (isImporting) return; // Don't lock while securing photos
+
         long delay = SecurityHelper.getAutoLockDelay(this);
         long lastActive = SecurityHelper.getLastActiveTime(this);
         long now = System.currentTimeMillis();
@@ -574,6 +581,7 @@ public class SecretGalleryActivity extends AppCompatActivity {
     }
 
     private void pickFile() {
+        skipAutoLockOnce = true;
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         intent.setType("image/* video/*");
@@ -600,52 +608,74 @@ public class SecretGalleryActivity extends AppCompatActivity {
     }
 
     private void processUris(List<Uri> uris) {
-        AtomicInteger processedCount = new AtomicInteger(0);
+        if (uris == null || uris.isEmpty()) return;
+        
+        isImporting = true;
+        AtomicInteger totalProcessed = new AtomicInteger(0);
+        AtomicInteger successCount = new AtomicInteger(0);
         int total = uris.size();
-        for (Uri uri : uris) {
+        
+        for (int i = 0; i < total; i++) {
+            final Uri uri = uris.get(i);
+            final int taskIndex = i;
+            
             executor.execute(() -> {
                 try {
-                    String mimeType = getContentResolver().getType(uri);
+                    String mimeType = getApplicationContext().getContentResolver().getType(uri);
                     boolean isVideo = mimeType != null && mimeType.startsWith("video");
                     String originalPath = getActualPath(uri);
                     long dateTaken = recoverOriginalDate(uri, originalPath, isVideo);
                     long dateAdded = System.currentTimeMillis();
-                    String fileName = (isVideo ? "VID_" : "IMG_") + dateAdded + "_" + processedCount.get();
+                    
+                    String fileName = (isVideo ? "VID_" : "IMG_") + dateAdded + "_" + taskIndex;
                     File encryptedFile = new File(vaultDir, fileName);
+                    
                     String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
                     EncryptedFile encryptedStorage = new EncryptedFile.Builder(
-                            encryptedFile, this, masterKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
+                            encryptedFile, getApplicationContext(), masterKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
                     ).build();
 
-                    try (InputStream in = getContentResolver().openInputStream(uri);
+                    boolean written = false;
+                    try (InputStream in = getApplicationContext().getContentResolver().openInputStream(uri);
                          OutputStream out = encryptedStorage.openFileOutput()) {
-                        byte[] buffer = new byte[8192];
-                        int len;
-                        while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
-                    }
-                    SecretEntity entity = new SecretEntity(fileName, originalPath, dateTaken, dateAdded, isVideo, currentVaultId);
-                    if (filterAlbumId != null) entity.setAlbumId(filterAlbumId);
-                    
-                    database.secretDao().insert(entity);
-
-                    // Handle Background Sync if Automatic
-                    if (SecurityHelper.isAutoSyncEnabled(this)) {
-                        SyncWorker.enqueue(this, SyncWorker.ACTION_UPLOAD, fileName, currentVaultId);
-                    }
-
-                    if (originalPath != null) {
-                        File originalFile = new File(originalPath);
-                        if (originalFile.exists()) {
-                            originalFile.delete();
-                            Intent scanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-                            scanIntent.setData(Uri.fromFile(originalFile));
-                            sendBroadcast(scanIntent);
+                        if (in != null) {
+                            byte[] buffer = new byte[32768]; // Even larger buffer
+                            int len;
+                            while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
+                            written = true;
                         }
                     }
-                    if (processedCount.incrementAndGet() == total) {
-                        runOnUiThread(() -> Toast.makeText(this, "Secured " + total + " items", Toast.LENGTH_SHORT).show());
+                    
+                    if (written) {
+                        SecretEntity entity = new SecretEntity(fileName, originalPath, dateTaken, dateAdded, isVideo, currentVaultId);
+                        if (filterAlbumId != null) entity.setAlbumId(filterAlbumId);
+                        
+                        database.secretDao().insert(entity);
+                        successCount.incrementAndGet();
+
+                        if (SecurityHelper.isAutoSyncEnabled(getApplicationContext())) {
+                            SyncWorker.enqueue(getApplicationContext(), SyncWorker.ACTION_UPLOAD, fileName, currentVaultId);
+                        }
+
+                        if (originalPath != null) {
+                            File originalFile = new File(originalPath);
+                            if (originalFile.exists()) {
+                                originalFile.delete();
+                                Intent scanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+                                scanIntent.setData(Uri.fromFile(originalFile));
+                                getApplicationContext().sendBroadcast(scanIntent);
+                            }
+                        }
                     }
-                } catch (Exception e) { e.printStackTrace(); }
+                } catch (Exception e) {
+                    Log.e("SecretGallery", "Failed to secure item", e);
+                } finally {
+                    if (totalProcessed.incrementAndGet() == total) {
+                        isImporting = false;
+                        int finalSuccess = successCount.get();
+                        mainHandler.post(() -> Toast.makeText(getApplicationContext(), "Secured " + finalSuccess + " items", Toast.LENGTH_SHORT).show());
+                    }
+                }
             });
         }
     }
@@ -664,7 +694,7 @@ public class SecretGalleryActivity extends AppCompatActivity {
 
     private long recoverOriginalDate(Uri uri, String path, boolean isVideo) {
         if (!isVideo) {
-            try (InputStream inputStream = getContentResolver().openInputStream(uri)) {
+            try (InputStream inputStream = getApplicationContext().getContentResolver().openInputStream(uri)) {
                 if (inputStream != null) {
                     ExifInterface exif = new ExifInterface(inputStream);
                     String dateString = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL);

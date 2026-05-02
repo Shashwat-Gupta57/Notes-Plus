@@ -1,6 +1,7 @@
 package org.flexstudios.notes.plus;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -98,6 +99,25 @@ public class GoogleDriveManager {
                 db.secretDao().markAsSyncedToDrive(secret.getId());
             }
         }
+
+        // Sync Backgrounds (Images only)
+        String bgFolderId = getOrCreateFolder("backgrounds", backupFolderId);
+        java.io.File[] appFiles = context.getFilesDir().listFiles();
+        if (appFiles != null) {
+            for (java.io.File dir : appFiles) {
+                if (dir.isDirectory() && dir.getName().startsWith("bg_")) {
+                    String remoteSubFolderId = getOrCreateFolder(dir.getName(), bgFolderId);
+                    java.io.File[] bgFiles = dir.listFiles();
+                    if (bgFiles != null) {
+                        for (java.io.File f : bgFiles) {
+                            if (f.isFile() && !f.getName().endsWith(".mp4")) {
+                                uploadFile(f, remoteSubFolderId);
+                            }
+                        }
+                    }
+                }
+            }
+        }
         updateLastSyncTime();
     }
 
@@ -115,6 +135,12 @@ public class GoogleDriveManager {
         JSONObject settings = new JSONObject();
         settings.put("auto_lock_time", SecurityHelper.getAutoLockDelay(context));
         
+        SharedPreferences appPrefs = SecurityHelper.getAppPrefs(context);
+        settings.put("lock_bg_type", appPrefs.getString(SecurityHelper.KEY_LOCK_BG_TYPE, "DEFAULT"));
+        settings.put("lock_bg_value", appPrefs.getString(SecurityHelper.KEY_LOCK_BG_VALUE, null));
+        settings.put("lock_bg_blur", appPrefs.getBoolean(SecurityHelper.KEY_LOCK_BG_BLUR, false));
+        settings.put("lock_bg_dim", appPrefs.getBoolean(SecurityHelper.KEY_LOCK_BG_DIM, false));
+
         JSONArray vaultsArray = new JSONArray();
         String masterPassword = "";
         for (VaultEntity v : vaults) {
@@ -124,6 +150,12 @@ public class GoogleDriveManager {
             if (v.isMain()) masterPassword = v.getLockValue();
             vaultsArray.put(vo);
         }
+        
+        if (masterPassword.isEmpty()) {
+            Log.w(TAG, "No main vault found, skipping settings upload");
+            return;
+        }
+
         settings.put("vaults", vaultsArray);
 
         JSONArray secretsArray = new JSONArray();
@@ -235,12 +267,73 @@ public class GoogleDriveManager {
 
                 if (replaceSettings) {
                     updateProgress(callback, 30, "Updating configurations...");
-                    db.clearAllTables();
-                    JSONArray vaults = settings.getJSONArray("vaults");
-                    for (int i = 0; i < vaults.length(); i++) {
-                        JSONObject vo = vaults.getJSONObject(i);
-                        VaultEntity v = new VaultEntity(vo.getString("name"), vo.getString("lockType"), vo.getString("lockValue"), vo.getBoolean("isMain"), vo.getInt("sortOrder"));
-                        v.setId(vo.getInt("id")); db.vaultDao().insert(v);
+                    
+                    // Critical Fix: Use a single transaction for clearing and inserting
+                    db.runInTransaction(() -> {
+                        db.clearAllTables();
+                        try {
+                            JSONArray vaults = settings.getJSONArray("vaults");
+                            for (int i = 0; i < vaults.length(); i++) {
+                                JSONObject vo = vaults.getJSONObject(i);
+                                VaultEntity v = new VaultEntity(vo.getString("name"), vo.getString("lockType"), vo.getString("lockValue"), vo.getBoolean("isMain"), vo.getInt("sortOrder"));
+                                v.setId(vo.getInt("id")); 
+                                
+                                // Fix path portability for backgrounds
+                                String bgValue = vo.optString("bgValue", null);
+                                if (bgValue != null && bgValue.contains("/files/bg_")) {
+                                    String fileName = new java.io.File(bgValue).getName();
+                                    String dirName = new java.io.File(bgValue).getParentFile().getName();
+                                    bgValue = new java.io.File(new java.io.File(context.getFilesDir(), dirName), fileName).getAbsolutePath();
+                                }
+                                v.setBgValue(bgValue);
+                                db.vaultDao().insert(v);
+
+                                if (v.isMain()) {
+                                    // Restore core lock prefs immediately to prevent lockout
+                                    SecurityHelper.getEncryptedPrefs(context).edit()
+                                            .putString(SecurityHelper.KEY_LOCK_TYPE, v.getLockType())
+                                            .putString(SecurityHelper.KEY_LOCK_VALUE, v.getLockValue())
+                                            .apply();
+                                    SecurityHelper.setSetupDone(context, true);
+                                }
+                            }
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+
+                    SecurityHelper.setAutoLockDelay(context, settings.getLong("auto_lock_time"));
+                    
+                    // Restore lock screen settings
+                    SharedPreferences.Editor editor = SecurityHelper.getAppPrefs(context).edit();
+                    editor.putString(SecurityHelper.KEY_LOCK_BG_TYPE, settings.optString("lock_bg_type", "DEFAULT"));
+                    String lockBgValue = settings.optString("lock_bg_value", null);
+                    if (lockBgValue != null && lockBgValue.contains("/files/bg_lock")) {
+                        String fileName = new java.io.File(lockBgValue).getName();
+                        lockBgValue = new java.io.File(new java.io.File(context.getFilesDir(), "bg_lock"), fileName).getAbsolutePath();
+                    }
+                    editor.putString(SecurityHelper.KEY_LOCK_BG_VALUE, lockBgValue);
+                    editor.putBoolean(SecurityHelper.KEY_LOCK_BG_BLUR, settings.optBoolean("lock_bg_blur", false));
+                    editor.putBoolean(SecurityHelper.KEY_LOCK_BG_DIM, settings.optBoolean("lock_bg_dim", false));
+                    editor.apply();
+                }
+
+                // 3. Download Backgrounds
+                updateProgress(callback, 35, "Restoring background media...");
+                String bgFolderId = findFileId("backgrounds", backupFolderId);
+                if (bgFolderId != null) {
+                    FileList subFolders = driveService.files().list().setQ("'" + bgFolderId + "' in parents and trashed = false").execute();
+                    for (File subFolder : subFolders.getFiles()) {
+                        java.io.File localDir = new java.io.File(context.getFilesDir(), subFolder.getName());
+                        if (!localDir.exists()) localDir.mkdirs();
+                        
+                        FileList bgFiles = driveService.files().list().setQ("'" + subFolder.getId() + "' in parents and trashed = false").execute();
+                        for (File bgFile : bgFiles.getFiles()) {
+                            java.io.File targetFile = new java.io.File(localDir, bgFile.getName());
+                            try (FileOutputStream fos = new java.io.FileOutputStream(targetFile)) {
+                                driveService.files().get(bgFile.getId()).executeMediaAndDownloadTo(fos);
+                            }
+                        }
                     }
                 }
 
@@ -392,6 +485,13 @@ public class GoogleDriveManager {
             if (read == -1) break; offset += read;
         }
         return offset;
+    }
+
+    private void uploadFile(java.io.File localFile, String parentId) throws IOException {
+        if (findFileId(localFile.getName(), parentId) != null) return; // Already exists
+        File metadata = new File().setName(localFile.getName()).setParents(Collections.singletonList(parentId));
+        FileContent content = new FileContent("application/octet-stream", localFile);
+        driveService.files().create(metadata, content).execute();
     }
 
     private void deleteRecursive(java.io.File fileOrDirectory) {

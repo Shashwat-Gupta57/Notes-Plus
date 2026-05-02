@@ -1,7 +1,7 @@
 {
-  "versionCode": 6,
-  "versionName": "6.00",
+  "versionCode": 7,
+  "versionName": "7.00",
   "forced": false,
-  "changelog": "Introduced Backup Functionality To It",
-  "apkUrl": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/v6.0.0/Notes+.apk"
+  "changelog": "Fixed lockup import locking error and fixed local backups not saving lock screen settings and background.",
+  "apkUrl": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/v7.0.0/Notes+.apk"
 }

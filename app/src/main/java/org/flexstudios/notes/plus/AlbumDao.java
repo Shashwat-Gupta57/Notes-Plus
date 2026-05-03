@@ -34,4 +34,7 @@ public interface AlbumDao {
 
     @Query("SELECT * FROM albums")
     List<AlbumEntity> getAllAlbumsDirect();
+
+    @Query("DELETE FROM albums")
+    void deleteAllAlbums();
 }

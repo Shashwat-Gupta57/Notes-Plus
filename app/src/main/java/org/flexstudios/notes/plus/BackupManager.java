@@ -26,8 +26,6 @@ import java.util.zip.ZipOutputStream;
 import java.util.ArrayList;
 
 import javax.crypto.Cipher;
-import javax.crypto.CipherInputStream;
-import javax.crypto.CipherOutputStream;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
@@ -37,6 +35,7 @@ import androidx.security.crypto.EncryptedFile;
 import androidx.security.crypto.MasterKeys;
 
 public class BackupManager {
+    private static final String TAG = "BackupManager";
     private final Context context;
     private final BackupListener listener;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -143,7 +142,7 @@ public class BackupManager {
                                     }
                                     zos.closeEntry();
                                 } catch (Exception e) {
-                                    Log.e("BackupManager", "Skipping corrupt file: " + f.getName(), e);
+                                    Log.e(TAG, "Skipping corrupt file: " + f.getName(), e);
                                 }
                                 count++;
                                 int p = 20 + (int) ((count / (float) files.length) * 50);
@@ -152,7 +151,7 @@ public class BackupManager {
                         }
                     }
 
-                    // Zip background images (skip videos as per instruction)
+                    // Zip background images
                     File[] appFiles = context.getFilesDir().listFiles();
                     if (appFiles != null) {
                         for (File dir : appFiles) {
@@ -187,7 +186,7 @@ public class BackupManager {
                 mainHandler.post(() -> listener.onComplete("Backup Saved Successfully"));
 
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e(TAG, "Backup failed", e);
                 if (tempZip.exists()) tempZip.delete();
                 mainHandler.post(() -> listener.onError(e.getMessage()));
             }
@@ -200,6 +199,10 @@ public class BackupManager {
             File vaultDir = new File(context.getFilesDir(), "vault");
             File backupVaultDir = new File(context.getFilesDir(), "vault_backup");
             AppDatabase db = AppDatabase.getInstance(context);
+            
+            List<VaultEntity> vaultSnapshot = null;
+            List<AlbumEntity> albumSnapshot = null;
+            long autoLockSnapshot = SecurityHelper.getAutoLockDelay(context);
 
             try {
                 updateProgress(10, "Decrypting backup...");
@@ -226,7 +229,10 @@ public class BackupManager {
                 if (settings == null) throw new Exception("Invalid backup: Missing settings.json");
                 final JSONObject finalSettings = settings;
 
-                // Start Transaction/Rollback point
+                // Take snapshots for rollback
+                vaultSnapshot = db.vaultDao().getAllVaultsDirect();
+                albumSnapshot = db.albumDao().getAllAlbumsDirect();
+
                 if (replaceMedia && vaultDir.exists()) {
                     if (backupVaultDir.exists()) deleteRecursive(backupVaultDir);
                     vaultDir.renameTo(backupVaultDir);
@@ -241,7 +247,7 @@ public class BackupManager {
                         if (entry.getName().startsWith("media/")) {
                             String fileName = entry.getName().substring(6);
                             File target = new File(vaultDir, fileName);
-                            if (!replaceMedia && target.exists()) continue; // Merge: skip existing
+                            if (!replaceMedia && target.exists()) continue; 
                             if (target.exists()) target.delete();
                             EncryptedFile encryptedStorage = new EncryptedFile.Builder(
                                     target, context, restoreKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
@@ -266,20 +272,16 @@ public class BackupManager {
 
                 updateProgress(80, "Updating database...");
                 if (replaceSettings) {
-                    updateProgress(80, "Updating vault configurations...");
-                    
                     db.runInTransaction(() -> {
-                        db.clearAllTables();
+                        db.vaultDao().deleteAllVaults();
+                        db.albumDao().deleteAllAlbums();
                         try {
                             JSONArray vaults = finalSettings.getJSONArray("vaults");
                             for (int i = 0; i < vaults.length(); i++) {
                                 JSONObject vo = vaults.getJSONObject(i);
                                 VaultEntity v = new VaultEntity(vo.getString("name"), vo.getString("lockType"), 
-                                        vo.getString("lockValue"), vo.getBoolean("isMain"), vo.getInt("sortOrder"));
+                                        vo.getString("lockValue"), vo.getBoolean("isMain"), vo.optInt("sortOrder", i));
                                 v.setId(vo.getInt("id"));
-                                v.setBgType(vo.optString("bgType", "DEFAULT"));
-                                
-                                // Fix path portability for backgrounds
                                 String bgValue = vo.optString("bgValue", null);
                                 if (bgValue != null && bgValue.contains("/files/bg_")) {
                                     String fileName = new File(bgValue).getName();
@@ -287,10 +289,10 @@ public class BackupManager {
                                     bgValue = new File(new File(context.getFilesDir(), dirName), fileName).getAbsolutePath();
                                 }
                                 v.setBgValue(bgValue);
+                                v.setBgType(vo.optString("bgType", "DEFAULT"));
                                 db.vaultDao().insert(v);
 
                                 if (v.isMain()) {
-                                    // Restore core lock prefs immediately to prevent lockout
                                     SecurityHelper.getEncryptedPrefs(context).edit()
                                             .putString(SecurityHelper.KEY_LOCK_TYPE, v.getLockType())
                                             .putString(SecurityHelper.KEY_LOCK_VALUE, v.getLockValue())
@@ -298,14 +300,10 @@ public class BackupManager {
                                     SecurityHelper.setSetupDone(context, true);
                                 }
                             }
-                        } catch (Exception e) {
-                            throw new RuntimeException(e);
-                        }
+                        } catch (Exception e) { throw new RuntimeException(e); }
                     });
 
                     SecurityHelper.setAutoLockDelay(context, finalSettings.getLong("auto_lock_time"));
-                    
-                    // Restore lock screen settings
                     SharedPreferences.Editor editor = SecurityHelper.getAppPrefs(context).edit();
                     editor.putString(SecurityHelper.KEY_LOCK_BG_TYPE, finalSettings.optString("lock_bg_type", "DEFAULT"));
                     String lockBgValue = finalSettings.optString("lock_bg_value", null);
@@ -319,49 +317,30 @@ public class BackupManager {
                     editor.apply();
                 }
 
-                if (replaceMedia) {
-                    // If we replace media, we should probably only keep secrets from backup
-                    // If we merge, we add new ones.
-                    if (!replaceSettings) {
-                        // Merge logic: delete only existing secrets that are being replaced? 
-                        // Actually the user said "Replace all current media" or "Merge"
-                    }
-                }
-
                 JSONArray secrets = finalSettings.getJSONArray("secrets");
                 int totalSecrets = secrets.length();
-                
-                // Optimized duplicate detection
                 List<SecretEntity> allExistingSecrets = db.secretDao().getAllSecretsDirect();
-                java.util.Map<String, SecretEntity> existingMap = new java.util.HashMap<>();
+                Map<String, SecretEntity> existingMap = new HashMap<>();
                 for (SecretEntity es : allExistingSecrets) {
                     if (es.getOriginalPath() != null) {
-                        String origName = new File(es.getOriginalPath()).getName();
-                        existingMap.put(es.getVaultId() + "_" + origName, es);
+                        existingMap.put(es.getVaultId() + "_" + new File(es.getOriginalPath()).getName(), es);
                     }
                 }
 
                 for (int i = 0; i < totalSecrets; i++) {
                     JSONObject so = secrets.getJSONObject(i);
                     SecretEntity s = new SecretEntity(so.getString("fileName"), so.getString("originalPath"),
-                            so.getLong("dateTaken"), so.getLong("dateAdded"), so.getBoolean("isVideo"), so.getInt("vaultId"));
-                    s.setFavourite(so.getBoolean("isFavourite"));
+                            so.getLong("dateTaken"), so.getLong("dateAdded"), so.optBoolean("isVideo", false), so.getInt("vaultId"));
+                    s.setFavourite(so.optBoolean("isFavourite", false));
                     if (!so.isNull("albumId")) s.setAlbumId(so.getInt("albumId"));
                     
                     updateProgress(80, "Updating DB: " + (i + 1) + "/" + totalSecrets);
-
-                    SecretEntity existing = null;
-                    if (s.getOriginalPath() != null) {
-                        String originalFileName = new File(s.getOriginalPath()).getName();
-                        String key = s.getVaultId() + "_" + originalFileName;
-                        existing = existingMap.get(key);
-                    }
+                    String originalFileName = new File(s.getOriginalPath()).getName();
+                    SecretEntity existing = existingMap.get(s.getVaultId() + "_" + originalFileName);
 
                     if (existing == null) {
                         db.secretDao().insert(s);
                     } else if (replaceMedia) {
-                        // In replace mode, the file on disk is the restored one.
-                        // We just need to update the database record.
                         db.secretDao().delete(existing);
                         db.secretDao().insert(s);
                     }
@@ -373,18 +352,12 @@ public class BackupManager {
                         JSONObject ao = albums.getJSONObject(i);
                         AlbumEntity a = new AlbumEntity(ao.getString("name"), ao.getInt("vaultId"), ao.optString("coverFileName", null));
                         a.setId(ao.getInt("id"));
-                        // Use insert or update
-                        if (db.albumDao().getAlbumById(a.getId()) == null) {
-                            db.albumDao().insert(a);
-                        } else {
-                            db.albumDao().update(a);
-                        }
+                        if (db.albumDao().getAlbumById(a.getId()) == null) db.albumDao().insert(a);
+                        else db.albumDao().update(a);
                     }
                 }
 
                 if (backupVaultDir.exists()) deleteRecursive(backupVaultDir);
-                
-                // Clear cache to force thumbnail regeneration
                 deleteRecursive(context.getCacheDir());
                 context.getCacheDir().mkdirs();
 
@@ -392,11 +365,21 @@ public class BackupManager {
                 mainHandler.post(() -> listener.onComplete("Restored successfully"));
 
             } catch (Exception e) {
-                e.printStackTrace();
-                // Rollback
+                Log.e(TAG, "Restore failed", e);
                 if (replaceMedia && backupVaultDir.exists()) {
-                    if (vaultDir.exists()) deleteRecursive(vaultDir);
+                    deleteRecursive(vaultDir);
                     backupVaultDir.renameTo(vaultDir);
+                }
+                if (vaultSnapshot != null) {
+                    final List<VaultEntity> finalVaultSnapshot = vaultSnapshot;
+                    final List<AlbumEntity> finalAlbumSnapshot = albumSnapshot;
+                    db.runInTransaction(() -> {
+                        db.vaultDao().deleteAllVaults();
+                        db.albumDao().deleteAllAlbums();
+                        for (VaultEntity v : finalVaultSnapshot) db.vaultDao().insert(v);
+                        for (AlbumEntity a : finalAlbumSnapshot) db.albumDao().insert(a);
+                    });
+                    SecurityHelper.setAutoLockDelay(context, autoLockSnapshot);
                 }
                 mainHandler.post(() -> listener.onError("Restore failed: " + e.getMessage()));
             } finally {
@@ -420,11 +403,28 @@ public class BackupManager {
         GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv);
         cipher.init(Cipher.DECRYPT_MODE, secret, gcmSpec);
 
-        try (CipherInputStream cis = new CipherInputStream(is, cipher);
-             FileOutputStream fos = new FileOutputStream(outputFile)) {
-            byte[] buffer = new byte[16384];
-            int len;
-            while ((len = cis.read(buffer)) > 0) fos.write(buffer, 0, len);
+        // Read all remaining data
+        ArrayList<byte[]> chunks = new ArrayList<>();
+        int totalLength = 0;
+        byte[] buffer = new byte[16384];
+        int len;
+        while ((len = is.read(buffer)) > 0) {
+            byte[] chunk = new byte[len];
+            System.arraycopy(buffer, 0, chunk, 0, len);
+            chunks.add(chunk);
+            totalLength += len;
+        }
+
+        byte[] encryptedData = new byte[totalLength];
+        int currentPos = 0;
+        for (byte[] chunk : chunks) {
+            System.arraycopy(chunk, 0, encryptedData, currentPos, chunk.length);
+            currentPos += chunk.length;
+        }
+
+        byte[] decryptedData = cipher.doFinal(encryptedData);
+        try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+            fos.write(decryptedData);
         }
     }
 
@@ -463,16 +463,14 @@ public class BackupManager {
         GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv);
         cipher.init(Cipher.ENCRYPT_MODE, secret, gcmSpec);
 
-        try (OutputStream os = outputStream) {
-            os.write(salt);
-            os.write(iv);
-            try (CipherOutputStream cos = new CipherOutputStream(os, cipher);
-                 InputStream is = new FileInputStream(inputFile)) {
-                byte[] buffer = new byte[16384];
-                int len;
-                while ((len = is.read(buffer)) > 0) cos.write(buffer, 0, len);
-                cos.flush();
-            }
+        outputStream.write(salt);
+        outputStream.write(iv);
+
+        try (FileInputStream fis = new FileInputStream(inputFile)) {
+            byte[] inputData = new byte[(int) inputFile.length()];
+            if (readFully(fis, inputData) < inputData.length) throw new Exception("Failed to read input file");
+            byte[] encryptedData = cipher.doFinal(inputData);
+            outputStream.write(encryptedData);
         }
     }
 

@@ -64,4 +64,7 @@ public interface SecretDao {
 
     @Query("UPDATE secrets SET syncedToDrive = 1 WHERE id = :id")
     void markAsSyncedToDrive(int id);
+
+    @Query("UPDATE secrets SET syncedToDrive = 1 WHERE id IN (:ids)")
+    void markBatchAsSyncedToDrive(List<Integer> ids);
 }

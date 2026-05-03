@@ -74,7 +74,7 @@ public class SyncWorker extends Worker {
                     manager.deleteFileDirect(fileName, vaultId);
                 }
             } else if (ACTION_SYNC_ALL.equals(action)) {
-                manager.syncUnsyncedFilesDirect();
+                manager.syncUnsyncedFilesDirect(null);
             } else if (ACTION_UPLOAD_SETTINGS.equals(action)) {
                 manager.uploadSettingsDirect();
             }

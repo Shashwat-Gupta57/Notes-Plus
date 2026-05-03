@@ -34,4 +34,7 @@ public interface VaultDao {
 
     @Query("SELECT COUNT(*) FROM secrets WHERE vaultId = :vaultId")
     int getSecretCountForVault(int vaultId);
+
+    @Query("DELETE FROM vaults")
+    void deleteAllVaults();
 }

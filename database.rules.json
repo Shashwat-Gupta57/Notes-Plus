@@ -427,7 +427,7 @@
         "$code": {
           ".read": "auth != null",
           ".write": "auth != null && auth.uid === $uid && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com')",
-          ".validate": "newData.hasChildren(['id', 'key', 'mime', 'size'])",
+          ".validate": "$code.matches(/^[A-Z0-9]{4}$/) && newData.hasChildren(['id', 'key', 'mime', 'size'])",
           "id": {
             ".validate": "newData.isString() && newData.val().length <= 200"
           },

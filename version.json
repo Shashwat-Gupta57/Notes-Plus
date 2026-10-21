@@ -1,7 +1,8 @@
 {
-  "versionCode": 7,
-  "versionName": "7.00",
+  "versionCode": 10,
+  "versionName": "9.2",
   "forced": false,
-  "changelog": "Fixed lockup import locking error and fixed local backups not saving lock screen settings and background.",
-  "apkUrl": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/v7.0.0/Notes+.apk"
+  "changelog": "The new dimension: six kinds of notes (lists, journals, mind maps, sketches, audio), optional accounts that sync your notes between phones, a faster encrypted vault with verified backups, and a second hidden space. Install over this version; don't uninstall first.",
+  "apkUrl": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/v9.2.0/Notes+.apk",
+  "sha256": "36eeb905b3826fd1bdaddc460c2228e21dc3a805e9f89581edb3b0f5962d233c"
 }

@@ -159,12 +159,12 @@ public class MindMapActivity extends NoteActivity {
             labels.add(node.collapsed ? "Unfold branch" : "Fold branch");
             actions.add(() -> map.toggleCollapsed(node));
         }
-        if (node.link != 0) {
+        if (node.hasLink()) {
             labels.add("Open linked note");
             actions.add(() -> openLinkedNote(node));
             labels.add("Remove note link");
             actions.add(() -> {
-                node.link = 0;
+                node.setLink(null);
                 map.invalidate();
             });
         } else {
@@ -226,7 +226,7 @@ public class MindMapActivity extends NoteActivity {
                 new MaterialAlertDialogBuilder(this)
                         .setTitle("Link to a note")
                         .setItems(labels, (d, which) -> {
-                            node.link = others.get(which).getId();
+                            node.setLink(others.get(which));
                             map.invalidate();
                         })
                         .show();
@@ -236,12 +236,15 @@ public class MindMapActivity extends NoteActivity {
 
     private void openLinkedNote(NoteData.MindNode node) {
         int id = node.link;
+        String uuid = node.linkUuid;
         AppDatabase.IO.execute(() -> {
-            NoteEntity target = AppDatabase.getInstance(this).noteDao().getNoteById(id);
+            NoteDao dao = AppDatabase.getInstance(this).noteDao();
+            NoteEntity found = uuid != null ? dao.getByUuid(uuid) : dao.getNoteById(id);
+            NoteEntity target = found == null || found.isDeleted() ? null : found;
             runOnUiThread(() -> {
                 if (target == null) {
                     Toast.makeText(this, "That note no longer exists", Toast.LENGTH_SHORT).show();
-                    node.link = 0;
+                    node.setLink(null);
                     map.invalidate();
                     return;
                 }
@@ -744,7 +747,7 @@ public class MindMapActivity extends NoteActivity {
                         return true;
                     }
                 }
-                if (n.link != 0 && Math.hypot(x - rect.right, y - rect.top) < r * 1.3f) {
+                if (n.hasLink() && Math.hypot(x - rect.right, y - rect.top) < r * 1.3f) {
                     if (listener != null) listener.onOpenLink(n);
                     return true;
                 }
@@ -870,7 +873,7 @@ public class MindMapActivity extends NoteActivity {
                 canvas.drawCircle(bx, cy, r, fill);
                 drawCentered(canvas, "+" + (count == null ? 0 : count), bx, cy, r);
             }
-            if (n.link != 0) {
+            if (n.hasLink()) {
                 fill.setColor(ContextCompat.getColor(getContext(), R.color.accent_blue));
                 canvas.drawCircle(right, top, r * 0.9f, fill);
                 drawCentered(canvas, "↗", right, top, r * 0.9f);

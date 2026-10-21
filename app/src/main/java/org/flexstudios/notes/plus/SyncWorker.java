@@ -77,6 +77,7 @@ public class SyncWorker extends Worker {
     public static final String ACTION_LOCAL_BACKUP = "local_backup";
     public static final String ACTION_LOCAL_RESTORE = "local_restore";
     public static final String ACTION_DRIVE_RESTORE = "drive_restore";
+    public static final String ACTION_CHECK_BACKUP = "check_backup";
 
     private static final String KEY_ACTION = "action";
     private static final String KEY_TARGET = "target";
@@ -91,6 +92,8 @@ public class SyncWorker extends Worker {
     public static final String PROGRESS_BYTES_TOTAL = "bytes_total";
     public static final String RESULT_MESSAGE = "message";
     public static final String RESULT_WRONG_PASSWORD = "wrong_password";
+    /** A backup check finished and found the file damaged (not cancelled, not a wrong key). */
+    public static final String RESULT_DAMAGED = "damaged";
 
     /** Set when the store already holds data this device has never reconciled with. */
     public static final String PREF_NEEDS_CHOICE = "sync_needs_choice";
@@ -158,6 +161,13 @@ public class SyncWorker extends Worker {
                 .putBoolean(KEY_REPLACE_LOCAL, replaceLocal).build(), password, false);
     }
 
+    /** Reads a .bak end to end without restoring anything; see {@link BackupManager#verify}. */
+    public static UUID startBackupCheck(Context context, Uri backup, String password) {
+        return startJob(context, new Data.Builder()
+                .putString(KEY_ACTION, ACTION_CHECK_BACKUP)
+                .putString(KEY_TARGET, backup.toString()).build(), password, false);
+    }
+
     public static UUID startDriveRestore(Context context, String snapshotId, String password,
                                          boolean replaceLocal) {
         return startJob(context, new Data.Builder()
@@ -189,6 +199,7 @@ public class SyncWorker extends Worker {
             if (ACTION_LOCAL_BACKUP.equals(action)) return runLocalBackup();
             if (ACTION_LOCAL_RESTORE.equals(action)) return runLocalRestore();
             if (ACTION_DRIVE_RESTORE.equals(action)) return runDriveRestore();
+            if (ACTION_CHECK_BACKUP.equals(action)) return runBackupCheck();
             return runDriveSync(action);
         } finally {
             SECRETS.remove(getId());
@@ -285,6 +296,29 @@ public class SyncWorker extends Worker {
             Log.e(TAG, "Local restore failed", e);
             notifyDone("Restore failed", readable(e));
             return Result.failure(message("Restore failed: " + readable(e)));
+        }
+    }
+
+    private Result runBackupCheck() {
+        Context context = getApplicationContext();
+        Uri uri = Uri.parse(getInputData().getString(KEY_TARGET));
+        notifyProgress("Checking backup", 0, 0, true);
+        try (InputStream in = context.getContentResolver().openInputStream(uri)) {
+            if (in == null) throw new IOException("Could not open that file");
+            BackupManager.Result result = BackupManager.verify(context, in, sizeOf(context, uri), password(),
+                    jobProgress("Checking backup"));
+            String summary = result.items + " items, " + GallerySettingsActivity.formatBytes(result.bytes);
+            notifyDone("Backup checked: it's good", summary);
+            return Result.success(message(summary));
+        } catch (VaultCrypto.WrongPasswordException e) {
+            return Result.failure(new Data.Builder().putBoolean(RESULT_WRONG_PASSWORD, true).build());
+        } catch (CancellationException e) {
+            return Result.failure(message("Check cancelled"));
+        } catch (Exception e) {
+            Log.e(TAG, "Backup check failed", e);
+            notifyDone("This backup has a problem", readable(e));
+            return Result.failure(new Data.Builder().putBoolean(RESULT_DAMAGED, true)
+                    .putString(RESULT_MESSAGE, readable(e)).build());
         }
     }
 

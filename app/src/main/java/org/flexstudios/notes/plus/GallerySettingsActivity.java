@@ -722,54 +722,27 @@ public class GallerySettingsActivity extends VaultActivity {
      * to be sure a backup is good before relying on it.
      */
     private void checkBackup(Uri backup, String password) {
-        AlertDialog dialog = Prompts.progress(this, "Checking backup");
-        AppDatabase.IO.execute(() -> {
-            String key = password;
-            if (key == null) {
-                VaultEntity main = database.vaultDao().getMainVault();
-                key = main == null ? "" : main.getLockValue();
-            }
-            long size = -1;
-            try (android.database.Cursor c = getContentResolver().query(backup,
-                    new String[]{android.provider.OpenableColumns.SIZE}, null, null, null)) {
-                if (c != null && c.moveToFirst() && !c.isNull(0)) size = c.getLong(0);
-            } catch (Exception ignored) {
-                // Unknown size: the bar stays indeterminate.
-            }
-            final long total = size;
-            try (InputStream in = getContentResolver().openInputStream(backup)) {
-                if (in == null) throw new IOException("Could not open that file");
-                BackupManager.Result result = BackupManager.verify(this, in, total, key, new BackupManager.Progress() {
-                    @Override
-                    public void update(long done, long all, String message) {
-                        runOnUiThread(() -> dialog.setMessage(message + (all > 0
-                                ? "\n" + formatBytes(done) + " of " + formatBytes(all) : "")));
-                    }
-                });
-                runOnUiThread(() -> {
-                    dialog.dismiss();
-                    new MaterialAlertDialogBuilder(this)
-                            .setTitle("This backup is good")
-                            .setMessage(result.items + " items, " + formatBytes(result.bytes)
-                                    + ". Every byte was decrypted and checked; it will restore.")
-                            .setPositiveButton("OK", null)
-                            .show();
-                });
-            } catch (VaultCrypto.WrongPasswordException e) {
-                runOnUiThread(() -> {
-                    dialog.dismiss();
-                    UnlockActivity.askForBackupKey(this, p -> checkBackup(backup, p), null);
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    dialog.dismiss();
-                    new MaterialAlertDialogBuilder(this)
-                            .setTitle("This backup has a problem")
-                            .setMessage((e.getMessage() == null ? "It could not be read." : e.getMessage())
-                                    + "\n\nDon't rely on it. Make a new backup.")
-                            .setPositiveButton("OK", null)
-                            .show();
-                });
+        askForNotifications();
+        UUID job = SyncWorker.startBackupCheck(this, backup, password);
+        SyncWorker.watch(this, job, "Checking backup", info -> {
+            String message = info.getOutputData().getString(SyncWorker.RESULT_MESSAGE);
+            if (info.getState() == WorkInfo.State.SUCCEEDED) {
+                new MaterialAlertDialogBuilder(this)
+                        .setTitle("This backup is good")
+                        .setMessage(message + ". Every byte was decrypted and checked; it will restore.")
+                        .setPositiveButton("OK", null)
+                        .show();
+            } else if (info.getOutputData().getBoolean(SyncWorker.RESULT_WRONG_PASSWORD, false)) {
+                UnlockActivity.askForBackupKey(this, p -> checkBackup(backup, p), null);
+            } else if (info.getOutputData().getBoolean(SyncWorker.RESULT_DAMAGED, false)) {
+                new MaterialAlertDialogBuilder(this)
+                        .setTitle("This backup has a problem")
+                        .setMessage((message == null ? "It could not be read." : message)
+                                + "\n\nDon't rely on it. Make a new backup.")
+                        .setPositiveButton("OK", null)
+                        .show();
+            } else if (message != null) {
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
             }
         });
     }

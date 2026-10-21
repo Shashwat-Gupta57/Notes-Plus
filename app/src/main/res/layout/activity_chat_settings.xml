@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Chat settings for the vault that is open. The main vault also manages the other vaults and
+  the auto-lock (sectionMain, hidden in code for the rest).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/gallery_background"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/gallery_background"
+        app:elevation="0dp">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbarChatSettings"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:navigationIcon="@drawable/ic_arrow_back"
+            app:navigationIconTint="@color/text_primary"
+            app:title="Chat settings"
+            app:titleTextColor="@color/text_primary" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="48dp">
+
+            <TextView style="@style/Settings.Header" android:text="This vault" />
+
+            <com.google.android.material.card.MaterialCardView style="@style/Settings.Card">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <LinearLayout android:id="@+id/rowCode" style="@style/Settings.Row">
+                        <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_blue" android:src="@drawable/ic_key" />
+                        <LinearLayout style="@style/Settings.Texts">
+                            <TextView style="@style/Settings.Title" android:text="Vault ID" />
+                            <TextView android:id="@+id/txtCode" style="@style/Settings.Subtitle" />
+                        </LinearLayout>
+                        <ImageView style="@style/Settings.Chevron" />
+                    </LinearLayout>
+
+                    <View style="@style/Settings.Divider" />
+
+                    <LinearLayout android:id="@+id/rowName" style="@style/Settings.Row">
+                        <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_orange" android:src="@drawable/ic_chat" />
+                        <LinearLayout style="@style/Settings.Texts">
+                            <TextView style="@style/Settings.Title" android:text="Name" />
+                            <TextView android:id="@+id/txtName" style="@style/Settings.Subtitle" />
+                        </LinearLayout>
+                        <ImageView style="@style/Settings.Chevron" />
+                    </LinearLayout>
+
+                    <View style="@style/Settings.Divider" />
+
+                    <LinearLayout android:id="@+id/rowPhoto" style="@style/Settings.Row">
+                        <ImageView android:id="@+id/imgVaultPhoto" style="@style/Settings.Icon" android:backgroundTint="@color/tile_green" android:src="@drawable/ic_person" />
+                        <LinearLayout style="@style/Settings.Texts">
+                            <TextView style="@style/Settings.Title" android:text="Profile photo" />
+                            <TextView android:id="@+id/txtPhoto" style="@style/Settings.Subtitle" />
+                        </LinearLayout>
+                        <ImageView style="@style/Settings.Chevron" />
+                    </LinearLayout>
+
+                    <View style="@style/Settings.Divider" />
+
+                    <LinearLayout android:id="@+id/rowBackground" style="@style/Settings.Row">
+                        <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_teal" android:src="@drawable/ic_wallpaper" />
+                        <LinearLayout style="@style/Settings.Texts">
+                            <TextView style="@style/Settings.Title" android:text="Chats background" />
+                            <TextView android:id="@+id/txtBackground" style="@style/Settings.Subtitle" />
+                        </LinearLayout>
+                        <ImageView style="@style/Settings.Chevron" />
+                    </LinearLayout>
+
+                    <View style="@style/Settings.Divider" />
+
+                    <LinearLayout android:id="@+id/rowLock" style="@style/Settings.Row">
+                        <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_purple" android:src="@drawable/ic_lock" />
+                        <LinearLayout style="@style/Settings.Texts">
+                            <TextView style="@style/Settings.Title" android:text="Change lock" />
+                            <TextView android:id="@+id/txtLock" style="@style/Settings.Subtitle" />
+                        </LinearLayout>
+                        <ImageView style="@style/Settings.Chevron" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                style="@style/Settings.Footer"
+                android:text="People reach this vault with your username plus its ID. Without an ID, messages go to your main vault." />
+
+            <LinearLayout
+                android:id="@+id/sectionMain"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView style="@style/Settings.Header" android:text="Vaults" />
+
+                <com.google.android.material.card.MaterialCardView style="@style/Settings.Card">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <LinearLayout
+                            android:id="@+id/listVaults"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical" />
+
+                        <LinearLayout android:id="@+id/rowAddVault" style="@style/Settings.Row">
+                            <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_green" android:src="@drawable/ic_add" />
+                            <LinearLayout style="@style/Settings.Texts">
+                                <TextView style="@style/Settings.Title" android:text="New vault" />
+                                <TextView style="@style/Settings.Subtitle" android:text="Its own lock, its own conversations" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <TextView
+                    style="@style/Settings.Footer"
+                    android:text="Each vault opens with its own lock and shows only its own conversations. You can talk to the same person from several vaults." />
+
+                <TextView style="@style/Settings.Header" android:text="Security" />
+
+                <com.google.android.material.card.MaterialCardView style="@style/Settings.Card">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <LinearLayout android:id="@+id/rowAutoLock" style="@style/Settings.Row">
+                            <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_orange" android:src="@drawable/ic_timer" />
+                            <LinearLayout style="@style/Settings.Texts">
+                                <TextView style="@style/Settings.Title" android:text="Auto-lock" />
+                                <TextView android:id="@+id/txtAutoLock" style="@style/Settings.Subtitle" />
+                            </LinearLayout>
+                            <ImageView style="@style/Settings.Chevron" />
+                        </LinearLayout>
+
+                        <View style="@style/Settings.Divider" />
+
+                        <LinearLayout android:id="@+id/rowLockBackground" style="@style/Settings.Row">
+                            <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_purple" android:src="@drawable/ic_wallpaper" />
+                            <LinearLayout style="@style/Settings.Texts">
+                                <TextView style="@style/Settings.Title" android:text="Lock screen background" />
+                                <TextView style="@style/Settings.Subtitle" android:text="What the lock screen shows behind the keypad" />
+                            </LinearLayout>
+                            <ImageView style="@style/Settings.Chevron" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <TextView style="@style/Settings.Header" android:text="Account" />
+
+            <com.google.android.material.card.MaterialCardView style="@style/Settings.Card">
+
+                <LinearLayout style="@style/Settings.Row">
+                    <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_gray" android:src="@drawable/ic_person" />
+                    <LinearLayout style="@style/Settings.Texts">
+                        <TextView style="@style/Settings.Title" android:text="Chatting as" />
+                        <TextView android:id="@+id/txtChattingAs" style="@style/Settings.Subtitle" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                style="@style/Settings.Footer"
+                android:text="Messages are kept on this phone. Online, each conversation keeps only its latest 100 messages." />
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</LinearLayout>

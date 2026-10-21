@@ -9,4 +9,10 @@
         app:actionViewClass="androidx.appcompat.widget.SearchView"
         app:iconTint="@color/text_primary"
         app:showAsAction="always|collapseActionView" />
+
+    <item
+        android:id="@+id/action_account"
+        android:icon="@drawable/ic_person"
+        android:title="Account"
+        app:showAsAction="always" />
 </menu>

@@ -11,7 +11,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import java.util.concurrent.Executors;
 
-@Database(entities = {NoteEntity.class, SecretEntity.class, VaultEntity.class, AlbumEntity.class}, version = 12, exportSchema = false)
+@Database(entities = {NoteEntity.class, SecretEntity.class, VaultEntity.class, AlbumEntity.class,
+        ChatStore.Vault.class, ChatStore.Conversation.class, ChatStore.Message.class}, version = 17, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static AppDatabase instance;
 
@@ -26,13 +27,16 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract SecretDao secretDao();
     public abstract VaultDao vaultDao();
     public abstract AlbumDao albumDao();
+    public abstract ChatStore.Dao chatDao();
 
     public static synchronized AppDatabase getInstance(Context context) {
         if (instance == null) {
             instance = Room.databaseBuilder(context.getApplicationContext(),
                             AppDatabase.class, "notes_database")
                     .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
-                            MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                            MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
+                            MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
+                            MIGRATION_16_17)
                     .addCallback(new Callback() {
                         @Override
                         public void onOpen(@NonNull SupportSQLiteDatabase db) {
@@ -90,6 +94,80 @@ public abstract class AppDatabase extends RoomDatabase {
      * and every lookup by file name was a full table scan, which is what made opening a vault
      * of thousands of items slow.
      */
+    /** Chat profile photos, changed vault IDs shown to peers, chat list backgrounds. */
+    static final Migration MIGRATION_16_17 = new Migration(16, 17) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE `chat_threads` ADD COLUMN `shownAs` TEXT");
+            database.execSQL("ALTER TABLE `chat_threads` ADD COLUMN `peerShown` TEXT");
+            database.execSQL("ALTER TABLE `chat_threads` ADD COLUMN `peerPhoto` TEXT");
+            database.execSQL("ALTER TABLE `chat_vaults` ADD COLUMN `photo` TEXT");
+            database.execSQL("ALTER TABLE `chat_vaults` ADD COLUMN `background` TEXT");
+            database.execSQL("ALTER TABLE `chat_vaults` ADD COLUMN `renamedTo` TEXT");
+        }
+    };
+
+    /** Chat media, nicknames and shared backgrounds. */
+    static final Migration MIGRATION_15_16 = new Migration(15, 16) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE `chat_messages` ADD COLUMN `media` TEXT");
+            database.execSQL("ALTER TABLE `chat_threads` ADD COLUMN `nickname` TEXT");
+            database.execSQL("ALTER TABLE `chat_threads` ADD COLUMN `theme` TEXT");
+        }
+    };
+
+    /** Chat vaults sync across phones; conversations can move between vaults. */
+    static final Migration MIGRATION_14_15 = new Migration(14, 15) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE `chat_vaults` ADD COLUMN `updatedAt` INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE `chat_vaults` ADD COLUMN `dirty` INTEGER NOT NULL DEFAULT 1");
+            database.execSQL("ALTER TABLE `chat_vaults` ADD COLUMN `deleted` INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE `chat_threads` ADD COLUMN `moved` INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
+    /** The chat space: its own vaults, conversations and messages (see {@link ChatStore}). */
+    static final Migration MIGRATION_13_14 = new Migration(13, 14) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("CREATE TABLE IF NOT EXISTS `chat_vaults` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "
+                    + "`name` TEXT, `lockType` TEXT, `lockValue` TEXT, `code` TEXT NOT NULL, "
+                    + "`isMain` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL)");
+            database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_chat_vaults_code` ON `chat_vaults` (`code`)");
+            database.execSQL("CREATE TABLE IF NOT EXISTS `chat_threads` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "
+                    + "`vaultId` INTEGER NOT NULL, `chatId` TEXT NOT NULL, `peerUid` TEXT, `peerName` TEXT, "
+                    + "`peerVault` TEXT, `lastText` TEXT, `lastAt` INTEGER NOT NULL, `unread` INTEGER NOT NULL, "
+                    + "`cursor` TEXT, `established` INTEGER NOT NULL)");
+            database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_chat_threads_vaultId_chatId` ON `chat_threads` (`vaultId`, `chatId`)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_chat_threads_vaultId_lastAt` ON `chat_threads` (`vaultId`, `lastAt`)");
+            database.execSQL("CREATE TABLE IF NOT EXISTS `chat_messages` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "
+                    + "`threadId` INTEGER NOT NULL, `msgKey` TEXT NOT NULL, `mine` INTEGER NOT NULL, `text` TEXT, "
+                    + "`at` INTEGER NOT NULL, `status` INTEGER NOT NULL)");
+            database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_chat_messages_msgKey` ON `chat_messages` (`msgKey`)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_chat_messages_threadId_msgKey` ON `chat_messages` (`threadId`, `msgKey`)");
+        }
+    };
+
+    /**
+     * Notes accounts: a stable identity per note plus its sync state (see {@link NoteEntity}).
+     * Existing notes belong to no account until the user signs in and chooses to add them.
+     */
+    static final Migration MIGRATION_12_13 = new Migration(12, 13) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE `notes` ADD COLUMN `uuid` TEXT");
+            database.execSQL("UPDATE `notes` SET `uuid` = lower(hex(randomblob(16)))");
+            database.execSQL("ALTER TABLE `notes` ADD COLUMN `account` TEXT");
+            database.execSQL("ALTER TABLE `notes` ADD COLUMN `rev` INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE `notes` ADD COLUMN `dirty` INTEGER NOT NULL DEFAULT 1");
+            database.execSQL("ALTER TABLE `notes` ADD COLUMN `deleted` INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE `notes` ADD COLUMN `media` TEXT");
+            database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_notes_uuid` ON `notes` (`uuid`)");
+        }
+    };
+
     /** Note types: lists, mind maps, journals, sketches and audio, plus colour and pinning. */
     static final Migration MIGRATION_11_12 = new Migration(11, 12) {
         @Override

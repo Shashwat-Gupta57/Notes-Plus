@@ -26,7 +26,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SearchView;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.content.ContextCompat;
-import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.StaggeredGridLayoutManager;
 
@@ -44,9 +43,10 @@ import java.util.concurrent.ExecutorService;
 /**
  * The notes app: a grid of cards, filters by type, search, and the "New" sheet.
  *
- * Also the front door of the vault: a long left swipe on the grid, held for two seconds,
- * opens the lock screen (see {@link #setupSecretGesture}). Swipe-to-delete is therefore right
- * only; a left swipe must stay free for the gesture.
+ * Also the front door of two hidden spaces: a long swipe on the grid, held for two seconds,
+ * opens a lock screen (see {@link #setupSecretGesture}): to the left for one, to the right for
+ * the other. Both directions belong to the gesture, so there is no swipe-to-delete; notes are
+ * deleted from their options or their editor.
  */
 public class MainActivity extends AppCompatActivity {
     /** Sent by a vault screen whose auto-lock expired: show the lock again on top of the notes. */
@@ -66,6 +66,7 @@ public class MainActivity extends AppCompatActivity {
     private Runnable secretRunnable;
     private boolean isSecretTriggering = false;
     private float initialTouchX, initialTouchY;
+    private boolean secretToRight;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -123,22 +124,8 @@ public class MainActivity extends AppCompatActivity {
 
         setupSecretGesture(recyclerView);
 
-        new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.RIGHT) {
-            @Override
-            public boolean onMove(@NonNull RecyclerView rv, @NonNull RecyclerView.ViewHolder a,
-                                  @NonNull RecyclerView.ViewHolder b) {
-                return false;
-            }
-
-            @Override
-            public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
-                int position = viewHolder.getBindingAdapterPosition();
-                if (position == RecyclerView.NO_POSITION) return;
-                deleteWithUndo(adapter.getNoteAt(position));
-            }
-        }).attachToRecyclerView(recyclerView);
-
         handleRelock(getIntent());
+        Account.init(this);
     }
 
     // ================================================================ content
@@ -241,17 +228,20 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
-    /** The row goes now; its photos, sketches and recordings only once Undo has expired. */
+    /**
+     * Hidden now; its files go, and the account hears of it, only once Undo has expired.
+     */
     private void deleteWithUndo(NoteEntity note) {
-        executor.execute(() -> database.noteDao().delete(note));
+        // Held back from sync while Undo is on screen, so a quick sync can't make it final.
+        NoteSync.OPEN.add(note.getId());
+        executor.execute(() -> database.noteDao().setDeleted(note.getId(), true));
         Snackbar.make(findViewById(R.id.recyclerViewNotes), "Note deleted", Snackbar.LENGTH_LONG)
-                .setAction("Undo", v -> executor.execute(() -> database.noteDao().insert(note)))
+                .setAction("Undo", v -> executor.execute(() -> database.noteDao().setDeleted(note.getId(), false)))
                 .addCallback(new Snackbar.Callback() {
                     @Override
                     public void onDismissed(Snackbar bar, int event) {
-                        if (event != DISMISS_EVENT_ACTION) {
-                            executor.execute(() -> NoteData.deleteFiles(getApplicationContext(), note.getId()));
-                        }
+                        NoteSync.OPEN.remove(note.getId());
+                        if (event != DISMISS_EVENT_ACTION) NoteSync.forget(getApplicationContext(), note);
                     }
                 })
                 .show();
@@ -280,7 +270,21 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
+        MenuItem account = menu.findItem(R.id.action_account);
+        if (account != null) {
+            androidx.core.view.MenuItemCompat.setIconTintList(account, ColorStateList.valueOf(
+                    ContextCompat.getColor(this, Account.user() != null ? R.color.brand_yellow : R.color.text_primary)));
+        }
         return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == R.id.action_account) {
+            startActivity(new Intent(this, AccountActivity.class));
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     // ============================================================= lifecycle
@@ -295,12 +299,27 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         Updater.onForeground(this);
+        invalidateOptionsMenu();
+    }
+
+    /** Live while the grid is on screen: edits from other phones appear as they happen. */
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (database != null) NoteSync.startLive(this);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        NoteSync.stopLive();
     }
 
     private void handleRelock(Intent intent) {
         if (intent != null && intent.getBooleanExtra(EXTRA_RELOCK, false)) {
             intent.removeExtra(EXTRA_RELOCK);
-            startActivity(new Intent(this, UnlockActivity.class));
+            startActivity(new Intent(this, UnlockActivity.class)
+                    .putExtra(UnlockActivity.EXTRA_REALM, intent.getStringExtra(UnlockActivity.EXTRA_REALM)));
         }
     }
 
@@ -321,8 +340,9 @@ public class MainActivity extends AppCompatActivity {
                         float dx = initialTouchX - event.getX();
                         float dy = Math.abs(initialTouchY - event.getY());
 
-                        if (dx > 50 && dx > dy * 2 && !isSecretTriggering) {
+                        if (Math.abs(dx) > 50 && Math.abs(dx) > dy * 2 && !isSecretTriggering) {
                             isSecretTriggering = true;
+                            secretToRight = dx < 0;
                             startSecretTimer();
                             return true;
                         }
@@ -370,6 +390,15 @@ public class MainActivity extends AppCompatActivity {
                 vibrator.vibrate(100);
             }
         }
-        startActivity(new Intent(this, UnlockActivity.class));
+        if (!secretToRight) {
+            startActivity(new Intent(this, UnlockActivity.class));
+            return;
+        }
+        // The first visit creates the chat space's main vault before its lock screen shows.
+        executor.execute(() -> {
+            ChatVaults.ensureMain(getApplicationContext());
+            runOnUiThread(() -> startActivity(new Intent(this, UnlockActivity.class)
+                    .putExtra(UnlockActivity.EXTRA_REALM, UnlockActivity.REALM_CHAT)));
+        });
     }
 }

@@ -150,6 +150,52 @@
                 android:src="@drawable/ic_photo"
                 app:tint="@color/tile_blue" />
 
+            <LinearLayout
+                android:id="@+id/recordBar"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:background="@drawable/bubble"
+                android:backgroundTint="@color/app_surface"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="12dp"
+                android:paddingEnd="6dp"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:background="@drawable/circle"
+                    android:backgroundTint="@color/destructive" />
+
+                <TextView
+                    android:id="@+id/txtRecordTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="0:00"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
+
+                <view
+                class="org.flexstudios.notes.plus.AudioNoteActivity$WaveformView"
+                    android:id="@+id/recordWave"
+                    android:layout_width="0dp"
+                    android:layout_height="28dp"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1" />
+
+                <ImageButton
+                    android:id="@+id/btnCancelRecord"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Discard recording"
+                    android:src="@drawable/ic_delete"
+                    app:tint="@color/destructive" />
+            </LinearLayout>
+
             <EditText
                 android:id="@+id/inputMessage"
                 android:layout_width="0dp"
@@ -169,6 +215,19 @@
                 android:paddingBottom="10dp"
                 android:textColor="@color/text_primary"
                 android:textSize="16sp" />
+
+            <ImageButton
+                android:id="@+id/btnMic"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/circle"
+                android:backgroundTint="@color/tile_blue"
+                android:contentDescription="Record a voice message"
+                android:padding="11dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_mic"
+                app:tint="@android:color/white" />
 
             <ImageButton
                 android:id="@+id/btnSend"
@@ -208,6 +267,14 @@
                     android:text="Recent"
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnViewOnce"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="View once: off"
+                    android:textColor="@color/text_secondary" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnAllPhotos"

@@ -213,6 +213,7 @@ public class AccountActivity extends AppCompatActivity {
         String uid = Account.uid();
         if (uid == null) return; // Waiting for the email link; the verify panel says so.
         NoteSync.schedulePeriodic(this);
+        ChatSync.schedule(this);
         AppDatabase.IO.execute(() -> {
             int outside = AppDatabase.getInstance(this).noteDao().countOutside(uid);
             runOnUiThread(() -> {

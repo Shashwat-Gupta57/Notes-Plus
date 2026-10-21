@@ -39,6 +39,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.json.JSONObject;
 
+import java.io.File;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Objects;
@@ -94,6 +95,8 @@ public class ChatActivity extends VaultActivity {
             new ActivityResultContracts.RequestMultiplePermissions(), granted -> loadRecent());
 
     private static final String PREF_KEYBOARD = "chat_keyboard_height";
+    /** The next photo or video goes as view-once. Reset after each send. */
+    private boolean viewOnce;
     /** Height of the soft keyboard last time it showed: the picker takes exactly its place. */
     private int keyboardHeight;
     private final PickerAdapter picker = new PickerAdapter();
@@ -118,14 +121,18 @@ public class ChatActivity extends VaultActivity {
 
         Toolbar toolbar = findViewById(R.id.toolbarChat);
         toolbar.setNavigationOnClickListener(v -> finish());
-        Menu menu = toolbar.getMenu();
-        menu.add("Nickname");
-        menu.add("Background");
         toolbar.setOnMenuItemClickListener(item -> {
+            String action = String.valueOf(item.getTitle());
             if (!writable) {
                 Toast.makeText(this, "Open on another phone. Changes can only be made there for now.", Toast.LENGTH_LONG).show();
-            } else if ("Nickname".contentEquals(item.getTitle())) {
+            } else if ("Nickname".equals(action)) {
                 askNickname();
+            } else if ("Members".equals(action)) {
+                showMembers();
+            } else if ("Rename group".equals(action)) {
+                askGroupName();
+            } else if ("Leave group".equals(action)) {
+                confirmLeave();
             } else {
                 chooseBackground();
             }
@@ -147,6 +154,15 @@ public class ChatActivity extends VaultActivity {
         });
 
         EditText input = findViewById(R.id.inputMessage);
+        messageList = list;
+        // An empty box offers the microphone; typing turns it into Send.
+        input.addTextChangedListener(NoteEditorActivity.simpleWatcher(this::updateSendButton));
+        updateSendButton();
+        findViewById(R.id.btnMic).setOnClickListener(v -> {
+            if (recorder != null) stopRecording(true);
+            else startRecording();
+        });
+        findViewById(R.id.btnCancelRecord).setOnClickListener(v -> stopRecording(false));
         findViewById(R.id.btnSend).setOnClickListener(v -> {
             String text = input.getText().toString().trim();
             if (text.isEmpty() || !writable) return;
@@ -178,6 +194,8 @@ public class ChatActivity extends VaultActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        stopRecording(false);
+        stopPlayback();
         visible = false;
         ChatVaults.Session.leave(session);
         stopLive.run();
@@ -225,6 +243,19 @@ public class ChatActivity extends VaultActivity {
                     return;
                 }
                 if (isDestroyed()) return;
+                buildMenu(c.isGroup);
+                if (c.isGroup) {
+                    isGroup = true;
+                    groupMembers = c.members;
+                    String name = c.peerName == null || c.peerName.isEmpty() ? "Group" : c.peerName;
+                    ((TextView) findViewById(R.id.txtChatTitle)).setText(name);
+                    int count = memberCount(c.members);
+                    ((TextView) findViewById(R.id.txtChatSubtitle)).setText(count + (count == 1 ? " member" : " members"));
+                    ((TextView) findViewById(R.id.txtPeerInitial)).setText(name.substring(0, 1).toUpperCase(Locale.getDefault()));
+                    ((ImageView) findViewById(R.id.imgPeer)).setImageDrawable(null);
+                    applyTheme(c.theme);
+                    return;
+                }
                 boolean nick = c.nickname != null && !c.nickname.isEmpty();
                 String title = nick ? c.nickname : "@" + c.peerName;
                 ((TextView) findViewById(R.id.txtChatTitle)).setText(title);
@@ -239,6 +270,379 @@ public class ChatActivity extends VaultActivity {
                 applyTheme(c.theme);
             });
         });
+    }
+
+    private boolean menuBuilt, isGroup;
+    private String groupMembers;
+
+    private void buildMenu(boolean group) {
+        if (menuBuilt) return;
+        menuBuilt = true;
+        Menu menu = ((Toolbar) findViewById(R.id.toolbarChat)).getMenu();
+        if (group) {
+            menu.add("Members");
+            menu.add("Rename group");
+            menu.add("Background");
+            menu.add("Leave group");
+        } else {
+            menu.add("Nickname");
+            menu.add("Background");
+        }
+    }
+
+    private static int memberCount(@Nullable String json) {
+        try {
+            return json == null ? 0 : new JSONObject(json).length();
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    // ================================================================ groups
+
+    private void showMembers() {
+        AppDatabase.IO.execute(() -> {
+            ChatStore.Conversation c = dao.conversation(conversationId);
+            if (c == null) return;
+            String owner = ChatSync.groupOwner(this, conversationId);
+            String me = Account.uid();
+            java.util.List<String[]> people = new java.util.ArrayList<>(); // {uid, name}
+            try {
+                JSONObject members = new JSONObject(c.members == null ? "{}" : c.members);
+                for (java.util.Iterator<String> it = members.keys(); it.hasNext(); ) {
+                    String uid = it.next();
+                    JSONObject info = members.optJSONObject(uid);
+                    people.add(new String[]{uid, info == null ? "?" : info.optString("name", "?")});
+                }
+            } catch (Exception ignored) {
+                // Shown as an empty list.
+            }
+            java.util.Collections.sort(people, (x, y) -> x[1].compareToIgnoreCase(y[1]));
+            String[] rows = new String[people.size()];
+            for (int i = 0; i < rows.length; i++) {
+                String uid = people.get(i)[0];
+                rows[i] = "@" + people.get(i)[1] + (uid.equals(owner) ? "  · owner" : "") + (uid.equals(me) ? "  (you)" : "");
+            }
+            boolean iOwn = me != null && me.equals(owner);
+            int count = rows.length;
+            runOnUiThread(() -> {
+                MaterialAlertDialogBuilder dialog = new MaterialAlertDialogBuilder(this)
+                        .setTitle(count + " of " + ChatSync.MAX_GROUP + " members" + (iOwn ? "  ·  tap to remove" : ""))
+                        .setItems(rows, (d, which) -> {
+                            String[] who = people.get(which);
+                            if (iOwn && !who[0].equals(me)) confirmRemove(who[0], who[1]);
+                        })
+                        .setNegativeButton("Close", null);
+                if (count < ChatSync.MAX_GROUP) dialog.setPositiveButton("Add people", (d, w) -> askAddPeople());
+                dialog.show();
+            });
+        });
+    }
+
+    private void confirmRemove(String uid, String name) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Remove @" + name + "?")
+                .setMessage("They stop getting this group's messages and can't read it any more. What's already on their phone stays there.")
+                .setPositiveButton("Remove", (d, w) -> AppDatabase.IO.execute(() -> {
+                    String error = null;
+                    try {
+                        ChatSync.removeFromGroup(this, conversationId, uid);
+                    } catch (Exception e) {
+                        error = "Couldn't remove them";
+                    }
+                    String message = error;
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, message != null ? message : "@" + name + " removed", Toast.LENGTH_SHORT).show();
+                        loadHeader();
+                    });
+                }))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void askAddPeople() {
+        Prompts.text(this, "Add people", "Usernames, separated by commas. Add /ID to reach a particular vault, "
+                        + "like nancy/AB12.", "Usernames", null, Prompts.TEXT, "Add",
+                raw -> ChatSync.resolveAll(raw, people -> AppDatabase.IO.execute(() -> {
+                    String error = null;
+                    try {
+                        ChatSync.addToGroup(this, conversationId, people);
+                    } catch (Exception e) {
+                        error = e.getMessage() == null ? "Couldn't add them" : e.getMessage();
+                    }
+                    String message = error;
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, message != null ? message : "Added", Toast.LENGTH_LONG).show();
+                        loadHeader();
+                    });
+                }), error -> Toast.makeText(this, error, Toast.LENGTH_LONG).show()), null);
+    }
+
+    private void askGroupName() {
+        String current = ((TextView) findViewById(R.id.txtChatTitle)).getText().toString();
+        Prompts.text(this, "Rename group", "Everyone in the group sees the new name.", "Group name", current,
+                Prompts.TEXT, "Save", name -> AppDatabase.IO.execute(() -> {
+                    try {
+                        ChatSync.renameGroup(this, conversationId, name.length() > 60 ? name.substring(0, 60) : name);
+                    } catch (Exception e) {
+                        runOnUiThread(() -> Toast.makeText(this, "Couldn't rename it", Toast.LENGTH_LONG).show());
+                    }
+                    runOnUiThread(this::loadHeader);
+                }), null);
+    }
+
+    private void confirmLeave() {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Leave this group?")
+                .setMessage("You won't get its messages any more, and it's removed from this vault.")
+                .setPositiveButton("Leave", (d, w) -> AppDatabase.IO.execute(() -> {
+                    try {
+                        ChatSync.leaveGroup(this, conversationId);
+                        runOnUiThread(this::finish);
+                    } catch (Exception e) {
+                        runOnUiThread(() -> Toast.makeText(this, "Couldn't leave right now", Toast.LENGTH_LONG).show());
+                    }
+                }))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    // =========================================================== voice notes
+
+    private android.media.MediaRecorder recorder;
+    private File recording;
+    private long recordStart;
+    private final java.util.List<Float> levels = new java.util.ArrayList<>();
+    private final android.os.Handler recordTicker = new android.os.Handler(android.os.Looper.getMainLooper());
+    private RecyclerView messageList;
+    private final ActivityResultLauncher<String> micPermission = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(), granted -> {
+                if (granted) startRecording();
+                else Toast.makeText(this, "Voice messages need the microphone", Toast.LENGTH_LONG).show();
+            });
+
+    private void updateSendButton() {
+        boolean typing = ((EditText) findViewById(R.id.inputMessage)).getText().toString().trim().length() > 0;
+        boolean recordingNow = recorder != null;
+        findViewById(R.id.btnSend).setVisibility(typing && !recordingNow ? View.VISIBLE : View.GONE);
+        findViewById(R.id.btnMic).setVisibility(typing && !recordingNow ? View.GONE : View.VISIBLE);
+    }
+
+    private void startRecording() {
+        if (!writable) return;
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            expectExternalActivity();
+            micPermission.launch(android.Manifest.permission.RECORD_AUDIO);
+            return;
+        }
+        if (Account.driveEmail(this) == null) {
+            needsDrive();
+            return;
+        }
+        stopPlayback();
+        hidePicker();
+        recording = new File(ChatMedia.plainDir(this), "voice_" + System.currentTimeMillis() + ".m4a");
+        android.media.MediaRecorder r = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+                ? new android.media.MediaRecorder(this) : new android.media.MediaRecorder();
+        try {
+            r.setAudioSource(android.media.MediaRecorder.AudioSource.MIC);
+            r.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4);
+            r.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC);
+            r.setAudioEncodingBitRate(64_000);
+            r.setAudioSamplingRate(44_100);
+            r.setOutputFile(recording.getAbsolutePath());
+            r.prepare();
+            r.start();
+        } catch (Exception e) {
+            r.release();
+            VaultCrypto.deleteRecursive(recording);
+            Toast.makeText(this, "The microphone isn't available", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        recorder = r;
+        recordStart = android.os.SystemClock.elapsedRealtime();
+        levels.clear();
+        findViewById(R.id.inputMessage).setVisibility(View.GONE);
+        findViewById(R.id.btnAttach).setVisibility(View.GONE);
+        findViewById(R.id.recordBar).setVisibility(View.VISIBLE);
+        ((ImageView) findViewById(R.id.btnMic)).setImageResource(R.drawable.ic_send);
+        findViewById(R.id.btnMic).setContentDescription("Send voice message");
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        updateSendButton();
+        recordTicker.post(sampleLevel);
+    }
+
+    /** Every 80 ms: the live waveform and the timer. */
+    private final Runnable sampleLevel = new Runnable() {
+        @Override
+        public void run() {
+            if (recorder == null) return;
+            levels.add(Math.min(1f, (float) Math.sqrt(recorder.getMaxAmplitude() / 32767f)));
+            ((AudioNoteActivity.WaveformView) findViewById(R.id.recordWave)).setLive(levels);
+            long elapsed = android.os.SystemClock.elapsedRealtime() - recordStart;
+            ((TextView) findViewById(R.id.txtRecordTime)).setText(clock(elapsed));
+            if (elapsed > 15 * 60_000) {
+                stopRecording(true); // A quarter of an hour is plenty for one message.
+                return;
+            }
+            recordTicker.postDelayed(this, 80);
+        }
+    };
+
+    /** {@code send}: send it; otherwise throw it away. */
+    private void stopRecording(boolean send) {
+        if (recorder == null) return;
+        recordTicker.removeCallbacks(sampleLevel);
+        long duration = android.os.SystemClock.elapsedRealtime() - recordStart;
+        try {
+            recorder.stop();
+        } catch (RuntimeException tooShort) {
+            duration = 0; // Stopped within a moment: no audio.
+        }
+        recorder.release();
+        recorder = null;
+        getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        findViewById(R.id.recordBar).setVisibility(View.GONE);
+        findViewById(R.id.inputMessage).setVisibility(View.VISIBLE);
+        findViewById(R.id.btnAttach).setVisibility(View.VISIBLE);
+        ((ImageView) findViewById(R.id.btnMic)).setImageResource(R.drawable.ic_mic);
+        findViewById(R.id.btnMic).setContentDescription("Record a voice message");
+        updateSendButton();
+        File file = recording;
+        recording = null;
+        if (!send || duration < 700) {
+            VaultCrypto.deleteRecursive(file);
+            if (send) Toast.makeText(this, "Hold on a little longer to record", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        float[] wave = downsample(levels, 40);
+        long length = duration;
+        AppDatabase.IO.execute(() -> {
+            try {
+                ChatSync.sendVoice(this, conversationId, file, length, wave);
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, "Couldn't send the voice message", Toast.LENGTH_LONG).show());
+            }
+        });
+    }
+
+    private static float[] downsample(java.util.List<Float> values, int count) {
+        float[] out = new float[count];
+        if (values.isEmpty()) return out;
+        for (int i = 0; i < count; i++) {
+            int from = i * values.size() / count, to = Math.max(from + 1, (i + 1) * values.size() / count);
+            float peak = 0;
+            for (int k = from; k < to && k < values.size(); k++) peak = Math.max(peak, values.get(k));
+            out[i] = peak;
+        }
+        return out;
+    }
+
+    private static String clock(long ms) {
+        long s = ms / 1000;
+        return String.format(Locale.ROOT, "%d:%02d", s / 60, s % 60);
+    }
+
+    // ---- playback: one voice note at a time, decrypted to a temporary file while it plays
+
+    private android.media.MediaPlayer player;
+    private String playingKey;
+    private float[] playingWave;
+    private File playingFile;
+    private final android.os.Handler playTicker = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable playProgress = new Runnable() {
+        @Override
+        public void run() {
+            if (player == null || playingKey == null || messageList == null) return;
+            View view = messageList.findViewWithTag(playingKey);
+            if (view instanceof AudioNoteActivity.WaveformView && player.getDuration() > 0) {
+                ((AudioNoteActivity.WaveformView) view).setWave(playingWave,
+                        player.getCurrentPosition() / (float) player.getDuration());
+            }
+            playTicker.postDelayed(this, 60);
+        }
+    };
+
+    private void togglePlay(ChatStore.Message m, ChatMedia.Meta meta) {
+        if (m.msgKey.equals(playingKey) && player != null) {
+            if (player.isPlaying()) player.pause();
+            else player.start();
+            refreshRow(m.msgKey);
+            return;
+        }
+        stopPlayback();
+        playingKey = m.msgKey;
+        playingWave = meta.waveform();
+        AppDatabase.IO.execute(() -> {
+            try {
+                File file = ChatMedia.decryptToTemp(this, m.msgKey, meta);
+                runOnUiThread(() -> {
+                    if (!m.msgKey.equals(playingKey) || isFinishing()) {
+                        VaultCrypto.deleteRecursive(file);
+                        return;
+                    }
+                    try {
+                        playingFile = file;
+                        player = new android.media.MediaPlayer();
+                        player.setDataSource(file.getPath());
+                        player.setOnCompletionListener(p -> stopPlayback());
+                        player.prepare();
+                        player.start();
+                        playTicker.post(playProgress);
+                        refreshRow(m.msgKey);
+                    } catch (Exception e) {
+                        stopPlayback();
+                        Toast.makeText(this, "Couldn't play it", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    if (m.msgKey.equals(playingKey)) stopPlayback();
+                    Toast.makeText(this, "Couldn't fetch the voice message", Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+    }
+
+    private void refreshRow(String key) {
+        for (int i = 0; i < adapter.getCurrentList().size(); i++) {
+            if (adapter.getCurrentList().get(i).msgKey.equals(key)) adapter.notifyItemChanged(i);
+        }
+    }
+
+    private void stopPlayback() {
+        playTicker.removeCallbacks(playProgress);
+        if (player != null) {
+            try {
+                player.release();
+            } catch (Exception ignored) {
+                // Released either way.
+            }
+            player = null;
+        }
+        if (playingFile != null) VaultCrypto.deleteRecursive(playingFile);
+        playingFile = null;
+        String was = playingKey;
+        playingKey = null;
+        if (was != null) refreshRow(was);
+    }
+
+    private void bindVoice(Adapter.Holder h, ChatStore.Message m, ChatMedia.Meta meta) {
+        h.mediaFrame.setVisibility(View.GONE);
+        h.voiceRow.setVisibility(View.VISIBLE);
+        int played = m.mine ? 0xFFFFFFFF : ContextCompat.getColor(this, R.color.tile_blue);
+        int rest = m.mine ? 0x80FFFFFF : ContextCompat.getColor(this, R.color.text_secondary);
+        h.voiceWave.setColors(played, rest);
+        h.voiceWave.setTag(m.msgKey);
+        boolean current = m.msgKey.equals(playingKey) && player != null;
+        float progress = current && player.getDuration() > 0 ? player.getCurrentPosition() / (float) player.getDuration() : 0;
+        h.voiceWave.setWave(meta.waveform(), progress);
+        h.voiceLength.setText(clock(meta.dur));
+        h.voiceLength.setTextColor(m.mine ? 0xCCFFFFFF : ContextCompat.getColor(this, R.color.text_secondary));
+        h.playVoice.setImageResource(current && player.isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play);
+        h.playVoice.setImageTintList(ColorStateList.valueOf(m.mine ? 0xFFFFFFFF : ContextCompat.getColor(this, R.color.tile_blue)));
+        h.playVoice.setOnClickListener(v -> togglePlay(m, meta));
     }
 
     private void applyTheme(@Nullable String json) {
@@ -355,9 +759,16 @@ public class ChatActivity extends VaultActivity {
         EditText input = findViewById(R.id.inputMessage);
         String caption = input.getText().toString().trim();
         input.setText("");
+        boolean once = viewOnce;
+        if (once) {
+            viewOnce = false;
+            com.google.android.material.button.MaterialButton toggle = findViewById(R.id.btnViewOnce);
+            toggle.setText("View once: off");
+            toggle.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+        }
         AppDatabase.IO.execute(() -> {
             try {
-                ChatSync.sendMedia(this, conversationId, uri, caption);
+                ChatSync.sendMedia(this, conversationId, uri, caption, once);
             } catch (Exception e) {
                 runOnUiThread(() -> Toast.makeText(this, e.getMessage() == null ? "Couldn't send that file"
                         : e.getMessage(), Toast.LENGTH_LONG).show());
@@ -448,6 +859,12 @@ public class ChatActivity extends VaultActivity {
         RecyclerView grid = findViewById(R.id.recyclerPicker);
         grid.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(this, 4));
         grid.setAdapter(picker);
+        com.google.android.material.button.MaterialButton once = findViewById(R.id.btnViewOnce);
+        once.setOnClickListener(v -> {
+            viewOnce = !viewOnce;
+            once.setText(viewOnce ? "View once: on" : "View once: off");
+            once.setTextColor(ContextCompat.getColor(this, viewOnce ? R.color.brand_yellow : R.color.text_secondary));
+        });
         findViewById(R.id.btnAllPhotos).setOnClickListener(v -> {
             hidePicker();
             expectExternalActivity();
@@ -636,15 +1053,43 @@ public class ChatActivity extends VaultActivity {
             h.bubble.setBackgroundTintList(ColorStateList.valueOf(m.status == ChatStore.FAILED
                     ? ContextCompat.getColor(ChatActivity.this, R.color.destructive) : bubbleColor));
 
+            boolean showSender = isGroup && !m.mine && m.senderName != null;
+            h.sender.setVisibility(showSender ? View.VISIBLE : View.GONE);
+            if (showSender) h.sender.setText(m.senderName);
+
             ChatMedia.Meta meta = ChatMedia.Meta.parse(m.media);
-            if (meta != null) bindMedia(h, m, meta);
+            h.voiceRow.setVisibility(View.GONE);
+            if (meta != null && meta.isAudio()) bindVoice(h, m, meta);
+            else if (meta != null && !meta.once) bindMedia(h, m, meta);
             else h.mediaFrame.setVisibility(View.GONE);
 
-            boolean hasText = m.text != null && !m.text.isEmpty();
+            boolean once = meta != null && meta.once;
+            boolean hasText = (m.text != null && !m.text.isEmpty()) || once;
             h.body.setVisibility(hasText ? View.VISIBLE : View.GONE);
             h.body.setTextColor(textColor);
             h.body.setLinkTextColor(textColor);
-            h.body.setText(m.text);
+            h.body.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0);
+            if (once) {
+                // Never a preview: just what it is, and whether it was opened.
+                boolean opened = ChatSync.hasFlag(m.media, "opened");
+                String kind = meta.isVideo() ? "Video" : "Photo";
+                String line = m.mine ? (opened ? "View-once " + kind.toLowerCase(Locale.ROOT) + " · opened"
+                        : "View-once " + kind.toLowerCase(Locale.ROOT) + " · not opened yet")
+                        : (opened ? kind + " · opened" : kind + " · tap to view once");
+                h.body.setText(m.text == null || m.text.isEmpty() ? line : line + "\n" + m.text);
+                android.graphics.drawable.Drawable icon = ContextCompat.getDrawable(ChatActivity.this,
+                        opened ? R.drawable.ic_check_circle_empty : R.drawable.ic_timer);
+                if (icon != null) {
+                    icon = icon.mutate();
+                    icon.setTint(m.mine ? 0xFFFFFFFF : ContextCompat.getColor(ChatActivity.this, R.color.brand_yellow));
+                    int size = Math.round(18 * getResources().getDisplayMetrics().density);
+                    icon.setBounds(0, 0, size, size);
+                    h.body.setCompoundDrawablesRelative(icon, null, null, null);
+                    h.body.setCompoundDrawablePadding(Math.round(6 * getResources().getDisplayMetrics().density));
+                }
+            } else {
+                h.body.setText(m.text);
+            }
             h.meta.setTextColor(metaColor);
             String time = DateFormat.getTimeFormat(ChatActivity.this).format(new Date(m.at));
             h.meta.setText(m.status != ChatStore.FAILED ? time
@@ -664,6 +1109,14 @@ public class ChatActivity extends VaultActivity {
 
             h.bubble.setOnClickListener(m.status == ChatStore.FAILED && writable
                     ? v -> ChatSync.retry(ChatActivity.this, m) : null);
+            // Read-only phones can't open them: opening uses the one view up.
+            if (once && !m.mine && writable && !ChatSync.hasFlag(m.media, "opened")) {
+                h.bubble.setOnClickListener(v -> startActivity(new Intent(ChatActivity.this, ChatMediaActivity.class)
+                        .putExtra(UnlockActivity.EXTRA_VAULT_ID, vaultId)
+                        .putExtra(ChatMediaActivity.EXTRA_TAG, m.msgKey)
+                        .putExtra(ChatMediaActivity.EXTRA_META, m.media)
+                        .putExtra(ChatMediaActivity.EXTRA_ONCE, true)));
+            }
             h.bubble.setOnLongClickListener(v -> {
                 if (!hasText) return false;
                 ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
@@ -674,12 +1127,18 @@ public class ChatActivity extends VaultActivity {
         }
 
         final class Holder extends RecyclerView.ViewHolder {
-            final View bubble, mediaFrame;
-            final TextView body, meta, mediaInfo;
-            final ImageView status, picture, play;
+            final View bubble, mediaFrame, voiceRow;
+            final TextView body, meta, mediaInfo, sender, voiceLength;
+            final ImageView status, picture, play, playVoice;
+            final AudioNoteActivity.WaveformView voiceWave;
 
             Holder(View v) {
                 super(v);
+                voiceRow = v.findViewById(R.id.voiceRow);
+                voiceWave = v.findViewById(R.id.voiceWave);
+                voiceLength = v.findViewById(R.id.txtVoiceLength);
+                playVoice = v.findViewById(R.id.btnPlayVoice);
+                sender = v.findViewById(R.id.txtSender);
                 bubble = v.findViewById(R.id.bubble);
                 mediaFrame = v.findViewById(R.id.mediaFrame);
                 picture = v.findViewById(R.id.imgMedia);

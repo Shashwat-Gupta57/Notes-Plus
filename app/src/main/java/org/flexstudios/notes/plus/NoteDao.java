@@ -65,12 +65,13 @@ public interface NoteDao {
     int countOutside(String account);
 
     /** Brings every other note on this phone into {@code account}, as new notes there. */
-    @Query("UPDATE notes SET account = :account, rev = 0, dirty = 1, media = NULL "
+    @Query("UPDATE notes SET account = :account, rev = 0, dirty = 1, media = NULL, groupId = NULL, groupMembers = NULL "
             + "WHERE account IS NULL OR account != :account")
     void adopt(String account);
 
     /** Leaving an account but keeping its notes: they become this phone's own again. */
-    @Query("UPDATE notes SET account = NULL, rev = 0, dirty = 1, media = NULL WHERE account = :account")
+    @Query("UPDATE notes SET account = NULL, rev = 0, dirty = 1, media = NULL, groupId = NULL, groupMembers = NULL "
+            + "WHERE account = :account")
     void release(String account);
 
     @Query("SELECT * FROM notes WHERE account = :account")
@@ -91,4 +92,21 @@ public interface NoteDao {
 
     @Query("DELETE FROM notes WHERE id = :noteId")
     void purge(int noteId);
+
+    // ---------------------------------------------------------------- groups
+
+    @Query("SELECT * FROM notes WHERE account = :account AND groupId IS NOT NULL")
+    List<NoteEntity> groupNotes(String account);
+
+    @Query("UPDATE notes SET groupMembers = :members WHERE id = :noteId")
+    void setGroupMembers(int noteId, String members);
+
+    /** Now shared: synced through groupNotes/{groupId}, at its first revision there. */
+    @Query("UPDATE notes SET groupId = :groupId, groupMembers = :members, rev = :rev, media = NULL, dirty = :dirty "
+            + "WHERE id = :noteId")
+    void makeGroup(int noteId, String groupId, String members, long rev, boolean dirty);
+
+    /** No longer shared with me: it stays, as my own note again. */
+    @Query("UPDATE notes SET groupId = NULL, groupMembers = NULL, rev = 0, media = NULL, dirty = 1 WHERE id = :noteId")
+    void leaveGroup(int noteId);
 }

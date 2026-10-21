@@ -66,6 +66,31 @@ public class ChatSyncTest {
     }
 
     @Test
+    public void groupsLiveInTheirOwnPlace() {
+        assertTrue(ChatSync.isGroup("g_-Nabc123"));
+        assertEquals("groupChats/-Nabc123", ChatSync.path("g_-Nabc123"));
+        String pair = ChatSync.chatId("alice", "AB12", "bob", "CD34");
+        assertEquals("chats/" + pair, ChatSync.path(pair));
+        assertNull(ChatVaults.addressOf("g_-Nabc123", "alice"));
+    }
+
+    @Test
+    public void voiceNotesKeepTheirWaveform() {
+        ChatMedia.Meta m = new ChatMedia.Meta();
+        m.key = "k";
+        m.mime = "audio/mp4";
+        m.dur = 4200;
+        m.wave = "0.1,0.55,1.0";
+        ChatMedia.Meta back = ChatMedia.Meta.parse(m.toJson().toString());
+        assertTrue(back.isAudio());
+        assertEquals(4200, back.dur);
+        float[] wave = back.waveform();
+        assertEquals(3, wave.length);
+        assertEquals(0.55f, wave[1], 0.0001f);
+        assertEquals("Voice message", ChatSync.preview("", m.toJson().toString()));
+    }
+
+    @Test
     public void vaultIdsAreNormalisedOrRefused() {
         assertEquals("", ChatSync.normaliseCode(""));
         assertEquals("", ChatSync.normaliseCode("   "));

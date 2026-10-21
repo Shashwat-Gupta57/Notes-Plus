@@ -81,7 +81,14 @@ public class ChatHomeActivity extends VaultActivity {
             empty.setVisibility(conversations.isEmpty() ? View.VISIBLE : View.GONE);
         });
 
-        findViewById(R.id.fabNewChat).setOnClickListener(v -> newChat());
+        findViewById(R.id.fabNewChat).setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
+                .setTitle("Start")
+                .setItems(new String[]{"A chat with one person", "A group (up to " + ChatSync.MAX_GROUP + ")"},
+                        (d, which) -> {
+                            if (which == 0) newChat();
+                            else newGroup();
+                        })
+                .show());
         findViewById(R.id.btnOpenAccount).setOnClickListener(v -> {
             expectExternalActivity();
             startActivity(new Intent(this, AccountActivity.class));
@@ -264,6 +271,55 @@ public class ChatHomeActivity extends VaultActivity {
         });
     }
 
+    /** A name and the people: usernames, each optionally /ID for a particular vault of theirs. */
+    private void newGroup() {
+        if (Account.uid() == null) {
+            Toast.makeText(this, "Sign in to your account first", Toast.LENGTH_LONG).show();
+            return;
+        }
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        TextInputLayout name = Prompts.field(this, "Group name", null, Prompts.TEXT);
+        TextInputLayout people = Prompts.field(this, "Members", null, Prompts.TEXT);
+        people.setHelperText("Usernames, separated by commas. Add /ID for a particular vault, like nancy/AB12.");
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = Math.round(12 * getResources().getDisplayMetrics().density);
+        box.addView(name);
+        box.addView(people, lp);
+        TextInputEditText nameInput = (TextInputEditText) name.getEditText();
+        androidx.appcompat.app.AlertDialog dialog = new MaterialAlertDialogBuilder(this)
+                .setTitle("New group")
+                .setView(Prompts.padded(this, box))
+                .setPositiveButton("Create", null)
+                .setNegativeButton("Cancel", null)
+                .create();
+        Prompts.wire(dialog, nameInput);
+        dialog.show();
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String groupName = Prompts.textOf(nameInput);
+            String list = Prompts.textOf((TextInputEditText) people.getEditText());
+            v.setEnabled(false);
+            ChatSync.resolveAll(list, contacts -> AppDatabase.IO.execute(() -> {
+                try {
+                    int id = ChatSync.createGroup(this, vaultId, groupName.length() > 60 ? groupName.substring(0, 60) : groupName, contacts);
+                    runOnUiThread(() -> {
+                        dialog.dismiss();
+                        openConversation(id);
+                    });
+                } catch (Exception e) {
+                    runOnUiThread(() -> {
+                        v.setEnabled(true);
+                        people.setError(e.getMessage() == null ? "Couldn't create the group" : e.getMessage());
+                    });
+                }
+            }), error -> {
+                v.setEnabled(true);
+                people.setError(error);
+            });
+        });
+    }
+
     private void openConversation(int id) {
         startActivity(new Intent(this, ChatActivity.class)
                 .putExtra(UnlockActivity.EXTRA_VAULT_ID, vaultId)
@@ -272,9 +328,16 @@ public class ChatHomeActivity extends VaultActivity {
 
     private void showOptions(ChatStore.Conversation c) {
         new MaterialAlertDialogBuilder(this)
-                .setTitle("@" + c.peerName)
-                .setItems(new String[]{"Move to another vault…", "Delete"}, (d, which) -> {
+                .setTitle(c.isGroup ? c.peerName : "@" + c.peerName)
+                .setItems(new String[]{"Move to another vault…", c.isGroup ? "Leave group" : "Delete"}, (d, which) -> {
                     if (which == 0) askMove(c);
+                    else if (c.isGroup) AppDatabase.IO.execute(() -> {
+                        try {
+                            ChatSync.leaveGroup(this, c.id);
+                        } catch (Exception e) {
+                            runOnUiThread(() -> Toast.makeText(this, "Couldn't leave right now", Toast.LENGTH_LONG).show());
+                        }
+                    });
                     else confirmDelete(c);
                 })
                 .show();
@@ -353,7 +416,9 @@ public class ChatHomeActivity extends VaultActivity {
             boolean nick = c.nickname != null && !c.nickname.isEmpty();
             h.initial.setText((nick ? c.nickname : name).substring(0, 1).toUpperCase(Locale.getDefault()));
             String theirVault = c.peerShown != null ? c.peerShown : c.peerVault;
-            h.peer.setText(nick ? c.nickname : "@" + name + (theirVault == null ? "" : "  ·  " + theirVault));
+            h.peer.setText(c.isGroup ? name : nick ? c.nickname : "@" + name + (theirVault == null ? "" : "  ·  " + theirVault));
+            h.initial.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                    androidx.core.content.ContextCompat.getColor(ChatHomeActivity.this, c.isGroup ? R.color.tile_purple : R.color.tile_blue)));
             if (!Objects.equals(c.peerPhoto, h.avatar.getTag())) {
                 ChatMedia.loadAvatar(ChatHomeActivity.this, h.avatar, c.peerPhoto, () -> h.avatar.setImageDrawable(null));
             }

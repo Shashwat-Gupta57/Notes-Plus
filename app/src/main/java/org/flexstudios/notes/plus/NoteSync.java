@@ -242,6 +242,11 @@ final class NoteSync {
             }
             DatabaseReference notes = Account.notesOf(uid);
             pull(context, uid, notes);
+            try {
+                pullGroups(context, uid);
+            } catch (Exception e) {
+                Log.w(TAG, "Group notes not fetched this time", e);
+            }
             DriveStore drive = Account.drive(context);
             if (drive != null) {
                 try {
@@ -252,12 +257,11 @@ final class NoteSync {
                 }
             }
             push(context, uid, notes, drive);
-            if (drive != null) {
-                try {
-                    downloadAttachments(context, uid, drive, onTransfer);
-                } catch (IOException e) {
-                    driveFailed(context, e);
-                }
+            try {
+                // Group notes' files come from their public links: no Drive needed for those.
+                downloadAttachments(context, uid, drive, onTransfer);
+            } catch (IOException e) {
+                driveFailed(context, e);
             }
             sweepTombstones(context, uid, notes);
             prefs(context).edit().putLong(PREF_LAST_SYNC + uid, System.currentTimeMillis()).apply();
@@ -284,6 +288,42 @@ final class NoteSync {
         prefs.edit().putLong(PREF_LAST_PULL + uid, Math.min(newest, waiting)).apply();
     }
 
+    /**
+     * Every group note I'm a member of ({@code groupIndex/{uid}}), brought in like my own notes.
+     * One I was removed from (or that is gone) stays here as my own note.
+     */
+    private static void pullGroups(Context context, String uid) throws Exception {
+        NoteDao dao = AppDatabase.getInstance(context).noteDao();
+        DataSnapshot index = Tasks.await(Account.root().child("groupIndex").child(uid).get(), TIMEOUT_S, TimeUnit.SECONDS);
+        Set<String> listed = new HashSet<>();
+        for (DataSnapshot entry : index.getChildren()) {
+            String gid = entry.getKey();
+            if (gid == null) continue;
+            DataSnapshot group;
+            try {
+                group = Tasks.await(Account.root().child("groupNotes").child(gid).get(), TIMEOUT_S, TimeUnit.SECONDS);
+            } catch (java.util.concurrent.ExecutionException e) {
+                if (!ChatSync.refused(e)) throw e;
+                continue; // No longer a member: handled below, as not listed.
+            }
+            if (!group.child("members").hasChild(uid)) continue;
+            listed.add(gid);
+            String members = GroupNotes.membersJson(group.child("members"));
+            Remote remote = Remote.of(group.child("note"));
+            if (remote != null) {
+                remote.uuid = gid;
+                apply(context, uid, remote, gid, members);
+            }
+            NoteEntity local = dao.getByUuid(gid);
+            if (local != null && !java.util.Objects.equals(members, local.getGroupMembers())) {
+                dao.setGroupMembers(local.getId(), members);
+            }
+        }
+        for (NoteEntity n : dao.groupNotes(uid)) {
+            if (!listed.contains(n.getGroupId()) && !OPEN.contains(n.getId())) dao.leaveGroup(n.getId());
+        }
+    }
+
     static final int SKIP = 0, WAIT = 1, INSERT = 2, OVERWRITE = 3, REMOVE = 4;
 
     /** What a pulled version does to the local copy. Pure, so it is tested on its own. */
@@ -299,8 +339,16 @@ final class NoteSync {
 
     /** Applies one pulled note. False when it had to wait because the note is open. */
     private static boolean apply(Context context, String uid, Remote remote) {
+        return apply(context, uid, remote, null, null);
+    }
+
+    /** {@code groupId}: it came from a group note (with these members), not my own notes. */
+    private static boolean apply(Context context, String uid, Remote remote, @Nullable String groupId,
+                                 @Nullable String members) {
         NoteDao dao = AppDatabase.getInstance(context).noteDao();
         NoteEntity local = dao.getByUuid(remote.uuid);
+        // A note I shared became a group note: its old place among my own notes no longer counts.
+        if (groupId == null && local != null && local.getGroupId() != null) return true;
         if (local != null && !uid.equals(local.getAccount())) {
             // This phone's own copy of a note it once shared with the account: it keeps its
             // text, under a new identity, and the account's version comes in beside it.
@@ -326,12 +374,15 @@ final class NoteSync {
                 note.setUuid(remote.uuid);
                 note.setAccount(uid);
                 remote.copyInto(note);
+                note.setGroupId(groupId);
+                note.setGroupMembers(members);
                 note.setId((int) dao.insert(note));
                 writeSketch(context, note.getId(), remote.sketch);
                 return true;
             }
             case OVERWRITE:
                 remote.copyInto(local);
+                if (groupId != null) local.setGroupMembers(members);
                 dao.update(local);
                 writeSketch(context, local.getId(), remote.sketch);
                 return true;
@@ -369,9 +420,18 @@ final class NoteSync {
             dao.purge(note.getId()); // Never reached the account: nothing to tell it.
             return;
         }
+        String groupId = note.getGroupId();
+        if (groupId != null && note.isDeleted()) {
+            // Deleting a group note here means leaving it; the others keep it.
+            GroupNotes.leave(context, note);
+            dao.purge(note.getId());
+            return;
+        }
         Map<String, Object> value = toRemote(context, note);
         long expected = note.getRev();
-        Outcome outcome = transact(notes.child(note.getUuid()), current -> {
+        DatabaseReference target = groupId != null
+                ? Account.root().child("groupNotes").child(groupId).child("note") : notes.child(note.getUuid());
+        Outcome outcome = transact(target, current -> {
             Object rev = current.child("rev").getValue();
             if (current.getValue() != null && (!(rev instanceof Number) || ((Number) rev).longValue() != expected)) {
                 return false;
@@ -385,11 +445,13 @@ final class NoteSync {
                 dao.purge(note.getId());
             } else {
                 dao.markSynced(note.getId(), expected + 1, note.getTimestamp());
+                if (groupId != null) GroupNotes.announce(note);
             }
             return;
         }
         Remote remote = outcome.snapshot == null ? null : Remote.of(outcome.snapshot);
         if (remote == null) return;
+        if (groupId != null) remote.uuid = note.getUuid();
         if (note.isDeleted()) {
             // Deleted here, edited elsewhere: the edit wins, the note comes back.
             if (remote.deleted) {
@@ -438,7 +500,7 @@ final class NoteSync {
         return base + " (conflict, " + Build.MODEL + ")";
     }
 
-    private static Map<String, Object> toRemote(Context context, NoteEntity note) {
+    static Map<String, Object> toRemote(Context context, NoteEntity note) {
         Map<String, Object> m = new HashMap<>();
         m.put("rev", note.getRev() + 1);
         m.put("updatedAt", ServerValue.TIMESTAMP);
@@ -471,6 +533,7 @@ final class NoteSync {
             entry.put("size", e.optLong("size"));
             if (!e.optString("mime").isEmpty()) entry.put("mime", e.optString("mime"));
             if (e.optString("sha256").length() == 64) entry.put("sha256", e.optString("sha256"));
+            if (!e.optString("key").isEmpty()) entry.put("key", e.optString("key"));
             for (String k : new String[]{"w", "h", "durationMs"}) if (e.optLong(k) > 0) entry.put(k, e.optLong(k));
             media.put(key(name), entry);
         }
@@ -549,6 +612,24 @@ final class NoteSync {
             boolean changed = false;
             for (File file : attachments(context, note)) {
                 if (!data.contains(file.getName()) || manifest.has(file.getName())) continue;
+                if (note.getGroupId() != null) {
+                    // Shared with the group: encrypted, and opened to anyone with the link, like
+                    // a chat photo. The key travels in the note, which only members can read.
+                    onTransfer.run();
+                    String tag = groupTag(note.getGroupId(), file.getName());
+                    try {
+                        ChatMedia.Meta meta = ChatMedia.prepare(context, android.net.Uri.fromFile(file), tag);
+                        meta.id = ChatMedia.upload(context, drive, tag);
+                        manifest.put(file.getName(), new JSONObject().put("driveId", meta.id).put("key", meta.key)
+                                .put("size", file.length()).put("mime", mimeOf(file.getName())));
+                    } catch (IOException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        throw new IOException(e);
+                    }
+                    changed = true;
+                    continue;
+                }
                 if (root == null) root = attachmentsRoot(drive);
                 String folder = drive.folder(note.getUuid(), root);
                 String mime = mimeOf(file.getName());
@@ -565,7 +646,14 @@ final class NoteSync {
                 String name = it.next();
                 if (data.contains(name)) continue;
                 JSONObject gone = manifest.optJSONObject(name);
-                if (gone != null && !gone.optString("driveId").isEmpty()) drive.deleteFile(gone.optString("driveId"));
+                if (gone != null && !gone.optString("driveId").isEmpty()) {
+                    try {
+                        drive.deleteFile(gone.optString("driveId"));
+                    } catch (IOException e) {
+                        // In a group, another member's file isn't mine to delete; it just drops out.
+                        if (note.getGroupId() == null) throw e;
+                    }
+                }
                 it.remove();
                 changed = true;
             }
@@ -573,12 +661,14 @@ final class NoteSync {
         }
     }
 
-    /** Fetches files a note uses that this phone doesn't have yet. */
-    private static void downloadAttachments(Context context, String uid, DriveStore drive, Runnable onTransfer)
+    /** Fetches files a note uses that this phone doesn't have yet. {@code drive}: null if not connected. */
+    private static void downloadAttachments(Context context, String uid, @Nullable DriveStore drive, Runnable onTransfer)
             throws IOException {
         NoteDao dao = AppDatabase.getInstance(context).noteDao();
         for (NoteEntity note : dao.notesOf(uid)) {
             if (note.isDeleted() || OPEN.contains(note.getId()) || note.getMedia() == null) continue;
+            boolean group = note.getGroupId() != null;
+            if (!group && drive == null) continue;
             String data = note.getData() == null ? "" : note.getData();
             JSONObject manifest = json(note.getMedia());
             File dir = null;
@@ -589,8 +679,22 @@ final class NoteSync {
                 if (dir == null) dir = NoteData.dir(context, note.getId());
                 File target = new File(dir, name);
                 if (target.exists() && target.length() == entry.optLong("size", target.length())) continue;
-                File part = new File(dir, name + ".part");
                 onTransfer.run();
+                if (group || !entry.optString("key").isEmpty()) {
+                    try {
+                        ChatMedia.Meta meta = ChatMedia.Meta.parse(new JSONObject()
+                                .putOpt("id", entry.optString("driveId")).putOpt("key", entry.optString("key"))
+                                .putOpt("mime", entry.optString("mime")).toString());
+                        if (meta == null) continue;
+                        ChatMedia.decryptTo(context, groupTag(note.getUuid(), name), meta, target);
+                    } catch (IOException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        throw new IOException(e);
+                    }
+                    continue;
+                }
+                File part = new File(dir, name + ".part");
                 drive.downloadFile(entry.optString("driveId"), part);
                 if (!part.renameTo(target)) {
                     VaultCrypto.deleteRecursive(part);
@@ -598,6 +702,11 @@ final class NoteSync {
                 }
             }
         }
+    }
+
+    /** Where a group note's file is kept encrypted on this phone. */
+    private static String groupTag(String groupId, String name) {
+        return "gn_" + groupId + "_" + key(name);
     }
 
     private static void trashAttachments(DriveStore drive, NoteEntity note) {
@@ -700,6 +809,8 @@ final class NoteSync {
 
     private static Query liveQuery;
     private static ChildEventListener liveListener;
+    private static DatabaseReference liveGroups;
+    private static com.google.firebase.database.ValueEventListener groupListener;
 
     /** While the notes grid is visible, other phones' edits arrive as they are made. */
     static synchronized void startLive(Context context) {
@@ -730,11 +841,32 @@ final class NoteSync {
                 Log.w(TAG, "Live updates stopped", error.toException());
             }
         };
+        // A group note changed by someone else bumps my index entry for it: fetch.
+        liveGroups = Account.root().child("groupIndex").child(uid);
+        groupListener = new com.google.firebase.database.ValueEventListener() {
+            private boolean first = true;
+
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (first) {
+                    first = false; // The current state; the scheduled sync below covers it.
+                    return;
+                }
+                schedule(app);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        };
+        liveGroups.addValueEventListener(groupListener);
         liveQuery.addChildEventListener(liveListener);
         schedule(app);
     }
 
     static synchronized void stopLive() {
+        if (liveGroups != null && groupListener != null) liveGroups.removeEventListener(groupListener);
+        liveGroups = null;
+        groupListener = null;
         if (liveQuery != null && liveListener != null) liveQuery.removeEventListener(liveListener);
         liveQuery = null;
         liveListener = null;
@@ -793,6 +925,7 @@ final class NoteSync {
                     JSONObject e = new JSONObject().put("driveId", string(m.child("driveId"), ""))
                             .put("size", number(m.child("size"))).put("mime", string(m.child("mime"), ""));
                     if (m.hasChild("sha256")) e.put("sha256", string(m.child("sha256"), ""));
+                    if (m.hasChild("key")) e.put("key", string(m.child("key"), ""));
                     for (String k : new String[]{"w", "h", "durationMs"}) if (m.hasChild(k)) e.put(k, number(m.child(k)));
                     manifest.put(name, e);
                 } catch (Exception ignored) {

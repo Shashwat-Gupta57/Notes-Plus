@@ -53,9 +53,31 @@ final class ChatMedia {
         String mime;
         String name;
         long size, w, h, dur;
+        /** Voice notes: their waveform, comma-separated levels 0..1. */
+        String wave;
+        /** View once: shown a single time, then gone (from the phone, and from the sender's Drive). */
+        boolean once;
 
         boolean isVideo() {
             return mime != null && mime.startsWith("video/");
+        }
+
+        boolean isAudio() {
+            return mime != null && mime.startsWith("audio/");
+        }
+
+        float[] waveform() {
+            if (wave == null || wave.isEmpty()) return new float[0];
+            String[] parts = wave.split(",");
+            float[] out = new float[parts.length];
+            for (int i = 0; i < parts.length; i++) {
+                try {
+                    out[i] = Float.parseFloat(parts[i]);
+                } catch (NumberFormatException e) {
+                    out[i] = 0;
+                }
+            }
+            return out;
         }
 
         JSONObject toJson() {
@@ -69,6 +91,8 @@ final class ChatMedia {
                 if (w > 0) o.put("w", w);
                 if (h > 0) o.put("h", h);
                 if (dur > 0) o.put("dur", dur);
+                if (wave != null) o.put("wave", wave);
+                if (once) o.put("once", true);
             } catch (Exception ignored) {
                 // Plain values only.
             }
@@ -89,6 +113,8 @@ final class ChatMedia {
                 m.w = o.optLong("w");
                 m.h = o.optLong("h");
                 m.dur = o.optLong("dur");
+                m.wave = o.optString("wave", null);
+                m.once = o.optBoolean("once", false);
                 return m.key == null ? null : m;
             } catch (Exception e) {
                 return null;
@@ -126,6 +152,21 @@ final class ChatMedia {
         }
         if (!part.renameTo(target)) throw new IOException("Could not store the file");
         if (m.size == 0) m.size = target.length();
+        return m;
+    }
+
+    /** A voice note just recorded: encrypted into the outbox with its length and waveform. Blocking. */
+    static Meta prepareVoice(Context context, File recording, long durationMs, float[] levels, String tag) throws Exception {
+        Meta m = prepare(context, Uri.fromFile(recording), tag);
+        m.mime = "audio/mp4";
+        m.name = null;
+        m.dur = durationMs;
+        StringBuilder wave = new StringBuilder();
+        for (float level : levels) {
+            if (wave.length() > 0) wave.append(',');
+            wave.append(Math.round(Math.max(0, Math.min(1, level)) * 100) / 100f);
+        }
+        m.wave = wave.toString();
         return m;
     }
 
@@ -313,10 +354,23 @@ final class ChatMedia {
         return out.toByteArray();
     }
 
+    /** Decrypted into {@code target} (a group note's own folder). Blocking. */
+    static void decryptTo(Context context, String tag, Meta m, File target) throws Exception {
+        File file = ensure(context, tag, m);
+        File part = new File(target.getPath() + ".part");
+        try (InputStream in = new FileInputStream(file); OutputStream out = new FileOutputStream(part)) {
+            VaultCrypto.decrypt(in, out, resolver(m));
+        }
+        if (!part.renameTo(target)) {
+            VaultCrypto.deleteRecursive(part);
+            throw new IOException("Could not save " + target.getName());
+        }
+    }
+
     /** Decrypted into a temporary file, for the video player. Delete it when done. Blocking. */
     static File decryptToTemp(Context context, String tag, Meta m) throws Exception {
         File file = ensure(context, tag, m);
-        File plain = new File(plainDir(context), tag + (m.isVideo() ? ".mp4" : ".bin"));
+        File plain = new File(plainDir(context), tag + (m.isVideo() ? ".mp4" : m.isAudio() ? ".m4a" : ".bin"));
         try (InputStream in = new FileInputStream(file); OutputStream out = new FileOutputStream(plain)) {
             VaultCrypto.decrypt(in, out, resolver(m));
         }

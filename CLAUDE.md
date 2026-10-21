@@ -25,7 +25,7 @@ No MVVM, no repository layer. Activities talk to Room DAOs directly and hop thre
 executor per click. Media operations go through `VaultMedia`, never re-implemented in a
 screen.
 
-**Persistence** — `AppDatabase` (Room, singleton, version 17, `notes_database`)
+**Persistence** — `AppDatabase` (Room, singleton, version 18, `notes_database`)
 
 | Entity | Table | Notes |
 |---|---|---|
@@ -40,7 +40,7 @@ must match the `@Index`es on `SecretEntity` exactly), 10→11 adds `durationMs`,
 `type`/`data`/`color`/`pinned`, 12→13 the note sync columns (backfilling `uuid`), 13→14 the
 chat tables, 14→15 chat vault sync (`updatedAt`/`dirty`/`deleted`) and conversation `moved`,
 15→16 chat media, nicknames and shared backgrounds, 16→17 chat photos, ID aliases and list
-backgrounds. Only `fallbackToDestructiveMigrationFrom(1)`
+backgrounds, 17→18 group notes, group chats and message senders. Only `fallbackToDestructiveMigrationFrom(1)`
 is on, so a missing migration now crashes instead of wiping the vault — **always add it**.
 `onOpen` seeds vault 1 asynchronously; setup calls `AppDatabase.ensureMainVault` itself so it
 never races the unlock screen.
@@ -114,6 +114,28 @@ Changing a vault's ID retires the old one with `renamedTo`, so messages to it st
 ID (`peerShown`). The lock screen background set from chat settings is the same setting as the
 gallery's on purpose: one lock screen look, or swiping both ways would reveal two spaces. The
 chat list background is per vault, this phone only, encrypted with the device key.
+
+**Group chats** (`ChatSync.createGroup` / `addToGroup` / `leaveGroup`): `groupChats/{gid}` with
+`meta` (name, owner), `members/{uid}` = {code, name}, `size` (≤ 20, the rules cap it), `messages`
+with per-member receipts `rcv/{uid}` and `seen/{uid}`. Locally `chatId` = "g_" + gid and
+`ChatSync.path()` maps any conversation to its node. Group index entries carry `gid`, because the
+rules can't cut it out of the key. A message shows "received"/"seen" once every other member has.
+The group's owner can remove members (`ChatSync.removeFromGroup`); removed members keep what
+their phone has but are refused from then on. **View once**: photos and videos sent with
+`media.once`; the recipient sees no preview, opens it in `ChatMediaActivity` (always
+`FLAG_SECURE`, closed on leaving), and `ChatSync.markOpened` drops their copy and writes `opened`
+(per member in groups); once everyone has opened it, the sender's phone deletes the file from
+its Drive. The sender keeps no viewable copy either.
+**Voice notes** record AAC in `cache/chat_plain`, travel like any chat media (encrypted, by link)
+with their waveform in `media.wave`, and play from a temporary decrypted file.
+
+**Group notes** (`GroupNotes`): any note but audio, shared with up to 20 people, at
+`groupNotes/{id}` (owner, members {uid: username}, size, `note` in the same shape as my own
+notes). `NoteSync` pushes and pulls them like my own, just at that path; `groupIndex/{uid}/{id}`
+(`at`) announces changes and drives the live listener. Sharing turns a note into a group note
+under its own uuid and retires its personal copy online. Deleting one here means leaving it;
+being removed keeps it here as my own note. Group note files are encrypted and shared by link
+(manifest entries carry `key`), so members without Drive still get them.
 
 `ChatVaults` owns the vaults across the account's phones:
 - Chat locks are stored as `h1:<salt>:<PBKDF2 hash>` (here and online), never plainly; unlock
@@ -241,7 +263,8 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-The build file and `version.json` are both at 10 / "9.2" (released as v9.2.0, with `sha256`).
+The build file is at 11 / "10.0"; `version.json` still advertises 10 / "9.2" (released as v9.2.0,
+with `sha256`) until a 10.0 APK is published.
 Bump `version.json` only when the APK for a new version is actually published, or every user
 is prompted to download a release that does not exist.
 

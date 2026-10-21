@@ -37,6 +37,10 @@ public class NoteEntity {
     private boolean dirty = true;
     private boolean deleted;
     private String media;
+    /** A group note: its id online ({@code groupNotes/{groupId}}), shared with its members. */
+    private String groupId;
+    /** Members as JSON {uid: username}, for the card and the members screen. */
+    private String groupMembers;
 
     public NoteEntity(String title, String content, long timestamp) {
         this.title = title;
@@ -72,11 +76,16 @@ public class NoteEntity {
     public void setDeleted(boolean deleted) { this.deleted = deleted; }
     public String getMedia() { return media; }
     public void setMedia(String media) { this.media = media; }
+    public String getGroupId() { return groupId; }
+    public void setGroupId(String groupId) { this.groupId = groupId; }
+    public String getGroupMembers() { return groupMembers; }
+    public void setGroupMembers(String groupMembers) { this.groupMembers = groupMembers; }
 
     /** For the list differ: anything a card shows. */
     boolean sameContentAs(NoteEntity o) {
         return java.util.Objects.equals(title, o.title) && java.util.Objects.equals(content, o.content)
                 && java.util.Objects.equals(data, o.data) && timestamp == o.timestamp
-                && color == o.color && pinned == o.pinned && getType().equals(o.getType());
+                && color == o.color && pinned == o.pinned && getType().equals(o.getType())
+                && java.util.Objects.equals(groupMembers, o.groupMembers);
     }
 }

@@ -38,7 +38,13 @@
 *::before,
 *::after { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; overflow-x: hidden; }
+@supports (overflow: clip) { html, body { overflow-x: clip; } }
+
+/* Grid children may shrink below their content, and long pixel words may wrap:
+   nothing is allowed to make the page wider than the phone. */
+.hero .container > *, .feature .row > *, .slots > *, .shots > *, .steps > * { min-width: 0; }
+h1, h2, h3, p, li { overflow-wrap: break-word; }
 
 body {
   margin: 0;
@@ -508,9 +514,10 @@ a { color: inherit; text-decoration: none; }
   border: 3px solid #000;
   box-shadow: inset 3px 3px 0 #555, inset -3px -3px 0 #101010, 6px 6px 0 rgba(0, 0, 0, 0.5);
   transform: translateX(130%);
-  transition: transform 0.45s steps(6);
+  visibility: hidden; /* off-screen and hidden, so it never widens the page */
+  transition: transform 0.45s steps(6), visibility 0s 0.45s;
 }
-.achievement.show { transform: translateX(0); }
+.achievement.show { transform: translateX(0); visibility: visible; transition: transform 0.45s steps(6); }
 .achievement .icon {
   flex: none;
   width: 40px;
@@ -602,10 +609,11 @@ main, header, section, footer { position: relative; z-index: 1; }
     background: var(--obsidian);
     border-left: 4px solid #000;
     transform: translateX(100%);
-    transition: transform 0.25s steps(5);
+    visibility: hidden; /* a closed menu must not widen the page */
+    transition: transform 0.25s steps(5), visibility 0s 0.25s;
     z-index: 60;
   }
-  .nav-links.open { transform: none; }
+  .nav-links.open { transform: none; visibility: visible; transition: transform 0.25s steps(5); }
   .nav-links a { font-size: 12px; padding: 14px; }
   .nav-overlay {
     display: block;
@@ -629,6 +637,6 @@ main, header, section, footer { position: relative; z-index: 1; }
   .achievement { left: 16px; right: 16px; min-width: 0; }
   .btn { font-size: 12px; width: 100%; }
   .hero-actions { flex-direction: column; }
-  .lightbox .btn, .hamburger { width: auto; }
+  .lightbox .btn { width: auto; }
   .callout { flex-direction: column; gap: 8px; }
 }

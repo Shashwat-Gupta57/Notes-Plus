@@ -1,9 +1,14 @@
 package org.flexstudios.notes.plus;
 
 import androidx.room.Entity;
+import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
-@Entity(tableName = "secrets")
+@Entity(tableName = "secrets", indices = {
+        @Index({"vaultId", "dateTaken", "dateAdded"}),
+        @Index("fileName"),
+        @Index("albumId")
+})
 public class SecretEntity {
     @PrimaryKey(autoGenerate = true)
     private int id;
@@ -18,7 +23,14 @@ public class SecretEntity {
     private boolean isFavourite;
     private Integer albumId;
     private boolean syncedLocally;
-    private boolean syncedToDrive;
+    /**
+     * SHA-256 of the plaintext, recorded while the file streams to Drive so it costs no
+     * extra read. Null for items imported before this existed; those skip verification
+     * rather than forcing a full re-read of the vault.
+     */
+    private String contentHash;
+    /** Video length; 0 for photos and for videos not yet measured. */
+    private long durationMs;
 
     public SecretEntity(String fileName, String originalPath, long dateTaken, long dateAdded, boolean isVideo, int vaultId) {
         this.fileName = fileName;
@@ -30,7 +42,6 @@ public class SecretEntity {
         this.isFavourite = false;
         this.albumId = null;
         this.syncedLocally = false;
-        this.syncedToDrive = false;
     }
 
     public int getId() { return id; }
@@ -54,6 +65,8 @@ public class SecretEntity {
     public void setAlbumId(Integer albumId) { this.albumId = albumId; }
     public boolean isSyncedLocally() { return syncedLocally; }
     public void setSyncedLocally(boolean syncedLocally) { this.syncedLocally = syncedLocally; }
-    public boolean isSyncedToDrive() { return syncedToDrive; }
-    public void setSyncedToDrive(boolean syncedToDrive) { this.syncedToDrive = syncedToDrive; }
+    public String getContentHash() { return contentHash; }
+    public void setContentHash(String contentHash) { this.contentHash = contentHash; }
+    public long getDurationMs() { return durationMs; }
+    public void setDurationMs(long durationMs) { this.durationMs = durationMs; }
 }

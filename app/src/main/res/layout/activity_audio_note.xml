@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Audio note: title, the recordings, and a recorder at the bottom. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/audioRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/app_background"
+    android:orientation="vertical">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbarAudio"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize" />
+
+    <EditText
+        android:id="@+id/audioTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@null"
+        android:hint="Audio note title"
+        android:importantForAutofill="no"
+        android:inputType="textCapSentences"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="8dp"
+        android:textColor="@color/text_primary"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recordingList"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="16dp" />
+
+        <TextView
+            android:id="@+id/audioEmpty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:text="Tap the microphone to record"
+            android:textColor="@color/text_secondary"
+            android:textSize="16sp" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:paddingTop="12dp"
+        android:paddingBottom="28dp">
+
+        <TextView
+            android:id="@+id/recordTimer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-light"
+            android:textColor="@color/text_primary"
+            android:textSize="36sp"
+            android:visibility="gone" />
+
+        <view
+            class="org.flexstudios.notes.plus.AudioNoteActivity$WaveformView"
+            android:id="@+id/liveWave"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginStart="32dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="32dp"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnRecord"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Record"
+            app:backgroundTint="@color/tile_red"
+            app:fabCustomSize="76dp"
+            app:maxImageSize="34dp"
+            app:srcCompat="@drawable/ic_mic"
+            app:tint="@color/white" />
+    </LinearLayout>
+</LinearLayout>

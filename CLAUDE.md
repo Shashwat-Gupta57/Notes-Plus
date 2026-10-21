@@ -1,0 +1,199 @@
+# Notes+ — Claude working notes
+
+Android app (Java, no Kotlin, no Compose, no DI framework). A plain notes app on the
+surface; a hidden encrypted media vault underneath, reachable only via a secret gesture.
+
+## Build & run
+
+```bash
+./gradlew assembleDebug          # Windows: gradlew.bat assembleDebug
+./gradlew installDebug
+./gradlew lint
+```
+
+- Gradle Kotlin DSL + version catalog. **Add every dependency to `gradle/libs.versions.toml`
+  first**, then reference it as `libs.x.y` in `app/build.gradle.kts`. Never hardcode a
+  coordinate string in the build file.
+- `namespace` / `applicationId` = `org.flexstudios.notes.plus`; minSdk 24, target/compile 36.
+- Java 11 source/target. Annotation processors: Room, Glide. No kapt/ksp.
+- Release build has `isMinifyEnabled = false` and **no signing config**.
+
+## Architecture
+
+No MVVM, no repository layer. Activities talk to Room DAOs directly and hop threads with
+`AppDatabase.IO` (the one shared 4-thread pool) + `runOnUiThread`. Never create a new
+executor per click. Media operations go through `VaultMedia`, never re-implemented in a
+screen.
+
+**Persistence** — `AppDatabase` (Room, singleton, version 12, `notes_database`)
+
+| Entity | Table | Notes |
+|---|---|---|
+| `NoteEntity` | `notes` | The cover notes app. `type` picks the editor, `content` is searchable text, `data` is the type's JSON (see `NoteData`), media in `filesDir/notes/<id>/` (plain, not vault-encrypted) |
+| `VaultEntity` | `vaults` | id 1 = "Main Vault". `lockValue` is plaintext; `uuid` is the cross-device identity |
+| `SecretEntity` | `secrets` | One row per hidden media file; `fileName` is the key everywhere |
+| `AlbumEntity` | `albums` | Scoped to a vault; has a `uuid` |
+
+Migrations 2→11 are hand-written in `AppDatabase`; 9→10 adds the `secrets` indexes (which
+must match the `@Index`es on `SecretEntity` exactly), 10→11 adds `durationMs`, 11→12 adds note `type`/`data`/`color`/`pinned`. Only `fallbackToDestructiveMigrationFrom(1)`
+is on, so a missing migration now crashes instead of wiping the vault — **always add it**.
+`onOpen` seeds vault 1 asynchronously; setup calls `AppDatabase.ensureMainVault` itself so it
+never races the unlock screen.
+
+**Media storage** — `filesDir/vault/<fileName>`, Tink streaming AEAD (AES256_GCM_HKDF_4KB)
+under an Android Keystore master key, via `VaultCrypto.openRead/openSeekable/write`. This is
+byte-compatible with androidx `EncryptedFile` (same keyset prefs, AAD = file name), which is
+how files from older versions still open — **never change the keyset names or the AAD**.
+Writes go to `<name>.part`, are fsynced, then renamed. `fileName` format:
+`IMG_<epochMillis>_<8 hex>` / `VID_...` (older: `_<index>`). **All vaults share this one
+directory**; separation is DB-level only, and `SecretDao.getSecretByFileName` is global.
+
+**Plaintext never touches disk** except in `VaultCrypto.shareDir` (wiped on vault entry).
+Photos are viewed from memory with Glide caches off; videos play through
+`MediaPagerAdapter.VaultDataSource` (seekable decryption); thumbnails and video frames go
+through `ThumbnailStore` / `VaultCrypto.mediaDataSource`.
+
+**Notes app** — `NoteData` defines every note type (Text, List, Journal, Mind map, Sketch,
+Audio), its JSON and its folder. Editors extend `NoteActivity`, which loads, saves on pause
+(only when changed), discards abandoned new notes, and owns pin / colour / delete:
+`NoteEditorActivity` (text, list, journal), `MindMapActivity` (+ `MindMapView`, also the card
+preview), `SketchActivity` (+ `DrawingView`; strokes in `sketch.json`, card in `sketch.png`),
+`AudioNoteActivity` (+ `WaveformView`). `NoteAdapter` draws one card layout for all types.
+A left swipe on the notes grid is the vault's secret gesture, so swipe-to-delete is right only.
+Notes are not yet included in `.bak` or Drive backups.
+
+**Screen flow**
+
+```
+MainActivity (notes)
+  └─ long left-swipe on the list, held 2s  →  UnlockActivity
+                                               (ViewPager2: PIN / Password / Pattern)
+       matches any vault's lockValue        →  SecretGalleryActivity (vaultId extra)
+                                                 ├─ MediaPagerActivity  (view/share/fav/album)
+                                                 └─ GallerySettingsActivity (vaults, backup, Drive)
+```
+
+`UnlockActivity.EXTRA_VAULT_ID` is the extra that carries the unlocked vault through
+every downstream screen. **Every vault screen extends `VaultActivity`**, which sets
+`FLAG_SECURE`, reads `vaultId`, and enforces auto-lock on resume (relocking via
+`MainActivity.EXTRA_RELOCK`). Call `expectExternalActivity()` before launching a picker,
+share sheet or sign-in, or returning from it will lock the vault. Unlock failures and
+lockouts are persisted (exponential, 30 s → 1 h).
+
+**Backup / sync** — long jobs (Drive backup, local backup, local and Drive restore) run in
+`SyncWorker` as foreground work with a progress notification and Cancel; screens only watch
+them with `SyncWorker.watch`. Passwords go to the worker in memory (`SECRETS`), never in
+WorkManager input data, which is persisted. Two formats with different properties:
+
+- `BackupManager` — local `.bak`: `NPBK|03|keyring|v3 payload` of a zip (snapshot.json +
+  media/ + backgrounds/), streamed both ways. Carries its own keyring, so it opens on a new
+  phone. Still reads v1 (old main-lock) and v2 (migration screen) files. Not incremental.
+  Restore goes through `Snapshot.apply`, the same code as a Drive restore.
+- Drive — a content-addressed object store under
+  `Notes-plus/Saved-Notes/Cloud/Remote/Backup`. Vault media is write-once, so `fileName` is a
+  sound immutable object key and a backup uploads `local − alreadyStored` only. 5 GB stored
+  plus 300 MB new means 300 MB moves.
+
+  | Class | Role |
+  |---|---|
+  | `DriveStore` | Drive API: escaped queries, folder-id cache, retry/backoff, typed auth/quota errors, plus encrypted JSON document I/O. Reads never mutate. |
+  | `ObjectIndex` | `objects_index.json` — the stored inventory. One API call replaces a per-object existence check. |
+  | `Snapshot` | One restore point: a manifest referencing objects by name, containing no bytes. Lists only objects actually stored. `apply()` writes one back. |
+  | `CloudSync` | plan / backup / restore / retention / GC / legacy re-key. Every mutating op holds one process-wide lock; the index is checkpointed every 20 files / 60 s. |
+  | `SyncWorker` | Debounced unique work (`np-drive-sync`), network constraints, real progress, foreground promotion (deliberately generic notification). |
+  | `DriveSetupActivity` | The one setup question, shown once after sign-in. |
+  | `SyncChoiceActivity` | Device-vs-store conflict, shown only when the baseline is empty. |
+  | `BackupMigrationActivity` | Three routes off the pre-7.50 payload format. |
+
+  Settings owns the status card ("To upload: N items - X MB"), the progress bar fed by
+  `WorkManager` progress, and the restore-point list with pinning.
+
+**Crypto** — `VaultCrypto` is the only crypto code. Payloads are encrypted with a random
+**Vault Data Key**; a lock value (or the optional **backup password**) only *wraps* that key in
+`keyring.json`. With a backup password set it is the *only* wrap, because a 4-digit PIN falls
+to an offline guesser in minutes (PBKDF2 at 210k: ~180 ms/guess on one desktop core). Changing
+a lock rewrites ~200 bytes and touches no media. Envelopes: `NP|03|keyId` + Tink segmented
+stream with the header as AAD (written now); `NP|02` single-shot GCM and v1 (lock-derived, no
+magic) are read only. PBKDF2 falls back to a direct implementation on API 24/25.
+
+**Self-update** — `Updater` polls `version.json` on GitHub `master` (at most every 12 h, from
+`MainActivity.onResume`), downloads only after the user agrees, and `Updater.DownloadReceiver`
+accepts only its own download id. The APK must match package, advertised `versionCode`, the
+installed signing certificate, and `sha256` from `version.json` when present (add it to every
+release). Install is offered from the foreground; it is never launched from the background.
+
+## Conventions
+
+- Package is flat: every class sits in `org.flexstudios.notes.plus`. Keep it that way.
+- Views via `findViewById`; no view binding, no data binding.
+- Background work: `AppDatabase.IO`. `NoteEditorActivity` keeps its own single thread on
+  purpose (an insert must land before the update that follows it).
+- Adapters call `notifyDataSetChanged()` (except `NoteAdapter`, which is a `ListAdapter`).
+- `SecurityHelper` is the single accessor for both preference stores:
+  `getAppPrefs()` (plain `app_prefs`) and `getEncryptedPrefs()` (`secret_prefs`).
+- Decrypted media only ever goes to `VaultCrypto.shareDir`, swept on vault entry.
+- Dialogs: always `MaterialAlertDialogBuilder` (themed by `ThemeOverlay.App.Dialog`); text
+  input through `Prompts.text` / `Prompts.field`, progress through `Prompts.progress`. Never a
+  bare `EditText` in a dialog, never `ProgressDialog`.
+- Every local backup is read back and verified (`BackupManager.verify`) before it is reported
+  as saved; Settings → Restore → "Check a backup file" runs the same check on any `.bak`.
+- The grid and the viewer load the whole filter as light `SecretItem` rows (`SecretDao.galleryRows`
+  etc., one indexed query) and only thumbnails are lazy. The grid diffs every change through
+  `AsyncListDiffer`: call `loadGallery(false)` after a mutation, never `notifyDataSetChanged`.
+  Selection is by file name. Grid touch behaviour (pinch columns, drag-select, fast scroller)
+  lives in `GalleryGestures`. Deletes are deferred behind an undo bar and committed in `onStop`.
+- Thumbnails live in `filesDir/thumbs2` (512 px, EXIF-upright). Bump the directory name to
+  regenerate them all; never write them anywhere else.
+
+## Version bookkeeping
+
+`app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
+be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
+the installed one, so a stale build file makes every user appear up to date.
+The build file is at 8 / "7.50". `version.json` deliberately still advertises 7 — bump it
+only when an APK for the new version is actually published, or every user is prompted to
+download a release that does not exist.
+
+## Landmines
+
+- `lockValue` is stored and compared **in plaintext** in the `vaults` table — never assume
+  it is hashed. (It is no longer the payload key, and no longer uploaded in the clear.)
+- Changing a lock is **gated** while `VaultCrypto.hasUnmigratedLegacyPayloads()` holds,
+  because pre-7.50 payloads were encrypted with the lock value itself.
+  `BackupMigrationActivity` offers the three ways out.
+- Nothing in the cloud path may delete an object a retained restore point still names. A
+  fresh install has no baseline, which is what makes `Plan.needsChoice` true and sends the
+  user to `SyncChoiceActivity` instead of mirroring.
+- Room DAO `LiveData` getters return a **new** `LiveData` on every call, so
+  `removeObservers(this)` on a fresh one detaches nothing. The gallery grid no longer uses
+  LiveData for this reason; the albums observer is guarded by a one-shot flag. Hold the
+  `LiveData` in a field if you ever need to detach one.
+- Never use single-shot `Cipher.doFinal` on media. Android's AES-GCM buffers the whole input,
+  so a 64 MB file already runs a 256 MB heap out of memory. Use `VaultCrypto` streams;
+  `VaultCryptoTest` pushes 256 MB through a 128 MB test heap to keep this honest.
+- `SecurityHelper.getEncryptedPrefs` throws rather than falling back. A plain-prefs fallback
+  once made the app mint a new data key and store it in the clear.
+- `allowBackup` is off and `data_extraction_rules.xml` excludes everything: Keystore-bound vault
+  files are useless on another device, and the database holds lock values.
+- `CloudSync` holds a process-wide lock for every mutating call. A restore started while a long
+  backup runs waits ("Waiting for the backup in progress"); that is intended.
+- Release builds still have **no signing config**. If the release key ever changes, updates
+  fail and users must uninstall, which deletes the Keystore key and with it every local vault
+  file. Keep one release keystore, backed up, forever.
+- Gradle needs a full JDK: `JAVA_HOME="D:\Program Files\Java\JDK\jdk-21.0.8+9" ./gradlew ...`
+  The IDE-bundled JRE has no `jlink` and the build fails on `androidJdkImage`.
+- Two `file_paths.xml` exist; only `app/src/main/res/xml/file_paths.xml` is real.
+- `app/src/main/xml/`, `drive_report.txt`, and `app/release/Notes+.apk` are stale artifacts.
+
+## UI
+
+Material 3 `DayNight` with an iOS-flavoured palette. Colours live in `values/colors.xml`
+with a `values-night` counterpart — **use the semantic names** (`@color/app_background`,
+`@color/text_primary`, `@color/text_secondary`, `@color/divider`, `@color/brand_yellow`),
+never a raw hex, or the screen breaks in dark mode. There is no `values-night/themes.xml`
+on purpose: it used to redefine the base theme without the button style.
+
+Known and still open: white on `@color/brand_yellow` is ~1.5:1 and fails contrast —
+`@color/on_brand_yellow` is the single value to change. Strings are still hardcoded in
+layouts (`strings.xml` has only `app_name`), there is no edge-to-edge inset handling despite
+targetSdk 36, and almost nothing has a `contentDescription`.

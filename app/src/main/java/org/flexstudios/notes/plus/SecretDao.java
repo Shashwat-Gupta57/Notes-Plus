@@ -1,6 +1,5 @@
 package org.flexstudios.notes.plus;
 
-import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
 import androidx.room.Delete;
 import androidx.room.Insert;
@@ -21,22 +20,40 @@ public interface SecretDao {
     void delete(SecretEntity secret);
 
     @Query("SELECT * FROM secrets WHERE vaultId = :vaultId ORDER BY dateTaken DESC, dateAdded DESC")
-    LiveData<List<SecretEntity>> getSecretsForVault(int vaultId);
-
-    @Query("SELECT * FROM secrets WHERE vaultId = :vaultId ORDER BY dateTaken DESC, dateAdded DESC")
     List<SecretEntity> getSecretsForVaultDirect(int vaultId);
+
+    // ---- The gallery and the viewer read these light rows, newest first, in one query.
+    // ---- All three are served by index_secrets_vaultId_dateTaken_dateAdded.
+
+    String ROW = "SELECT fileName, isVideo, dateTaken, isFavourite, durationMs FROM secrets ";
+    String NEWEST_FIRST = " ORDER BY dateTaken DESC, dateAdded DESC";
+
+    @Query(ROW + "WHERE vaultId = :vaultId" + NEWEST_FIRST)
+    List<SecretItem> galleryRows(int vaultId);
+
+    @Query(ROW + "WHERE vaultId = :vaultId AND isFavourite = 1" + NEWEST_FIRST)
+    List<SecretItem> favouriteRows(int vaultId);
+
+    @Query(ROW + "WHERE vaultId = :vaultId AND albumId = :albumId" + NEWEST_FIRST)
+    List<SecretItem> albumRows(int vaultId, int albumId);
+
+    @Query("UPDATE secrets SET durationMs = :durationMs WHERE fileName = :fileName")
+    void setDuration(String fileName, long durationMs);
+
+    @Query("UPDATE secrets SET isFavourite = :favourite WHERE fileName IN (:fileNames)")
+    void setFavourite(List<String> fileNames, boolean favourite);
+
+    @Query("UPDATE secrets SET albumId = :albumId WHERE fileName IN (:fileNames)")
+    void setAlbum(List<String> fileNames, Integer albumId);
+
+    @Query("SELECT * FROM secrets WHERE fileName IN (:fileNames)")
+    List<SecretEntity> getByFileNames(List<String> fileNames);
 
     @Query("SELECT * FROM secrets WHERE id = :id")
     SecretEntity getSecretById(int id);
     
     @Query("SELECT * FROM secrets WHERE fileName = :fileName LIMIT 1")
     SecretEntity getSecretByFileName(String fileName);
-
-    @Query("SELECT * FROM secrets WHERE isFavourite = 1 AND vaultId = :vaultId ORDER BY dateTaken DESC")
-    LiveData<List<SecretEntity>> getFavouritesForVault(int vaultId);
-
-    @Query("SELECT * FROM secrets WHERE albumId = :albumId AND vaultId = :vaultId ORDER BY dateTaken DESC")
-    LiveData<List<SecretEntity>> getSecretsForAlbum(int albumId, int vaultId);
 
     @Query("SELECT COUNT(*) FROM secrets WHERE isFavourite = 1 AND vaultId = :vaultId")
     int getFavouriteCount(int vaultId);
@@ -58,13 +75,4 @@ public interface SecretDao {
 
     @Query("SELECT * FROM secrets")
     List<SecretEntity> getAllSecretsDirect();
-
-    @Query("SELECT * FROM secrets WHERE syncedToDrive = 0")
-    List<SecretEntity> getUnsyncedToDriveSecrets();
-
-    @Query("UPDATE secrets SET syncedToDrive = 1 WHERE id = :id")
-    void markAsSyncedToDrive(int id);
-
-    @Query("UPDATE secrets SET syncedToDrive = 1 WHERE id IN (:ids)")
-    void markBatchAsSyncedToDrive(List<Integer> ids);
 }

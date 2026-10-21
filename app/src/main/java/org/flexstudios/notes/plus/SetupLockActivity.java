@@ -1,7 +1,9 @@
 package org.flexstudios.notes.plus;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -18,10 +20,8 @@ import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
 import com.google.android.material.tabs.TabLayout;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.InputStream;
-import java.util.concurrent.Executors;
+import java.util.UUID;
 
 public class SetupLockActivity extends AppCompatActivity {
     private View layoutPin, layoutPassword, layoutPattern;
@@ -96,16 +96,24 @@ public class SetupLockActivity extends AppCompatActivity {
                 .putString(SecurityHelper.KEY_LOCK_VALUE, lockValue)
                 .apply();
 
-        SecurityHelper.setSetupDone(this, true);
-        showRestoreChoiceDialog(lockValue);
+        String finalValue = lockValue;
+        // Create the main vault now rather than leaving it to the database's open callback,
+        // which runs asynchronously and could lose a race with the unlock screen or a restore.
+        AppDatabase.IO.execute(() -> {
+            AppDatabase.ensureMainVault(this);
+            runOnUiThread(() -> {
+                SecurityHelper.setSetupDone(this, true);
+                showRestoreChoiceDialog(finalValue);
+            });
+        });
     }
 
     private void showRestoreChoiceDialog(String password) {
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
                 .setTitle("Setup Complete")
                 .setMessage("Would you like to restore data from a previous backup?")
                 .setPositiveButton("Restore Data", (d, w) -> {
-                    new AlertDialog.Builder(this)
+                    new MaterialAlertDialogBuilder(this)
                             .setTitle("Restore Source")
                             .setItems(new String[]{"Local .bak File", "Google Drive"}, (dialog, which) -> {
                                 if (which == 0) pickLocalBackup(password);
@@ -125,11 +133,14 @@ public class SetupLockActivity extends AppCompatActivity {
                 .show();
     }
 
+    private static final int PICK_BACKUP = 2001;
+
     private void pickLocalBackup(String password) {
+        pendingPassword = password;
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
-        startActivityForResult(intent, 2001); // RC_PICK_BACKUP
+        startActivityForResult(intent, PICK_BACKUP);
     }
 
     private static final int RC_SIGN_IN = 2002;
@@ -138,108 +149,131 @@ public class SetupLockActivity extends AppCompatActivity {
     private void restoreFromDrive(String password) {
         pendingPassword = password;
         if (GoogleSignIn.getLastSignedInAccount(this) == null) {
-            startActivityForResult(GoogleDriveManager.getSignInClient(this).getSignInIntent(), RC_SIGN_IN);
+            startActivityForResult(DriveStore.signInClient(this).getSignInIntent(), RC_SIGN_IN);
         } else {
             fetchBackupFromDrive(GoogleSignIn.getLastSignedInAccount(this), password);
         }
     }
 
+    /**
+     * Lists the restore points on Drive and applies the one the user picks.
+     *
+     * This path used to download settings.json, which is plain JSON, and hand it to
+     * BackupManager.restoreBackup, which expects a salt+IV+AES-GCM archive. It therefore
+     * failed with "Invalid backup file" every single time it was used.
+     */
     private void fetchBackupFromDrive(GoogleSignInAccount account, String password) {
-        AlertDialog loading = new AlertDialog.Builder(this)
+        AlertDialog loading = new MaterialAlertDialogBuilder(this)
                 .setTitle("Connecting to Drive")
-                .setMessage("Fetching settings...")
+                .setMessage("Looking for your backups...")
                 .setCancelable(false)
                 .show();
 
-        Executors.newSingleThreadExecutor().execute(() -> {
+        AppDatabase.IO.execute(() -> {
             try {
-                File tempFile = new File(getCacheDir(), "drive_restore_setup.bak");
-                new GoogleDriveManager(this, account).downloadSettingsDirect(tempFile);
+                CloudSync sync = new CloudSync(this, account);
+                java.util.List<Snapshot.Summary> points = sync.listRestorePoints();
                 runOnUiThread(() -> {
                     loading.dismiss();
-                    performRestore(tempFile, password);
+                    if (points.isEmpty()) {
+                        Toast.makeText(this, "No backups found on this Drive account",
+                                Toast.LENGTH_LONG).show();
+                        goToMain();
+                        return;
+                    }
+                    showRestorePointPicker(sync, points, password);
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
                     loading.dismiss();
-                    Toast.makeText(this, "Failed to fetch backup: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    startActivity(new Intent(this, MainActivity.class));
-                    finish();
+                    Toast.makeText(this, SyncChoiceActivity.readable(e), Toast.LENGTH_LONG).show();
+                    goToMain();
                 });
             }
         });
     }
 
+    private void showRestorePointPicker(CloudSync sync, java.util.List<Snapshot.Summary> points,
+                                        String password) {
+        String[] labels = new String[points.size()];
+        for (int i = 0; i < points.size(); i++) {
+            Snapshot.Summary point = points.get(i);
+            labels[i] = point.displayName() + "\n" + point.itemCount + " items"
+                    + (point.device == null ? "" : " · " + point.device);
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Choose a backup")
+                .setItems(labels, (d, which) -> restoreFromPoint(sync, points.get(which).id, password))
+                .setNegativeButton("Skip", (d, w) -> goToMain())
+                .setCancelable(false)
+                .show();
+    }
+
+    private void restoreFromPoint(CloudSync sync, String snapshotId, String password) {
+        UUID job = SyncWorker.startDriveRestore(this, snapshotId, password, true);
+        SyncWorker.watch(this, job, "Restoring from Google Drive", info -> finishRestore(info,
+                p -> restoreFromPoint(sync, snapshotId, p)));
+    }
+
+    /** A wrong password asks again; anything else ends setup with an explanation. */
+    private void finishRestore(androidx.work.WorkInfo info, java.util.function.Consumer<String> retry) {
+        androidx.work.Data out = info.getOutputData();
+        if (out.getBoolean(SyncWorker.RESULT_WRONG_PASSWORD, false)) {
+            UnlockActivity.askForBackupKey(this, retry, this::goToMain);
+        } else if (info.getState() == androidx.work.WorkInfo.State.SUCCEEDED) {
+            restoredNotice();
+        } else {
+            String message = out.getString(SyncWorker.RESULT_MESSAGE);
+            Toast.makeText(this, message != null ? message : "Restore failed", Toast.LENGTH_LONG).show();
+            goToMain();
+        }
+    }
+
+    /** The restore brought the backup's vaults, with their locks; say so before it surprises. */
+    private void restoredNotice() {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Your vaults are back")
+                .setMessage("Each vault now opens with the PIN, password or pattern it had when the "
+                        + "backup was made. The lock you just chose was replaced by your old one.")
+                .setPositiveButton("Got it", (d, w) -> goToMain())
+                .setCancelable(false)
+                .show();
+    }
+
+    private void goToMain() {
+        startActivity(new Intent(this, MainActivity.class));
+        finish();
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode == RESULT_OK && data != null) {
-            if (requestCode == 2001 && data.getData() != null) { // Local backup
-                try (InputStream is = getContentResolver().openInputStream(data.getData())) {
-                    File tempFile = new File(getCacheDir(), "local_restore_setup.bak");
-                    try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempFile)) {
-                        byte[] buffer = new byte[8192];
-                        int len;
-                        if (is != null) {
-                            while ((len = is.read(buffer)) > 0) fos.write(buffer, 0, len);
-                        }
-                    }
-                    SharedPreferences prefs = SecurityHelper.getEncryptedPrefs(this);
-                    performRestore(tempFile, prefs.getString(SecurityHelper.KEY_LOCK_VALUE, ""));
-                } catch (Exception e) {
-                    Toast.makeText(this, "Restore failed", Toast.LENGTH_SHORT).show();
-                }
-            } else if (requestCode == RC_SIGN_IN) {
-                Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
-                try {
-                    GoogleSignInAccount account = task.getResult(ApiException.class);
-                    fetchBackupFromDrive(account, pendingPassword);
-                } catch (ApiException e) {
-                    Toast.makeText(this, "Sign in failed", Toast.LENGTH_SHORT).show();
-                }
+        if (resultCode != RESULT_OK || data == null) {
+            if (requestCode == PICK_BACKUP || requestCode == RC_SIGN_IN) goToMain();
+            return;
+        }
+        if (requestCode == PICK_BACKUP && data.getData() != null) {
+            restoreLocal(data.getData(), pendingPassword);
+        } else if (requestCode == RC_SIGN_IN) {
+            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+            try {
+                fetchBackupFromDrive(task.getResult(ApiException.class), pendingPassword);
+            } catch (ApiException e) {
+                Toast.makeText(this, "Sign in failed", Toast.LENGTH_SHORT).show();
+                goToMain();
             }
         }
     }
 
-    private void performRestore(File backupFile, String password) {
-        AlertDialog progressDialog = new AlertDialog.Builder(this)
-                .setTitle("Restoring Data")
-                .setMessage("Starting...")
-                .setCancelable(false)
-                .show();
-
+    /** Streams the picked .bak straight from the provider as a background job. */
+    private void restoreLocal(Uri backup, String password) {
         try {
-            InputStream is = new FileInputStream(backupFile);
-            new BackupManager(this, new BackupManager.BackupListener() {
-                @Override
-                public void onProgress(int progress, String message) {
-                    runOnUiThread(() -> progressDialog.setMessage(message));
-                }
-
-                @Override
-                public void onComplete(String msg) {
-                    runOnUiThread(() -> {
-                        progressDialog.dismiss();
-                        Toast.makeText(SetupLockActivity.this, "Restored Successfully", Toast.LENGTH_SHORT).show();
-                        startActivity(new Intent(SetupLockActivity.this, MainActivity.class));
-                        finish();
-                    });
-                }
-
-                @Override
-                public void onError(String error) {
-                    runOnUiThread(() -> {
-                        progressDialog.dismiss();
-                        Toast.makeText(SetupLockActivity.this, error, Toast.LENGTH_LONG).show();
-                        startActivity(new Intent(SetupLockActivity.this, MainActivity.class));
-                        finish();
-                    });
-                }
-            }).restoreBackup(is, password, true, true);
-        } catch (Exception e) {
-            progressDialog.dismiss();
-            startActivity(new Intent(this, MainActivity.class));
-            finish();
+            getContentResolver().takePersistableUriPermission(backup, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (SecurityException ignored) {
+            // Not persistable; fine while the app stays alive.
         }
+        UUID job = SyncWorker.startLocalRestore(this, backup, password, true);
+        SyncWorker.watch(this, job, "Restoring backup", info -> finishRestore(info,
+                p -> restoreLocal(backup, p)));
     }
 }

@@ -10,11 +10,14 @@ public class AlbumEntity {
     private String name;
     private int vaultId;
     private String coverFileName;
+    /** Stable identity across devices and restores. See {@link VaultEntity#getUuid()}. */
+    private String uuid;
 
     public AlbumEntity(String name, int vaultId, String coverFileName) {
         this.name = name;
         this.vaultId = vaultId;
         this.coverFileName = coverFileName;
+        this.uuid = java.util.UUID.randomUUID().toString();
     }
 
     public int getId() { return id; }
@@ -25,4 +28,6 @@ public class AlbumEntity {
     public void setVaultId(int vaultId) { this.vaultId = vaultId; }
     public String getCoverFileName() { return coverFileName; }
     public void setCoverFileName(String coverFileName) { this.coverFileName = coverFileName; }
+    public String getUuid() { return uuid; }
+    public void setUuid(String uuid) { this.uuid = uuid; }
 }

@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The only places another app may be handed a file from. Never the vault, never filesDir. -->
 <paths>
-    <cache-path name="my_cache" path="." />
-    <files-path name="my_files" path="." />
-    <external-files-path name="my_external_files" path="." />
+    <!-- Decrypted copies being shared (VaultCrypto.shareDir), wiped on next vault entry. -->
+    <cache-path name="share" path="share/" />
+    <!-- Downloaded update APK. -->
+    <external-files-path name="updates" path="." />
+    <!-- Local .bak files saved to the default location, for the "Share" button. -->
+    <external-path name="backups" path="Documents/Notes-Plus/" />
 </paths>

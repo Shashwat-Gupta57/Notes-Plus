@@ -25,25 +25,59 @@ public class SecurityHelper {
     public static final String KEY_LOCK_BG_DIM = "lock_bg_dim";
 
     public static final String KEY_SYNC_MODE = "sync_mode"; // "MANUAL", "AUTO"
+    /** "WIFI" (default) or "ANY". Drives the WorkManager network constraint. */
+    public static final String KEY_SYNC_NETWORK = "sync_network";
 
     public static boolean isAutoSyncEnabled(Context context) {
         return "AUTO".equals(context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
                 .getString(KEY_SYNC_MODE, "MANUAL"));
     }
 
+    /**
+     * Defaults to Wi-Fi only. A vault backup can be several gigabytes, so metered data is
+     * never used unless the user asks for it.
+     */
+    public static boolean isSyncWifiOnly(Context context) {
+        return !"ANY".equals(getAppPrefs(context).getString(KEY_SYNC_NETWORK, "WIFI"));
+    }
+
+    public static void setSyncNetwork(Context context, boolean wifiOnly) {
+        getAppPrefs(context).edit().putString(KEY_SYNC_NETWORK, wifiOnly ? "WIFI" : "ANY").apply();
+    }
+
+    public static void setAutoSyncEnabled(Context context, boolean enabled) {
+        getAppPrefs(context).edit().putString(KEY_SYNC_MODE, enabled ? "AUTO" : "MANUAL").apply();
+    }
+
+    private static volatile SharedPreferences encryptedPrefs;
+
+    /**
+     * The Keystore-backed store holding the vault data key. Opening it costs Keystore round
+     * trips, so it is opened once per process.
+     *
+     * There is deliberately no fallback. The old code fell back to a plain prefs file of the
+     * same name on any error, which made the next caller generate a fresh data key and write
+     * it there in the clear. Failing loudly is the only safe answer.
+     */
     public static SharedPreferences getEncryptedPrefs(Context context) {
-        try {
-            String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
-            return EncryptedSharedPreferences.create(
-                    PREF_NAME,
-                    masterKeyAlias,
-                    context,
-                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            );
-        } catch (GeneralSecurityException | IOException e) {
-            e.printStackTrace();
-            return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        SharedPreferences prefs = encryptedPrefs;
+        if (prefs != null) return prefs;
+        synchronized (SecurityHelper.class) {
+            if (encryptedPrefs == null) {
+                try {
+                    String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
+                    encryptedPrefs = EncryptedSharedPreferences.create(
+                            PREF_NAME,
+                            masterKeyAlias,
+                            context.getApplicationContext(),
+                            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                    );
+                } catch (GeneralSecurityException | IOException e) {
+                    throw new IllegalStateException("Secure storage is unavailable", e);
+                }
+            }
+            return encryptedPrefs;
         }
     }
 

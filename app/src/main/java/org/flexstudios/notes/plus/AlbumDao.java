@@ -29,6 +29,10 @@ public interface AlbumDao {
     @Query("SELECT * FROM albums WHERE id = :id")
     AlbumEntity getAlbumById(int id);
 
+    /** Cross-device identity lookup; replaces matching albums by display name. */
+    @Query("SELECT * FROM albums WHERE uuid = :uuid LIMIT 1")
+    AlbumEntity getAlbumByUuid(String uuid);
+
     @Query("DELETE FROM albums WHERE vaultId = :vaultId")
     void deleteAlbumsForVault(int vaultId);
 

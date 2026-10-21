@@ -1,513 +1,630 @@
 package org.flexstudios.notes.plus;
 
-import android.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import android.Manifest;
+import androidx.appcompat.app.AlertDialog;
+import android.app.PendingIntent;
 import android.content.ClipData;
 import android.content.Intent;
-import android.database.Cursor;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
-import android.os.Handler;
-import android.os.Looper;
-import android.util.Log;
 import android.provider.MediaStore;
-import android.provider.Settings;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.WindowManager;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
-import androidx.work.Data;
-import androidx.work.OneTimeWorkRequest;
-import androidx.work.WorkManager;
-
-import com.google.android.gms.auth.api.signin.GoogleSignIn;
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
-
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityOptionsCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
-import androidx.exifinterface.media.ExifInterface;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.PlayerView;
+import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.security.crypto.EncryptedFile;
-import androidx.security.crypto.MasterKeys;
 
 import com.bumptech.glide.Glide;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.tabs.TabLayout;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.security.GeneralSecurityException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-public class SecretGalleryActivity extends AppCompatActivity {
+/**
+ * The vault: a grid of everything in it, its albums, and the actions on a selection.
+ *
+ * The grid holds the whole filter as light rows and diffs every change (see
+ * {@link SecretGalleryAdapter}); gestures live in {@link GalleryGestures}. Deletes are
+ * reversible for a few seconds: items vanish at once, and are erased when the undo bar goes
+ * away or the screen is left.
+ */
+public class SecretGalleryActivity extends VaultActivity {
+    private static final String TAG = "SecretGallery";
     private static final int PICK_FILE = 100;
-    private static final int MANAGE_STORAGE_REQUEST = 102;
-    
+    private static final int DELETE_ORIGINALS = 101;
+    private static final int WRITE_PERMISSION = 102;
+
+    private static final String PREF_COLUMNS = "gallery_columns";
+    private static final int DEFAULT_COLUMNS = 4;
+    /** Rows of thumbnails warmed ahead of the scroll direction. */
+    private static final int PREFETCH_ROWS = 4;
+    private static final int UNDO_MS = 5000;
+
+    private final ExecutorService executor = AppDatabase.IO;
+    private AppDatabase database;
+    private ThumbnailStore thumbnails;
+    private File vaultDir;
+
     private SecretGalleryAdapter adapter;
     private AlbumAdapter albumAdapter;
-    private List<SecretItem> secretItems = new ArrayList<>();
+    private GridLayoutManager galleryLayout;
+    private GalleryGestures.DragSelect dragSelect;
+    private RecyclerView recyclerViewGallery, recyclerViewAlbums;
+    private TabLayout tabLayout;
+    private Toolbar toolbar;
     private View selectionBottomBar;
+    private FloatingActionButton fab;
     private LinearLayout emptyState;
-    private final ExecutorService executor = Executors.newFixedThreadPool(4);
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private File vaultDir;
-    private AppDatabase database;
-    private boolean skipAutoLockOnce = false;
-    private boolean isImporting = false;
-    private boolean isAllSelected = false;
-    private int currentVaultId = 1;
 
     private ImageView vaultBackground;
     private View blurCircle, galleryRoot;
     private PlayerView videoBgView;
     private ExoPlayer exoPlayer;
 
-    private RecyclerView recyclerViewGallery, recyclerViewAlbums;
-    private TabLayout tabLayout;
-    
     private Integer filterAlbumId = null;
     private boolean filterFavourites = false;
+    private String filterTitle = "Notes+";
+    private boolean isAllSelected;
+    /** Bumped by every load, so an older result arriving late is dropped. */
+    private int loadGeneration;
+    private final Set<String> prefetched = new HashSet<>();
+
+    /** Hidden from the grid while their undo bar is up; erased once it goes. */
+    private final Set<String> pendingDelete = new HashSet<>();
+    private List<String> undoable;
+    private Snackbar undoBar;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
         setContentView(R.layout.activity_secret_gallery);
 
         database = AppDatabase.getInstance(this);
-        currentVaultId = getIntent().getIntExtra(UnlockActivity.EXTRA_VAULT_ID, 1);
-        handleIntent(getIntent());
+        thumbnails = ThumbnailStore.get(this);
+        vaultDir = VaultMedia.vaultDir(this);
+        // Clears share copies from the last session, plaintext residue from older versions,
+        // and any half-written file a crash left behind.
+        executor.execute(() -> {
+            VaultCrypto.sweep(this);
+            VaultCrypto.removeIncompleteWrites(vaultDir);
+        });
 
-        Toolbar toolbar = findViewById(R.id.toolbarGallery);
+        toolbar = findViewById(R.id.toolbarGallery);
         setSupportActionBar(toolbar);
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle("Notes+");
-            getSupportActionBar().setDisplayHomeAsUpEnabled(false);
-        }
-
-        vaultDir = new File(getFilesDir(), "vault");
-        if (!vaultDir.exists()) vaultDir.mkdirs();
-        createNoMediaFile();
-
+        toolbar.setNavigationOnClickListener(v -> handleBack());
         vaultBackground = findViewById(R.id.vaultBackground);
         blurCircle = findViewById(R.id.blurCircle);
         galleryRoot = findViewById(R.id.galleryRoot);
         videoBgView = findViewById(R.id.videoBgView);
-
         selectionBottomBar = findViewById(R.id.selectionBottomBar);
         emptyState = findViewById(R.id.emptyStateGallery);
         recyclerViewGallery = findViewById(R.id.recyclerViewGallery);
         recyclerViewAlbums = findViewById(R.id.recyclerViewAlbums);
         tabLayout = findViewById(R.id.tabLayoutGallery);
-        
-        GridLayoutManager layoutManager = new GridLayoutManager(this, 3);
-        layoutManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
-            @Override
-            public int getSpanSize(int position) {
-                return (adapter != null && adapter.getItemViewType(position) == 0) ? 3 : 1;
-            }
-        });
-        recyclerViewGallery.setLayoutManager(layoutManager);
-        
-        adapter = new SecretGalleryAdapter(secretItems, new ArrayList<>(), new SecretGalleryAdapter.OnItemClickListener() {
-            @Override
-            public void onItemClick(SecretItem item) {
-                Intent intent = new Intent(SecretGalleryActivity.this, MediaPagerActivity.class);
-                intent.putExtra("initial_file_path", item.getFile().getAbsolutePath());
-                intent.putExtra(UnlockActivity.EXTRA_VAULT_ID, currentVaultId);
-                startActivity(intent);
-            }
+        fab = findViewById(R.id.fabAddSecret);
 
-            @Override
-            public void onItemLongClick(SecretItem item) { }
-
-            @Override
-            public void onSelectionChanged(int count) {
-                if (selectionBottomBar != null) {
-                    selectionBottomBar.setVisibility(count > 0 ? View.VISIBLE : View.GONE);
-                }
-                invalidateOptionsMenu();
-            }
-
-            @Override
-            public void onAllItemsSelectionChanged(boolean allSelected) {
-                isAllSelected = allSelected;
-                invalidateOptionsMenu();
-            }
-        });
-        recyclerViewGallery.setAdapter(adapter);
-
-        recyclerViewAlbums.setLayoutManager(new GridLayoutManager(this, 2));
-        albumAdapter = new AlbumAdapter(album -> {
-            if (album.id == -1) {
-                showFilteredGallery(null, true, "Favourites");
-            } else {
-                showFilteredGallery(album.id, false, album.name);
-            }
-        }, album -> {
-            if (album.id != -1) {
-                showAlbumOptionsDialog(album);
-            }
-        });
-        recyclerViewAlbums.setAdapter(albumAdapter);
+        setUpGrid();
+        setUpAlbums();
+        updateChrome();
 
         tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
-                if (tab.getPosition() == 0) {
-                    recyclerViewGallery.setVisibility(View.VISIBLE);
-                    recyclerViewAlbums.setVisibility(View.GONE);
-                    observeVault();
-                } else {
-                    recyclerViewGallery.setVisibility(View.GONE);
-                    recyclerViewAlbums.setVisibility(View.VISIBLE);
-                    observeAlbums();
-                }
+                boolean grid = tab.getPosition() == 0;
+                recyclerViewGallery.setVisibility(grid ? View.VISIBLE : View.GONE);
+                recyclerViewAlbums.setVisibility(grid ? View.GONE : View.VISIBLE);
+                if (grid) loadGallery(false);
+                else loadAlbums();
                 invalidateOptionsMenu();
             }
+
             @Override
             public void onTabUnselected(TabLayout.Tab tab) {}
+
             @Override
-            public void onTabReselected(TabLayout.Tab tab) {}
+            public void onTabReselected(TabLayout.Tab tab) {
+                if (tab.getPosition() == 0) recyclerViewGallery.smoothScrollToPosition(0);
+            }
         });
 
-        findViewById(R.id.fabAddSecret).setOnClickListener(v -> {
+        fab.setOnClickListener(v -> {
             if (tabLayout.getSelectedTabPosition() == 0 || filterAlbumId != null || filterFavourites) {
-                if (checkStoragePermission()) pickFile();
+                pickFile();
             } else {
                 showCreateAlbumDialog(null);
             }
         });
 
-        findViewById(R.id.btnSelectionShare).setOnClickListener(v -> shareSelectedItems());
-        findViewById(R.id.btnSelectionRestore).setOnClickListener(v -> restoreSelectedItems());
-        findViewById(R.id.btnSelectionDelete).setOnClickListener(v -> deleteSelectedItems());
-        findViewById(R.id.btnSelectionMoveToAlbum).setOnClickListener(v -> showMoveToAlbumDialog());
+        findViewById(R.id.btnSelectionShare).setOnClickListener(v -> share(adapter.selectedNames()));
+        findViewById(R.id.btnSelectionRestore).setOnClickListener(v -> restore(adapter.selectedNames()));
+        findViewById(R.id.btnSelectionDelete).setOnClickListener(v -> deleteWithUndo(adapter.selectedNames()));
+        findViewById(R.id.btnSelectionMoveToAlbum).setOnClickListener(v -> showAlbumListDialog(adapter.selectedNames()));
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (adapter != null && adapter.isSelectionMode()) {
-                    adapter.setSelectionMode(false);
-                    return;
-                }
-                if (filterAlbumId != null || filterFavourites) {
-                    onBackPressed();
-                    return;
-                }
-                Intent intent = new Intent(SecretGalleryActivity.this, MainActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                startActivity(intent);
-                finish();
-                overridePendingTransition(0, 0);
+                handleBack();
             }
         });
 
-        observeVault();
-        checkStoragePermission();
+        loadGallery(true);
     }
 
-    private void showAlbumOptionsDialog(AlbumAdapter.AlbumItem album) {
-        new AlertDialog.Builder(this)
-                .setTitle(album.name)
-                .setItems(new String[]{"Delete Album"}, (dialog, which) -> {
-                    if (which == 0) {
-                        deleteAlbum(album);
+    // =================================================================== grid
+
+    private void setUpGrid() {
+        int columns = SecurityHelper.getAppPrefs(this).getInt(PREF_COLUMNS, DEFAULT_COLUMNS);
+        galleryLayout = new GridLayoutManager(this, columns);
+        galleryLayout.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
+            @Override
+            public int getSpanSize(int position) {
+                return adapter.getItemViewType(position) == SecretGalleryAdapter.TYPE_HEADER
+                        ? galleryLayout.getSpanCount() : 1;
+            }
+        });
+        recyclerViewGallery.setLayoutManager(galleryLayout);
+        recyclerViewGallery.setHasFixedSize(true);
+        recyclerViewGallery.setItemViewCacheSize(24);
+        recyclerViewGallery.getRecycledViewPool().setMaxRecycledViews(SecretGalleryAdapter.TYPE_ITEM, 80);
+
+        int gap = Math.round(2 * getResources().getDisplayMetrics().density);
+        recyclerViewGallery.addItemDecoration(new RecyclerView.ItemDecoration() {
+            @Override
+            public void getItemOffsets(@NonNull Rect out, @NonNull View view, @NonNull RecyclerView parent,
+                                       @NonNull RecyclerView.State state) {
+                out.set(gap / 2, gap / 2, gap / 2, gap / 2);
+            }
+        });
+        DefaultItemAnimator animator = new DefaultItemAnimator();
+        animator.setSupportsChangeAnimations(false); // Selection is animated by the cell itself.
+        animator.setAddDuration(180);
+        animator.setRemoveDuration(180);
+        animator.setMoveDuration(220);
+        recyclerViewGallery.setItemAnimator(animator);
+
+        adapter = new SecretGalleryAdapter(thumbnails, new SecretGalleryAdapter.Listener() {
+            @Override
+            public void onItemClick(SecretItem item, View cell) {
+                ActivityOptionsCompat zoom = ActivityOptionsCompat.makeScaleUpAnimation(
+                        cell, 0, 0, cell.getWidth(), cell.getHeight());
+                startActivity(MediaPagerActivity.intent(SecretGalleryActivity.this, vaultId,
+                        item.fileName, filterAlbumId, filterFavourites), zoom.toBundle());
+            }
+
+            @Override
+            public void onSelectionStarted(int position) {
+                dragSelect.start(position);
+            }
+
+            @Override
+            public void onSelectionChanged(int count, boolean allSelected) {
+                isAllSelected = allSelected;
+                updateChrome();
+            }
+        });
+        recyclerViewGallery.setAdapter(adapter);
+
+        recyclerViewGallery.addOnItemTouchListener(new GalleryGestures.PinchColumns(
+                recyclerViewGallery, galleryLayout, columnsNow -> {
+                    SecurityHelper.getAppPrefs(this).edit().putInt(PREF_COLUMNS, columnsNow).apply();
+                    updateCellSize();
+                }));
+        dragSelect = new GalleryGestures.DragSelect(recyclerViewGallery, adapter);
+        recyclerViewGallery.addOnItemTouchListener(dragSelect);
+        GalleryGestures.FastScroller.attach(recyclerViewGallery, adapter::labelAt);
+
+        recyclerViewGallery.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            if (r - l != or - ol) updateCellSize();
+        });
+        recyclerViewGallery.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView rv, int dx, int dy) {
+                prefetchAhead(dy);
+            }
+        });
+    }
+
+    /** Cells are square: their height follows the column width. */
+    private void updateCellSize() {
+        int width = recyclerViewGallery.getWidth() - recyclerViewGallery.getPaddingLeft()
+                - recyclerViewGallery.getPaddingRight();
+        if (width <= 0) return;
+        int gap = Math.round(2 * getResources().getDisplayMetrics().density);
+        adapter.setCellSize(width / galleryLayout.getSpanCount() - gap);
+    }
+
+    /** Decrypts thumbnails a few rows ahead, so a steady scroll never shows a blank cell. */
+    private void prefetchAhead(int dy) {
+        if (dy == 0) return;
+        int span = galleryLayout.getSpanCount();
+        int from = dy > 0 ? galleryLayout.findLastVisibleItemPosition() + 1
+                : galleryLayout.findFirstVisibleItemPosition() - span * PREFETCH_ROWS;
+        for (int i = Math.max(from, 0); i < from + span * PREFETCH_ROWS; i++) {
+            Object row = adapter.rowAt(i);
+            if (row instanceof SecretItem && prefetched.add(((SecretItem) row).fileName)) {
+                thumbnails.prefetch((SecretItem) row);
+            }
+        }
+    }
+
+    /**
+     * Reads the current filter in one indexed query and diffs it into the grid. Cheap enough
+     * to run on every resume: an unchanged vault produces an empty diff and no redraw.
+     */
+    private void loadGallery(boolean scrollToTop) {
+        final int generation = ++loadGeneration;
+        final Integer albumFilter = filterAlbumId;
+        final boolean favouritesFilter = filterFavourites;
+        final Set<String> hidden = new HashSet<>(pendingDelete);
+        executor.execute(() -> {
+            SecretDao dao = database.secretDao();
+            List<SecretItem> rows = favouritesFilter ? dao.favouriteRows(vaultId)
+                    : albumFilter != null ? dao.albumRows(vaultId, albumFilter)
+                    : dao.galleryRows(vaultId);
+            if (!hidden.isEmpty()) {
+                List<SecretItem> visible = new ArrayList<>(rows.size());
+                for (SecretItem row : rows) if (!hidden.contains(row.fileName)) visible.add(row);
+                rows = visible;
+            }
+            SecretGalleryAdapter.Model model = SecretGalleryAdapter.build(rows, System.currentTimeMillis());
+            runOnUiThread(() -> {
+                if (generation != loadGeneration) return;
+                adapter.submit(model, () -> {
+                    emptyState.setVisibility(model.items.isEmpty() ? View.VISIBLE : View.GONE);
+                    if (scrollToTop) galleryLayout.scrollToPosition(0);
+                    updateCellSize();
+                });
+            });
+        });
+    }
+
+    // ================================================================= chrome
+
+    /** Title, navigation icon, selection bar and FAB, for the current mode. */
+    private void updateChrome() {
+        boolean selecting = adapter != null && adapter.isSelectionMode();
+        boolean filtered = filterAlbumId != null || filterFavourites;
+        if (selecting) {
+            int count = adapter.selectedCount();
+            toolbar.setTitle(count == 0 ? "Select items" : count + " selected");
+            toolbar.setNavigationIcon(R.drawable.ic_close);
+        } else {
+            toolbar.setTitle(filterTitle);
+            if (filtered) toolbar.setNavigationIcon(R.drawable.ic_arrow_back);
+            else toolbar.setNavigationIcon(null);
+        }
+        slide(selectionBottomBar, selecting);
+        if (selecting) fab.hide();
+        else fab.show();
+        invalidateOptionsMenu();
+    }
+
+    private static void slide(View bar, boolean show) {
+        if (show == (bar.getVisibility() == View.VISIBLE && bar.getTag() == null)) return;
+        bar.animate().cancel();
+        if (show) {
+            bar.setTag(null);
+            bar.setVisibility(View.VISIBLE);
+            bar.setTranslationY(bar.getHeight() > 0 ? bar.getHeight() * 1.5f : 300f);
+            bar.animate().translationY(0).setDuration(220).setInterpolator(new DecelerateInterpolator()).start();
+        } else {
+            bar.setTag("hiding");
+            bar.animate().translationY(bar.getHeight() * 1.5f).setDuration(180)
+                    .withEndAction(() -> {
+                        bar.setVisibility(View.GONE);
+                        bar.setTag(null);
+                    }).start();
+        }
+    }
+
+    /** Selection, then filter, then leave the vault for the notes list. */
+    private void handleBack() {
+        if (adapter.isSelectionMode()) {
+            adapter.setSelectionMode(false);
+            return;
+        }
+        if (filterAlbumId != null || filterFavourites) {
+            filterAlbumId = null;
+            filterFavourites = false;
+            filterTitle = "Notes+";
+            recyclerViewGallery.setVisibility(View.GONE);
+            recyclerViewAlbums.setVisibility(View.VISIBLE);
+            tabLayout.setVisibility(View.VISIBLE);
+            tabLayout.selectTab(tabLayout.getTabAt(1));
+            loadAlbums();
+            updateChrome();
+            return;
+        }
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(intent);
+        finish();
+        overridePendingTransition(0, 0);
+    }
+
+    // ================================================================ actions
+
+    private void share(List<String> names) {
+        if (names.isEmpty()) return;
+        expectExternalActivity();
+        executor.execute(() -> {
+            ArrayList<Uri> uris = new ArrayList<>();
+            try {
+                // Retire copies exported by an earlier share before writing new ones.
+                VaultCrypto.wipeContents(VaultCrypto.shareDir(this));
+                for (SecretEntity entity : database.secretDao().getByFileNames(names)) {
+                    File exported = VaultMedia.exportForShare(this, entity);
+                    uris.add(FileProvider.getUriForFile(this, getPackageName() + ".provider", exported));
+                }
+                Intent intent = new Intent(Intent.ACTION_SEND_MULTIPLE)
+                        .setType("*/*")
+                        .putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                runOnUiThread(() -> {
+                    startActivity(Intent.createChooser(intent, "Share " + names.size() + " items"));
+                    adapter.setSelectionMode(false);
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Share failed", e);
+                runOnUiThread(() -> Toast.makeText(this, "Failed to share", Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
+    private void restore(List<String> names) {
+        if (names.isEmpty()) return;
+        adapter.setSelectionMode(false);
+        executor.execute(() -> {
+            int count = 0;
+            for (SecretEntity entity : database.secretDao().getByFileNames(names)) {
+                try {
+                    VaultMedia.restoreToDevice(this, entity);
+                    count++;
+                } catch (Exception e) {
+                    Log.e(TAG, "Restore failed for " + entity.getFileName(), e);
+                }
+            }
+            final int restored = count;
+            runOnUiThread(() -> {
+                Snackbar.make(galleryRoot, restored == names.size()
+                        ? "Moved " + restored + (restored == 1 ? " item" : " items") + " back to your gallery"
+                        : "Moved " + restored + " of " + names.size() + " back to your gallery",
+                        Snackbar.LENGTH_LONG).show();
+                loadGallery(false);
+            });
+        });
+    }
+
+    /** Hides the items now and erases them when the undo bar goes away. */
+    private void deleteWithUndo(List<String> names) {
+        if (names.isEmpty()) return;
+        commitPendingDelete(); // One undoable batch at a time.
+        adapter.setSelectionMode(false);
+        undoable = names;
+        pendingDelete.addAll(names);
+        loadGallery(false);
+
+        undoBar = Snackbar.make(galleryRoot,
+                        names.size() == 1 ? "Item deleted" : names.size() + " items deleted", UNDO_MS)
+                .setAction("Undo", v -> {
+                    pendingDelete.removeAll(names);
+                    undoable = null;
+                    loadGallery(false);
+                })
+                .addCallback(new Snackbar.Callback() {
+                    @Override
+                    public void onDismissed(Snackbar bar, int event) {
+                        if (event != DISMISS_EVENT_ACTION && undoable == names) commitPendingDelete();
                     }
-                })
-                .show();
+                });
+        undoBar.show();
     }
 
-    private void deleteAlbum(AlbumAdapter.AlbumItem album) {
-        new AlertDialog.Builder(this)
-                .setTitle("Delete Album?")
-                .setMessage("Items inside will not be deleted.")
-                .setPositiveButton("Delete", (d, w) -> {
-                    executor.execute(() -> {
-                        database.secretDao().unsetAlbumId(album.id);
-                        AlbumEntity entity = database.albumDao().getAlbumById(album.id);
-                        if (entity != null) database.albumDao().delete(entity);
-                    });
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
+    private void commitPendingDelete() {
+        final List<String> names = undoable;
+        if (names == null) return;
+        undoable = null;
+        executor.execute(() -> {
+            for (SecretEntity entity : database.secretDao().getByFileNames(names)) {
+                VaultMedia.remove(this, entity);
+            }
+            runOnUiThread(() -> pendingDelete.removeAll(names));
+        });
+    }
+
+    // ================================================================= albums
+
+    private void setUpAlbums() {
+        recyclerViewAlbums.setLayoutManager(new GridLayoutManager(this, 2));
+        albumAdapter = new AlbumAdapter(thumbnails, album -> {
+            if (album.id == -1) showFilteredGallery(null, true, "Favourites");
+            else showFilteredGallery(album.id, false, album.name);
+        }, album -> {
+            if (album.id != -1) showAlbumOptionsDialog(album);
+        });
+        recyclerViewAlbums.setAdapter(albumAdapter);
+    }
+
+    private void loadAlbums() {
+        executor.execute(() -> {
+            List<AlbumAdapter.AlbumItem> items = new ArrayList<>();
+            SecretDao dao = database.secretDao();
+            int favCount = dao.getFavouriteCount(vaultId);
+            if (favCount > 0) {
+                SecretEntity latestFav = dao.getLatestFavourite(vaultId);
+                items.add(new AlbumAdapter.AlbumItem(-1, "Favourites", favCount,
+                        latestFav != null ? latestFav.getFileName() : null,
+                        latestFav != null && latestFav.isVideo()));
+            }
+            for (AlbumEntity album : database.albumDao().getAlbumsForVaultDirect(vaultId)) {
+                SecretEntity latest = dao.getLatestForAlbum(album.getId());
+                items.add(new AlbumAdapter.AlbumItem(album.getId(), album.getName(),
+                        dao.getSecretCountForAlbum(album.getId()),
+                        latest != null ? latest.getFileName() : null,
+                        latest != null && latest.isVideo()));
+            }
+            runOnUiThread(() -> {
+                albumAdapter.setAlbums(items);
+                if (tabLayout.getSelectedTabPosition() == 1 && filterAlbumId == null && !filterFavourites) {
+                    emptyState.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+                }
+            });
+        });
     }
 
     private void showFilteredGallery(Integer albumId, boolean favs, String title) {
         filterAlbumId = albumId;
         filterFavourites = favs;
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle(title);
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        }
-        
+        filterTitle = title;
         recyclerViewGallery.setVisibility(View.VISIBLE);
         recyclerViewAlbums.setVisibility(View.GONE);
         tabLayout.setVisibility(View.GONE);
-        
-        observeVault();
-        invalidateOptionsMenu();
+        updateChrome();
+        loadGallery(true);
     }
 
-    private void observeVault() {
-        if (filterFavourites) {
-            database.secretDao().getFavouritesForVault(currentVaultId).removeObservers(this);
-            database.secretDao().getFavouritesForVault(currentVaultId).observe(this, this::updateGrid);
-        } else if (filterAlbumId != null) {
-            database.secretDao().getSecretsForAlbum(filterAlbumId, currentVaultId).removeObservers(this);
-            database.secretDao().getSecretsForAlbum(filterAlbumId, currentVaultId).observe(this, this::updateGrid);
-        } else {
-            database.secretDao().getSecretsForVault(currentVaultId).removeObservers(this);
-            database.secretDao().getSecretsForVault(currentVaultId).observe(this, this::updateGrid);
-        }
+    private void showAlbumOptionsDialog(AlbumAdapter.AlbumItem album) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(album.name)
+                .setItems(new String[]{"Delete Album"}, (dialog, which) -> {
+                    if (which == 0) deleteAlbum(album);
+                })
+                .show();
     }
 
-    private void updateGrid(List<SecretEntity> entities) {
+    private void deleteAlbum(AlbumAdapter.AlbumItem album) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Delete Album?")
+                .setMessage("Items inside will not be deleted.")
+                .setPositiveButton("Delete", (d, w) -> executor.execute(() -> {
+                    database.secretDao().unsetAlbumId(album.id);
+                    AlbumEntity entity = database.albumDao().getAlbumById(album.id);
+                    if (entity != null) database.albumDao().delete(entity);
+                    runOnUiThread(this::loadAlbums);
+                }))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void showAlbumListDialog(List<String> names) {
+        if (names.isEmpty()) return;
         executor.execute(() -> {
-            List<SecretItem> newItems = new ArrayList<>();
-            for (SecretEntity entity : entities) {
-                File file = new File(vaultDir, entity.getFileName());
-                if (file.exists()) {
-                    newItems.add(new SecretItem(file, entity.isVideo()));
-                }
-            }
+            List<AlbumEntity> albums = database.albumDao().getAlbumsForVaultDirect(vaultId);
             runOnUiThread(() -> {
-                secretItems.clear();
-                secretItems.addAll(newItems);
-                if (adapter != null) {
-                    adapter.updateData(secretItems, entities);
-                }
-                emptyState.setVisibility(entities.isEmpty() ? View.VISIBLE : View.GONE);
-            });
-        });
-    }
-
-    private void observeAlbums() {
-        database.albumDao().getAlbumsForVault(currentVaultId).observe(this, albumEntities -> {
-            executor.execute(() -> {
-                List<AlbumAdapter.AlbumItem> items = new ArrayList<>();
-                
-                int favCount = database.secretDao().getFavouriteCount(currentVaultId);
-                if (favCount > 0) {
-                    SecretEntity latestFav = database.secretDao().getLatestFavourite(currentVaultId);
-                    items.add(new AlbumAdapter.AlbumItem(-1, "Favourites", favCount, 
-                        latestFav != null ? latestFav.getFileName() : null,
-                        latestFav != null && latestFav.isVideo()));
-                }
-
-                for (AlbumEntity album : albumEntities) {
-                    int count = database.secretDao().getSecretCountForAlbum(album.getId());
-                    SecretEntity latest = database.secretDao().getLatestForAlbum(album.getId());
-                    items.add(new AlbumAdapter.AlbumItem(album.getId(), album.getName(), count, 
-                        latest != null ? latest.getFileName() : null,
-                        latest != null && latest.isVideo()));
-                }
-                
-                runOnUiThread(() -> {
-                    albumAdapter.setAlbums(items);
-                    if (tabLayout.getSelectedTabPosition() == 1 && filterAlbumId == null && !filterFavourites) {
-                        emptyState.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
-                    }
-                });
-            });
-        });
-    }
-
-    private void showMoveToAlbumDialog() {
-        List<SecretItem> selected = adapter.getSelectedItems();
-        if (selected.isEmpty()) return;
-
-        executor.execute(() -> {
-            boolean someAlreadyInAlbum = false;
-            for (SecretItem item : selected) {
-                SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
-                if (entity != null && entity.getAlbumId() != null) {
-                    someAlreadyInAlbum = true;
-                    break;
-                }
-            }
-
-            if (someAlreadyInAlbum) {
-                runOnUiThread(() -> {
-                    new AlertDialog.Builder(this)
-                            .setTitle("Move items?")
-                            .setMessage("Some selected items are already in an album. Do you want to move them all to the new album?")
-                            .setPositiveButton("Move All", (dialog, which) -> showAlbumListDialog(selected))
-                            .setNeutralButton("Only Non-Album items", (dialog, which) -> {
-                                List<SecretItem> filtered = new ArrayList<>();
-                                executor.execute(() -> {
-                                    for (SecretItem item : selected) {
-                                        SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
-                                        if (entity != null && entity.getAlbumId() == null) {
-                                            filtered.add(item);
-                                        }
-                                    }
-                                    runOnUiThread(() -> showAlbumListDialog(filtered));
-                                });
-                            })
-                            .setNegativeButton("Cancel", null)
-                            .show();
-                });
-            } else {
-                showAlbumListDialog(selected);
-            }
-        });
-    }
-
-    private void showAlbumListDialog(List<SecretItem> items) {
-        if (items.isEmpty()) {
-            Toast.makeText(this, "No items to move", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        executor.execute(() -> {
-            List<AlbumEntity> allAlbums = database.albumDao().getAlbumsForVaultDirect(currentVaultId);
-            runOnUiThread(() -> {
-                String[] names = new String[allAlbums.size() + 1];
-                names[0] = "+ Create New Album";
-                for (int i = 0; i < allAlbums.size(); i++) names[i+1] = allAlbums.get(i).getName();
-
-                new AlertDialog.Builder(this)
-                        .setTitle("Select Album")
-                        .setItems(names, (dialog, which) -> {
-                            if (which == 0) {
-                                showCreateAlbumDialog(items);
-                            } else {
-                                moveItemsToAlbum(items, allAlbums.get(which - 1).getId());
-                            }
+                String[] labels = new String[albums.size() + 1];
+                labels[0] = "+ New album";
+                for (int i = 0; i < albums.size(); i++) labels[i + 1] = albums.get(i).getName();
+                new MaterialAlertDialogBuilder(this)
+                        .setTitle("Add to album")
+                        .setItems(labels, (dialog, which) -> {
+                            if (which == 0) showCreateAlbumDialog(names);
+                            else moveToAlbum(names, albums.get(which - 1));
                         })
                         .show();
             });
         });
     }
 
-    private void showCreateAlbumDialog(List<SecretItem> itemsToMove) {
-        EditText input = new EditText(this);
-        input.setHint("Album Name");
-        new AlertDialog.Builder(this)
-                .setTitle("New Album")
-                .setView(input)
-                .setPositiveButton("Create", (d, w) -> {
-                    String name = input.getText().toString().trim();
-                    if (name.isEmpty()) name = "New Album";
-                    String finalName = name;
-                    executor.execute(() -> {
-                        AlbumEntity album = new AlbumEntity(finalName, currentVaultId, null);
-                        int id = (int) database.albumDao().insert(album);
-                        if (itemsToMove != null) {
-                            moveItemsToAlbum(itemsToMove, id);
-                        }
+    private void showCreateAlbumDialog(List<String> names) {
+        Prompts.text(this, "New album", null, "Album name", null, Prompts.TEXT, "Create", name ->
+                executor.execute(() -> {
+                    AlbumEntity album = new AlbumEntity(name, vaultId, null);
+                    album.setId((int) database.albumDao().insert(album));
+                    runOnUiThread(() -> {
+                        if (names != null) moveToAlbum(names, album);
+                        else loadAlbums();
                     });
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
+                }), null);
     }
 
-    private void moveItemsToAlbum(List<SecretItem> items, int albumId) {
+    private void moveToAlbum(List<String> names, AlbumEntity album) {
+        adapter.setSelectionMode(false);
         executor.execute(() -> {
-            for (SecretItem item : items) {
-                SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
-                if (entity != null) {
-                    entity.setAlbumId(albumId);
-                    database.secretDao().update(entity);
-                }
-            }
+            database.secretDao().setAlbum(names, album.getId());
             runOnUiThread(() -> {
-                adapter.setSelectionMode(false);
-                Toast.makeText(this, "Moved to album", Toast.LENGTH_SHORT).show();
+                Snackbar.make(galleryRoot, "Added to " + album.getName(), Snackbar.LENGTH_SHORT).show();
+                loadGallery(false);
             });
         });
     }
 
-    private void applyVaultBackground() {
-        Executors.newSingleThreadExecutor().execute(() -> {
-            VaultEntity vault = database.vaultDao().getVaultById(currentVaultId);
-            if (vault != null) {
-                runOnUiThread(() -> {
-                    String type = vault.getBgType();
-                    String value = vault.getBgValue();
-                    
-                    stopVideoBackground();
+    // ============================================================ background
 
-                    if ("COLOR".equals(type) && value != null) {
-                        try {
-                            galleryRoot.setBackgroundColor(Color.parseColor(value));
-                            vaultBackground.setVisibility(View.GONE);
-                            blurCircle.setVisibility(View.GONE);
-                            videoBgView.setVisibility(View.GONE);
-                        } catch (Exception e) {
-                            restoreDefaultBackground();
-                        }
-                    } else if ("IMAGE".equals(type) && value != null) {
-                        File imgFile = new File(value);
-                        if (imgFile.exists()) {
-                            vaultBackground.setVisibility(View.VISIBLE);
-                            blurCircle.setVisibility(View.GONE);
-                            videoBgView.setVisibility(View.GONE);
-                            galleryRoot.setBackgroundColor(Color.TRANSPARENT);
-                            Glide.with(this).load(imgFile).into(vaultBackground);
-                        } else {
-                            restoreDefaultBackground();
-                        }
-                    } else if (("VIDEO".equals(type) || "URL".equals(type)) && value != null) {
+    private void applyVaultBackground() {
+        executor.execute(() -> {
+            VaultEntity vault = database.vaultDao().getVaultById(vaultId);
+            if (vault == null) return;
+            runOnUiThread(() -> {
+                String type = vault.getBgType();
+                String value = vault.getBgValue();
+                stopVideoBackground();
+
+                if ("COLOR".equals(type) && value != null) {
+                    try {
+                        galleryRoot.setBackgroundColor(Color.parseColor(value));
                         vaultBackground.setVisibility(View.GONE);
                         blurCircle.setVisibility(View.GONE);
-                        videoBgView.setVisibility(View.VISIBLE);
-                        galleryRoot.setBackgroundColor(Color.BLACK);
-                        startVideoBackground(value);
-                    } else {
+                        videoBgView.setVisibility(View.GONE);
+                    } catch (Exception e) {
                         restoreDefaultBackground();
                     }
-                });
-            }
+                } else if ("IMAGE".equals(type) && value != null && new File(value).exists()) {
+                    vaultBackground.setVisibility(View.VISIBLE);
+                    blurCircle.setVisibility(View.GONE);
+                    videoBgView.setVisibility(View.GONE);
+                    galleryRoot.setBackgroundColor(Color.TRANSPARENT);
+                    Glide.with(this).load(new File(value)).into(vaultBackground);
+                } else if (("VIDEO".equals(type) || "URL".equals(type)) && value != null) {
+                    vaultBackground.setVisibility(View.GONE);
+                    blurCircle.setVisibility(View.GONE);
+                    videoBgView.setVisibility(View.VISIBLE);
+                    galleryRoot.setBackgroundColor(Color.BLACK);
+                    startVideoBackground(value);
+                } else {
+                    restoreDefaultBackground();
+                }
+            });
         });
     }
 
     private void startVideoBackground(String source) {
-        if (exoPlayer != null) {
-            exoPlayer.release();
-        }
+        if (exoPlayer != null) exoPlayer.release();
         exoPlayer = new ExoPlayer.Builder(this).build();
         videoBgView.setPlayer(exoPlayer);
         exoPlayer.setRepeatMode(Player.REPEAT_MODE_ALL);
         exoPlayer.setVolume(0f);
-        
-        Uri uri;
-        if (source.startsWith("http")) {
-            uri = Uri.parse(source);
-        } else {
-            uri = Uri.fromFile(new File(source));
-        }
-        
-        MediaItem mediaItem = MediaItem.fromUri(uri);
-        exoPlayer.setMediaItem(mediaItem);
+        Uri uri = source.startsWith("http") ? Uri.parse(source) : Uri.fromFile(new File(source));
+        exoPlayer.setMediaItem(MediaItem.fromUri(uri));
         exoPlayer.prepare();
         exoPlayer.play();
     }
@@ -521,42 +638,36 @@ public class SecretGalleryActivity extends AppCompatActivity {
     }
 
     private void restoreDefaultBackground() {
-        galleryRoot.setBackgroundColor(Color.parseColor("#F2F2F7"));
+        galleryRoot.setBackgroundColor(ContextCompat.getColor(this, R.color.gallery_background));
         vaultBackground.setVisibility(View.GONE);
         videoBgView.setVisibility(View.GONE);
         blurCircle.setVisibility(View.VISIBLE);
         stopVideoBackground();
     }
 
-    private void handleIntent(Intent intent) {
-        if (intent != null && intent.getBooleanExtra(UnlockActivity.EXTRA_UNLOCKED_FLAG, false)) {
-            skipAutoLockOnce = true;
-        }
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        handleIntent(intent);
-    }
+    // ============================================================= lifecycle
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (!skipAutoLockOnce) {
-            checkAutoLock();
-        }
-        skipAutoLockOnce = false;
-        SecurityHelper.updateLastActiveTime(this);
         applyVaultBackground();
+        // The viewer may have deleted, favourited or moved items; the diff shows just that.
+        if (recyclerViewGallery.getVisibility() == View.VISIBLE) loadGallery(false);
+        else loadAlbums();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        SecurityHelper.updateLastActiveTime(this);
         stopVideoBackground();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // Leaving the screen ends the undo window.
+        commitPendingDelete();
+        if (undoBar != null) undoBar.dismiss();
     }
 
     @Override
@@ -565,322 +676,134 @@ public class SecretGalleryActivity extends AppCompatActivity {
         stopVideoBackground();
     }
 
-    private void checkAutoLock() {
-        if (isImporting) return; // Don't lock while securing photos
-
-        long delay = SecurityHelper.getAutoLockDelay(this);
-        long lastActive = SecurityHelper.getLastActiveTime(this);
-        long now = System.currentTimeMillis();
-        long effectiveDelay = (delay == 0) ? 2000 : delay;
-        if (lastActive > 0 && (now - lastActive) > effectiveDelay) {
-            Intent intent = new Intent(this, UnlockActivity.class);
-            intent.putExtra(UnlockActivity.EXTRA_VAULT_ID, currentVaultId);
-            startActivity(intent);
-            finish();
-        }
-    }
+    // ================================================================ import
 
     private void pickFile() {
-        skipAutoLockOnce = true;
-        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        // Up to Android 10 originals are removed through the file system (legacy storage),
+        // which needs the write permission. From 11 on, MediaStore needs none.
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, WRITE_PERMISSION);
+            return;
+        }
+        expectExternalActivity();
+        // A type-only pick: gallery apps answer with MediaStore items, which is what lets the
+        // originals be removed afterwards.
+        Intent intent = new Intent(Intent.ACTION_PICK).setType("image/* video/*");
         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-        intent.setType("image/* video/*");
         startActivityForResult(intent, PICK_FILE);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == WRITE_PERMISSION && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            pickFile();
+        }
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == MANAGE_STORAGE_REQUEST) {
-            if (checkStoragePermission()) Toast.makeText(this, "Permission Granted!", Toast.LENGTH_SHORT).show();
-        } else if (resultCode == RESULT_OK && data != null) {
-            if (requestCode == PICK_FILE) {
-                if (data.getClipData() != null) {
-                    ClipData clipData = data.getClipData();
-                    List<Uri> uris = new ArrayList<>();
-                    for (int i = 0; i < clipData.getItemCount(); i++) uris.add(clipData.getItemAt(i).getUri());
-                    processUris(uris);
-                } else if (data.getData() != null) {
-                    processUris(Collections.singletonList(data.getData()));
-                }
+        if (requestCode == DELETE_ORIGINALS) {
+            if (resultCode != RESULT_OK) {
+                Toast.makeText(this, "The originals were kept in your gallery", Toast.LENGTH_LONG).show();
             }
+            return;
         }
-    }
-
-    private void processUris(List<Uri> uris) {
-        if (uris == null || uris.isEmpty()) return;
-        
-        isImporting = true;
-        AtomicInteger totalProcessed = new AtomicInteger(0);
-        AtomicInteger successCount = new AtomicInteger(0);
-        int total = uris.size();
-        
-        for (int i = 0; i < total; i++) {
-            final Uri uri = uris.get(i);
-            final int taskIndex = i;
-            
-            executor.execute(() -> {
-                try {
-                    String mimeType = getApplicationContext().getContentResolver().getType(uri);
-                    boolean isVideo = mimeType != null && mimeType.startsWith("video");
-                    String originalPath = getActualPath(uri);
-                    long dateTaken = recoverOriginalDate(uri, originalPath, isVideo);
-                    long dateAdded = System.currentTimeMillis();
-                    
-                    String fileName = (isVideo ? "VID_" : "IMG_") + dateAdded + "_" + taskIndex;
-                    File encryptedFile = new File(vaultDir, fileName);
-                    
-                    String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
-                    EncryptedFile encryptedStorage = new EncryptedFile.Builder(
-                            encryptedFile, getApplicationContext(), masterKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
-                    ).build();
-
-                    boolean written = false;
-                    try (InputStream in = getApplicationContext().getContentResolver().openInputStream(uri);
-                         OutputStream out = encryptedStorage.openFileOutput()) {
-                        if (in != null) {
-                            byte[] buffer = new byte[32768]; // Even larger buffer
-                            int len;
-                            while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
-                            written = true;
-                        }
-                    }
-                    
-                    if (written) {
-                        SecretEntity entity = new SecretEntity(fileName, originalPath, dateTaken, dateAdded, isVideo, currentVaultId);
-                        if (filterAlbumId != null) entity.setAlbumId(filterAlbumId);
-                        
-                        database.secretDao().insert(entity);
-                        successCount.incrementAndGet();
-
-                        if (SecurityHelper.isAutoSyncEnabled(getApplicationContext())) {
-                            SyncWorker.enqueue(getApplicationContext(), SyncWorker.ACTION_UPLOAD, fileName, currentVaultId);
-                        }
-
-                        if (originalPath != null) {
-                            File originalFile = new File(originalPath);
-                            if (originalFile.exists()) {
-                                originalFile.delete();
-                                Intent scanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-                                scanIntent.setData(Uri.fromFile(originalFile));
-                                getApplicationContext().sendBroadcast(scanIntent);
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    Log.e("SecretGallery", "Failed to secure item", e);
-                } finally {
-                    if (totalProcessed.incrementAndGet() == total) {
-                        isImporting = false;
-                        int finalSuccess = successCount.get();
-                        mainHandler.post(() -> Toast.makeText(getApplicationContext(), "Secured " + finalSuccess + " items", Toast.LENGTH_SHORT).show());
-                    }
-                }
-            });
+        if (requestCode != PICK_FILE || resultCode != RESULT_OK || data == null) return;
+        List<Uri> uris = new ArrayList<>();
+        if (data.getClipData() != null) {
+            ClipData clipData = data.getClipData();
+            for (int i = 0; i < clipData.getItemCount(); i++) uris.add(clipData.getItemAt(i).getUri());
+        } else if (data.getData() != null) {
+            uris.add(data.getData());
         }
+        importUris(uris);
     }
 
-    private String getActualPath(Uri uri) {
-        String path = null;
-        String[] projection = { MediaStore.MediaColumns.DATA };
-        try (Cursor cursor = getContentResolver().query(uri, projection, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int index = cursor.getColumnIndex(MediaStore.MediaColumns.DATA);
-                if (index != -1) path = cursor.getString(index);
-            }
-        }
-        return path;
-    }
-
-    private long recoverOriginalDate(Uri uri, String path, boolean isVideo) {
-        if (!isVideo) {
-            try (InputStream inputStream = getApplicationContext().getContentResolver().openInputStream(uri)) {
-                if (inputStream != null) {
-                    ExifInterface exif = new ExifInterface(inputStream);
-                    String dateString = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL);
-                    if (dateString == null) dateString = exif.getAttribute(ExifInterface.TAG_DATETIME);
-                    if (dateString != null) {
-                        SimpleDateFormat fmt = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.getDefault());
-                        Date d = fmt.parse(dateString);
-                        if (d != null) return d.getTime();
-                    }
-                }
-            } catch (Exception e) {}
-        }
-        if (path != null && path.toLowerCase().contains("whatsapp")) {
-            Pattern waPattern = Pattern.compile("(IMG|VID)-(\\d{8})-WA");
-            Matcher matcher = waPattern.matcher(new File(path).getName());
-            if (matcher.find()) {
-                try {
-                    SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd", Locale.US);
-                    Date d = fmt.parse(matcher.group(2));
-                    if (d != null) return d.getTime();
-                } catch (Exception e) {}
-            }
-        }
-        if (path != null) {
-            File f = new File(path);
-            if (f.exists()) return f.lastModified();
-        }
-        return System.currentTimeMillis();
-    }
-
-    private void shareSelectedItems() {
-        List<SecretItem> selected = adapter.getSelectedItems();
-        if (selected.isEmpty()) return;
-
-        executor.execute(() -> {
-            ArrayList<Uri> uris = new ArrayList<>();
-            try {
-                for (SecretItem item : selected) {
-                    SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
-                    String ext = item.isVideo() ? ".mp4" : ".jpg";
-                    if (entity != null && entity.getOriginalPath() != null) {
-                        String path = entity.getOriginalPath();
-                        int lastDot = path.lastIndexOf('.');
-                        if (lastDot != -1) ext = path.substring(lastDot);
-                    }
-                    File tempFile = decryptToCache(item.getFile(), ext);
-                    uris.add(FileProvider.getUriForFile(this, getPackageName() + ".provider", tempFile));
-                }
-                
-                Intent intent = new Intent(Intent.ACTION_SEND_MULTIPLE);
-                intent.setType("*/*");
-                intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                startActivity(Intent.createChooser(intent, "Share " + selected.size() + " items"));
-                
-                runOnUiThread(() -> adapter.setSelectionMode(false));
-            } catch (Exception e) { e.printStackTrace(); }
-        });
-    }
-
-    private void restoreSelectedItems() {
-        List<SecretItem> selected = adapter.getSelectedItems();
-        if (selected.isEmpty()) return;
-
-        executor.execute(() -> {
-            int count = 0;
-            for (SecretItem item : selected) {
-                SecretEntity entity = database.secretDao().getSecretByFileName(item.getFile().getName());
-                if (entity != null && entity.getOriginalPath() != null) {
-                    try {
-                        File target = new File(entity.getOriginalPath());
-                        File parent = target.getParentFile();
-                        if (parent != null && !parent.exists()) parent.mkdirs();
-                        
-                        decryptToFile(item.getFile(), target);
-                        if (entity.getDateTaken() != 0) target.setLastModified(entity.getDateTaken());
-                        
-                        database.secretDao().delete(entity);
-                        item.getFile().delete();
-                        count++;
-                    } catch (Exception e) { e.printStackTrace(); }
-                }
-            }
-            final int finalCount = count;
-            runOnUiThread(() -> {
-                Toast.makeText(this, "Restored " + finalCount + " items", Toast.LENGTH_SHORT).show();
-                adapter.setSelectionMode(false);
-            });
-        });
-    }
-
-    private void deleteSelectedItems() {
-        List<SecretItem> selected = adapter.getSelectedItems();
-        if (selected.isEmpty()) return;
-
-        new AlertDialog.Builder(this)
-                .setTitle("Delete " + selected.size() + " items?")
-                .setMessage("These files will be permanently erased.")
-                .setPositiveButton("Delete", (d, w) -> {
-                    executor.execute(() -> {
-                        for (SecretItem item : selected) {
-                            String fileName = item.getFile().getName();
-                            SecretEntity entity = database.secretDao().getSecretByFileName(fileName);
-                            if (entity != null) {
-                                database.secretDao().delete(entity);
-                                if (SecurityHelper.isAutoSyncEnabled(this)) {
-                                    SyncWorker.enqueue(this, SyncWorker.ACTION_DELETE, fileName, currentVaultId);
-                                }
-                            }
-                            item.getFile().delete();
-                        }
-                        runOnUiThread(() -> adapter.setSelectionMode(false));
-                    });
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-    }
-
-    private File decryptToCache(File encryptedFile, String extension) throws GeneralSecurityException, IOException {
-        String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
-        EncryptedFile encryptedStorage = new EncryptedFile.Builder(
-                encryptedFile, this, masterKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
-        ).build();
-        if (!extension.startsWith(".")) extension = "." + extension;
-        File tempFile = new File(getCacheDir(), "share_" + encryptedFile.getName() + extension);
-        try (InputStream in = encryptedStorage.openFileInput();
-             FileOutputStream out = new FileOutputStream(tempFile)) {
-            byte[] buffer = new byte[8192];
-            int len;
-            while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
-            out.flush();
-        }
-        return tempFile;
-    }
-
-    private void decryptToFile(File encryptedFile, File target) throws GeneralSecurityException, IOException {
-        String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
-        EncryptedFile encryptedStorage = new EncryptedFile.Builder(
-                encryptedFile, this, masterKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
-        ).build();
-        try (InputStream in = encryptedStorage.openFileInput();
-             FileOutputStream out = new FileOutputStream(target)) {
-            byte[] buffer = new byte[8192];
-            int len;
-            while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
-            out.flush();
-        }
-    }
-
-    private boolean checkStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!Environment.isExternalStorageManager()) {
-                showPermissionDialog();
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private void showPermissionDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle("Permission Required")
-                .setMessage("To move files to the secure vault, Notes+ needs permission to manage files. Please enable it in the next screen.")
-                .setPositiveButton("Settings", (d, w) -> {
-                    try {
-                        Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        startActivityForResult(intent, MANAGE_STORAGE_REQUEST);
-                    } catch (Exception e) {
-                        Intent intent = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
-                        startActivityForResult(intent, MANAGE_STORAGE_REQUEST);
-                    }
-                })
-                .setNegativeButton("Cancel", (d, w) -> finish())
+    /**
+     * Encrypts the picked items, then offers to remove the originals.
+     *
+     * Each vault file is durably written before its row is inserted, and an original is only
+     * removed after its copy is safe. New items slide into the grid as each one lands.
+     */
+    private void importUris(List<Uri> uris) {
+        if (uris.isEmpty()) return;
+        final Integer albumId = filterAlbumId;
+        AlertDialog progress = new MaterialAlertDialogBuilder(this)
+                .setTitle("Securing items")
+                .setMessage("0 of " + uris.size())
                 .setCancelable(false)
                 .show();
+
+        executor.execute(() -> {
+            List<Uri> originals = new ArrayList<>();
+            int secured = 0;
+            int unremovable = 0;
+            long lastRefresh = 0;
+            for (int i = 0; i < uris.size(); i++) {
+                final int n = i + 1;
+                runOnUiThread(() -> progress.setMessage(n + " of " + uris.size()));
+                try {
+                    VaultMedia.Imported result = VaultMedia.importItem(this, uris.get(i), vaultId, albumId);
+                    secured++;
+                    if (result.original != null) originals.add(result.original);
+                    else unremovable++;
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to secure item", e);
+                }
+                long now = System.currentTimeMillis();
+                if (now - lastRefresh > 800) {
+                    lastRefresh = now;
+                    runOnUiThread(() -> loadGallery(false));
+                }
+            }
+            if (secured > 0 && SecurityHelper.isAutoSyncEnabled(this)) SyncWorker.requestBackup(this);
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) deleteOriginalsDirectly(originals);
+
+            final int finalSecured = secured;
+            final int finalUnremovable = unremovable;
+            runOnUiThread(() -> {
+                progress.dismiss();
+                String message = "Secured " + finalSecured + " of " + uris.size() + " items";
+                if (finalUnremovable > 0) {
+                    message += ". Delete " + finalUnremovable + " original(s) from the app they came from";
+                }
+                Snackbar.make(galleryRoot, message, Snackbar.LENGTH_LONG).show();
+                loadGallery(false);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) requestOriginalsDeletion(originals);
+            });
+        });
     }
 
-    private void createNoMediaFile() {
-        File noMedia = new File(vaultDir, ".nomedia");
-        if (!noMedia.exists()) {
-            try {
-                noMedia.createNewFile();
-            } catch (IOException e) { e.printStackTrace(); }
+    /** Android 11+: the system asks once for the whole batch; no storage permission needed. */
+    private void requestOriginalsDeletion(List<Uri> originals) {
+        if (originals.isEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return;
+        try {
+            PendingIntent request = MediaStore.createDeleteRequest(getContentResolver(), originals);
+            expectExternalActivity();
+            startIntentSenderForResult(request.getIntentSender(), DELETE_ORIGINALS, null, 0, 0, 0);
+        } catch (Exception e) {
+            Log.w(TAG, "Could not ask to remove the originals", e);
         }
     }
+
+    /** Before Android 11 the legacy write permission lets us delete directly. */
+    private void deleteOriginalsDirectly(List<Uri> originals) {
+        for (Uri uri : originals) {
+            try {
+                getContentResolver().delete(uri, null, null);
+            } catch (Exception e) {
+                Log.w(TAG, "Could not remove original " + uri, e);
+            }
+        }
+    }
+
+    // =================================================================== menu
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -890,57 +813,28 @@ public class SecretGalleryActivity extends AppCompatActivity {
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
-        MenuItem selectAllItem = menu.findItem(R.id.action_select_all);
-        
-        if (selectAllItem != null) {
-            selectAllItem.setVisible(adapter != null && adapter.isSelectionMode());
-            selectAllItem.setIcon(isAllSelected ? R.drawable.ic_check_circle_filled : R.drawable.ic_check_circle_empty);
+        boolean selecting = adapter != null && adapter.isSelectionMode();
+        MenuItem selectAll = menu.findItem(R.id.action_select_all);
+        if (selectAll != null) {
+            selectAll.setVisible(selecting);
+            selectAll.setIcon(isAllSelected ? R.drawable.ic_check_circle_filled : R.drawable.ic_check_circle_empty);
         }
-        
+        MenuItem settings = menu.findItem(R.id.action_settings);
+        if (settings != null) settings.setVisible(!selecting);
         return super.onPrepareOptionsMenu(menu);
     }
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
-        if (id == android.R.id.home) {
-            onBackPressed();
-            return true;
-        } else if (id == R.id.action_settings) {
-            Intent intent = new Intent(this, GallerySettingsActivity.class);
-            intent.putExtra(UnlockActivity.EXTRA_VAULT_ID, currentVaultId);
-            startActivity(intent);
+        if (id == R.id.action_settings) {
+            startActivity(new Intent(this, GallerySettingsActivity.class)
+                    .putExtra(UnlockActivity.EXTRA_VAULT_ID, vaultId));
             return true;
         } else if (id == R.id.action_select_all) {
-            if (adapter != null) {
-                adapter.selectAll(!isAllSelected);
-            }
+            adapter.selectAll(!isAllSelected);
             return true;
         }
         return super.onOptionsItemSelected(item);
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (adapter != null && adapter.isSelectionMode()) {
-            adapter.setSelectionMode(false);
-            return;
-        }
-        if (filterAlbumId != null || filterFavourites) {
-            filterAlbumId = null;
-            filterFavourites = false;
-            if (getSupportActionBar() != null) {
-                getSupportActionBar().setTitle("Notes+");
-                getSupportActionBar().setDisplayHomeAsUpEnabled(false);
-            }
-            recyclerViewGallery.setVisibility(View.GONE);
-            recyclerViewAlbums.setVisibility(View.VISIBLE);
-            tabLayout.setVisibility(View.VISIBLE);
-            tabLayout.selectTab(tabLayout.getTabAt(1));
-            observeAlbums();
-            invalidateOptionsMenu();
-            return;
-        }
-        super.onBackPressed();
     }
 }

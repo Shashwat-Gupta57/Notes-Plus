@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  One viewer page. The poster shows the grid thumbnail the instant the page appears; the
+  full-resolution image or the first video frame replaces it when ready.
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:background="@color/viewer_background">
 
     <com.github.chrisbanes.photoview.PhotoView
         android:id="@+id/pagerImageView"
@@ -14,6 +19,19 @@
         android:id="@+id/pagerPlayerView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:visibility="gone"
+        app:auto_show="false"
+        app:show_buffering="when_playing"
+        app:show_shuffle_button="false"
+        app:surface_type="texture_view"
+        app:shutter_background_color="@android:color/transparent" />
+
+    <ImageView
+        android:id="@+id/pagerPoster"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitCenter"
         android:visibility="gone" />
 
     <ProgressBar
@@ -21,7 +39,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:indeterminateTint="#FFCC00"
+        android:indeterminateTint="@color/brand_yellow"
         android:visibility="gone" />
 
 </FrameLayout>

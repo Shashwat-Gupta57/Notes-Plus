@@ -12,6 +12,11 @@ public class VaultEntity {
     private String lockValue;
     private boolean isMain;
     private int sortOrder;
+    /**
+     * Stable identity across devices and restores. Row ids are reassigned by a restore, and
+     * matching on display name was ambiguous for duplicates and broken by a rename.
+     */
+    private String uuid;
     
     // Background customization
     private String bgType; // "DEFAULT", "COLOR", "IMAGE"
@@ -24,6 +29,7 @@ public class VaultEntity {
         this.isMain = isMain;
         this.sortOrder = sortOrder;
         this.bgType = "DEFAULT";
+        this.uuid = java.util.UUID.randomUUID().toString();
     }
 
     public int getId() { return id; }
@@ -38,6 +44,8 @@ public class VaultEntity {
     public void setMain(boolean main) { isMain = main; }
     public int getSortOrder() { return sortOrder; }
     public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
+    public String getUuid() { return uuid; }
+    public void setUuid(String uuid) { this.uuid = uuid; }
 
     public String getBgType() { return bgType; }
     public void setBgType(String bgType) { this.bgType = bgType; }

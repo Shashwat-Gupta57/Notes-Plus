@@ -1,8 +1,8 @@
 package org.flexstudios.notes.plus;
 
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.graphics.Bitmap;
-import android.media.ThumbnailUtils;
-import android.provider.MediaStore;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,24 +11,21 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.security.crypto.EncryptedFile;
-import androidx.security.crypto.MasterKeys;
 
-import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.engine.DiskCacheStrategy;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Future;
 
+/**
+ * Album grid. Covers come from {@link ThumbnailStore} for the same reason the media grid
+ * does: the old path decrypted the full-size cover into the cache and left it there.
+ */
 public class AlbumAdapter extends RecyclerView.Adapter<AlbumAdapter.AlbumViewHolder> {
+
     private List<AlbumItem> albums = new ArrayList<>();
-    private OnAlbumClickListener listener;
-    private OnAlbumLongClickListener longClickListener;
+    private final ThumbnailStore thumbnails;
+    private final OnAlbumClickListener listener;
+    private final OnAlbumLongClickListener longClickListener;
 
     public interface OnAlbumClickListener {
         void onAlbumClick(AlbumItem album);
@@ -38,7 +35,9 @@ public class AlbumAdapter extends RecyclerView.Adapter<AlbumAdapter.AlbumViewHol
         void onAlbumLongClick(AlbumItem album);
     }
 
-    public AlbumAdapter(OnAlbumClickListener listener, OnAlbumLongClickListener longClickListener) {
+    public AlbumAdapter(ThumbnailStore thumbnails, OnAlbumClickListener listener,
+                        OnAlbumLongClickListener longClickListener) {
+        this.thumbnails = thumbnails;
         this.listener = listener;
         this.longClickListener = longClickListener;
     }
@@ -60,15 +59,7 @@ public class AlbumAdapter extends RecyclerView.Adapter<AlbumAdapter.AlbumViewHol
         AlbumItem item = albums.get(position);
         holder.name.setText(item.name);
         holder.count.setText(item.count + " items");
-
-        holder.cover.setTag(item.coverFileName);
-        if (item.coverFileName != null) {
-            File encryptedFile = new File(holder.itemView.getContext().getFilesDir(), "vault/" + item.coverFileName);
-            decryptAndLoadCover(encryptedFile, holder.cover, item.isVideo, item.coverFileName);
-        } else {
-            holder.cover.setImageResource(R.drawable.ic_empty_gallery);
-            holder.cover.setScaleType(ImageView.ScaleType.CENTER);
-        }
+        holder.bindCover(thumbnails, item);
 
         holder.itemView.setOnClickListener(v -> listener.onAlbumClick(item));
         holder.itemView.setOnLongClickListener(v -> {
@@ -80,60 +71,10 @@ public class AlbumAdapter extends RecyclerView.Adapter<AlbumAdapter.AlbumViewHol
         });
     }
 
-    private void decryptAndLoadCover(File encryptedFile, ImageView imageView, boolean isVideo, String fileName) {
-        File tempFile = new File(imageView.getContext().getCacheDir(), "thumb_album_" + fileName);
-        if (tempFile.exists() && tempFile.length() > 0) {
-            loadThumbnail(tempFile, imageView, isVideo, fileName);
-            return;
-        }
-
-        new Thread(() -> {
-            try {
-                String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
-                EncryptedFile encryptedStorage = new EncryptedFile.Builder(
-                        encryptedFile, imageView.getContext(), masterKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
-                ).build();
-
-                try (InputStream in = encryptedStorage.openFileInput();
-                     FileOutputStream out = new FileOutputStream(tempFile)) {
-                    byte[] buffer = new byte[16384];
-                    int len;
-                    while ((len = in.read(buffer)) > 0) out.write(buffer, 0, len);
-                    out.flush();
-                }
-
-                imageView.post(() -> loadThumbnail(tempFile, imageView, isVideo, fileName));
-            } catch (GeneralSecurityException | IOException e) {
-                e.printStackTrace();
-                imageView.post(() -> {
-                    if (fileName.equals(imageView.getTag())) {
-                        imageView.setImageResource(R.drawable.ic_empty_gallery);
-                        imageView.setScaleType(ImageView.ScaleType.CENTER);
-                    }
-                });
-            }
-        }).start();
-    }
-
-    private void loadThumbnail(File tempFile, ImageView imageView, boolean isVideo, String expectedFileName) {
-        if (!expectedFileName.equals(imageView.getTag())) return;
-
-        imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        if (isVideo) {
-            Bitmap thumb = ThumbnailUtils.createVideoThumbnail(tempFile.getAbsolutePath(), MediaStore.Video.Thumbnails.MINI_KIND);
-            if (thumb != null) {
-                imageView.setImageBitmap(thumb);
-            } else {
-                imageView.setImageResource(android.R.drawable.ic_menu_report_image);
-            }
-        } else {
-            Glide.with(imageView.getContext())
-                .load(tempFile)
-                .diskCacheStrategy(DiskCacheStrategy.NONE)
-                .skipMemoryCache(true)
-                .centerCrop()
-                .into(imageView);
-        }
+    @Override
+    public void onViewRecycled(@NonNull AlbumViewHolder holder) {
+        super.onViewRecycled(holder);
+        holder.recycle();
     }
 
     @Override
@@ -144,12 +85,89 @@ public class AlbumAdapter extends RecyclerView.Adapter<AlbumAdapter.AlbumViewHol
     static class AlbumViewHolder extends RecyclerView.ViewHolder {
         ImageView cover;
         TextView name, count;
+        View skeleton;
+
+        private Future<?> pending;
+        private ObjectAnimator shimmer;
+        private String boundFileName;
 
         AlbumViewHolder(@NonNull View itemView) {
             super(itemView);
             cover = itemView.findViewById(R.id.albumCover);
             name = itemView.findViewById(R.id.albumName);
             count = itemView.findViewById(R.id.albumItemCount);
+            skeleton = itemView.findViewById(R.id.albumCoverSkeleton);
+        }
+
+        void bindCover(ThumbnailStore store, AlbumItem item) {
+            recycle();
+
+            if (item.coverFileName == null) {
+                showPlaceholder();
+                return;
+            }
+
+            boundFileName = item.coverFileName;
+            Bitmap immediate = store.peek(boundFileName);
+            if (immediate != null) {
+                showBitmap(immediate);
+                return;
+            }
+
+            cover.setImageDrawable(null);
+            skeleton.setVisibility(View.VISIBLE);
+            shimmer = ObjectAnimator.ofFloat(skeleton, View.ALPHA, 1f, 0.4f);
+            shimmer.setDuration(650);
+            shimmer.setRepeatMode(ValueAnimator.REVERSE);
+            shimmer.setRepeatCount(ValueAnimator.INFINITE);
+            shimmer.start();
+
+            final String requested = boundFileName;
+            pending = store.load(requested, item.isVideo, new ThumbnailStore.Callback() {
+                @Override
+                public void onThumbnail(Bitmap bitmap) {
+                    if (!requested.equals(boundFileName)) return;
+                    showBitmap(bitmap);
+                }
+
+                @Override
+                public void onFailed() {
+                    if (!requested.equals(boundFileName)) return;
+                    showPlaceholder();
+                }
+            });
+        }
+
+        private void showBitmap(Bitmap bitmap) {
+            stopShimmer();
+            skeleton.setVisibility(View.GONE);
+            cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            cover.setImageBitmap(bitmap);
+        }
+
+        private void showPlaceholder() {
+            stopShimmer();
+            skeleton.setVisibility(View.VISIBLE);
+            cover.setScaleType(ImageView.ScaleType.CENTER);
+            cover.setImageResource(R.drawable.ic_empty_gallery);
+        }
+
+        private void stopShimmer() {
+            if (shimmer != null) {
+                shimmer.cancel();
+                shimmer = null;
+            }
+            skeleton.setAlpha(1f);
+        }
+
+        void recycle() {
+            boundFileName = null;
+            if (pending != null) {
+                pending.cancel(false);
+                pending = null;
+            }
+            stopShimmer();
+            cover.setImageDrawable(null);
         }
     }
 

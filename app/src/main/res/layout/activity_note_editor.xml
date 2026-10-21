@@ -1,49 +1,226 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Editor for the written note types. Sections not used by the current type stay gone:
+  journalHeader + journalMedia for journals, listSection for lists, editTextContent for
+  text and journal notes.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/noteRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="#FFFFFF">
+    android:background="@color/app_background"
+    android:orientation="vertical">
 
-    <com.google.android.material.appbar.AppBarLayout
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbarEditor"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="#FFFFFF"
-        app:elevation="0dp">
+        android:layout_height="?attr/actionBarSize" />
 
-        <androidx.appcompat.widget.Toolbar
-            android:id="@+id/toolbarEditor"
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/editorScroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            app:navigationIcon="?attr/homeAsUpIndicator" />
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="24dp">
 
-    </com.google.android.material.appbar.AppBarLayout>
+            <!-- ============================================== journal: date and mood -->
+            <LinearLayout
+                android:id="@+id/journalHeader"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:visibility="gone">
 
-    <EditText
-        android:id="@+id/editTextTitle"
+                <LinearLayout
+                    android:id="@+id/journalDate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp">
+
+                    <TextView
+                        android:id="@+id/journalDay"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-light"
+                        android:includeFontPadding="false"
+                        android:textColor="@color/tile_purple"
+                        android:textSize="64sp" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="14dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/journalWeekday"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/text_primary"
+                            android:textSize="20sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/journalMonthYear"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="15sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="How was it?"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/moodRow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/journalMedia"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnAddMedia"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Add photos or videos"
+                    app:icon="@drawable/ic_photo" />
+            </LinearLayout>
+
+            <EditText
+                android:id="@+id/editTextTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@null"
+                android:hint="Title"
+                android:importantForAutofill="no"
+                android:inputType="textCapSentences|textMultiLine"
+                android:paddingStart="20dp"
+                android:paddingTop="12dp"
+                android:paddingEnd="20dp"
+                android:paddingBottom="8dp"
+                android:textColor="@color/text_primary"
+                android:textSize="26sp"
+                android:textStyle="bold" />
+
+            <!-- ================================================================= list -->
+            <LinearLayout
+                android:id="@+id/listSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <com.google.android.material.progressindicator.LinearProgressIndicator
+                    android:id="@+id/listProgressBar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="20dp"
+                    android:layout_marginEnd="20dp"
+                    app:indicatorColor="@color/tile_green"
+                    app:trackCornerRadius="3dp"
+                    app:trackThickness="4dp" />
+
+                <TextView
+                    android:id="@+id/listProgress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="20dp"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/listItems"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:nestedScrollingEnabled="false" />
+
+                <LinearLayout
+                    android:id="@+id/listAdd"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="16dp">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_add"
+                        app:tint="@color/tile_green" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="16dp"
+                        android:text="Add item"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="17sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <EditText
+                android:id="@+id/editTextContent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@null"
+                android:gravity="top"
+                android:hint="Start writing"
+                android:importantForAutofill="no"
+                android:inputType="textMultiLine|textCapSentences"
+                android:lineSpacingMultiplier="1.25"
+                android:minHeight="240dp"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:textColor="@color/text_body"
+                android:textSize="18sp" />
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+    <TextView
+        android:id="@+id/editorFooter"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@null"
-        android:hint="Title"
-        android:importantForAutofill="no"
-        android:inputType="textCapSentences"
-        android:padding="16dp"
-        android:textColor="#000000"
-        android:textSize="24sp"
-        android:textStyle="bold" />
-
-    <EditText
-        android:id="@+id/editTextContent"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@null"
-        android:gravity="top"
-        android:hint="Note"
-        android:importantForAutofill="no"
-        android:inputType="textMultiLine|textCapSentences"
-        android:padding="16dp"
-        android:textColor="#333333"
-        android:textSize="18sp" />
-
+        android:gravity="center"
+        android:padding="8dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp" />
 </LinearLayout>

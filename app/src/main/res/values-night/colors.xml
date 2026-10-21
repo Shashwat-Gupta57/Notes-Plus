@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark counterparts. Only the surface/content roles flip; brand colours do not. -->
+<resources>
+    <color name="app_background">#FF000000</color>
+    <color name="app_surface">#FF1C1C1E</color>
+    <color name="gallery_background">#FF000000</color>
+    <color name="thumb_placeholder">#FF2C2C2E</color>
+
+    <color name="text_primary">#FFFFFFFF</color>
+    <color name="text_secondary">#FF98989F</color>
+    <color name="text_body">#FFE5E5EA</color>
+    <color name="divider">#FF38383A</color>
+
+    <color name="header_chip_background">#A6000000</color>
+    <color name="header_chip_text">#FFEBEBF5</color>
+
+    <color name="note_yellow">#FF3D3624</color>
+    <color name="note_green">#FF22382A</color>
+    <color name="note_blue">#FF1F2F45</color>
+    <color name="note_purple">#FF33284A</color>
+    <color name="note_pink">#FF452A34</color>
+    <color name="note_gray">#FF2C2C30</color>
+</resources>

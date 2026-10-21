@@ -29,6 +29,13 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
     public static final String EXTRA_VERIFY_ONLY = "verify_only";
     public static final String EXTRA_UNLOCKED_FLAG = "is_unlocked";
     public static final String EXTRA_VAULT_ID = "vault_id";
+    /**
+     * Which hidden space this lock screen opens. The screen looks identical for both, and a
+     * lock only ever matches vaults of its own space; failed attempts count against one
+     * shared lockout, so two screens never mean twice the guesses.
+     */
+    public static final String EXTRA_REALM = "realm";
+    public static final String REALM_CHAT = "_chat";
     
     /** Free attempts before the first lockout. */
     private static final int FREE_ATTEMPTS = 5;
@@ -42,6 +49,8 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
     private CountDownTimer lockoutTimer;
     private boolean verifyOnly = false;
     private List<VaultEntity> allVaults;
+    private List<ChatStore.Vault> chatVaults;
+    private boolean chat, checking;
 
     private ImageView lockBackground;
     private View lockDimOverlay, unlockRoot;
@@ -55,6 +64,7 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
         setContentView(R.layout.activity_unlock);
 
         verifyOnly = getIntent().getBooleanExtra(EXTRA_VERIFY_ONLY, false);
+        chat = REALM_CHAT.equals(getIntent().getStringExtra(EXTRA_REALM));
         viewPager = findViewById(R.id.unlockViewPager);
         errorText = findViewById(R.id.errorText);
         lockBackground = findViewById(R.id.lockBackground);
@@ -157,12 +167,21 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
 
     private void loadVaults() {
         AppDatabase.IO.execute(() -> {
-            allVaults = AppDatabase.getInstance(this).vaultDao().getAllVaultsDirect();
-            VaultEntity mainVault = AppDatabase.getInstance(this).vaultDao().getMainVault();
-            
+            AppDatabase db = AppDatabase.getInstance(this);
+            String type;
+            if (chat) {
+                chatVaults = db.chatDao().vaults();
+                allVaults = new java.util.ArrayList<>();
+                ChatStore.Vault main = db.chatDao().mainVault();
+                type = main == null ? null : main.lockType;
+            } else {
+                allVaults = db.vaultDao().getAllVaultsDirect();
+                VaultEntity mainVault = db.vaultDao().getMainVault();
+                type = mainVault == null ? null : mainVault.getLockType();
+            }
+
             runOnUiThread(() -> {
-                if (mainVault != null) {
-                    String type = mainVault.getLockType();
+                if (type != null) {
                     if ("PIN".equals(type)) viewPager.setCurrentItem(0, false);
                     else if ("PASSWORD".equals(type)) viewPager.setCurrentItem(1, false);
                     else if ("PATTERN".equals(type)) viewPager.setCurrentItem(2, false);
@@ -185,6 +204,35 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
                 matchedVault = v;
                 break;
             }
+        }
+
+        if (chat) {
+            // Chat locks are stored hashed (PBKDF2), so checking one takes a moment: off the
+            // main thread, and one attempt at a time.
+            if (checking) return;
+            checking = true;
+            AppDatabase.IO.execute(() -> {
+                ChatStore.Vault match;
+                try {
+                    match = ChatVaults.find(this, type, value);
+                } catch (Exception e) {
+                    match = null;
+                }
+                ChatStore.Vault found = match;
+                runOnUiThread(() -> {
+                    checking = false;
+                    if (found == null) {
+                        handleFailedAttempt();
+                        return;
+                    }
+                    SecurityHelper.getAppPrefs(this).edit().remove(KEY_FAILURES).remove(KEY_LOCKED_UNTIL).apply();
+                    SecurityHelper.updateLastActiveTime(this, REALM_CHAT);
+                    if (verifyOnly) setResult(RESULT_OK);
+                    else startActivity(new Intent(this, ChatHomeActivity.class).putExtra(EXTRA_VAULT_ID, found.id));
+                    finish();
+                });
+            });
+            return;
         }
 
         if (matchedVault != null) {

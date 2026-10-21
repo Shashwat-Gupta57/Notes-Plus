@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One conversation: the shared background (colour or photo) behind everything, messages with
+  the newest at the bottom, and the compose bar (or, read-only, a banner in its place).
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/chatRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/gallery_background">
+
+    <ImageView
+        android:id="@+id/imgBackground"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <View
+        android:id="@+id/backgroundDim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#40000000"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <com.google.android.material.appbar.AppBarLayout
+            android:id="@+id/appBarChat"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/gallery_background"
+            app:elevation="0dp">
+
+            <androidx.appcompat.widget.Toolbar
+                android:id="@+id/toolbarChat"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                app:contentInsetStartWithNavigation="0dp"
+                app:navigationIcon="@drawable/ic_arrow_back"
+                app:navigationIconTint="@color/text_primary">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="38dp"
+                        android:layout_height="38dp">
+
+                        <TextView
+                            android:id="@+id/txtPeerInitial"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/circle"
+                            android:backgroundTint="@color/tile_blue"
+                            android:gravity="center"
+                            android:textColor="@android:color/white"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <ImageView
+                            android:id="@+id/imgPeer"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:importantForAccessibility="no"
+                            android:scaleType="centerCrop" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/txtChatTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="@color/text_primary"
+                            android:textSize="17sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/txtChatSubtitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </androidx.appcompat.widget.Toolbar>
+        </com.google.android.material.appbar.AppBarLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerMessages"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:id="@+id/txtReadOnly"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/tile_orange"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="10dp"
+            android:textColor="@android:color/white"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/composeBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="bottom"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="10dp">
+
+            <ImageButton
+                android:id="@+id/btnAttach"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/circle"
+                android:backgroundTint="@color/app_surface"
+                android:contentDescription="Send a photo or video"
+                android:padding="11dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_photo"
+                app:tint="@color/tile_blue" />
+
+            <EditText
+                android:id="@+id/inputMessage"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/bubble"
+                android:backgroundTint="@color/app_surface"
+                android:hint="Message"
+                android:importantForAutofill="no"
+                android:inputType="textMultiLine|textCapSentences"
+                android:maxLength="4000"
+                android:maxLines="6"
+                android:minHeight="44dp"
+                android:paddingStart="16dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="10dp"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp" />
+
+            <ImageButton
+                android:id="@+id/btnSend"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/circle"
+                android:backgroundTint="@color/tile_blue"
+                android:contentDescription="Send"
+                android:padding="11dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_send"
+                app:tint="@android:color/white" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/pickerPanel"
+            android:layout_width="match_parent"
+            android:layout_height="280dp"
+            android:background="@color/app_surface"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingEnd="4dp">
+
+                <TextView
+                    android:id="@+id/txtPickerTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Recent"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnAllPhotos"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="All photos" />
+            </LinearLayout>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerPicker"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

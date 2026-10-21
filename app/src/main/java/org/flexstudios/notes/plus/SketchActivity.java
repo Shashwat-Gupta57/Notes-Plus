@@ -125,6 +125,30 @@ public class SketchActivity extends NoteActivity {
         return drawn || !note.getTitle().isEmpty();
     }
 
+    /**
+     * Draws the card picture for strokes that arrived from another phone. Uses an unattached
+     * view as wide as this screen, which is all {@link DrawingView#render} needs.
+     */
+    static void renderPreview(android.content.Context context, File dir, String strokes) {
+        DrawingView view = new DrawingView(context, null);
+        int width = context.getResources().getDisplayMetrics().widthPixels;
+        view.layout(0, 0, width, width * 4);
+        view.load(strokes);
+        Bitmap preview = view.render(1080);
+        File target = new File(dir, PREVIEW_FILE);
+        if (preview == null) {
+            VaultCrypto.deleteRecursive(target);
+            return;
+        }
+        try (FileOutputStream out = new FileOutputStream(target)) {
+            preview.compress(Bitmap.CompressFormat.PNG, 100, out);
+        } catch (Exception e) {
+            Log.w("Sketch", "Could not draw a synced sketch", e);
+        } finally {
+            preview.recycle();
+        }
+    }
+
     /** Vectors for editing and a PNG for the card, written off the main thread. */
     private void writeFiles(File dir) {
         String json = canvas.toJson();

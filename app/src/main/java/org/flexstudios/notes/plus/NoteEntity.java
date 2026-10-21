@@ -11,8 +11,14 @@ import androidx.room.PrimaryKey;
  * items of a list, the node labels of a mind map, the titles of recordings. Structured state
  * lives in {@code data} as JSON, and media (photos, sketches, recordings) in the note's own
  * folder, {@link NoteData#dir}.
+ *
+ * The sync columns belong to {@link NoteSync}: {@code uuid} is the note's identity in the
+ * account (row ids differ per phone), {@code account} the uid it syncs to (null: this phone
+ * only), {@code rev} the server revision this copy is based on, {@code dirty} unpushed edits,
+ * {@code deleted} a tombstone waiting to be pushed, and {@code media} the Drive manifest of its
+ * files. Editors never write them; they save through {@link NoteDao#saveContent}.
  */
-@Entity(tableName = "notes", indices = {@Index({"pinned", "timestamp"})})
+@Entity(tableName = "notes", indices = {@Index({"pinned", "timestamp"}), @Index(value = "uuid", unique = true)})
 public class NoteEntity {
     @PrimaryKey(autoGenerate = true)
     private int id;
@@ -24,6 +30,13 @@ public class NoteEntity {
     /** Card tint, an index into {@link NoteData#COLORS}; 0 is the default surface. */
     private int color;
     private boolean pinned;
+
+    private String uuid = NoteSync.newUuid();
+    private String account;
+    private long rev;
+    private boolean dirty = true;
+    private boolean deleted;
+    private String media;
 
     public NoteEntity(String title, String content, long timestamp) {
         this.title = title;
@@ -47,6 +60,18 @@ public class NoteEntity {
     public void setColor(int color) { this.color = color; }
     public boolean isPinned() { return pinned; }
     public void setPinned(boolean pinned) { this.pinned = pinned; }
+    public String getUuid() { return uuid; }
+    public void setUuid(String uuid) { this.uuid = uuid; }
+    public String getAccount() { return account; }
+    public void setAccount(String account) { this.account = account; }
+    public long getRev() { return rev; }
+    public void setRev(long rev) { this.rev = rev; }
+    public boolean isDirty() { return dirty; }
+    public void setDirty(boolean dirty) { this.dirty = dirty; }
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
+    public String getMedia() { return media; }
+    public void setMedia(String media) { this.media = media; }
 
     /** For the list differ: anything a card shows. */
     boolean sameContentAs(NoteEntity o) {

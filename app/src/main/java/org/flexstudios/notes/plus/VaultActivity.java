@@ -24,6 +24,11 @@ public abstract class VaultActivity extends AppCompatActivity {
     protected int vaultId = 1;
     private boolean externalActivityExpected;
 
+    /** Which hidden space this screen belongs to: "" (gallery) or {@link UnlockActivity#REALM_CHAT}. */
+    protected String realm() {
+        return "";
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -34,8 +39,8 @@ public abstract class VaultActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        long away = System.currentTimeMillis() - SecurityHelper.getLastActiveTime(this);
-        long limit = Math.max(SecurityHelper.getAutoLockDelay(this), MIN_LOCK_DELAY_MS);
+        long away = System.currentTimeMillis() - SecurityHelper.getLastActiveTime(this, realm());
+        long limit = Math.max(SecurityHelper.getAutoLockDelay(this, realm()), MIN_LOCK_DELAY_MS);
         if (externalActivityExpected) limit = Math.max(limit, EXTERNAL_GRACE_MS);
         externalActivityExpected = false;
 
@@ -44,13 +49,13 @@ public abstract class VaultActivity extends AppCompatActivity {
             relock();
             return;
         }
-        SecurityHelper.updateLastActiveTime(this);
+        SecurityHelper.updateLastActiveTime(this, realm());
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        SecurityHelper.updateLastActiveTime(this);
+        SecurityHelper.updateLastActiveTime(this, realm());
     }
 
     /**
@@ -65,7 +70,8 @@ public abstract class VaultActivity extends AppCompatActivity {
     protected void relock() {
         startActivity(new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                .putExtra(MainActivity.EXTRA_RELOCK, true));
+                .putExtra(MainActivity.EXTRA_RELOCK, true)
+                .putExtra(UnlockActivity.EXTRA_REALM, realm()));
         finish();
         overridePendingTransition(0, 0);
     }

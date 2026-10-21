@@ -8,7 +8,11 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Only up to Android 10, to remove originals and restore items through the file
          system. From 11 on everything goes through MediaStore and needs no permission. -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <!-- Reading other apps' photos: the chat picker's recent photos and videos. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Long Drive backups run as a foreground job so the system doesn't stop them. -->
@@ -109,6 +113,28 @@
 
         <activity
             android:name=".NoteEditorActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Notes"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".ChatHomeActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Notes" />
+        <activity
+            android:name=".ChatActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Notes"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".ChatMediaActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Notes" />
+        <activity
+            android:name=".ChatSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Notes" />
+        <activity
+            android:name=".AccountActivity"
             android:exported="false"
             android:theme="@style/Theme.Notes"
             android:windowSoftInputMode="adjustResize" />

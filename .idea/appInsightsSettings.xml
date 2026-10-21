@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="org.flexstudios.notes.plus" />
+                  <option name="mobileSdkAppId" value="1:746909983498:android:dbfdc36e41db97788dd0f3" />
+                  <option name="projectId" value="notes-plus-88985" />
+                  <option name="projectNumber" value="746909983498" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

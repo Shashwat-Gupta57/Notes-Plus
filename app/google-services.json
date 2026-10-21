@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "746909983498",
+    "firebase_url": "https://notes-plus-88985-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "notes-plus-88985",
+    "storage_bucket": "notes-plus-88985.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:746909983498:android:dbfdc36e41db97788dd0f3",
+        "android_client_info": {
+          "package_name": "org.flexstudios.notes.plus"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "746909983498-4n7m7cne02j9shb3acm6gial0ergi5s9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAPJ5EG0CzDI--yJY9yAVDArzUn3v1tEss"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "746909983498-4n7m7cne02j9shb3acm6gial0ergi5s9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

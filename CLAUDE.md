@@ -25,17 +25,22 @@ No MVVM, no repository layer. Activities talk to Room DAOs directly and hop thre
 executor per click. Media operations go through `VaultMedia`, never re-implemented in a
 screen.
 
-**Persistence** — `AppDatabase` (Room, singleton, version 12, `notes_database`)
+**Persistence** — `AppDatabase` (Room, singleton, version 17, `notes_database`)
 
 | Entity | Table | Notes |
 |---|---|---|
-| `NoteEntity` | `notes` | The cover notes app. `type` picks the editor, `content` is searchable text, `data` is the type's JSON (see `NoteData`), media in `filesDir/notes/<id>/` (plain, not vault-encrypted) |
+| `NoteEntity` | `notes` | The cover notes app. `type` picks the editor, `content` is searchable text, `data` is the type's JSON (see `NoteData`), media in `filesDir/notes/<id>/` (plain, not vault-encrypted). `uuid`/`account`/`rev`/`dirty`/`deleted`/`media` belong to `NoteSync` |
 | `VaultEntity` | `vaults` | id 1 = "Main Vault". `lockValue` is plaintext; `uuid` is the cross-device identity |
 | `SecretEntity` | `secrets` | One row per hidden media file; `fileName` is the key everywhere |
 | `AlbumEntity` | `albums` | Scoped to a vault; has a `uuid` |
+| `ChatStore.Vault` / `.Conversation` / `.Message` | `chat_vaults` / `chat_threads` / `chat_messages` | The chat space. Separate tables on purpose: no gallery query can ever return a chat vault |
 
-Migrations 2→11 are hand-written in `AppDatabase`; 9→10 adds the `secrets` indexes (which
-must match the `@Index`es on `SecretEntity` exactly), 10→11 adds `durationMs`, 11→12 adds note `type`/`data`/`color`/`pinned`. Only `fallbackToDestructiveMigrationFrom(1)`
+Migrations 2→13 are hand-written in `AppDatabase`; 9→10 adds the `secrets` indexes (which
+must match the `@Index`es on `SecretEntity` exactly), 10→11 adds `durationMs`, 11→12 adds note
+`type`/`data`/`color`/`pinned`, 12→13 the note sync columns (backfilling `uuid`), 13→14 the
+chat tables, 14→15 chat vault sync (`updatedAt`/`dirty`/`deleted`) and conversation `moved`,
+15→16 chat media, nicknames and shared backgrounds, 16→17 chat photos, ID aliases and list
+backgrounds. Only `fallbackToDestructiveMigrationFrom(1)`
 is on, so a missing migration now crashes instead of wiping the vault — **always add it**.
 `onOpen` seeds vault 1 asynchronously; setup calls `AppDatabase.ensureMainVault` itself so it
 never races the unlock screen.
@@ -59,19 +64,100 @@ Audio), its JSON and its folder. Editors extend `NoteActivity`, which loads, sav
 `NoteEditorActivity` (text, list, journal), `MindMapActivity` (+ `MindMapView`, also the card
 preview), `SketchActivity` (+ `DrawingView`; strokes in `sketch.json`, card in `sketch.png`),
 `AudioNoteActivity` (+ `WaveformView`). `NoteAdapter` draws one card layout for all types.
-A left swipe on the notes grid is the vault's secret gesture, so swipe-to-delete is right only.
-Notes are not yet included in `.bak` or Drive backups.
+Long swipes on the notes grid are the secret gestures (left: gallery, right: chat), so there
+is no swipe-to-delete; notes are deleted from their options or their editor.
+Notes are not in the vault's `.bak` or Drive backups; they sync through the notes account.
+
+**Notes accounts** — optional; signed out, the app is exactly as before.
+
+| Class | Role |
+|---|---|
+| `Account` | The only Firebase Auth code. Google (Credential Manager) or email + password; email accounts sync only once verified. `@username` is a public handle, never a login. Drive for attachments is authorised separately (Authorization API, `drive.file`). Sign out, delete account. |
+| `NoteSync` | Room ↔ Realtime Database (`users/{uid}/notes/{uuid}`), attachments ↔ the user's Drive (`Notes-plus/Attachments/{uuid}/`; the database holds only the manifest). Worker (`NoteSync.Job`, unique `np-notes-sync`, plus a 6 h periodic pull) and a live listener while the grid is visible. |
+| `AccountActivity` | Sign-in, verify-your-email, then profile / sync status / Drive / username / sign out / delete. |
+
+Sync rules, all in `NoteSync`: every write bumps `rev` by one (the database rules enforce it);
+push is a transaction that only lands on the `rev` it was based on, otherwise the server's
+version takes the note and ours becomes a "(conflict, <device>)" copy. Pull only overwrites
+clean notes. A note in `NoteSync.OPEN` (open in an editor, or deleted with Undo still on
+screen) is neither pushed nor overwritten; sync is queued when an editor closes or the app goes
+to the background, never while typing. Deletes are tombstones, swept after 30 days.
+Mind-map links travel as `linkUuid`, because row ids differ per phone.
+
+**Chat** — `ChatSync` (transport), `ChatStore` (Room). Each chat vault has a 4-character ID;
+an address is `@username` + ID, and an empty ID means the main vault, published at
+`chatHome/{uid}`. A conversation is `chats/{chatId}` with `chatId` = both `uid_ID` endpoints
+sorted (the rules check each member is in the key). Messages are written locally first with a
+push key made offline (so a retry can't duplicate), then sent by `ChatSync.Job` (WorkManager,
+survives the app closing). Status: waiting → sent → received (recipient's phone fetched it)
+→ seen (conversation on screen); "not sent" when refused. `chatIndex/{uid}/{chatId}` (its `at`
+changes per message) tells phones which conversations have news; a 15-minute periodic job and
+a live listener while a chat screen is open do the fetching. Online only the newest 100
+messages per conversation are kept: the sender counts (`count`, a transaction) and deletes the
+oldest. No notifications, ever. Messages are not end-to-end encrypted.
+
+`ChatMedia` handles photos, videos and chat backgrounds: each file is encrypted with its own
+random key (portable v3 stream), uploaded to the sender's Drive (`Notes-plus/Shared`, via the
+notes account's Drive connection) and shared "anyone with the link"; the message carries the
+Drive id and the key, so the public link alone is noise. Phones keep only the encrypted copy
+(`filesDir/chat_media`); pictures decrypt into memory, videos into `cache/chat_plain` (swept on
+entry, deleted when the viewer closes). The sender's trim also deletes its own dropped files.
+Nicknames are private (`chatNick/{uid}/{chatId}`); the background is shared
+(`chats/{chatId}/theme`: a colour or an image). Chat sends use `ExistingWorkPolicy.REPLACE`:
+appending once parked new messages behind a failed run's retry delay.
+
+Photos: `profiles/{uid}/photo` is the account's (Google `{url}` until a custom one is set,
+from `AccountActivity`); `vaultPhotos/{uid}/{ID}` a vault's own (readable by ID only, never
+listable). A peer's photo resolves vault photo → account photo (`ChatSync.applyPhotos`).
+Changing a vault's ID retires the old one with `renamedTo`, so messages to it still arrive
+(`ChatVaults.reached`), and writes `chats/{chatId}/alias/{uid}` so the other side shows the new
+ID (`peerShown`). The lock screen background set from chat settings is the same setting as the
+gallery's on purpose: one lock screen look, or swiping both ways would reveal two spaces. The
+chat list background is per vault, this phone only, encrypted with the device key.
+
+`ChatVaults` owns the vaults across the account's phones:
+- Chat locks are stored as `h1:<salt>:<PBKDF2 hash>` (here and online), never plainly; unlock
+  derives once per salt, off the main thread (`ChatVaults.find`).
+- Definitions sync through `chatVaults/{uid}/{ID}`: newest `updatedAt` wins, deletions and
+  retired IDs are tombstones (an ID is never reused). Exactly one main vault: if two phones made
+  one each, the older wins and the other's conversations move into it (`settleMain`).
+- A conversation's address never changes (`chatId` embeds the IDs), but it can be filed under
+  another vault: `chatPlace/{uid}/{chatId}` = ID. Every phone files it there; the other person
+  sees nothing. Changing a vault's ID records its conversations as moved to it.
+- A phone's chat vaults are bound to the first account they synced with (`chat_account`); with
+  another account signed in, chat stays local.
+- One writer per vault: `ChatVaults.Session` holds a lease at `chatSessions/{uid}/{ID}` while a
+  chat screen of that vault is visible (renewed every 15 s, stale after 45 s, released 2 s after
+  the last screen leaves). A second phone reads only: banner, no compose / new chat / changes /
+  "seen", and polls instead of listening (list every 5 s, conversation every 2 s). Offline, a
+  phone stays writable; its messages just queue.
+
+`database.rules.json` (deploy with `firebase deploy --only database`) is the security model:
+per-uid read/write, verified email or Google only, typed and size-capped fields, atomic
+username claims. Change it together with `NoteSync.toRemote`, or writes start failing.
 
 **Screen flow**
 
 ```
 MainActivity (notes)
-  └─ long left-swipe on the list, held 2s  →  UnlockActivity
-                                               (ViewPager2: PIN / Password / Pattern)
-       matches any vault's lockValue        →  SecretGalleryActivity (vaultId extra)
-                                                 ├─ MediaPagerActivity  (view/share/fav/album)
-                                                 └─ GallerySettingsActivity (vaults, backup, Drive)
+  ├─ long LEFT swipe, held 2s   →  UnlockActivity                (gallery realm)
+  │     matches a gallery vault →  SecretGalleryActivity (vaultId extra)
+  │                                  ├─ MediaPagerActivity  (view/share/fav/album)
+  │                                  └─ GallerySettingsActivity (vaults, backup, Drive)
+  └─ long RIGHT swipe, held 2s  →  UnlockActivity + EXTRA_REALM = REALM_CHAT
+        matches a chat vault    →  ChatHomeActivity (vaultId extra)
+                                     ├─ ChatActivity          (one conversation)
+                                     └─ ChatSettingsActivity  (ID, lock; main: vaults, auto-lock)
 ```
+
+**Two hidden spaces that never mention each other.** The gallery and the chat space share the
+lock screen (identical on purpose) and one persisted lockout, but nothing else: separate vault
+tables, separate auto-lock and last-active prefs (`SecurityHelper` keys suffixed with the
+realm), and no screen, string, setting or backup of one refers to the other. The first chat
+vault is created on the first right swipe with the gallery main vault's lock *at that moment*
+(`ChatSync.ensureMainVault`); after that the locks are independent, and the chat space suggests
+a lock of its own once. Keep it that way: never add a link, count, hint or shared setting
+between the two.
 
 `UnlockActivity.EXTRA_VAULT_ID` is the extra that carries the unlocked vault through
 every downstream screen. **Every vault screen extends `VaultActivity`**, which sets
@@ -135,6 +221,11 @@ release). Install is offered from the foreground; it is never launched from the 
 - Dialogs: always `MaterialAlertDialogBuilder` (themed by `ThemeOverlay.App.Dialog`); text
   input through `Prompts.text` / `Prompts.field`, progress through `Prompts.progress`. Never a
   bare `EditText` in a dialog, never `ProgressDialog`.
+- **The vault never touches Firebase**: no vault class imports `Account`/`NoteSync`, and
+  neither of them reads `secrets`, `vaults` or `albums`. No Firebase Analytics, Crashlytics
+  or Remote Config: automatic screen reporting would name the vault's screens.
+- The vault's Drive backup keeps its own legacy `GoogleSignIn` account; notes attachments use
+  `Account.driveEmail` through the Authorization API. Never merge the two.
 - Every local backup is read back and verified (`BackupManager.verify`) before it is reported
   as saved; Settings → Restore → "Check a backup file" runs the same check on any `.bak`.
 - The grid and the viewer load the whole filter as light `SecretItem` rows (`SecretDao.galleryRows`
@@ -180,6 +271,9 @@ download a release that does not exist.
 - Release builds still have **no signing config**. If the release key ever changes, updates
   fail and users must uninstall, which deletes the Keystore key and with it every local vault
   file. Keep one release keystore, backed up, forever.
+- Google sign-in needs the signing key's SHA-1 registered in the Firebase project
+  (`notes-plus-88985`), and `app/google-services.json` re-downloaded after adding it. A new
+  release key means adding its SHA-1 too, or sign-in fails for that build only.
 - Gradle needs a full JDK: `JAVA_HOME="D:\Program Files\Java\JDK\jdk-21.0.8+9" ./gradlew ...`
   The IDE-bundled JRE has no `jlink` and the build fails on `androidJdkImage`.
 - Two `file_paths.xml` exist; only `app/src/main/res/xml/file_paths.xml` is real.

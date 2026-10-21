@@ -142,8 +142,10 @@ final class NoteData {
         int color;
         /** Children hidden behind a "+N" badge. */
         boolean collapsed;
-        /** Id of another note this idea opens, or 0. */
+        /** Id of another note this idea opens, or 0. Row ids differ per phone, so... */
         int link;
+        /** ...the linked note's uuid wins when present: it is the same on every phone. */
+        String linkUuid;
 
         MindNode(long id, long parent, String text, float x, float y) {
             this.id = id;
@@ -151,6 +153,15 @@ final class NoteData {
             this.text = text;
             this.x = x;
             this.y = y;
+        }
+
+        boolean hasLink() {
+            return link != 0 || linkUuid != null;
+        }
+
+        void setLink(NoteEntity target) {
+            link = target == null ? 0 : target.getId();
+            linkUuid = target == null ? null : target.getUuid();
         }
     }
 
@@ -171,6 +182,7 @@ final class NoteData {
             n.color = o.optInt("color", 0);
             n.collapsed = o.optBoolean("collapsed", false);
             n.link = o.optInt("link", 0);
+            n.linkUuid = o.optString("linkUuid", "").isEmpty() ? null : o.optString("linkUuid");
             map.nodes.add(n);
         }
         JSONArray links = array(json, "links");
@@ -191,6 +203,7 @@ final class NoteData {
                 if (n.color != 0) o.put("color", n.color);
                 if (n.collapsed) o.put("collapsed", true);
                 if (n.link != 0) o.put("link", n.link);
+                if (n.linkUuid != null) o.put("linkUuid", n.linkUuid);
                 array.put(o);
             }
             for (long[] l : map.links) links.put(new JSONArray().put(l[0]).put(l[1]));

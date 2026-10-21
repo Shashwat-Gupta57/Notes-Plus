@@ -76,6 +76,7 @@ abstract class NoteActivity extends AppCompatActivity {
                     return;
                 }
                 note = loaded;
+                NoteSync.OPEN.add(note.getId());
                 savedState = state(note);
                 applyColor();
                 invalidateOptionsMenu();
@@ -94,7 +95,7 @@ abstract class NoteActivity extends AppCompatActivity {
         collect(note);
         final NoteEntity live = note;
         WRITES.execute(() -> {
-            if (live.getId() <= 0) live.setId((int) AppDatabase.getInstance(this).noteDao().insert(copy(live)));
+            if (live.getId() <= 0) insert(live, copy(live));
             savedState = state(live);
             File dir = NoteData.dir(this, live.getId());
             runOnUiThread(() -> then.accept(dir));
@@ -105,6 +106,28 @@ abstract class NoteActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         save();
+    }
+
+    /**
+     * Sync waits until the user has finished with a note: an open note is never pushed or
+     * overwritten, and leaving it is what queues the sync (after the last save has landed).
+     */
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (note != null) NoteSync.OPEN.remove(note.getId());
+        if (isFinishing()) {
+            android.content.Context app = getApplicationContext();
+            WRITES.execute(() -> NoteSync.schedule(app));
+        }
+    }
+
+    /** Inserts a new note into the signed-in account (if any), and marks it open here. */
+    private void insert(NoteEntity live, NoteEntity snapshot) {
+        snapshot.setAccount(Account.uid());
+        live.setAccount(snapshot.getAccount());
+        live.setId((int) AppDatabase.getInstance(this).noteDao().insert(snapshot));
+        NoteSync.OPEN.add(live.getId());
     }
 
     /** Saves if anything changed. Safe to call any time on the main thread. */
@@ -124,12 +147,12 @@ abstract class NoteActivity extends AppCompatActivity {
         final NoteEntity live = note;
         WRITES.execute(() -> {
             // Checked here, on the serial writer, so an earlier insert has always landed.
-            NoteDao dao = AppDatabase.getInstance(this).noteDao();
             if (live.getId() <= 0) {
-                live.setId((int) dao.insert(snapshot));
+                insert(live, snapshot);
             } else {
-                snapshot.setId(live.getId());
-                dao.update(snapshot);
+                AppDatabase.getInstance(this).noteDao().saveContent(live.getId(), snapshot.getTitle(),
+                        snapshot.getContent(), snapshot.getData(), snapshot.getColor(), snapshot.isPinned(),
+                        snapshot.getTimestamp());
             }
         });
     }
@@ -139,8 +162,10 @@ abstract class NoteActivity extends AppCompatActivity {
         doomed.setId(note.getId());
         note = null;
         WRITES.execute(() -> {
-            if (doomed.getId() > 0) AppDatabase.getInstance(this).noteDao().delete(doomed);
-            NoteData.deleteFiles(this, doomed.getId());
+            if (doomed.getId() <= 0) return;
+            NoteSync.OPEN.remove(doomed.getId());
+            AppDatabase.getInstance(this).noteDao().setDeleted(doomed.getId(), true);
+            NoteSync.forget(getApplicationContext(), doomed);
         });
         if (thenFinish) finish();
     }
@@ -242,6 +267,10 @@ abstract class NoteActivity extends AppCompatActivity {
         c.setData(n.getData());
         c.setColor(n.getColor());
         c.setPinned(n.isPinned());
+        c.setUuid(n.getUuid());
+        c.setAccount(n.getAccount());
+        c.setRev(n.getRev());
+        c.setMedia(n.getMedia());
         return c;
     }
 }

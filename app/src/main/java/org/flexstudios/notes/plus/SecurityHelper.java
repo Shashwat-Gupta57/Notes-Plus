@@ -94,27 +94,38 @@ public class SecurityHelper {
     }
     
     public static long getAutoLockDelay(Context context) {
-        return context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-                .getLong(KEY_AUTO_LOCK_TIME, 0); // Default 0: Immediately
+        return getAutoLockDelay(context, "");
     }
-    
+
     public static void setAutoLockDelay(Context context, long delay) {
-        context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-                .edit()
-                .putLong(KEY_AUTO_LOCK_TIME, delay)
-                .apply();
+        setAutoLockDelay(context, "", delay);
     }
 
     public static void updateLastActiveTime(Context context) {
-        context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-                .edit()
-                .putLong(KEY_LAST_ACTIVE_TIME, System.currentTimeMillis())
-                .apply();
+        updateLastActiveTime(context, "");
     }
 
     public static long getLastActiveTime(Context context) {
-        return context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-                .getLong(KEY_LAST_ACTIVE_TIME, 0);
+        return getLastActiveTime(context, "");
+    }
+
+    // Per realm ("" for the gallery, UnlockActivity.REALM_CHAT for chat): each hidden space
+    // keeps its own auto-lock delay and its own idea of when it was last used.
+
+    public static long getAutoLockDelay(Context context, String realm) {
+        return getAppPrefs(context).getLong(KEY_AUTO_LOCK_TIME + realm, 0); // Default 0: Immediately
+    }
+
+    public static void setAutoLockDelay(Context context, String realm, long delay) {
+        getAppPrefs(context).edit().putLong(KEY_AUTO_LOCK_TIME + realm, delay).apply();
+    }
+
+    public static void updateLastActiveTime(Context context, String realm) {
+        getAppPrefs(context).edit().putLong(KEY_LAST_ACTIVE_TIME + realm, System.currentTimeMillis()).apply();
+    }
+
+    public static long getLastActiveTime(Context context, String realm) {
+        return getAppPrefs(context).getLong(KEY_LAST_ACTIVE_TIME + realm, 0);
     }
 
     public static SharedPreferences getAppPrefs(Context context) {

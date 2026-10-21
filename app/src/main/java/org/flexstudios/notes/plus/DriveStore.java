@@ -93,10 +93,20 @@ public class DriveStore {
     private final Map<String, String> folderCache = new HashMap<>();
 
     public DriveStore(Context context, GoogleSignInAccount account) {
+        this(context, credential(context).setSelectedAccount(account.getAccount()));
+    }
+
+    /** For the notes app's attachments, whose Google account is independent of the vault's. */
+    public DriveStore(Context context, String accountEmail) {
+        this(context, credential(context).setSelectedAccountName(accountEmail));
+    }
+
+    private static GoogleAccountCredential credential(Context context) {
+        return GoogleAccountCredential.usingOAuth2(context, Collections.singleton(DriveScopes.DRIVE_FILE));
+    }
+
+    private DriveStore(Context context, GoogleAccountCredential credential) {
         this.context = context.getApplicationContext();
-        GoogleAccountCredential credential = GoogleAccountCredential.usingOAuth2(
-                context, Collections.singleton(DriveScopes.DRIVE_FILE));
-        credential.setSelectedAccount(account.getAccount());
         HttpTransport transport = new NetHttpTransport();
         JsonFactory jsonFactory = GsonFactory.getDefaultInstance();
         this.drive = new Drive.Builder(transport, jsonFactory, credential)
@@ -240,6 +250,16 @@ public class DriveStore {
                 return null;
             });
         }
+    }
+
+    /**
+     * Opens a file to anyone who has its link (reader only). Chat files are encrypted before
+     * upload, so the link alone shows nothing.
+     */
+    public void shareWithLink(String fileId) throws IOException {
+        com.google.api.services.drive.model.Permission anyone = new com.google.api.services.drive.model.Permission()
+                .setType("anyone").setRole("reader");
+        call(() -> drive.permissions().create(fileId, anyone).setFields("id").execute());
     }
 
     public void deleteFile(String fileId) throws IOException {

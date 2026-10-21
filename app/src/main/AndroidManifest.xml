@@ -4,15 +4,24 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!-- Audio notes. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Only up to Android 10, to remove originals and restore items through the file
+         system. From 11 on everything goes through MediaStore and needs no permission. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Long Drive backups run as a foreground job so the system doesn't stop them. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Progress and completion of long backups and restores (Android 13+ asks for it). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
+        android:fullBackupContent="false"
+        tools:targetApi="31"
         android:icon="@mipmap/notes_icon"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/notes_icon_round"
@@ -56,24 +65,46 @@
             android:theme="@style/Theme.Notes" />
 
         <activity
-            android:name=".PhotoViewerActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:taskAffinity=""
-            android:theme="@style/Theme.Notes" />
-
-        <activity
-            android:name=".VideoPlayerActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:taskAffinity=""
-            android:theme="@style/Theme.Notes" />
-
-        <activity
             android:name=".MediaPagerActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:taskAffinity=""
+            android:theme="@style/Theme.Notes" />
+
+        <activity
+            android:name=".DriveSetupActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Notes" />
+
+        <activity
+            android:name=".BackupMigrationActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Notes" />
+
+        <activity
+            android:name=".SyncChoiceActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Notes" />
+
+        <activity
+            android:name=".MindMapActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Notes" />
+
+        <activity
+            android:name=".SketchActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Notes" />
+
+        <activity
+            android:name=".AudioNoteActivity"
+            android:exported="false"
             android:theme="@style/Theme.Notes" />
 
         <activity
@@ -92,11 +123,17 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <receiver android:name=".UpdateDownloadReceiver" android:exported="true">
+        <!-- Exported because DownloadManager is another process; it ignores every id but its own. -->
+        <receiver android:name=".Updater$DownloadReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
             </intent-filter>
         </receiver>
+
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
 
     </application>
 

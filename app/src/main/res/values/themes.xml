@@ -2,7 +2,12 @@
     <!-- Base application theme. -->
     <style name="Base.Theme.Notes" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Global Button Corner Radius -->
+        <!-- Paints the first frame in the app's own colour: no white flash on a cold start. -->
+        <item name="android:windowBackground">@color/gallery_background</item>
         <item name="buttonStyle">@style/Widget.App.Button</item>
+        <!-- Every dialog: Material 3 shape, the app's surface, blue actions. -->
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.App.Dialog</item>
+        <item name="alertDialogTheme">@style/ThemeOverlay.App.Dialog</item>
         <item name="materialButtonStyle">@style/Widget.App.Button</item>
     </style>
 
@@ -14,5 +19,144 @@
 
     <style name="ShapeAppearance.App.Button.Rounded" parent="">
         <item name="cornerSize">24dp</item>
+    </style>
+
+    <!-- Icon-only action in the viewer's bottom bar: equal share of the width, white glyph. -->
+    <style name="Widget.App.ViewerAction" parent="">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">56dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="tint">@color/viewer_icon</item>
+    </style>
+
+    <!-- ===== Settings: grouped cards ===== -->
+    <style name="Settings.Header" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingStart">32dp</item>
+        <item name="android:paddingEnd">32dp</item>
+        <item name="android:paddingTop">24dp</item>
+        <item name="android:paddingBottom">8dp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.04</item>
+    </style>
+
+    <style name="Settings.Footer" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingStart">32dp</item>
+        <item name="android:paddingEnd">32dp</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+
+    <style name="Settings.Card" parent="Widget.Material3.CardView.Filled">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">16dp</item>
+        <item name="android:layout_marginEnd">16dp</item>
+        <item name="cardBackgroundColor">@color/app_surface</item>
+        <item name="cardCornerRadius">14dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeWidth">0dp</item>
+    </style>
+
+    <style name="Settings.Row" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">56dp</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingBottom">10dp</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <style name="Settings.Icon" parent="">
+        <item name="android:layout_width">30dp</item>
+        <item name="android:layout_height">30dp</item>
+        <item name="android:layout_marginEnd">16dp</item>
+        <item name="android:padding">5dp</item>
+        <item name="android:background">@drawable/settings_icon_tile</item>
+        <item name="android:importantForAccessibility">no</item>
+        <item name="tint">@color/white</item>
+    </style>
+
+    <style name="Settings.Texts" parent="">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:orientation">vertical</item>
+    </style>
+
+    <style name="Settings.Title" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
+    <style name="Settings.Subtitle" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">1dp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+
+    <style name="Settings.Chevron" parent="">
+        <item name="android:layout_width">20dp</item>
+        <item name="android:layout_height">20dp</item>
+        <item name="android:src">@drawable/ic_chevron_right</item>
+        <item name="android:importantForAccessibility">no</item>
+        <item name="tint">@color/text_secondary</item>
+    </style>
+
+    <style name="Settings.Divider" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">0.5dp</item>
+        <item name="android:layout_marginStart">62dp</item>
+        <item name="android:background">@color/divider</item>
+    </style>
+
+    <style name="Settings.Chip" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:layout_marginEnd">8dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+    </style>
+
+    <!-- ===== Dialogs ===== -->
+    <style name="ThemeOverlay.App.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorPrimary">@color/accent_blue</item>
+        <item name="colorSurface">@color/app_surface</item>
+        <item name="colorSurfaceContainerHigh">@color/app_surface</item>
+        <item name="android:backgroundDimAmount">0.45</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/Dialog.App.Title</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Dialog.App.Button</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Dialog.App.Button</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Dialog.App.Button</item>
+    </style>
+
+    <style name="Dialog.App.Title" parent="MaterialAlertDialog.Material3.Title.Text">
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+
+    <style name="Dialog.App.Button" parent="Widget.Material3.Button.TextButton.Dialog">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">16sp</item>
     </style>
 </resources>

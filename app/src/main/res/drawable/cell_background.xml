@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gallery cell: the placeholder tone shows until the thumbnail fades in, and the rounded
+     outline clips the image (ItemHolder enables clipToOutline). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/thumb_placeholder" />
+    <corners android:radius="6dp" />
+</shape>

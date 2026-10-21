@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="32dp"
         android:text="Enter PIN"
-        android:textColor="#1C1C1E"
+        android:textColor="@color/text_primary"
         android:textSize="20sp"
         android:textStyle="bold" />
 
@@ -58,8 +58,8 @@
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:layout_marginTop="32dp"
-        android:backgroundTint="#FFCC00"
+        android:backgroundTint="@color/brand_yellow"
         android:text="Unlock"
-        android:textColor="#FFFFFF" />
+        android:textColor="@color/on_brand_yellow" />
 
 </LinearLayout>

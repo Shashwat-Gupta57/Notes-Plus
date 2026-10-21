@@ -10,8 +10,11 @@ android {
         applicationId = "org.flexstudios.notes.plus"
         minSdk = 24
         targetSdk = 36
-        versionCode = 7
-        versionName = "7.00"
+        // Keep in sync with version.json at the repo root and the release tag. The in-app
+        // updater compares version.json's versionCode against this one, so a stale value
+        // here silently tells every user they are up to date.
+        versionCode = 8
+        versionName = "7.50"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -33,6 +36,17 @@ android {
             excludes += "/META-INF/LICENSE.txt"
             excludes += "/META-INF/NOTICE.txt"
             excludes += "/META-INF/ASL2.0"
+        }
+    }
+    testOptions {
+        unitTests {
+            // android.util.Log and friends return defaults instead of throwing in JVM tests.
+            isReturnDefaultValues = true
+            all {
+                // Small on purpose: VaultCryptoTest pushes 256 MB through this heap to prove
+                // the backup format streams instead of buffering.
+                it.maxHeapSize = "128m"
+            }
         }
     }
     compileOptions {
@@ -57,6 +71,7 @@ dependencies {
 
     // Jetpack Security
     implementation(libs.security.crypto)
+    implementation(libs.tink.android)
 
     // Glide for image loading
     implementation(libs.glide)
@@ -87,6 +102,7 @@ dependencies {
     implementation(libs.google.api.client)
     implementation(libs.google.http.client)
     implementation(libs.work.runtime)
+    implementation(libs.exifinterface)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)

@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Full-screen viewer. Draws edge to edge; the bars are padded by the system-bar insets in
+  code and fade away together with the system bars on a tap.
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/viewerRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:background="@color/viewer_background">
 
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/mediaViewPager"
@@ -14,58 +19,57 @@
         android:id="@+id/topBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="8dp"
-        android:gravity="center_vertical"
         android:background="@drawable/gradient_top_shadow"
-        android:orientation="horizontal">
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="24dp">
 
         <ImageButton
             android:id="@+id/pagerBackButton"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_revert"
             android:contentDescription="Back"
-            android:alpha="0.85"
-            app:tint="#FFFFFF" />
+            android:src="@drawable/ic_arrow_back"
+            app:tint="@color/viewer_icon" />
 
-        <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-        <ImageButton
-            android:id="@+id/actionAddToAlbum"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_add"
-            app:tint="#FFFFFF"
-            android:alpha="0.85" />
+            <TextView
+                android:id="@+id/viewerTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/viewer_icon"
+                android:textSize="17sp"
+                android:textStyle="bold" />
 
-        <ImageButton
-            android:id="@+id/actionFavourite"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_heart_empty"
-            app:tint="#FFFFFF"
-            android:alpha="0.85" />
-
-        <ImageButton
-            android:id="@+id/actionShare"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_share"
-            app:tint="#FFFFFF"
-            android:alpha="0.85" />
+            <TextView
+                android:id="@+id/viewerSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:alpha="0.75"
+                android:maxLines="1"
+                android:textColor="@color/viewer_icon"
+                android:textSize="13sp" />
+        </LinearLayout>
 
         <ImageButton
             android:id="@+id/actionInfo"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_info_details"
-            app:tint="#FFFFFF"
-            android:alpha="0.85" />
+            android:contentDescription="Details"
+            android:src="@drawable/ic_info"
+            app:tint="@color/viewer_icon" />
     </LinearLayout>
 
     <LinearLayout
@@ -73,31 +77,41 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:padding="16dp"
-        android:gravity="center"
         android:background="@drawable/gradient_bottom_shadow"
-        android:orientation="horizontal">
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingTop="32dp"
+        android:paddingBottom="8dp">
 
-        <Button
+        <ImageButton
+            android:id="@+id/actionShare"
+            style="@style/Widget.App.ViewerAction"
+            android:contentDescription="Share"
+            android:src="@drawable/ic_share" />
+
+        <ImageButton
+            android:id="@+id/actionFavourite"
+            style="@style/Widget.App.ViewerAction"
+            android:contentDescription="Favourite"
+            android:src="@drawable/ic_heart_empty" />
+
+        <ImageButton
+            android:id="@+id/actionAddToAlbum"
+            style="@style/Widget.App.ViewerAction"
+            android:contentDescription="Add to album"
+            android:src="@drawable/ic_album" />
+
+        <ImageButton
             android:id="@+id/btnRestore"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:text="Restore"
-            android:alpha="0.85"
-            app:icon="@android:drawable/ic_menu_revert" />
+            style="@style/Widget.App.ViewerAction"
+            android:contentDescription="Move back to gallery"
+            android:src="@drawable/ic_move_to_gallery" />
 
-        <Button
+        <ImageButton
             android:id="@+id/btnDelete"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Delete"
-            android:alpha="0.85"
-            android:textColor="#FF3B30"
-            app:iconTint="#FF3B30"
-            app:icon="@android:drawable/ic_menu_delete" />
+            style="@style/Widget.App.ViewerAction"
+            android:contentDescription="Delete"
+            android:src="@drawable/ic_delete" />
     </LinearLayout>
 
 </FrameLayout>

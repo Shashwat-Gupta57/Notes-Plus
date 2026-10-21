@@ -1,25 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The notes app: title bar with search, type filters, the card grid, and "New". -->
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?android:attr/windowBackground"
+    android:background="@color/gallery_background"
     tools:context=".MainActivity">
 
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?android:attr/windowBackground"
+        android:background="@color/gallery_background"
         app:elevation="0dp">
 
         <androidx.appcompat.widget.Toolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
+            app:layout_scrollFlags="scroll|enterAlways|snap"
             app:title="Notes"
-            app:titleTextColor="?android:attr/textColorPrimary" />
+            app:titleTextAppearance="@style/TextAppearance.Material3.HeadlineSmall"
+            app:titleTextColor="@color/text_primary" />
 
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clipToPadding="false"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="6dp"
+            android:scrollbars="none">
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/filterChips"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:selectionRequired="true"
+                app:singleLine="true"
+                app:singleSelection="true" />
+        </HorizontalScrollView>
     </com.google.android.material.appbar.AppBarLayout>
 
     <FrameLayout
@@ -30,7 +50,11 @@
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerViewNotes"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingStart="7dp"
+            android:paddingEnd="7dp"
+            android:paddingBottom="96dp" />
 
         <LinearLayout
             android:id="@+id/emptyStateNotes"
@@ -44,27 +68,32 @@
             <ImageView
                 android:layout_width="80dp"
                 android:layout_height="80dp"
+                android:importantForAccessibility="no"
                 android:src="@drawable/ic_empty_notes"
-                app:tint="#8E8E93" />
+                app:tint="@color/text_secondary" />
 
             <TextView
+                android:id="@+id/emptyStateText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
+                android:gravity="center"
                 android:text="No notes yet"
-                android:textColor="#8E8E93"
+                android:textColor="@color/text_secondary"
                 android:textSize="16sp" />
         </LinearLayout>
     </FrameLayout>
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/fabAddNote"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="24dp"
-        app:backgroundTint="#FFCC00"
-        app:srcCompat="@android:drawable/ic_input_add"
-        app:tint="#FFFFFF" />
+        android:layout_margin="20dp"
+        android:text="New"
+        android:textColor="@color/on_brand_yellow"
+        app:backgroundTint="@color/brand_yellow"
+        app:icon="@drawable/ic_add"
+        app:iconTint="@color/on_brand_yellow" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

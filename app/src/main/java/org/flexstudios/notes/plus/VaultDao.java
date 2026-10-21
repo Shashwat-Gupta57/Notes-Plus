@@ -32,6 +32,10 @@ public interface VaultDao {
     @Query("SELECT * FROM vaults WHERE isMain = 1 LIMIT 1")
     VaultEntity getMainVault();
 
+    /** Cross-device identity lookup; replaces matching vaults by display name. */
+    @Query("SELECT * FROM vaults WHERE uuid = :uuid LIMIT 1")
+    VaultEntity getVaultByUuid(String uuid);
+
     @Query("SELECT COUNT(*) FROM secrets WHERE vaultId = :vaultId")
     int getSecretCountForVault(int vaultId);
 

@@ -1,5 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Semantic palette. Every value here has a values-night counterpart, so a layout that
+  references @color/text_primary (rather than a raw hex) adapts to dark mode for free.
+  Brand and status colours are deliberately identical in both themes.
+-->
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Brand / status: same in light and dark. -->
+    <color name="brand_yellow">#FFCC00</color>
+    <color name="destructive">#FF3B30</color>
+    <color name="accent_blue">#007AFF</color>
+    <!--
+      Content drawn on top of brand_yellow. Fixed across themes because the fill is.
+      NOTE: white on #FFCC00 is about 1.5:1, well under the 4.5:1 minimum. Changing this
+      one value to a near-black is the whole contrast fix when we get to it.
+    -->
+    <color name="on_brand_yellow">#FFFFFFFF</color>
+
+    <!-- Surfaces -->
+    <color name="app_background">#FFFFFFFF</color>
+    <color name="app_surface">#FFFFFFFF</color>
+    <color name="gallery_background">#FFF2F2F7</color>
+    <color name="thumb_placeholder">#FFE5E5EA</color>
+
+    <!-- Content -->
+    <color name="text_primary">#FF000000</color>
+    <color name="text_secondary">#FF8E8E93</color>
+    <color name="text_body">#FF333333</color>
+    <color name="divider">#FFC6C6C8</color>
+
+    <!-- Translucent chip behind a date header, sits over arbitrary vault wallpapers. -->
+    <color name="header_chip_background">#A6FFFFFF</color>
+    <color name="header_chip_text">#FF333333</color>
+
+    <!-- Media viewer is intentionally dark in both themes. -->
+    <color name="viewer_background">#FF000000</color>
+    <color name="viewer_icon">#FFFFFFFF</color>
+
+    <!-- Settings icon tiles: the same in both themes, like the system's own. -->
+    <color name="tile_blue">#FF0A84FF</color>
+    <color name="tile_green">#FF30D158</color>
+    <color name="tile_orange">#FFFF9F0A</color>
+    <color name="tile_purple">#FFBF5AF2</color>
+    <color name="tile_red">#FFFF453A</color>
+    <color name="tile_gray">#FF8E8E93</color>
+    <color name="tile_teal">#FF40C8E0</color>
+
+    <!-- Note card tints (light). values-night has darker, desaturated versions. -->
+    <color name="note_yellow">#FFFFF4C2</color>
+    <color name="note_green">#FFDDF5E1</color>
+    <color name="note_blue">#FFDCEBFF</color>
+    <color name="note_purple">#FFEDE2FF</color>
+    <color name="note_pink">#FFFFE0EA</color>
+    <color name="note_gray">#FFE9E9EE</color>
 </resources>

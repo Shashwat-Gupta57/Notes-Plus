@@ -10,7 +10,7 @@
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
         android:layout_centerVertical="true"
-        app:cardBackgroundColor="#A6FFFFFF"
+        app:cardBackgroundColor="@color/header_chip_background"
         app:cardCornerRadius="8dp"
         app:cardElevation="0dp"
         app:strokeWidth="0dp">
@@ -22,7 +22,7 @@
             android:paddingHorizontal="12dp"
             android:paddingVertical="6dp"
             android:text="Date"
-            android:textColor="#333333"
+            android:textColor="@color/header_chip_text"
             android:textSize="13sp"
             android:textStyle="bold" />
 

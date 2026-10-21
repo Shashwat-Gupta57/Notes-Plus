@@ -1,480 +1,502 @@
 package org.flexstudios.notes.plus;
 
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PushbackInputStream;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
-import java.util.ArrayList;
 
-import javax.crypto.Cipher;
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
-import androidx.security.crypto.EncryptedFile;
-import androidx.security.crypto.MasterKeys;
-
-public class BackupManager {
+/**
+ * Local .bak files: the whole vault as one portable, encrypted file.
+ *
+ * <pre>
+ * "NPBK" 0x03 | keyringLength (u32) | keyring JSON | VaultCrypto v3 payload of a zip:
+ *     snapshot.json            the same manifest a Drive restore point uses
+ *     media/&lt;fileName&gt;        plaintext bytes (inside the encryption)
+ *     backgrounds/&lt;dir&gt;/&lt;f&gt;  wallpapers
+ * </pre>
+ *
+ * Everything streams: vault file → zip → encryption → destination, and back, so memory stays
+ * flat and nothing decrypted touches disk. The keyring travels inside the file, so a backup
+ * opens on a new phone with any vault's lock or the backup password. Older .bak files (v1:
+ * main-lock key; v2: from the migration screen) are still read.
+ *
+ * The methods block and report byte-accurate progress; {@link SyncWorker} runs them as
+ * foreground jobs so a multi-gigabyte vault survives the user leaving the app.
+ */
+public final class BackupManager {
     private static final String TAG = "BackupManager";
-    private final Context context;
-    private final BackupListener listener;
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private static final byte[] MAGIC = {'N', 'P', 'B', 'K'};
+    private static final int FORMAT = 3;
+    private static final int MAX_KEYRING_BYTES = 1 << 20;
+    private static final int BUFFER = 64 * 1024;
 
-    public interface BackupListener {
-        void onProgress(int progress, String message);
-        void onComplete(String message);
-        void onError(String error);
+    private static final String ENTRY_SNAPSHOT = "snapshot.json";
+    private static final String ENTRY_LEGACY_SETTINGS = "settings.json";
+    private static final String DIR_MEDIA = "media/";
+    private static final String DIR_BACKGROUNDS = "backgrounds/";
+
+    private BackupManager() {}
+
+    /** Called from the working thread. Return true from isStopped to cancel. */
+    public interface Progress {
+        void update(long done, long total, String message);
+
+        default boolean isStopped() {
+            return false;
+        }
     }
 
-    public BackupManager(Context context, BackupListener listener) {
-        this.context = context;
-        this.listener = listener;
+    /** What a finished job did, for the completion notice. */
+    public static final class Result {
+        public int items;
+        public long bytes;
     }
 
-    public void createBackup(OutputStream outputStream, String password) {
-        new Thread(() -> {
-            File tempZip = new File(context.getCacheDir(), "backup_temp.zip");
-            try {
-                updateProgress(10, "Gathering data...");
-                AppDatabase db = AppDatabase.getInstance(context);
-                List<VaultEntity> vaults = db.vaultDao().getAllVaultsDirect();
-                List<SecretEntity> secrets = db.secretDao().getAllSecretsDirect();
-                List<AlbumEntity> albums = db.albumDao().getAllAlbumsDirect();
+    // ------------------------------------------------------------------ create
 
-                // Build settings JSON
-                JSONObject settings = new JSONObject();
-                settings.put("auto_lock_time", SecurityHelper.getAutoLockDelay(context));
-                settings.put("lock_setup_done", SecurityHelper.isSetupDone(context));
-                
-                SharedPreferences appPrefs = SecurityHelper.getAppPrefs(context);
-                settings.put("lock_bg_type", appPrefs.getString(SecurityHelper.KEY_LOCK_BG_TYPE, "DEFAULT"));
-                settings.put("lock_bg_value", appPrefs.getString(SecurityHelper.KEY_LOCK_BG_VALUE, null));
-                settings.put("lock_bg_blur", appPrefs.getBoolean(SecurityHelper.KEY_LOCK_BG_BLUR, false));
-                settings.put("lock_bg_dim", appPrefs.getBoolean(SecurityHelper.KEY_LOCK_BG_DIM, false));
-                
-                JSONArray vaultsArray = new JSONArray();
-                for (VaultEntity v : vaults) {
-                    JSONObject vo = new JSONObject();
-                    vo.put("id", v.getId());
-                    vo.put("name", v.getName());
-                    vo.put("lockType", v.getLockType());
-                    vo.put("lockValue", v.getLockValue());
-                    vo.put("isMain", v.isMain());
-                    vo.put("sortOrder", v.getSortOrder());
-                    vo.put("bgType", v.getBgType());
-                    vo.put("bgValue", v.getBgValue());
-                    vaultsArray.put(vo);
-                }
-                settings.put("vaults", vaultsArray);
-
-                JSONArray secretsArray = new JSONArray();
-                for (SecretEntity s : secrets) {
-                    JSONObject so = new JSONObject();
-                    so.put("fileName", s.getFileName());
-                    so.put("originalPath", s.getOriginalPath());
-                    so.put("dateTaken", s.getDateTaken());
-                    so.put("dateAdded", s.getDateAdded());
-                    so.put("isVideo", s.isVideo());
-                    so.put("vaultId", s.getVaultId());
-                    so.put("isFavourite", s.isFavourite());
-                    so.put("albumId", s.getAlbumId());
-                    secretsArray.put(so);
-                }
-                settings.put("secrets", secretsArray);
-
-                JSONArray albumsArray = new JSONArray();
-                for (AlbumEntity a : albums) {
-                    JSONObject ao = new JSONObject();
-                    ao.put("id", a.getId());
-                    ao.put("name", a.getName());
-                    ao.put("vaultId", a.getVaultId());
-                    ao.put("coverFileName", a.getCoverFileName());
-                    albumsArray.put(ao);
-                }
-                settings.put("albums", albumsArray);
-
-                updateProgress(20, "Zipping media files...");
-                try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(tempZip))) {
-                    ZipEntry settingsEntry = new ZipEntry("settings.json");
-                    zos.putNextEntry(settingsEntry);
-                    zos.write(settings.toString().getBytes(StandardCharsets.UTF_8));
-                    zos.closeEntry();
-
-                    File vaultDir = new File(context.getFilesDir(), "vault");
-                    File[] files = vaultDir.listFiles();
-                    if (files != null) {
-                        int count = 0;
-                        String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
-                        for (File f : files) {
-                            if (f.isFile() && !f.getName().equals(".nomedia")) {
-                                try {
-                                    ZipEntry entry = new ZipEntry("media/" + f.getName());
-                                    zos.putNextEntry(entry);
-                                    
-                                    EncryptedFile encryptedStorage = new EncryptedFile.Builder(
-                                            f, context, masterKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
-                                    ).build();
-
-                                    try (InputStream is = encryptedStorage.openFileInput()) {
-                                        byte[] buffer = new byte[16384];
-                                        int len;
-                                        while ((len = is.read(buffer)) > 0) zos.write(buffer, 0, len);
-                                    }
-                                    zos.closeEntry();
-                                } catch (Exception e) {
-                                    Log.e(TAG, "Skipping corrupt file: " + f.getName(), e);
-                                }
-                                count++;
-                                int p = 20 + (int) ((count / (float) files.length) * 50);
-                                updateProgress(p, "Zipping: " + f.getName());
-                            }
-                        }
-                    }
-
-                    // Zip background images
-                    File[] appFiles = context.getFilesDir().listFiles();
-                    if (appFiles != null) {
-                        for (File dir : appFiles) {
-                            if (dir.isDirectory() && dir.getName().startsWith("bg_")) {
-                                File[] bgFiles = dir.listFiles();
-                                if (bgFiles != null) {
-                                    for (File f : bgFiles) {
-                                        if (f.isFile() && !f.getName().endsWith(".mp4")) {
-                                            ZipEntry entry = new ZipEntry("backgrounds/" + dir.getName() + "/" + f.getName());
-                                            zos.putNextEntry(entry);
-                                            try (InputStream is = new FileInputStream(f)) {
-                                                byte[] buffer = new byte[16384];
-                                                int len;
-                                                while ((len = is.read(buffer)) > 0) zos.write(buffer, 0, len);
-                                            }
-                                            zos.closeEntry();
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                updateProgress(80, "Encrypting backup...");
-                encryptToStream(tempZip, outputStream, password);
-
-                db.secretDao().markAllAsSynced();
-                
-                if (tempZip.exists()) tempZip.delete();
-                updateProgress(100, "Done");
-                mainHandler.post(() -> listener.onComplete("Backup Saved Successfully"));
-
-            } catch (Exception e) {
-                Log.e(TAG, "Backup failed", e);
-                if (tempZip.exists()) tempZip.delete();
-                mainHandler.post(() -> listener.onError(e.getMessage()));
-            }
-        }).start();
-    }
-
-    public void restoreBackup(InputStream inputStream, String password, boolean replaceSettings, boolean replaceMedia) {
-        new Thread(() -> {
-            File tempZip = new File(context.getCacheDir(), "restore_temp.zip");
-            File vaultDir = new File(context.getFilesDir(), "vault");
-            File backupVaultDir = new File(context.getFilesDir(), "vault_backup");
+    /** Writes a backup of every vault to {@code out}, then closes it. */
+    public static Result create(Context context, OutputStream out, Progress progress) throws Exception {
+        Result result = new Result();
+        try (OutputStream destination = out) {
+            progress.update(0, 0, "Gathering data");
             AppDatabase db = AppDatabase.getInstance(context);
-            
-            List<VaultEntity> vaultSnapshot = null;
-            List<AlbumEntity> albumSnapshot = null;
-            long autoLockSnapshot = SecurityHelper.getAutoLockDelay(context);
+            Snapshot snapshot = Snapshot.capture(context, db, null);
+            byte[] keyring = VaultCrypto.buildKeyring(context, db.vaultDao().getAllVaultsDirect())
+                    .toString().getBytes(StandardCharsets.UTF_8);
 
-            try {
-                updateProgress(10, "Decrypting backup...");
-                decryptToFile(inputStream, tempZip, password);
+            File vaultDir = VaultMedia.vaultDir(context);
+            long total = 0;
+            for (Snapshot.MediaRecord record : snapshot.media) {
+                total += new File(vaultDir, record.fileName).length();
+            }
 
-                updateProgress(30, "Extracting settings...");
-                JSONObject settings = null;
-                try (ZipInputStream zis = new ZipInputStream(new FileInputStream(tempZip))) {
-                    ZipEntry entry;
-                    while ((entry = zis.getNextEntry()) != null) {
-                        if (entry.getName().equals("settings.json")) {
-                            StringBuilder sb = new StringBuilder();
-                            byte[] buffer = new byte[8192];
+            DataOutputStream header = new DataOutputStream(destination);
+            header.write(MAGIC);
+            header.writeByte(FORMAT);
+            header.writeInt(keyring.length);
+            header.write(keyring);
+
+            long done = 0;
+            try (OutputStream encrypted = VaultCrypto.encryptingStream(destination,
+                    VaultCrypto.getOrCreateDataKey(context), VaultCrypto.getKeyId(context));
+                 ZipOutputStream zip = new ZipOutputStream(encrypted)) {
+                // Photos and videos are already compressed; deflating them again burns CPU.
+                zip.setLevel(Deflater.NO_COMPRESSION);
+
+                zip.putNextEntry(new ZipEntry(ENTRY_SNAPSHOT));
+                zip.write(snapshot.toJson().toString().getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+
+                int count = 0;
+                for (Snapshot.MediaRecord record : snapshot.media) {
+                    File file = new File(vaultDir, record.fileName);
+                    if (!file.exists()) continue;
+                    count++;
+                    String message = "Saving " + count + " of " + snapshot.media.size();
+                    zip.putNextEntry(new ZipEntry(DIR_MEDIA + record.fileName));
+                    try (InputStream in = VaultCrypto.openRead(context, file)) {
+                        done = copy(in, zip, done, total, message, progress);
+                    }
+                    zip.closeEntry();
+                    result.items++;
+                }
+                writeBackgrounds(context, zip);
+            }
+            destination.flush();
+            result.bytes = total;
+            db.secretDao().markAllAsSynced();
+            progress.update(total, total, "Done");
+        }
+        return result;
+    }
+
+    private static void writeBackgrounds(Context context, ZipOutputStream zip) throws IOException {
+        File[] dirs = context.getFilesDir().listFiles();
+        if (dirs == null) return;
+        for (File dir : dirs) {
+            if (!dir.isDirectory() || !dir.getName().startsWith("bg_")) continue;
+            File[] files = dir.listFiles();
+            if (files == null) continue;
+            for (File f : files) {
+                if (!f.isFile()) continue;
+                zip.putNextEntry(new ZipEntry(DIR_BACKGROUNDS + dir.getName() + "/" + f.getName()));
+                try (InputStream in = new FileInputStream(f)) {
+                    VaultCrypto.copy(in, zip);
+                }
+                zip.closeEntry();
+            }
+        }
+    }
+
+    // ----------------------------------------------------------------- restore
+
+    /**
+     * Restores a backup. Items already in the vault are skipped; nothing local is deleted.
+     * {@code replaceLocal} lets the backup's vault names, locks and backgrounds win.
+     *
+     * @param size     the backup's length in bytes for progress, or -1 if unknown
+     * @param password any vault lock or the backup password; ignored when this phone's own
+     *                 key opens the file
+     * @throws VaultCrypto.WrongPasswordException when {@code password} doesn't open it
+     */
+    public static Result restore(Context context, InputStream input, long size, String password,
+                                 boolean replaceLocal, Progress progress) throws Exception {
+        Result result = new Result();
+        List<File> written = new ArrayList<>();
+        try (CountingInputStream counted = new CountingInputStream(input)) {
+            progress.update(0, size, "Opening backup");
+            InputStream zipStream = open(context, counted, password);
+
+            Snapshot snapshot = null;
+            JSONObject legacySettings = null;
+            File vaultDir = VaultMedia.vaultDir(context);
+            byte[] buffer = new byte[BUFFER];
+            try (ZipInputStream zip = new ZipInputStream(zipStream)) {
+                ZipEntry entry;
+                while ((entry = zip.getNextEntry()) != null) {
+                    if (progress.isStopped()) throw new CancellationException("Restore cancelled");
+                    String name = entry.getName();
+                    if (name.equals(ENTRY_SNAPSHOT)) {
+                        snapshot = Snapshot.fromJson(readJson(zip));
+                    } else if (name.equals(ENTRY_LEGACY_SETTINGS)) {
+                        legacySettings = readJson(zip);
+                    } else if (name.startsWith(DIR_MEDIA)) {
+                        File target = resolveInside(vaultDir, name.substring(DIR_MEDIA.length()));
+                        if (target.exists()) continue; // Vault file names are write-once.
+                        final int number = result.items + 1;
+                        VaultCrypto.write(context, target, out -> {
                             int len;
-                            while ((len = zis.read(buffer)) > 0) {
-                                sb.append(new String(buffer, 0, len, StandardCharsets.UTF_8));
+                            while ((len = zip.read(buffer)) != -1) {
+                                out.write(buffer, 0, len);
+                                progress.update(counted.count, size, "Restoring item " + number);
+                                if (progress.isStopped()) throw new CancellationException("Restore cancelled");
                             }
-                            settings = new JSONObject(sb.toString());
-                            break;
-                        }
+                        });
+                        written.add(target);
+                        result.items++;
+                    } else if (name.startsWith(DIR_BACKGROUNDS)) {
+                        restoreBackground(context, zip, name.substring(DIR_BACKGROUNDS.length()));
                     }
                 }
-
-                if (settings == null) throw new Exception("Invalid backup: Missing settings.json");
-                final JSONObject finalSettings = settings;
-
-                // Take snapshots for rollback
-                vaultSnapshot = db.vaultDao().getAllVaultsDirect();
-                albumSnapshot = db.albumDao().getAllAlbumsDirect();
-
-                if (replaceMedia && vaultDir.exists()) {
-                    if (backupVaultDir.exists()) deleteRecursive(backupVaultDir);
-                    vaultDir.renameTo(backupVaultDir);
-                }
-                if (!vaultDir.exists()) vaultDir.mkdirs();
-
-                updateProgress(50, "Restoring media...");
-                String restoreKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
-                try (ZipInputStream zis = new ZipInputStream(new FileInputStream(tempZip))) {
-                    ZipEntry entry;
-                    while ((entry = zis.getNextEntry()) != null) {
-                        if (entry.getName().startsWith("media/")) {
-                            String fileName = entry.getName().substring(6);
-                            File target = new File(vaultDir, fileName);
-                            if (!replaceMedia && target.exists()) continue; 
-                            if (target.exists()) target.delete();
-                            EncryptedFile encryptedStorage = new EncryptedFile.Builder(
-                                    target, context, restoreKeyAlias, EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
-                            ).build();
-                            try (OutputStream os = encryptedStorage.openFileOutput()) {
-                                byte[] buffer = new byte[16384];
-                                int len;
-                                while ((len = zis.read(buffer)) > 0) os.write(buffer, 0, len);
-                            }
-                        } else if (entry.getName().startsWith("backgrounds/")) {
-                            String path = entry.getName().substring(12);
-                            File target = new File(context.getFilesDir(), path);
-                            if (!target.getParentFile().exists()) target.getParentFile().mkdirs();
-                            try (FileOutputStream fos = new FileOutputStream(target)) {
-                                byte[] buffer = new byte[16384];
-                                int len;
-                                while ((len = zis.read(buffer)) > 0) fos.write(buffer, 0, len);
-                            }
-                        }
-                    }
-                }
-
-                updateProgress(80, "Updating database...");
-                if (replaceSettings) {
-                    db.runInTransaction(() -> {
-                        db.vaultDao().deleteAllVaults();
-                        db.albumDao().deleteAllAlbums();
-                        try {
-                            JSONArray vaults = finalSettings.getJSONArray("vaults");
-                            for (int i = 0; i < vaults.length(); i++) {
-                                JSONObject vo = vaults.getJSONObject(i);
-                                VaultEntity v = new VaultEntity(vo.getString("name"), vo.getString("lockType"), 
-                                        vo.getString("lockValue"), vo.getBoolean("isMain"), vo.optInt("sortOrder", i));
-                                v.setId(vo.getInt("id"));
-                                String bgValue = vo.optString("bgValue", null);
-                                if (bgValue != null && bgValue.contains("/files/bg_")) {
-                                    String fileName = new File(bgValue).getName();
-                                    String dirName = new File(bgValue).getParentFile().getName();
-                                    bgValue = new File(new File(context.getFilesDir(), dirName), fileName).getAbsolutePath();
-                                }
-                                v.setBgValue(bgValue);
-                                v.setBgType(vo.optString("bgType", "DEFAULT"));
-                                db.vaultDao().insert(v);
-
-                                if (v.isMain()) {
-                                    SecurityHelper.getEncryptedPrefs(context).edit()
-                                            .putString(SecurityHelper.KEY_LOCK_TYPE, v.getLockType())
-                                            .putString(SecurityHelper.KEY_LOCK_VALUE, v.getLockValue())
-                                            .apply();
-                                    SecurityHelper.setSetupDone(context, true);
-                                }
-                            }
-                        } catch (Exception e) { throw new RuntimeException(e); }
-                    });
-
-                    SecurityHelper.setAutoLockDelay(context, finalSettings.getLong("auto_lock_time"));
-                    SharedPreferences.Editor editor = SecurityHelper.getAppPrefs(context).edit();
-                    editor.putString(SecurityHelper.KEY_LOCK_BG_TYPE, finalSettings.optString("lock_bg_type", "DEFAULT"));
-                    String lockBgValue = finalSettings.optString("lock_bg_value", null);
-                    if (lockBgValue != null && lockBgValue.contains("/files/bg_lock")) {
-                        String fileName = new File(lockBgValue).getName();
-                        lockBgValue = new File(new File(context.getFilesDir(), "bg_lock"), fileName).getAbsolutePath();
-                    }
-                    editor.putString(SecurityHelper.KEY_LOCK_BG_VALUE, lockBgValue);
-                    editor.putBoolean(SecurityHelper.KEY_LOCK_BG_BLUR, finalSettings.optBoolean("lock_bg_blur", false));
-                    editor.putBoolean(SecurityHelper.KEY_LOCK_BG_DIM, finalSettings.optBoolean("lock_bg_dim", false));
-                    editor.apply();
-                }
-
-                JSONArray secrets = finalSettings.getJSONArray("secrets");
-                int totalSecrets = secrets.length();
-                List<SecretEntity> allExistingSecrets = db.secretDao().getAllSecretsDirect();
-                Map<String, SecretEntity> existingMap = new HashMap<>();
-                for (SecretEntity es : allExistingSecrets) {
-                    if (es.getOriginalPath() != null) {
-                        existingMap.put(es.getVaultId() + "_" + new File(es.getOriginalPath()).getName(), es);
-                    }
-                }
-
-                for (int i = 0; i < totalSecrets; i++) {
-                    JSONObject so = secrets.getJSONObject(i);
-                    SecretEntity s = new SecretEntity(so.getString("fileName"), so.getString("originalPath"),
-                            so.getLong("dateTaken"), so.getLong("dateAdded"), so.optBoolean("isVideo", false), so.getInt("vaultId"));
-                    s.setFavourite(so.optBoolean("isFavourite", false));
-                    if (!so.isNull("albumId")) s.setAlbumId(so.getInt("albumId"));
-                    
-                    updateProgress(80, "Updating DB: " + (i + 1) + "/" + totalSecrets);
-                    String originalFileName = new File(s.getOriginalPath()).getName();
-                    SecretEntity existing = existingMap.get(s.getVaultId() + "_" + originalFileName);
-
-                    if (existing == null) {
-                        db.secretDao().insert(s);
-                    } else if (replaceMedia) {
-                        db.secretDao().delete(existing);
-                        db.secretDao().insert(s);
-                    }
-                }
-
-                if (finalSettings.has("albums")) {
-                    JSONArray albums = finalSettings.getJSONArray("albums");
-                    for (int i = 0; i < albums.length(); i++) {
-                        JSONObject ao = albums.getJSONObject(i);
-                        AlbumEntity a = new AlbumEntity(ao.getString("name"), ao.getInt("vaultId"), ao.optString("coverFileName", null));
-                        a.setId(ao.getInt("id"));
-                        if (db.albumDao().getAlbumById(a.getId()) == null) db.albumDao().insert(a);
-                        else db.albumDao().update(a);
-                    }
-                }
-
-                if (backupVaultDir.exists()) deleteRecursive(backupVaultDir);
-                deleteRecursive(context.getCacheDir());
-                context.getCacheDir().mkdirs();
-
-                updateProgress(100, "Restore Complete");
-                mainHandler.post(() -> listener.onComplete("Restored successfully"));
-
-            } catch (Exception e) {
-                Log.e(TAG, "Restore failed", e);
-                if (replaceMedia && backupVaultDir.exists()) {
-                    deleteRecursive(vaultDir);
-                    backupVaultDir.renameTo(vaultDir);
-                }
-                if (vaultSnapshot != null) {
-                    final List<VaultEntity> finalVaultSnapshot = vaultSnapshot;
-                    final List<AlbumEntity> finalAlbumSnapshot = albumSnapshot;
-                    db.runInTransaction(() -> {
-                        db.vaultDao().deleteAllVaults();
-                        db.albumDao().deleteAllAlbums();
-                        for (VaultEntity v : finalVaultSnapshot) db.vaultDao().insert(v);
-                        for (AlbumEntity a : finalAlbumSnapshot) db.albumDao().insert(a);
-                    });
-                    SecurityHelper.setAutoLockDelay(context, autoLockSnapshot);
-                }
-                mainHandler.post(() -> listener.onError("Restore failed: " + e.getMessage()));
-            } finally {
-                if (tempZip.exists()) tempZip.delete();
             }
-        }).start();
+
+            if (snapshot == null && legacySettings != null) {
+                snapshot = fromLegacySettings(context, legacySettings);
+            }
+            if (snapshot == null) throw new IOException("This file is not a Notes+ backup");
+
+            progress.update(size, size, "Updating your vaults");
+            snapshot.apply(context, AppDatabase.getInstance(context), replaceLocal);
+            written.clear(); // Now referenced by rows; they stay.
+            ThumbnailStore.get(context).clearAll();
+            result.bytes = counted.count;
+            return result;
+        } finally {
+            // A failed, cancelled or truncated restore must not leave files no row points at.
+            for (File f : written) {
+                if (f.exists() && !f.delete()) Log.w(TAG, "Could not remove " + f.getName());
+            }
+        }
     }
 
-    private void decryptToFile(InputStream is, File outputFile, String password) throws Exception {
-        byte[] salt = new byte[16];
-        if (readFully(is, salt) < 16) throw new Exception("Invalid backup file");
-        byte[] iv = new byte[12];
-        if (readFully(is, iv) < 12) throw new Exception("Invalid backup file");
+    /**
+     * Reads a backup end to end without restoring anything, and confirms it is whole.
+     *
+     * Every encrypted segment is authenticated as it is read, and the stream refuses to end
+     * early, so reaching the end proves no byte was altered or lost. On top of that the
+     * manifest must be present and every item it lists must be in the archive. This is what
+     * turns "the file was written" into "this file will restore".
+     *
+     * @return what the backup holds
+     * @throws IOException describing what is wrong, if anything is
+     */
+    public static Result verify(Context context, InputStream input, long size, String password,
+                                Progress progress) throws Exception {
+        Result result = new Result();
+        java.util.Set<String> media = new java.util.HashSet<>();
+        Snapshot snapshot = null;
+        boolean legacy = false;
+        byte[] buffer = new byte[BUFFER];
+        try (CountingInputStream counted = new CountingInputStream(input);
+             ZipInputStream zip = new ZipInputStream(open(context, counted, password))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (progress.isStopped()) throw new CancellationException("Verification cancelled");
+                String name = entry.getName();
+                if (name.equals(ENTRY_SNAPSHOT)) {
+                    snapshot = Snapshot.fromJson(readJson(zip));
+                    continue;
+                }
+                if (name.equals(ENTRY_LEGACY_SETTINGS)) legacy = true;
+                if (name.startsWith(DIR_MEDIA)) media.add(name.substring(DIR_MEDIA.length()));
+                long sinceReport = 0;
+                int len;
+                while ((len = zip.read(buffer)) != -1) {
+                    sinceReport += len;
+                    if (sinceReport >= 1 << 20) {
+                        sinceReport = 0;
+                        progress.update(counted.count, size, "Checking " + media.size() + " items");
+                    }
+                }
+            }
+            result.bytes = counted.count;
+        }
+        if (snapshot == null && !legacy) throw new IOException("The backup has no manifest");
+        if (snapshot != null) {
+            int missing = 0;
+            for (Snapshot.MediaRecord record : snapshot.media) {
+                if (!media.contains(record.fileName)) missing++;
+            }
+            if (missing > 0) throw new IOException(missing + " items listed in the backup are not in it");
+        }
+        result.items = media.size();
+        return result;
+    }
 
-        SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 65536, 256);
-        SecretKey tmp = factory.generateSecret(spec);
-        SecretKey secret = new SecretKeySpec(tmp.getEncoded(), "AES");
+    /** Plaintext zip stream of any .bak version. */
+    private static InputStream open(Context context, InputStream raw, String password) throws Exception {
+        PushbackInputStream in = new PushbackInputStream(raw, MAGIC.length);
+        byte[] prefix = new byte[MAGIC.length];
+        int read = new DataInputStream(in).read(prefix);
+        if (read == MAGIC.length && Arrays.equals(prefix, MAGIC)) {
+            DataInputStream header = new DataInputStream(in);
+            int format = header.readUnsignedByte();
+            if (format != FORMAT) throw new IOException("This backup needs a newer version of Notes+");
+            int length = header.readInt();
+            if (length <= 0 || length > MAX_KEYRING_BYTES) throw new IOException("Damaged backup header");
+            byte[] keyring = new byte[length];
+            header.readFully(keyring);
+            VaultCrypto.KeyResolver resolver = VaultCrypto.keyringResolver(context,
+                    new JSONObject(new String(keyring, StandardCharsets.UTF_8)), password);
+            return payload(in, resolver);
+        }
+        if (read > 0) in.unread(prefix, 0, read);
+        // v1 (lock-derived key) or v2 (this phone's data key, from the migration screen).
+        return payload(in, VaultCrypto.keyringResolver(context, null, password));
+    }
 
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv);
-        cipher.init(Cipher.DECRYPT_MODE, secret, gcmSpec);
+    private static InputStream payload(InputStream in, VaultCrypto.KeyResolver resolver) throws Exception {
+        PushbackInputStream pushback = new PushbackInputStream(in, 3);
+        VaultCrypto.Header header = VaultCrypto.readHeader(pushback);
+        try {
+            return VaultCrypto.openDecrypted(pushback, header, resolver);
+        } catch (javax.crypto.AEADBadTagException e) {
+            // Single-shot formats can only report a wrong key as a failed tag.
+            throw new VaultCrypto.WrongPasswordException("That password doesn't open this backup");
+        }
+    }
 
-        // Read all remaining data
-        ArrayList<byte[]> chunks = new ArrayList<>();
-        int totalLength = 0;
-        byte[] buffer = new byte[16384];
+    /**
+     * Re-wraps a pre-7.50 .bak (encrypted with an old lock) as a current one. Used by the
+     * migration screen. The old format was single-shot, so the old file is decrypted in
+     * memory, exactly as the version that wrote it had to.
+     */
+    public static void convertLegacy(Context context, InputStream legacy, String oldLock,
+                                     OutputStream out) throws Exception {
+        InputStream zip = payload(legacy, VaultCrypto.keyringResolver(context, null, oldLock));
+        AppDatabase db = AppDatabase.getInstance(context);
+        byte[] keyring = VaultCrypto.buildKeyring(context, db.vaultDao().getAllVaultsDirect())
+                .toString().getBytes(StandardCharsets.UTF_8);
+        DataOutputStream header = new DataOutputStream(out);
+        header.write(MAGIC);
+        header.writeByte(FORMAT);
+        header.writeInt(keyring.length);
+        header.write(keyring);
+        try (OutputStream encrypted = VaultCrypto.encryptingStream(out,
+                VaultCrypto.getOrCreateDataKey(context), VaultCrypto.getKeyId(context))) {
+            VaultCrypto.copy(zip, encrypted);
+        }
+        out.flush();
+    }
+
+    private static void restoreBackground(Context context, ZipInputStream zip, String path) throws Exception {
+        // Backups only ever contain bg_vault_N/ and bg_lock/ directories.
+        if (!path.startsWith("bg_")) {
+            Log.w(TAG, "Skipping unexpected background entry: " + path);
+            return;
+        }
+        File target = resolveInside(context.getFilesDir(), path);
+        File parent = target.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+            throw new IOException("Could not create " + parent);
+        }
+        try (OutputStream out = new java.io.FileOutputStream(target)) {
+            VaultCrypto.copy(zip, out);
+        }
+    }
+
+    /**
+     * Converts the settings.json of a pre-7.50 backup into a restore point. Those had no
+     * stable identities, so a vault is matched to an existing one by name and lock, and
+     * otherwise given a fresh identity.
+     */
+    private static Snapshot fromLegacySettings(Context context, JSONObject settings) {
+        Snapshot snapshot = new Snapshot();
+        snapshot.id = Snapshot.newId();
+        snapshot.createdAt = System.currentTimeMillis();
+        List<VaultEntity> local = AppDatabase.getInstance(context).vaultDao().getAllVaultsDirect();
+
+        Map<Integer, String> vaultUuidById = new HashMap<>();
+        JSONArray vaults = settings.optJSONArray("vaults");
+        for (int i = 0; vaults != null && i < vaults.length(); i++) {
+            JSONObject vo = vaults.optJSONObject(i);
+            if (vo == null) continue;
+            Snapshot.VaultRecord record = new Snapshot.VaultRecord();
+            record.name = optString(vo, "name");
+            record.lockType = optString(vo, "lockType");
+            record.lockValue = optString(vo, "lockValue");
+            record.isMain = vo.optBoolean("isMain", false);
+            record.sortOrder = vo.optInt("sortOrder", i);
+            record.bgType = optString(vo, "bgType");
+            record.bgValue = optString(vo, "bgValue");
+            record.uuid = "legacy-" + vo.optInt("id", i);
+            for (VaultEntity v : local) {
+                if (v.getUuid() != null && java.util.Objects.equals(v.getName(), record.name)
+                        && java.util.Objects.equals(v.getLockValue(), record.lockValue)) {
+                    record.uuid = v.getUuid();
+                }
+            }
+            vaultUuidById.put(vo.optInt("id", i), record.uuid);
+            snapshot.vaults.add(record);
+        }
+
+        Map<Integer, String> albumUuidById = new HashMap<>();
+        JSONArray albums = settings.optJSONArray("albums");
+        for (int i = 0; albums != null && i < albums.length(); i++) {
+            JSONObject ao = albums.optJSONObject(i);
+            if (ao == null) continue;
+            Snapshot.AlbumRecord record = new Snapshot.AlbumRecord();
+            record.uuid = "legacy-album-" + ao.optInt("id", i);
+            record.name = optString(ao, "name");
+            record.vaultUuid = vaultUuidById.get(ao.optInt("vaultId", 1));
+            record.coverFileName = optString(ao, "coverFileName");
+            albumUuidById.put(ao.optInt("id", i), record.uuid);
+            snapshot.albums.add(record);
+        }
+
+        JSONArray secrets = settings.optJSONArray("secrets");
+        for (int i = 0; secrets != null && i < secrets.length(); i++) {
+            JSONObject so = secrets.optJSONObject(i);
+            if (so == null || optString(so, "fileName") == null) continue;
+            Snapshot.MediaRecord record = new Snapshot.MediaRecord();
+            record.fileName = optString(so, "fileName");
+            record.originalPath = optString(so, "originalPath");
+            record.dateTaken = so.optLong("dateTaken", 0);
+            record.dateAdded = so.optLong("dateAdded", 0);
+            record.isVideo = so.optBoolean("isVideo", false);
+            record.isFavourite = so.optBoolean("isFavourite", false);
+            record.vaultUuid = vaultUuidById.get(so.optInt("vaultId", 1));
+            record.albumUuid = so.isNull("albumId") ? null : albumUuidById.get(so.optInt("albumId"));
+            snapshot.media.add(record);
+        }
+
+        try {
+            snapshot.lockSettings.put("auto_lock_time", settings.optLong("auto_lock_time", 0));
+            snapshot.lockSettings.put("lock_bg_type", settings.optString("lock_bg_type", "DEFAULT"));
+            snapshot.lockSettings.put("lock_bg_value", settings.isNull("lock_bg_value")
+                    ? JSONObject.NULL : settings.optString("lock_bg_value"));
+            snapshot.lockSettings.put("lock_bg_blur", settings.optBoolean("lock_bg_blur", false));
+            snapshot.lockSettings.put("lock_bg_dim", settings.optBoolean("lock_bg_dim", false));
+        } catch (Exception e) {
+            Log.w(TAG, "Could not carry over lock settings", e);
+        }
+        return snapshot;
+    }
+
+    // ------------------------------------------------------------------ helpers
+
+    /** Copies one entry, reporting progress about every megabyte and honouring cancel. */
+    private static long copy(InputStream in, OutputStream out, long done, long total, String message,
+                             Progress progress) throws IOException {
+        byte[] buffer = new byte[BUFFER];
+        long sinceReport = 0;
         int len;
-        while ((len = is.read(buffer)) > 0) {
-            byte[] chunk = new byte[len];
-            System.arraycopy(buffer, 0, chunk, 0, len);
-            chunks.add(chunk);
-            totalLength += len;
-        }
-
-        byte[] encryptedData = new byte[totalLength];
-        int currentPos = 0;
-        for (byte[] chunk : chunks) {
-            System.arraycopy(chunk, 0, encryptedData, currentPos, chunk.length);
-            currentPos += chunk.length;
-        }
-
-        byte[] decryptedData = cipher.doFinal(encryptedData);
-        try (FileOutputStream fos = new FileOutputStream(outputFile)) {
-            fos.write(decryptedData);
-        }
-    }
-
-    private int readFully(InputStream is, byte[] buffer) throws IOException {
-        int offset = 0;
-        while (offset < buffer.length) {
-            int read = is.read(buffer, offset, buffer.length - offset);
-            if (read == -1) break;
-            offset += read;
-        }
-        return offset;
-    }
-
-    private void deleteRecursive(File fileOrDirectory) {
-        if (fileOrDirectory.isDirectory()) {
-            File[] children = fileOrDirectory.listFiles();
-            if (children != null) {
-                for (File child : children) deleteRecursive(child);
+        while ((len = in.read(buffer)) != -1) {
+            out.write(buffer, 0, len);
+            done += len;
+            sinceReport += len;
+            if (sinceReport >= 1 << 20) {
+                sinceReport = 0;
+                progress.update(done, total, message);
+                if (progress.isStopped()) throw new CancellationException("Backup cancelled");
             }
         }
-        fileOrDirectory.delete();
+        progress.update(done, total, message);
+        return done;
     }
 
-    private void encryptToStream(File inputFile, OutputStream outputStream, String password) throws Exception {
-        byte[] salt = new byte[16];
-        new SecureRandom().nextBytes(salt);
-        byte[] iv = new byte[12];
-        new SecureRandom().nextBytes(iv);
+    /** Counts bytes consumed from the backup file, which is what restore progress is measured in. */
+    private static final class CountingInputStream extends FilterInputStream {
+        long count;
 
-        SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 65536, 256);
-        SecretKey tmp = factory.generateSecret(spec);
-        SecretKey secret = new SecretKeySpec(tmp.getEncoded(), "AES");
+        CountingInputStream(InputStream in) {
+            super(in);
+        }
 
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv);
-        cipher.init(Cipher.ENCRYPT_MODE, secret, gcmSpec);
+        @Override
+        public int read() throws IOException {
+            int b = super.read();
+            if (b != -1) count++;
+            return b;
+        }
 
-        outputStream.write(salt);
-        outputStream.write(iv);
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            int n = super.read(b, off, len);
+            if (n > 0) count += n;
+            return n;
+        }
 
-        try (FileInputStream fis = new FileInputStream(inputFile)) {
-            byte[] inputData = new byte[(int) inputFile.length()];
-            if (readFully(fis, inputData) < inputData.length) throw new Exception("Failed to read input file");
-            byte[] encryptedData = cipher.doFinal(inputData);
-            outputStream.write(encryptedData);
+        @Override
+        public long skip(long n) throws IOException {
+            long skipped = super.skip(n);
+            count += skipped;
+            return skipped;
         }
     }
 
-    private void updateProgress(int progress, String message) {
-        mainHandler.post(() -> listener.onProgress(progress, message));
+    private static JSONObject readJson(ZipInputStream zip) throws Exception {
+        return new JSONObject(new String(VaultCrypto.readAll(zip), StandardCharsets.UTF_8));
+    }
+
+    private static String optString(JSONObject o, String key) {
+        if (o.isNull(key)) return null;
+        String value = o.optString(key, null);
+        return value == null || value.isEmpty() ? null : value;
+    }
+
+    /**
+     * Resolves a zip entry name inside its directory, rejecting anything that escapes it.
+     * A .bak is a file the user picks, so its entry names are untrusted ("zip slip").
+     */
+    private static File resolveInside(File parentDir, String relativePath) throws IOException {
+        File target = new File(parentDir, relativePath);
+        String parentPath = parentDir.getCanonicalPath() + File.separator;
+        if (!target.getCanonicalPath().startsWith(parentPath)) {
+            throw new IOException("Backup entry escapes its directory: " + relativePath);
+        }
+        return target;
     }
 }

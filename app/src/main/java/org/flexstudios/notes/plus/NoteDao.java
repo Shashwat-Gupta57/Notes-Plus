@@ -20,9 +20,20 @@ public interface NoteDao {
     @Delete
     void delete(NoteEntity note);
 
-    @Query("SELECT * FROM notes ORDER BY timestamp DESC")
+    /** Pinned first, then newest. Served by index_notes_pinned_timestamp. */
+    @Query("SELECT * FROM notes ORDER BY pinned DESC, timestamp DESC")
     LiveData<List<NoteEntity>> getAllNotes();
+
+    /** For pickers (linking a mind-map idea to a note). */
+    @Query("SELECT * FROM notes ORDER BY pinned DESC, timestamp DESC")
+    List<NoteEntity> getAllDirect();
 
     @Query("SELECT * FROM notes WHERE id = :noteId")
     NoteEntity getNoteById(int noteId);
+
+    @Query("UPDATE notes SET pinned = :pinned WHERE id = :noteId")
+    void setPinned(int noteId, boolean pinned);
+
+    @Query("UPDATE notes SET color = :color WHERE id = :noteId")
+    void setColor(int noteId, int color);
 }

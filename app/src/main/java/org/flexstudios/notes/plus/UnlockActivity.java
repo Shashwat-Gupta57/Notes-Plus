@@ -9,6 +9,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TextView;
+import androidx.core.content.ContextCompat;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
@@ -21,7 +22,6 @@ import com.bumptech.glide.request.RequestOptions;
 
 import java.io.File;
 import java.util.List;
-import java.util.concurrent.Executors;
 
 import jp.wasabeef.glide.transformations.BlurTransformation;
 
@@ -30,10 +30,16 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
     public static final String EXTRA_UNLOCKED_FLAG = "is_unlocked";
     public static final String EXTRA_VAULT_ID = "vault_id";
     
+    /** Free attempts before the first lockout. */
+    private static final int FREE_ATTEMPTS = 5;
+    private static final long FIRST_LOCKOUT_MS = 30_000;
+    private static final long MAX_LOCKOUT_MS = 60 * 60_000;
+    private static final String KEY_FAILURES = "unlock_failures";
+    private static final String KEY_LOCKED_UNTIL = "unlock_locked_until";
+
     private ViewPager2 viewPager;
     private TextView errorText;
-    private int failedAttempts = 0;
-    private boolean isLockedOut = false;
+    private CountDownTimer lockoutTimer;
     private boolean verifyOnly = false;
     private List<VaultEntity> allVaults;
 
@@ -142,7 +148,7 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
     }
 
     private void restoreDefaultBackground() {
-        unlockRoot.setBackgroundColor(Color.WHITE);
+        unlockRoot.setBackgroundColor(ContextCompat.getColor(this, R.color.app_background));
         lockBackground.setVisibility(View.GONE);
         lockDimOverlay.setVisibility(View.GONE);
         videoBgView.setVisibility(View.GONE);
@@ -150,7 +156,7 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
     }
 
     private void loadVaults() {
-        Executors.newSingleThreadExecutor().execute(() -> {
+        AppDatabase.IO.execute(() -> {
             allVaults = AppDatabase.getInstance(this).vaultDao().getAllVaultsDirect();
             VaultEntity mainVault = AppDatabase.getInstance(this).vaultDao().getMainVault();
             
@@ -167,7 +173,11 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
 
     @Override
     public void onUnlockAttempt(String type, String value) {
-        if (isLockedOut || allVaults == null) return;
+        if (allVaults == null) return;
+        if (lockoutRemaining() > 0) {
+            showLockout();
+            return;
+        }
 
         VaultEntity matchedVault = null;
         for (VaultEntity v : allVaults) {
@@ -178,6 +188,8 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
         }
 
         if (matchedVault != null) {
+            SecurityHelper.getAppPrefs(this).edit()
+                    .remove(KEY_FAILURES).remove(KEY_LOCKED_UNTIL).apply();
             SecurityHelper.updateLastActiveTime(this);
             if (verifyOnly) {
                 setResult(RESULT_OK);
@@ -193,28 +205,107 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
         }
     }
 
+    /**
+     * Counts a failure and, past the free attempts, locks out for 30 s, doubling with every
+     * further miss up to an hour. Stored, not held in memory: the old counter reset whenever
+     * the screen was closed and reopened, so a 4-digit PIN could be walked in an afternoon.
+     */
     private void handleFailedAttempt() {
-        failedAttempts++;
-        errorText.setText("Incorrect"); // Generic message
-        errorText.setVisibility(View.VISIBLE);
+        android.content.SharedPreferences prefs = SecurityHelper.getAppPrefs(this);
+        int failures = prefs.getInt(KEY_FAILURES, 0) + 1;
+        android.content.SharedPreferences.Editor editor = prefs.edit().putInt(KEY_FAILURES, failures);
+        if (failures >= FREE_ATTEMPTS) {
+            int doublings = Math.min(failures - FREE_ATTEMPTS, 20);
+            long lockout = Math.min(FIRST_LOCKOUT_MS << doublings, MAX_LOCKOUT_MS);
+            editor.putLong(KEY_LOCKED_UNTIL, System.currentTimeMillis() + lockout);
+        }
+        editor.apply();
 
-        if (failedAttempts >= 5) {
-            startLockout();
+        if (lockoutRemaining() > 0) {
+            showLockout();
+        } else {
+            errorText.setText("Incorrect"); // Deliberately generic.
+            errorText.setVisibility(View.VISIBLE);
         }
     }
 
-    private void startLockout() {
-        isLockedOut = true;
-        new CountDownTimer(30000, 1000) {
+    private long lockoutRemaining() {
+        long until = SecurityHelper.getAppPrefs(this).getLong(KEY_LOCKED_UNTIL, 0);
+        long remaining = until - System.currentTimeMillis();
+        // A clock moved backwards must not extend a lockout indefinitely.
+        return remaining > MAX_LOCKOUT_MS ? MAX_LOCKOUT_MS : remaining;
+    }
+
+    private void showLockout() {
+        if (lockoutTimer != null) lockoutTimer.cancel();
+        errorText.setVisibility(View.VISIBLE);
+        lockoutTimer = new CountDownTimer(lockoutRemaining(), 1000) {
             public void onTick(long millisUntilFinished) {
-                errorText.setText("Locked out for " + (millisUntilFinished / 1000) + "s");
+                errorText.setText("Try again in " + (millisUntilFinished / 1000 + 1) + "s");
             }
+
             public void onFinish() {
-                isLockedOut = false;
-                failedAttempts = 0;
                 errorText.setVisibility(View.INVISIBLE);
             }
         }.start();
+    }
+
+    /**
+     * Asks for whatever opens a backup: the backup password, or any vault's PIN, password or
+     * pattern. Patterns are drawn, not typed; a vault locked with one is otherwise impossible
+     * to name in a text box.
+     *
+     * @param onCancel may be null
+     */
+    static void askForBackupKey(android.app.Activity activity, java.util.function.Consumer<String> onKey,
+                                Runnable onCancel) {
+        float density = activity.getResources().getDisplayMetrics().density;
+        int pad = Math.round(24 * density);
+        android.widget.LinearLayout box = new android.widget.LinearLayout(activity);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.setPadding(pad, Math.round(8 * density), pad, 0);
+
+        com.google.android.material.textfield.TextInputLayout field =
+                Prompts.field(activity, "Password or PIN", null, Prompts.PASSWORD);
+        com.google.android.material.textfield.TextInputEditText input =
+                (com.google.android.material.textfield.TextInputEditText) field.getEditText();
+        box.addView(field);
+
+        PatternView pattern = new PatternView(activity, null);
+        int size = Math.round(260 * density);
+        android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(size, size);
+        lp.gravity = android.view.Gravity.CENTER_HORIZONTAL;
+        pattern.setVisibility(View.GONE);
+        box.addView(pattern, lp);
+
+        com.google.android.material.button.MaterialButton toggle =
+                new com.google.android.material.button.MaterialButton(activity, null,
+                        com.google.android.material.R.attr.materialButtonOutlinedStyle);
+        toggle.setText("Draw a pattern instead");
+        box.addView(toggle);
+
+        androidx.appcompat.app.AlertDialog dialog = new com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
+                .setTitle("Unlock backup")
+                .setMessage("Enter the backup password, or the lock of any vault in that backup.")
+                .setView(box)
+                .setPositiveButton("Open", (d, w) -> onKey.accept(Prompts.textOf(input)))
+                .setNegativeButton(onCancel == null ? "Cancel" : "Skip", (d, w) -> {
+                    if (onCancel != null) onCancel.run();
+                })
+                .setCancelable(false)
+                .create();
+        toggle.setOnClickListener(v -> {
+            boolean showPattern = pattern.getVisibility() != View.VISIBLE;
+            pattern.setVisibility(showPattern ? View.VISIBLE : View.GONE);
+            field.setVisibility(showPattern ? View.GONE : View.VISIBLE);
+            toggle.setText(showPattern ? "Type a password or PIN instead" : "Draw a pattern instead");
+        });
+        pattern.setOnPatternListener(value -> {
+            dialog.dismiss();
+            onKey.accept(value);
+        });
+        Prompts.wire(dialog, input);
+        dialog.show();
     }
 
     public void setSwipeEnabled(boolean enabled) {
@@ -224,6 +315,7 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
     @Override
     protected void onResume() {
         super.onResume();
+        if (lockoutRemaining() > 0) showLockout();
         if (exoPlayer != null && !exoPlayer.isPlaying()) {
             exoPlayer.play();
         }
@@ -240,6 +332,7 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (lockoutTimer != null) lockoutTimer.cancel();
         stopVideoBackground();
     }
 }

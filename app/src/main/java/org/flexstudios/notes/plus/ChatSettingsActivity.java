@@ -63,6 +63,13 @@ public class ChatSettingsActivity extends VaultActivity {
             if (canEdit()) addVault();
         });
         findViewById(R.id.rowAutoLock).setOnClickListener(v -> pickAutoLock());
+        com.google.android.material.materialswitch.MaterialSwitch screenshots = findViewById(R.id.switchScreenshots);
+        screenshots.setChecked(SecurityHelper.screenshotsAllowed(this, UnlockActivity.REALM_CHAT));
+        screenshots.setOnCheckedChangeListener((b, allowed) -> {
+            SecurityHelper.setScreenshotsAllowed(this, UnlockActivity.REALM_CHAT, allowed);
+            SecurityHelper.applyScreenProtection(getWindow(), this, UnlockActivity.REALM_CHAT);
+        });
+
         findViewById(R.id.rowPhoto).setOnClickListener(v -> {
             if (canEdit()) choosePhoto();
         });

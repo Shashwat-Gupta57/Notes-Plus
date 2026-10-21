@@ -109,6 +109,26 @@ public class SecurityHelper {
         return getLastActiveTime(context, "");
     }
 
+    private static final String KEY_ALLOW_SCREENSHOTS = "allow_screenshots";
+
+    /** Off by default: the hidden screens block capture and blank their recents thumbnail. */
+    public static boolean screenshotsAllowed(Context context, String realm) {
+        return getAppPrefs(context).getBoolean(KEY_ALLOW_SCREENSHOTS + realm, false);
+    }
+
+    public static void setScreenshotsAllowed(Context context, String realm, boolean allowed) {
+        getAppPrefs(context).edit().putBoolean(KEY_ALLOW_SCREENSHOTS + realm, allowed).apply();
+    }
+
+    /** FLAG_SECURE on or off for {@code window}, per the realm's setting. */
+    public static void applyScreenProtection(android.view.Window window, Context context, String realm) {
+        if (screenshotsAllowed(context, realm)) {
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+        } else {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+        }
+    }
+
     // Per realm ("" for the gallery, UnlockActivity.REALM_CHAT for chat): each hidden space
     // keeps its own auto-lock delay and its own idea of when it was last used.
 

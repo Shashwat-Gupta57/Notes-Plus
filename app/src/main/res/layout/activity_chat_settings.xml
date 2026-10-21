@@ -160,6 +160,22 @@
 
                         <View style="@style/Settings.Divider" />
 
+                        <View style="@style/Settings.Divider" />
+
+                        <LinearLayout style="@style/Settings.Row">
+                            <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_gray" android:src="@drawable/ic_photo" />
+                            <LinearLayout style="@style/Settings.Texts">
+                                <TextView style="@style/Settings.Title" android:text="Allow screenshots" />
+                                <TextView style="@style/Settings.Subtitle" android:text="Off: these screens can't be captured, and show blank in recent apps" />
+                            </LinearLayout>
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/switchScreenshots"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+
+                        <View style="@style/Settings.Divider" />
+
                         <LinearLayout android:id="@+id/rowLockBackground" style="@style/Settings.Row">
                             <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_purple" android:src="@drawable/ic_wallpaper" />
                             <LinearLayout style="@style/Settings.Texts">

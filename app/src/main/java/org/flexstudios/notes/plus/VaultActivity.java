@@ -32,13 +32,15 @@ public abstract class VaultActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
+        SecurityHelper.applyScreenProtection(getWindow(), this, realm());
         vaultId = getIntent().getIntExtra(UnlockActivity.EXTRA_VAULT_ID, 1);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        // Re-read: the setting can change on another screen of the same space.
+        SecurityHelper.applyScreenProtection(getWindow(), this, realm());
         long away = System.currentTimeMillis() - SecurityHelper.getLastActiveTime(this, realm());
         long limit = Math.max(SecurityHelper.getAutoLockDelay(this, realm()), MIN_LOCK_DELAY_MS);
         if (externalActivityExpected) limit = Math.max(limit, EXTERNAL_GRACE_MS);

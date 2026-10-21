@@ -117,6 +117,7 @@ public class GallerySettingsActivity extends VaultActivity {
         findViewById(R.id.optionBackupPassword).setOnClickListener(v -> showBackupPasswordDialog());
 
         setupAutoLock();
+        setupScreenshots();
         setupBackgroundSettings();
         setupUpdateSettings();
         setupDriveSettings();
@@ -137,6 +138,16 @@ public class GallerySettingsActivity extends VaultActivity {
             runOnUiThread(() -> state.setText(set
                     ? "On · backups open only with this password"
                     : "Recommended: PINs are easy to guess offline"));
+        });
+    }
+
+    /** Screenshots of this space: off (protected) unless the owner turns them on. */
+    private void setupScreenshots() {
+        com.google.android.material.materialswitch.MaterialSwitch screenshots = findViewById(R.id.switchScreenshots);
+        screenshots.setChecked(SecurityHelper.screenshotsAllowed(this, ""));
+        screenshots.setOnCheckedChangeListener((b, allowed) -> {
+            SecurityHelper.setScreenshotsAllowed(this, "", allowed);
+            SecurityHelper.applyScreenProtection(getWindow(), this, "");
         });
     }
 

@@ -161,7 +161,7 @@ between the two.
 
 `UnlockActivity.EXTRA_VAULT_ID` is the extra that carries the unlocked vault through
 every downstream screen. **Every vault screen extends `VaultActivity`**, which sets
-`FLAG_SECURE`, reads `vaultId`, and enforces auto-lock on resume (relocking via
+`FLAG_SECURE` (unless that space's "Allow screenshots" switch is on: `SecurityHelper.applyScreenProtection`, per realm), reads `vaultId`, and enforces auto-lock on resume (relocking via
 `MainActivity.EXTRA_RELOCK`). Call `expectExternalActivity()` before launching a picker,
 share sheet or sign-in, or returning from it will lock the vault. Unlock failures and
 lockouts are persisted (exponential, 30 s → 1 h).
@@ -241,7 +241,7 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-The build file is at 9 / "9.1". `version.json` deliberately still advertises 7 — bump it
+The build file is at 10 / "9.2". `version.json` deliberately still advertises 7 — bump it
 only when an APK for the new version is actually published, or every user is prompted to
 download a release that does not exist.
 

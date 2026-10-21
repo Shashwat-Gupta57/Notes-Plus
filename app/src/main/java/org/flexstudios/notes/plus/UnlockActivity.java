@@ -60,11 +60,11 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
+        chat = REALM_CHAT.equals(getIntent().getStringExtra(EXTRA_REALM));
+        SecurityHelper.applyScreenProtection(getWindow(), this, chat ? REALM_CHAT : "");
         setContentView(R.layout.activity_unlock);
 
         verifyOnly = getIntent().getBooleanExtra(EXTRA_VERIFY_ONLY, false);
-        chat = REALM_CHAT.equals(getIntent().getStringExtra(EXTRA_REALM));
         viewPager = findViewById(R.id.unlockViewPager);
         errorText = findViewById(R.id.errorText);
         lockBackground = findViewById(R.id.lockBackground);

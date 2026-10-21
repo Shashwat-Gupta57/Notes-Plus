@@ -13,3 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Build outputs and device logs: never committed.
+/app/release/
+/[Ll]ogcat*.txt

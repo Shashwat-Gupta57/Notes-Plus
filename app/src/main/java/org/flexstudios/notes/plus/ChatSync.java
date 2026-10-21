@@ -282,8 +282,12 @@ final class ChatSync {
                 message.put("media", toMap(meta.toJson()));
             }
             update.put("chats/" + c.chatId + "/messages/" + m.msgKey, message);
-            update.put("chatIndex/" + c.peerUid + "/" + c.chatId, index(uid, myName, c.peerVault, vault.code));
-            update.put("chatIndex/" + uid + "/" + c.chatId, index(c.peerUid, c.peerName, vault.code, c.peerVault));
+            // Index entries name the IDs the conversation was made with (its address), even if
+            // this vault has a new ID since: the rules check them against the members.
+            String myAddress = ChatVaults.addressOf(c.chatId, uid);
+            if (myAddress == null) myAddress = vault.code;
+            update.put("chatIndex/" + c.peerUid + "/" + c.chatId, index(uid, myName, c.peerVault, myAddress));
+            update.put("chatIndex/" + uid + "/" + c.chatId, index(c.peerUid, c.peerName, myAddress, c.peerVault));
             try {
                 await(Account.root().updateChildren(update));
             } catch (ExecutionException e) {
@@ -428,12 +432,10 @@ final class ChatSync {
         for (ChatStore.Conversation c : dao.allConversations()) {
             if (c.peerUid == null) continue;
             String code = c.peerShown != null ? c.peerShown : c.peerVault;
-            String photo = code == null ? null
-                    : jsonOf(await(Account.root().child("vaultPhotos").child(c.peerUid).child(code).get()).getValue());
+            String photo = code == null ? null : quietly(Account.root().child("vaultPhotos").child(c.peerUid).child(code));
             if (photo == null) {
                 if (!accountPhotos.containsKey(c.peerUid)) {
-                    accountPhotos.put(c.peerUid, jsonOf(await(Account.root().child("profiles").child(c.peerUid)
-                            .child("photo").get()).getValue()));
+                    accountPhotos.put(c.peerUid, quietly(Account.root().child("profiles").child(c.peerUid).child("photo")));
                 }
                 photo = accountPhotos.get(c.peerUid);
             }
@@ -441,6 +443,17 @@ final class ChatSync {
                 c.peerPhoto = photo;
                 dao.updateConversation(c);
             }
+        }
+    }
+
+    /** A photo is decoration: one that can't be read leaves the initial, never fails a sync. */
+    @Nullable
+    private static String quietly(DatabaseReference ref) {
+        try {
+            return jsonOf(await(ref.get()).getValue());
+        } catch (Exception e) {
+            Log.w(TAG, "No photo for " + ref.getKey(), e);
+            return null;
         }
     }
 

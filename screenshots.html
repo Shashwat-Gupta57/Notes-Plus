@@ -3,241 +3,85 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Screenshots — Notes+</title>
-  <meta name="description" content="See Notes+ in action — screenshots of the notepad, secret vault lock screen, encrypted gallery, albums, and settings.">
-  <meta name="theme-color" content="#0A0A0F">
-  <meta name="author" content="Shashwat Gupta">
-
-  <meta property="og:title" content="Screenshots — Notes+">
-  <meta property="og:description" content="See every screen of Notes+ — from the clean notepad to the hidden vault.">
-  <meta property="og:type" content="website">
-
+  <title>Screens — Notes+</title>
+  <meta name="description" content="Screens of Notes+ 9.2: notes, the hidden vault and the hidden chat.">
+  <meta name="theme-color" content="#07040d">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600&display=swap">
   <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/animations.css">
   <link rel="icon" type="image/png" href="res/notes_icon.png">
 </head>
 <body>
+  <a class="skip" href="#main">Skip to content</a>
 
-  <!-- ========== NAVBAR ========== -->
-  <nav class="navbar" id="navbar" role="navigation" aria-label="Main navigation">
+  <nav class="navbar" aria-label="Main">
     <div class="container">
-      <a href="index.html" class="navbar-brand" aria-label="Notes+ Home">
-        <img class="brand-icon" src="res/notes_icon.png" alt="Notes+ icon" aria-hidden="true">
+      <a href="index.html" class="navbar-brand" aria-label="Notes+ home">
+        <img src="res/notes_icon.png" alt="" width="36" height="36">
         Notes<span class="brand-plus">+</span>
       </a>
-      <div class="nav-links" id="navLinks" role="menubar">
-        <a href="features.html" role="menuitem">Features</a>
-        <a href="screenshots.html" role="menuitem">Screenshots</a>
-        <a href="download.html" role="menuitem">Download</a>
-        <a href="privacy.html" role="menuitem">Privacy</a>
+      <div class="nav-links" id="navLinks">
+        <a href="features.html">Features</a>
+        <a href="screenshots.html">Screens</a>
+        <a href="download.html">Download</a>
+        <a href="privacy.html">Privacy</a>
       </div>
-      <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
-        <span></span><span></span><span></span>
-      </button>
+      <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="navLinks"><span></span><span></span><span></span></button>
     </div>
   </nav>
-  <div class="nav-overlay" id="navOverlay"></div>
+  <div class="nav-overlay"></div>
 
-  <!-- ========== PAGE HEADER ========== -->
-  <header class="page-header">
+  <header class="page-head">
     <div class="container">
-      <span class="section-label anim-hero-text">— Gallery —</span>
-      <h1 class="anim-hero-text-delay-1">See it in action</h1>
-      <p class="anim-hero-text-delay-2">Every screen of Notes+, from the clean notepad to the deepest vault settings.</p>
+      <span class="biome">[ Screenshots ]</span>
+      <h1>See it <span class="c-gold">in action</span></h1>
+      <p>From the overworld to the deepest vault. Tap any screen to look closer.</p>
     </div>
   </header>
 
-  <!-- ========== SCREENSHOTS GRID ========== -->
-  <main class="screenshots-page">
+  <main id="main" class="section">
     <div class="container">
-      <div class="screenshots-grid">
-
-        <!-- 1 -->
-        <div class="screenshot-item reveal reveal-delay-1" data-index="0" onclick="openLightbox(0)">
-          <div class="phone-mockup">
-            <div class="phone-frame">
-              <img src="res/ss-1.png" alt="Notes list view" width="256" height="554" loading="lazy">
-            </div>
-          </div>
-          <p class="screenshot-caption">Clean note list with titles, dates, and content previews</p>
-        </div>
-
-        <!-- 2 -->
-        <div class="screenshot-item reveal reveal-delay-2" data-index="1" onclick="openLightbox(1)">
-          <div class="phone-mockup">
-            <div class="phone-frame">
-              <img src="res/ss-2.png" alt="Note editor view" width="256" height="554" loading="lazy">
-            </div>
-          </div>
-          <p class="screenshot-caption">Distraction-free note editor with auto-save</p>
-        </div>
-
-        <!-- 3 -->
-        <div class="screenshot-item reveal reveal-delay-3" data-index="2" onclick="openLightbox(2)">
-          <div class="phone-mockup">
-            <div class="phone-frame">
-              <img src="res/ss-3.png" alt="Vault lock screen" width="256" height="554" loading="lazy">
-            </div>
-          </div>
-          <p class="screenshot-caption">Secret vault lock screen with pattern unlock</p>
-        </div>
-
-        <!-- 4 -->
-        <div class="screenshot-item reveal reveal-delay-4" data-index="3" onclick="openLightbox(3)">
-          <div class="phone-mockup">
-            <div class="phone-frame">
-              <img src="res/ss-4.png" alt="Vault gallery view" width="256" height="554" loading="lazy">
-            </div>
-          </div>
-          <p class="screenshot-caption">Encrypted gallery with date-grouped photo grid</p>
-        </div>
-
-        <!-- 5 -->
-        <div class="screenshot-item reveal reveal-delay-1" data-index="4" onclick="openLightbox(4)">
-          <div class="phone-mockup">
-            <div class="phone-frame">
-              <img src="res/ss-5.png" alt="Media viewer" width="256" height="554" loading="lazy">
-            </div>
-          </div>
-          <p class="screenshot-caption">Full-screen viewer with restore and delete options</p>
-        </div>
-
-        <!-- 6 -->
-        <div class="screenshot-item reveal reveal-delay-2" data-index="5" onclick="openLightbox(5)">
-          <div class="phone-mockup">
-            <div class="phone-frame">
-              <img src="res/ss-6.png" alt="Albums view" width="256" height="554" loading="lazy">
-            </div>
-          </div>
-          <p class="screenshot-caption">Albums view with cover previews and item counts</p>
-        </div>
-
-        <!-- 7 -->
-        <div class="screenshot-item reveal reveal-delay-3" data-index="6" onclick="openLightbox(6)">
-          <div class="phone-mockup">
-            <div class="phone-frame">
-              <img src="res/ss-7.png" alt="Backup settings" width="256" height="554" loading="lazy">
-            </div>
-          </div>
-          <p class="screenshot-caption">Settings — backup, cloud sync, and lock screen options</p>
-        </div>
-
-        <!-- 8 -->
-        <div class="screenshot-item reveal reveal-delay-4" data-index="7" onclick="openLightbox(7)">
-          <div class="phone-mockup">
-            <div class="phone-frame">
-              <img src="res/ss-8.png" alt="Vault management" width="256" height="554" loading="lazy">
-            </div>
-          </div>
-          <p class="screenshot-caption">Multi-vault management with individual lock types</p>
-        </div>
-
+      <div class="shots">
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/01-notes-grid.png" data-fallback="res/ss-1.png" alt="Notes grid with cards of every type" loading="lazy"></div><p>Notes as cards, each previewing what's inside</p></figure>
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/02-new-note.png" alt="The New sheet with six note types" loading="lazy"></div><p>Six kinds of notes, one tap away</p></figure>
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/03-mind-map.png" alt="A mind map" loading="lazy"></div><p>Mind maps that tidy, fold and link</p></figure>
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/04-journal.png" alt="A journal entry with photos" loading="lazy"></div><p>Journal entries with mood, photos and videos</p></figure>
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/05-sketch.png" alt="A sketch note" loading="lazy"></div><p>Sketches with pens, markers and an eraser</p></figure>
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/10-account.png" alt="The account screen" loading="lazy"></div><p>Your account, synced across phones</p></figure>
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/06-lock-screen.png" data-fallback="res/ss-3.png" alt="The hidden lock screen" loading="lazy"></div><p>The lock screen nobody knows is there</p></figure>
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/07-gallery.png" data-fallback="res/ss-4.png" alt="The encrypted gallery" loading="lazy"></div><p>The encrypted gallery</p></figure>
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/08-viewer.png" data-fallback="res/ss-5.png" alt="The photo viewer" loading="lazy"></div><p>Full-screen viewer with zoom and video</p></figure>
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/09-vault-settings.png" data-fallback="res/ss-7.png" alt="Vault settings with backups" loading="lazy"></div><p>Verified backups, local and on Drive</p></figure>
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/11-chat-list.png" alt="The chat list" loading="lazy"></div><p>The hidden chat, with profile photos and nicknames</p></figure>
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/12-conversation.png" alt="A conversation" loading="lazy"></div><p>Ticks, encrypted photos, shared backgrounds</p></figure>
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/13-picker.png" alt="The photo picker under a conversation" loading="lazy"></div><p>Recent photos right where the keyboard was</p></figure>
+        <figure class="shot reveal"><div class="phone"><img src="res/shots/14-chat-settings.png" alt="Chat settings with vault IDs" loading="lazy"></div><p>Chat vaults, each with its own ID and lock</p></figure>
       </div>
     </div>
   </main>
 
-  <!-- ========== LIGHTBOX ========== -->
-  <div class="lightbox" id="lightbox" role="dialog" aria-label="Screenshot viewer">
-    <button class="lightbox-close" id="lightboxClose" aria-label="Close viewer">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-    </button>
-    <button class="lightbox-arrow lightbox-arrow--prev" id="lightboxPrev" aria-label="Previous screenshot">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-    </button>
-    <div class="lightbox-content">
-      <img id="lightboxImg" src="" alt="Screenshot preview">
-      <p class="lightbox-caption" id="lightboxCaption"></p>
-    </div>
-    <button class="lightbox-arrow lightbox-arrow--next" id="lightboxNext" aria-label="Next screenshot">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </button>
-    <div class="lightbox-counter" id="lightboxCounter"></div>
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot">
+    <button class="btn" data-close aria-label="Close">✕</button>
+    <button class="btn" data-prev aria-label="Previous">◀</button>
+    <figure><img src="" alt=""><figcaption></figcaption></figure>
+    <button class="btn" data-next aria-label="Next">▶</button>
   </div>
 
-  <!-- ========== FOOTER ========== -->
-  <footer class="footer" id="footer">
+  <footer class="footer">
     <div class="container">
-      <div class="footer-brand">Notes<span class="brand-plus">+</span></div>
-      <div class="footer-links">
+      <div class="brand">Notes<span class="brand-plus">+</span></div>
+      <nav aria-label="Footer">
         <a href="features.html">Features</a>
-        <a href="screenshots.html">Screenshots</a>
+        <a href="screenshots.html">Screens</a>
         <a href="download.html">Download</a>
         <a href="privacy.html">Privacy</a>
-        <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-          GitHub
-        </a>
-      </div>
-      <p class="footer-credit">Made with ♥ by <span class="credit-name">Shashwat Gupta</span></p>
+        <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </nav>
+      <small>Made with ♥ by Shashwat Gupta · Flex Studios</small>
     </div>
   </footer>
 
   <script src="js/main.js"></script>
-  <script>
-    /* ========== Lightbox Logic ========== */
-    const screenshots = [
-      { src: 'res/ss-1.png', caption: 'Clean note list with titles, dates, and content previews' },
-      { src: 'res/ss-2.png', caption: 'Distraction-free note editor with auto-save' },
-      { src: 'res/ss-3.png', caption: 'Secret vault lock screen with pattern unlock' },
-      { src: 'res/ss-4.png', caption: 'Encrypted gallery with date-grouped photo grid' },
-      { src: 'res/ss-5.png', caption: 'Full-screen viewer with restore and delete options' },
-      { src: 'res/ss-6.png', caption: 'Albums view with cover previews and item counts' },
-      { src: 'res/ss-7.png', caption: 'Settings — backup, cloud sync, and lock screen options' },
-      { src: 'res/ss-8.png', caption: 'Multi-vault management with individual lock types' },
-    ];
-
-    let currentIndex = 0;
-    const lightbox = document.getElementById('lightbox');
-    const lightboxImg = document.getElementById('lightboxImg');
-    const lightboxCaption = document.getElementById('lightboxCaption');
-    const lightboxCounter = document.getElementById('lightboxCounter');
-
-    function openLightbox(index) {
-      currentIndex = index;
-      updateLightbox();
-      lightbox.classList.add('active');
-      document.body.style.overflow = 'hidden';
-    }
-
-    function closeLightbox() {
-      lightbox.classList.remove('active');
-      document.body.style.overflow = '';
-    }
-
-    function updateLightbox() {
-      const ss = screenshots[currentIndex];
-      lightboxImg.src = ss.src;
-      lightboxImg.alt = ss.caption;
-      lightboxCaption.textContent = ss.caption;
-      lightboxCounter.textContent = `${currentIndex + 1} / ${screenshots.length}`;
-    }
-
-    function prevScreenshot() {
-      currentIndex = (currentIndex - 1 + screenshots.length) % screenshots.length;
-      updateLightbox();
-    }
-
-    function nextScreenshot() {
-      currentIndex = (currentIndex + 1) % screenshots.length;
-      updateLightbox();
-    }
-
-    document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
-    document.getElementById('lightboxPrev').addEventListener('click', prevScreenshot);
-    document.getElementById('lightboxNext').addEventListener('click', nextScreenshot);
-
-    // Close on background click
-    lightbox.addEventListener('click', (e) => {
-      if (e.target === lightbox) closeLightbox();
-    });
-
-    // Keyboard navigation
-    document.addEventListener('keydown', (e) => {
-      if (!lightbox.classList.contains('active')) return;
-      if (e.key === 'Escape') closeLightbox();
-      if (e.key === 'ArrowLeft') prevScreenshot();
-      if (e.key === 'ArrowRight') nextScreenshot();
-    });
-  </script>
 </body>
 </html>

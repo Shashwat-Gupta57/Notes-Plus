@@ -3,137 +3,113 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Privacy Policy — Notes+</title>
-  <meta name="description" content="Notes+ privacy policy — no data collection, no analytics, no ads, no servers. Your data stays on your device.">
-  <meta name="theme-color" content="#0A0A0F">
+  <title>Privacy — Notes+</title>
+  <meta name="description" content="What Notes+ keeps on your phone, what goes online when you choose an account or chat, and what never leaves.">
+  <meta name="theme-color" content="#07040d">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600&display=swap">
   <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/animations.css">
   <link rel="icon" type="image/png" href="res/notes_icon.png">
 </head>
 <body>
+  <a class="skip" href="#main">Skip to content</a>
 
-  <!-- NAVBAR -->
-  <nav class="navbar" id="navbar" role="navigation" aria-label="Main navigation">
+  <nav class="navbar" aria-label="Main">
     <div class="container">
-      <a href="index.html" class="navbar-brand" aria-label="Notes+ Home">
-        <img class="brand-icon" src="res/notes_icon.png" alt="Notes+ icon" aria-hidden="true">
+      <a href="index.html" class="navbar-brand" aria-label="Notes+ home">
+        <img src="res/notes_icon.png" alt="" width="36" height="36">
         Notes<span class="brand-plus">+</span>
       </a>
-      <div class="nav-links" id="navLinks" role="menubar">
-        <a href="features.html" role="menuitem">Features</a>
-        <a href="screenshots.html" role="menuitem">Screenshots</a>
-        <a href="download.html" role="menuitem">Download</a>
-        <a href="privacy.html" role="menuitem">Privacy</a>
+      <div class="nav-links" id="navLinks">
+        <a href="features.html">Features</a>
+        <a href="screenshots.html">Screens</a>
+        <a href="download.html">Download</a>
+        <a href="privacy.html">Privacy</a>
       </div>
-      <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
-        <span></span><span></span><span></span>
-      </button>
+      <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="navLinks"><span></span><span></span><span></span></button>
     </div>
   </nav>
-  <div class="nav-overlay" id="navOverlay"></div>
+  <div class="nav-overlay"></div>
 
-  <!-- PAGE HEADER -->
-  <header class="page-header">
+  <header class="page-head">
     <div class="container">
-      <span class="section-label anim-hero-text">— Privacy —</span>
-      <h1 class="anim-hero-text-delay-1">No fine print. Just facts.</h1>
-      <p class="anim-hero-text-delay-2">Plain English, no legalese. Here's exactly what Notes+ does — and doesn't do — with your data.</p>
+      <span class="biome">[ The fine print, in plain words ]</span>
+      <h1>Privacy</h1>
+      <p>Exactly what Notes+ keeps, where, and who can see it.</p>
     </div>
   </header>
 
-  <!-- PRIVACY CONTENT -->
-  <main class="privacy-page">
-    <div class="container">
-      <div class="privacy-content">
+  <main id="main" class="section" style="padding-top: 30px;">
+    <div class="prose">
 
-        <!-- No Data Collection -->
-        <div class="privacy-section reveal">
-          <h2>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-            No data collection
-          </h2>
-          <p><strong>Notes+ does not collect, transmit, or store any of your data on external servers.</strong> There is no backend. There is no database. There are no API calls to any server we control. Everything you create — notes, photos, videos — lives on your device and nowhere else.</p>
-        </div>
-
-        <!-- Encryption -->
-        <div class="privacy-section reveal">
-          <h2>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-            On-device encryption
-          </h2>
-          <p>All media stored in the vault is encrypted using <strong>AES-256</strong>, the same encryption standard used by financial institutions and governments. Encryption and decryption happen entirely on your device. Your vault password is never stored in plaintext — it's used to derive the encryption key locally.</p>
-          <p>If you uninstall the app without backing up, your encrypted data is gone. We can't recover it for you, because we never had it.</p>
-        </div>
-
-        <!-- Google Drive -->
-        <div class="privacy-section reveal">
-          <h2>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
-            Google Drive backup
-          </h2>
-          <p>Notes+ offers optional Google Drive sync. If you choose to enable it, your backup is uploaded to <strong>your own Google Drive account</strong> — specifically to the app-specific folder that only Notes+ can access. We do not have access to your Google account, your Drive contents, or your backup files.</p>
-          <p>Backup is entirely user-initiated. You decide when to sync, and you can disconnect at any time. No data leaves your device unless you explicitly tell it to.</p>
-        </div>
-
-        <!-- No Analytics -->
-        <div class="privacy-section reveal">
-          <h2>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            No analytics or tracking
-          </h2>
-          <p><strong>There is no Firebase, no Google Analytics, no Crashlytics, no Mixpanel, no anything.</strong> We don't know how many people use Notes+, how often they open it, or what features they use. That's intentional. We don't need to know, and you shouldn't have to tell us.</p>
-        </div>
-
-        <!-- No Ads -->
-        <div class="privacy-section reveal">
-          <h2>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-            No ads, ever
-          </h2>
-          <p>Notes+ has no ads and never will. There are no ad SDKs in the app, no ad networks, no sponsored content. The app is free because it's a personal project, not a business.</p>
-        </div>
-
-        <!-- Permissions -->
-        <div class="privacy-section reveal">
-          <h2>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            Permissions
-          </h2>
-          <p><strong>Storage:</strong> Required to save and read encrypted media files on your device. Notes+ accesses only its own app directory — it does not scan your gallery, contacts, or any other files.</p>
-          <p><strong>Internet:</strong> Used only for Google Drive sync (if enabled) and checking for app updates. No other network requests are made.</p>
-          <p><strong>Camera:</strong> Not requested. Notes+ imports from your existing gallery — it doesn't take photos directly.</p>
-        </div>
-
-        <!-- Contact -->
-        <div class="privacy-section reveal">
-          <h2>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            Questions?
-          </h2>
-          <p>If you have any privacy concerns, the source is available on <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer" style="color:var(--accent-yellow);border-bottom:1px solid rgba(255,204,0,0.3);">GitHub</a>. You can inspect every line of code yourself. This app has nothing to hide — that's the whole point.</p>
-        </div>
-
-        <p class="privacy-updated">Last updated: May 2026</p>
-
+      <div class="block reveal">
+        <h2>Without an account, nothing leaves your phone</h2>
+        <p>You can use every note type and the vault without signing in. Then your notes, photos and settings stay on your device, and the only network request Notes+ makes is checking GitHub for a new version.</p>
       </div>
+
+      <div class="block reveal">
+        <h2>The vault is encrypted on your phone</h2>
+        <p>Every photo and video in the vault is encrypted with <strong>AES-256</strong> as it is imported. The key lives in your phone's secure hardware (Android Keystore) and never leaves it, so the files are useless if copied off the phone.</p>
+        <p>Backups are encrypted too, whether saved as a file or to your Google Drive. <strong>If you uninstall Notes+ without a backup, the vault is gone</strong>: nobody, including us, can recover it.</p>
+        <p>One honest limit: vault locks are stored on your phone, not hashed, so someone with full access to your unlocked, rooted phone could read them.</p>
+      </div>
+
+      <div class="block reveal">
+        <h2>If you sign in: your account and notes</h2>
+        <p>Accounts use <strong>Firebase Authentication</strong> (by Google). We receive your email address, and with Google sign-in your name and profile photo. Your @username is visible to other signed-in users who look it up.</p>
+        <p>Synced notes are stored in <strong>Firebase Realtime Database</strong>. Security rules make them readable only by your account. They are <strong>not end-to-end encrypted</strong>: they are stored readable on Google's servers, where the app's owner could technically access them. Don't sync anything you wouldn't put in a cloud notes app.</p>
+        <p>Photos, videos and recordings in notes go to <strong>your own Google Drive</strong>, in a Notes-plus folder. Notes+ can only see files it created there.</p>
+      </div>
+
+      <div class="block reveal">
+        <h2>The chat</h2>
+        <p>Chat messages are stored in Firebase Realtime Database while they are in transit and for history: only the <strong>latest 100 messages of each conversation</strong> are kept online, readable only by its two members under the security rules. Like notes, message text is <strong>not end-to-end encrypted</strong>.</p>
+        <p>Photos and videos in chat are <strong>encrypted on your phone</strong> with a key made for that one file, then uploaded to the sender's Google Drive and shared by link. The key travels only inside the conversation, so the link on its own shows nothing.</p>
+        <p>Your profile photo (Google's, or one you choose) and any per-vault photo can be seen by people who chat with you. Chat vault locks are stored as salted hashes, on your phone and in your account.</p>
+      </div>
+
+      <div class="block reveal">
+        <h2>Deleting your data</h2>
+        <p>"Delete account" in the app removes your account, your synced notes, your username, your chat data online and the note attachments Notes+ put in your Drive. Photos you sent in chats stay in your Drive's Notes-plus/Shared folder until you delete them there, and messages you sent remain in the other person's copy of a conversation. Notes on your phone are kept until you delete them.</p>
+      </div>
+
+      <div class="block reveal">
+        <h2>No analytics, no ads, no tracking</h2>
+        <p>No Google Analytics, no Crashlytics, no ad networks, no usage statistics. We don't know how you use Notes+, and we don't want to.</p>
+      </div>
+
+      <div class="block reveal">
+        <h2>Permissions</h2>
+        <ul>
+          <li><strong>Internet</strong>: sign-in, sync, chat, Google Drive and update checks.</li>
+          <li><strong>Photos and videos</strong>: to import into the vault, and to show your recent photos in the chat picker. Only what you choose is used.</li>
+          <li><strong>Microphone</strong>: only for audio notes, while you record.</li>
+          <li><strong>Notifications</strong>: progress of long backups and restores.</li>
+          <li><strong>Install apps</strong>: to install Notes+ updates you agree to.</li>
+        </ul>
+      </div>
+
+      <div class="block reveal">
+        <h2>Questions?</h2>
+        <p>The source is on <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer">GitHub</a>, including the database security rules. Open an issue there with anything you want to know.</p>
+      </div>
+
+      <p class="updated">Last updated: October 2026 (version 9.2)</p>
     </div>
   </main>
 
-  <!-- FOOTER -->
-  <footer class="footer" id="footer">
+  <footer class="footer">
     <div class="container">
-      <div class="footer-brand">Notes<span class="brand-plus">+</span></div>
-      <div class="footer-links">
+      <div class="brand">Notes<span class="brand-plus">+</span></div>
+      <nav aria-label="Footer">
         <a href="features.html">Features</a>
-        <a href="screenshots.html">Screenshots</a>
+        <a href="screenshots.html">Screens</a>
         <a href="download.html">Download</a>
         <a href="privacy.html">Privacy</a>
-        <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-          GitHub
-        </a>
-      </div>
-      <p class="footer-credit">Made with ♥ by <span class="credit-name">Shashwat Gupta</span></p>
+        <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </nav>
+      <small>Made with ♥ by Shashwat Gupta · Flex Studios</small>
     </div>
   </footer>
 

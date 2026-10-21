@@ -241,9 +241,9 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-The build file is at 10 / "9.2". `version.json` deliberately still advertises 7 — bump it
-only when an APK for the new version is actually published, or every user is prompted to
-download a release that does not exist.
+The build file and `version.json` are both at 10 / "9.2" (released as v9.2.0, with `sha256`).
+Bump `version.json` only when the APK for a new version is actually published, or every user
+is prompted to download a release that does not exist.
 
 ## Landmines
 

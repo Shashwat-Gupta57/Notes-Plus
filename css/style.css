@@ -273,6 +273,7 @@ a { color: inherit; text-decoration: none; }
 }
 .phone img {
   width: 100%;
+  height: auto; /* the HTML height attribute must not stretch it: that cropped the sides */
   aspect-ratio: 9 / 20;
   object-fit: cover;
   background: linear-gradient(160deg, #24173f, #120a22);
@@ -573,7 +574,21 @@ main, header, section, footer { position: relative; z-index: 1; }
 }
 
 @media (max-width: 720px) {
-  body { font-size: 17px; }
+  body { font-size: 18px; }
+  /* The pixel font reads small: everything in it steps up on phones. */
+  .biome, .tag, .ticks span, .missing .phone::after { font-size: 11px; }
+  .gesture span.how, .step h3, .callout h3 { font-size: 12px; }
+  .slot h3, .prose h2 { font-size: 14px; }
+  .navbar-brand { font-size: 15px; }
+  .hero h1 { font-size: 26px; }
+  .section-head h2, .feature h2, .page-head h1, .cta h2 { font-size: 21px; }
+  .section-head p, .page-head p, .feature p.desc, .cta p { font-size: 18px; }
+  .list li, .slot p, .prose p, .prose li { font-size: 17px; }
+  .hero { padding: 110px 0 56px; }
+  .hero .container { gap: 36px; }
+  .section, .feature { padding: 44px 0; }
+  .page-head { padding: 110px 0 20px; }
+  .portal-frame { justify-self: center; }
   .hamburger { display: block; position: relative; z-index: 70; }
   .nav-links {
     position: fixed;
@@ -612,6 +627,8 @@ main, header, section, footer { position: relative; z-index: 1; }
   .feature .panel { padding: 22px; }
   .hero p.lead { font-size: 18px; }
   .achievement { left: 16px; right: 16px; min-width: 0; }
-  .btn { font-size: 11px; }
+  .btn { font-size: 12px; width: 100%; }
+  .hero-actions { flex-direction: column; }
+  .lightbox .btn, .hamburger { width: auto; }
   .callout { flex-direction: column; gap: 8px; }
 }

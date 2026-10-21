@@ -102,6 +102,9 @@
                 "sha256": {
                   ".validate": "newData.isString() && newData.val().length === 64"
                 },
+                "key": {
+                  ".validate": "newData.isString() && newData.val().length <= 64"
+                },
                 "$other": {
                   ".validate": false
                 }
@@ -129,8 +132,8 @@
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && auth.uid === $uid && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com')",
         "$chatId": {
-          ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && newData.exists() && newData.parent().parent().parent().child('chats').child($chatId).child('members').child(auth.uid).exists() && newData.parent().parent().parent().child('chats').child($chatId).child('members').child($uid).exists()",
-          ".validate": "newData.hasChildren(['peer', 'peerName', 'vault', 'peerVault', 'at']) && newData.child('vault').val() === newData.parent().parent().parent().child('chats').child($chatId).child('members').child($uid).val() && newData.child('peerVault').val() === newData.parent().parent().parent().child('chats').child($chatId).child('members').child(newData.child('peer').val()).val() && root.child('usernames').child(newData.child('peerName').val()).val() === newData.child('peer').val()",
+          ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && newData.exists() && ($chatId.beginsWith('g_') ? (newData.parent().parent().parent().child('groupChats').child(newData.child('gid').val()).child('members').child(auth.uid).exists() && newData.parent().parent().parent().child('groupChats').child(newData.child('gid').val()).child('members').child($uid).exists()) : (newData.parent().parent().parent().child('chats').child($chatId).child('members').child(auth.uid).exists() && newData.parent().parent().parent().child('chats').child($chatId).child('members').child($uid).exists()))",
+          ".validate": "$chatId.beginsWith('g_') ? (newData.hasChildren(['group', 'gid', 'name', 'vault', 'at']) && $chatId === 'g_' + newData.child('gid').val() && newData.child('vault').val() === newData.parent().parent().parent().child('groupChats').child(newData.child('gid').val()).child('members').child($uid).child('code').val()) : (newData.hasChildren(['peer', 'peerName', 'vault', 'peerVault', 'at']) && newData.child('vault').val() === newData.parent().parent().parent().child('chats').child($chatId).child('members').child($uid).val() && newData.child('peerVault').val() === newData.parent().parent().parent().child('chats').child($chatId).child('members').child(newData.child('peer').val()).val() && root.child('usernames').child(newData.child('peerName').val()).val() === newData.child('peer').val())",
           "peer": {
             ".validate": "newData.isString() && newData.val() !== $uid"
           },
@@ -145,6 +148,15 @@
           },
           "at": {
             ".validate": "newData.val() === now"
+          },
+          "group": {
+            ".validate": "newData.val() === true"
+          },
+          "gid": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "name": {
+            ".validate": "newData.isString() && newData.val().length <= 60"
           },
           "$other": {
             ".validate": false
@@ -212,9 +224,19 @@
               "dur": {
                 ".validate": "newData.isNumber()"
               },
+              "wave": {
+                ".validate": "newData.isString() && newData.val().length <= 400"
+              },
+              "once": {
+                ".validate": "newData.isBoolean()"
+              },
               "$other": {
                 ".validate": false
               }
+            },
+            "opened": {
+              ".write": "auth != null && data.parent().parent().parent().child('members').child(auth.uid).exists() && data.parent().exists() && data.parent().child('from').val() !== auth.uid",
+              ".validate": "newData.val() === now"
             },
             "$other": {
               ".validate": false
@@ -255,6 +277,9 @@
             },
             "dur": {
               ".validate": "newData.isNumber()"
+            },
+            "wave": {
+              ".validate": "newData.isString() && newData.val().length <= 400"
             },
             "$other": {
               ".validate": false
@@ -451,6 +476,287 @@
           },
           "dur": {
             ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "groupChats": {
+      "$gid": {
+        ".read": "auth != null && data.child('members').child(auth.uid).exists()",
+        "meta": {
+          ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && newData.exists() && ((!data.exists() && newData.child('owner').val() === auth.uid && newData.parent().child('members').child(auth.uid).exists()) || (data.exists() && data.parent().child('members').child(auth.uid).exists() && newData.child('owner').val() === data.child('owner').val()))",
+          ".validate": "newData.hasChildren(['name', 'owner', 'createdAt'])",
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+          },
+          "owner": {
+            ".validate": "newData.isString()"
+          },
+          "createdAt": {
+            ".validate": "newData.val() === now || newData.val() === data.val()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "size": {
+          ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && (data.parent().child('members').child(auth.uid).exists() || (!data.parent().child('meta').exists() && newData.parent().child('meta').child('owner').val() === auth.uid))",
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 20"
+        },
+        "members": {
+          "$m": {
+            ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && ((newData.exists() && (data.parent().parent().child('members').child(auth.uid).exists() || (!data.parent().parent().child('meta').exists() && newData.parent().parent().child('meta').child('owner').val() === auth.uid))) || (!newData.exists() && ($m === auth.uid || data.parent().parent().child('meta').child('owner').val() === auth.uid)))",
+            ".validate": "newData.hasChildren(['code', 'name']) && root.child('usernames').child(newData.child('name').val()).val() === $m && newData.parent().parent().child('size').val() <= 20",
+            "code": {
+              ".validate": "newData.isString() && newData.val().matches(/^[A-Z0-9]{4}$/)"
+            },
+            "name": {
+              ".validate": "newData.isString()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "count": {
+          ".write": "auth != null && data.parent().child('members').child(auth.uid).exists()",
+          ".validate": "newData.isNumber()"
+        },
+        "theme": {
+          ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && data.parent().child('members').child(auth.uid).exists()",
+          ".validate": "newData.child('kind').val() === 'color' && newData.child('value').isString() && newData.child('value').val().matches(/^#[0-9A-Fa-f]{6}$/) || newData.child('kind').val() === 'image' && newData.hasChild('media')",
+          "kind": {
+            ".validate": "newData.isString()"
+          },
+          "value": {
+            ".validate": "newData.isString()"
+          },
+          "media": {
+            ".validate": "newData.hasChildren(['id', 'key', 'mime', 'size'])",
+            "id": {
+              ".validate": "newData.isString() && newData.val().length <= 200"
+            },
+            "key": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
+            },
+            "mime": {
+              ".validate": "newData.isString() && newData.val().length <= 100"
+            },
+            "name": {
+              ".validate": "newData.isString() && newData.val().length <= 200"
+            },
+            "size": {
+              ".validate": "newData.isNumber() && newData.val() <= 104857600"
+            },
+            "w": {
+              ".validate": "newData.isNumber()"
+            },
+            "h": {
+              ".validate": "newData.isNumber()"
+            },
+            "dur": {
+              ".validate": "newData.isNumber()"
+            },
+            "wave": {
+              ".validate": "newData.isString() && newData.val().length <= 400"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "messages": {
+          "$key": {
+            ".write": "auth != null && ((!data.exists() && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && newData.child('from').val() === auth.uid && !newData.hasChild('rcv') && !newData.hasChild('seen') && data.parent().parent().child('members').child(auth.uid).exists()) || (!newData.exists() && data.parent().parent().child('members').child(auth.uid).exists()))",
+            ".validate": "newData.hasChildren(['from', 'sentAt']) && (newData.hasChild('text') || newData.hasChild('media'))",
+            "from": {
+              ".validate": "newData.isString()"
+            },
+            "text": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 4000"
+            },
+            "sentAt": {
+              ".validate": "newData.val() === now || newData.val() === data.val()"
+            },
+            "media": {
+              ".validate": "newData.hasChildren(['id', 'key', 'mime', 'size'])",
+              "id": {
+                ".validate": "newData.isString() && newData.val().length <= 200"
+              },
+              "key": {
+                ".validate": "newData.isString() && newData.val().length <= 64"
+              },
+              "mime": {
+                ".validate": "newData.isString() && newData.val().length <= 100"
+              },
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 200"
+              },
+              "size": {
+                ".validate": "newData.isNumber() && newData.val() <= 104857600"
+              },
+              "w": {
+                ".validate": "newData.isNumber()"
+              },
+              "h": {
+                ".validate": "newData.isNumber()"
+              },
+              "dur": {
+                ".validate": "newData.isNumber()"
+              },
+              "wave": {
+                ".validate": "newData.isString() && newData.val().length <= 400"
+              },
+              "once": {
+                ".validate": "newData.isBoolean()"
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "rcv": {
+              "$u": {
+                ".write": "auth != null && auth.uid === $u && data.parent().parent().exists() && data.parent().parent().parent().parent().child('members').child(auth.uid).exists()",
+                ".validate": "newData.val() === now"
+              }
+            },
+            "seen": {
+              "$u": {
+                ".write": "auth != null && auth.uid === $u && data.parent().parent().exists() && data.parent().parent().parent().parent().child('members').child(auth.uid).exists()",
+                ".validate": "newData.val() === now"
+              }
+            },
+            "opened": {
+              "$u": {
+                ".write": "auth != null && auth.uid === $u && data.parent().parent().exists() && data.parent().parent().parent().parent().child('members').child(auth.uid).exists()",
+                ".validate": "newData.val() === now"
+              }
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "groupNotes": {
+      "$gid": {
+        ".read": "auth != null && data.child('members').child(auth.uid).exists()",
+        "owner": {
+          ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && !data.exists() && newData.val() === auth.uid && newData.parent().child('members').child(auth.uid).exists()",
+          ".validate": "newData.isString()"
+        },
+        "size": {
+          ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && (data.parent().child('members').child(auth.uid).exists() || (!data.parent().child('owner').exists() && newData.parent().child('owner').val() === auth.uid))",
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 20"
+        },
+        "members": {
+          "$m": {
+            ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && ((newData.exists() && (data.parent().parent().child('members').child(auth.uid).exists() || (!data.parent().parent().child('owner').exists() && newData.parent().parent().child('owner').val() === auth.uid))) || (!newData.exists() && ($m === auth.uid || data.parent().parent().child('owner').val() === auth.uid)))",
+            ".validate": "newData.isString() && root.child('usernames').child(newData.val()).val() === $m && newData.parent().parent().child('size').val() <= 20"
+          }
+        },
+        "note": {
+          ".validate": "$gid.matches(/^[0-9a-f]{32}$/) && newData.hasChildren(['rev', 'updatedAt']) && (newData.child('deleted').val() === true || newData.hasChildren(['type'])) && ((!data.exists() && newData.child('rev').val() >= 1) || newData.child('rev').val() === data.child('rev').val() + 1)",
+          "rev": {
+            ".validate": "newData.isNumber()"
+          },
+          "updatedAt": {
+            ".validate": "newData.val() === now"
+          },
+          "deleted": {
+            ".validate": "newData.isBoolean()"
+          },
+          "type": {
+            ".validate": "newData.val().matches(/^(TEXT|LIST|MINDMAP|JOURNAL|SKETCH|AUDIO)$/)"
+          },
+          "title": {
+            ".validate": "newData.isString() && newData.val().length <= 500"
+          },
+          "content": {
+            ".validate": "newData.isString() && newData.val().length <= 200000"
+          },
+          "data": {
+            ".validate": "newData.isString() && newData.val().length <= 1000000"
+          },
+          "sketch": {
+            ".validate": "newData.isString() && newData.val().length <= 1000000"
+          },
+          "color": {
+            ".validate": "newData.isNumber()"
+          },
+          "pinned": {
+            ".validate": "newData.isBoolean()"
+          },
+          "edited": {
+            ".validate": "newData.isNumber()"
+          },
+          "device": {
+            ".validate": "newData.isString() && newData.val().length <= 64"
+          },
+          "media": {
+            "$file": {
+              ".validate": "newData.hasChildren(['name', 'driveId', 'size'])",
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 200"
+              },
+              "driveId": {
+                ".validate": "newData.isString() && newData.val().length <= 200"
+              },
+              "mime": {
+                ".validate": "newData.isString() && newData.val().length <= 100"
+              },
+              "size": {
+                ".validate": "newData.isNumber()"
+              },
+              "w": {
+                ".validate": "newData.isNumber()"
+              },
+              "h": {
+                ".validate": "newData.isNumber()"
+              },
+              "durationMs": {
+                ".validate": "newData.isNumber()"
+              },
+              "sha256": {
+                ".validate": "newData.isString() && newData.val().length === 64"
+              },
+              "key": {
+                ".validate": "newData.isString() && newData.val().length <= 64"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "$other": {
+            ".validate": false
+          },
+          ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && (data.parent().child('members').child(auth.uid).exists() || (!data.parent().child('owner').exists() && newData.parent().child('owner').val() === auth.uid))"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "groupIndex": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "$gid": {
+          ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && ((newData.exists() && newData.parent().parent().parent().child('groupNotes').child($gid).child('members').child(auth.uid).exists() && newData.parent().parent().parent().child('groupNotes').child($gid).child('members').child($uid).exists()) || (!newData.exists() && root.child('groupNotes').child($gid).child('owner').val() === auth.uid))",
+          ".validate": "newData.hasChildren(['at'])",
+          "at": {
+            ".validate": "newData.val() === now"
           },
           "$other": {
             ".validate": false

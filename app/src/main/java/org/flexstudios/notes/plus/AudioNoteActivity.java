@@ -356,10 +356,19 @@ public class AudioNoteActivity extends NoteActivity {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF bar = new RectF();
         private final float density;
+        /** 0: the defaults (teal played, grey rest). */
+        private int playedColor, restColor;
 
         public WaveformView(Context context, @Nullable AttributeSet attrs) {
             super(context, attrs);
             density = getResources().getDisplayMetrics().density;
+        }
+
+        /** For a coloured background (a chat bubble): the bar colours to use. */
+        void setColors(int played, int rest) {
+            playedColor = played;
+            restColor = rest;
+            invalidate();
         }
 
         void setWave(float[] samples, float played) {
@@ -384,8 +393,8 @@ public class AudioNoteActivity extends NoteActivity {
             float gap = 2 * density;
             float width = Math.max(2 * density, (getWidth() - gap * (wave.length - 1)) / wave.length);
             float mid = getHeight() / 2f;
-            int played = ContextCompat.getColor(getContext(), R.color.tile_teal);
-            int rest = ContextCompat.getColor(getContext(), R.color.text_secondary);
+            int played = playedColor != 0 ? playedColor : ContextCompat.getColor(getContext(), R.color.tile_teal);
+            int rest = restColor != 0 ? restColor : ContextCompat.getColor(getContext(), R.color.text_secondary);
             for (int i = 0; i < wave.length; i++) {
                 float h = Math.max(3 * density, wave[i] * getHeight() * 0.9f);
                 float x = i * (width + gap);

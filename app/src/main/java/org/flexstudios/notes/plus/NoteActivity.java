@@ -180,6 +180,12 @@ abstract class NoteActivity extends AppCompatActivity {
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
+        MenuItem share = menu.findItem(R.id.action_share_group);
+        if (share != null) {
+            boolean shared = note != null && note.getGroupId() != null;
+            share.setTitle(shared ? "People" : "Share with people");
+            share.setVisible(note != null && !NoteData.AUDIO.equals(note.getType()) && Account.uid() != null);
+        }
         MenuItem pin = menu.findItem(R.id.action_pin);
         if (pin != null && note != null) {
             pin.setTitle(note.isPinned() ? "Unpin" : "Pin");
@@ -201,6 +207,13 @@ abstract class NoteActivity extends AppCompatActivity {
         } else if (id == R.id.action_pin) {
             note.setPinned(!note.isPinned());
             invalidateOptionsMenu();
+            return true;
+        } else if (id == R.id.action_share_group) {
+            // Save, let the write land, then share what was just saved.
+            save();
+            WRITES.execute(() -> runOnUiThread(() -> {
+                if (note != null) GroupNotes.showSheet(this, note.getId(), () -> {});
+            }));
             return true;
         } else if (id == R.id.action_color) {
             pickColor();
@@ -271,6 +284,8 @@ abstract class NoteActivity extends AppCompatActivity {
         c.setAccount(n.getAccount());
         c.setRev(n.getRev());
         c.setMedia(n.getMedia());
+        c.setGroupId(n.getGroupId());
+        c.setGroupMembers(n.getGroupMembers());
         return c;
     }
 }

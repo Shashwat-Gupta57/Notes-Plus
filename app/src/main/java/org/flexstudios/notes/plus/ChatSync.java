@@ -30,6 +30,7 @@ import com.google.firebase.database.Query;
 import com.google.firebase.database.ServerValue;
 import com.google.firebase.database.Transaction;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -69,11 +70,15 @@ final class ChatSync {
     /** Set when the main chat vault was created with the lock it started with. */
     static final String PREF_INHERITED_LOCK = "chat_lock_inherited";
     static final int KEEP = 100;
+    /** Members of a group chat, the creator included. */
+    static final int MAX_GROUP = 20;
     /** The last run was refused by the server at every step. */
     static final String PREF_REFUSED = "chat_server_refused";
     static final int MAX_TEXT = 4000;
     private static final long TIMEOUT_S = 30;
     private static final ReentrantLock LOCK = new ReentrantLock();
+    /** For Drive clean-up from inside apply(). Set by the first sync or live update. */
+    private static volatile Context appContext;
 
     private ChatSync() {}
 
@@ -86,6 +91,20 @@ final class ChatSync {
         String code = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
         if (code.isEmpty()) return "";
         return code.matches("^[A-Z0-9]{4}$") ? code : null;
+    }
+
+    /** Group chats are "g_" + their id; everything else is a two-person conversation. */
+    static boolean isGroup(String chatId) {
+        return chatId.startsWith("g_");
+    }
+
+    /** Where a conversation lives online. */
+    static String path(String chatId) {
+        return isGroup(chatId) ? "groupChats/" + chatId.substring(2) : "chats/" + chatId;
+    }
+
+    static DatabaseReference ref(String chatId) {
+        return Account.root().child(path(chatId));
     }
 
     /** Both endpoints, sorted: each side of a conversation computes the same key. */
@@ -139,6 +158,40 @@ final class ChatSync {
         });
     }
 
+    /**
+     * Resolves a list like "nancy, alice/AB12, @bob" (an optional /ID picks a vault; none means
+     * their main vault). Calls {@code error} with the first problem, naming who it was about.
+     */
+    static void resolveAll(String raw, Consumer<List<Contact>> found, Consumer<String> error) {
+        List<String[]> wanted = new ArrayList<>();
+        for (String token : raw.split("[,;\n]+")) {
+            String t = token.trim();
+            if (t.isEmpty()) continue;
+            String[] parts = t.split("[/\\s]+", 2);
+            wanted.add(new String[]{parts[0], parts.length > 1 ? parts[1] : ""});
+        }
+        if (wanted.isEmpty()) {
+            error.accept("Enter at least one username");
+            return;
+        }
+        resolveNext(wanted, 0, new ArrayList<>(), found, error);
+    }
+
+    private static void resolveNext(List<String[]> wanted, int index, List<Contact> done,
+                                    Consumer<List<Contact>> found, Consumer<String> error) {
+        if (index == wanted.size()) {
+            found.accept(done);
+            return;
+        }
+        String[] w = wanted.get(index);
+        resolve(w[0], w[1], contact -> {
+            boolean duplicate = false;
+            for (Contact c : done) duplicate |= c.uid.equals(contact.uid);
+            if (!duplicate) done.add(contact);
+            resolveNext(wanted, index + 1, done, found, error);
+        }, problem -> error.accept(w[0] + ": " + problem));
+    }
+
     private static Contact contact(String uid, String name, String code) {
         Contact c = new Contact();
         c.uid = uid;
@@ -186,9 +239,27 @@ final class ChatSync {
      * Blocking.
      */
     static void sendMedia(Context context, int conversationId, Uri source, String caption) throws Exception {
+        sendMedia(context, conversationId, source, caption, false);
+    }
+
+    /** {@code once}: a view-once photo or video, gone after its first viewing. */
+    static void sendMedia(Context context, int conversationId, Uri source, String caption, boolean once) throws Exception {
         String key = newKey();
         ChatMedia.Meta meta = ChatMedia.prepare(context, source, key);
+        meta.once = once && !meta.isAudio();
         send(context, conversationId, caption, meta.toJson().toString(), key);
+    }
+
+    /** A recorded voice note, with its waveform. The recording itself is removed. Blocking. */
+    static void sendVoice(Context context, int conversationId, File recording, long durationMs, float[] levels)
+            throws Exception {
+        String key = newKey();
+        try {
+            ChatMedia.Meta meta = ChatMedia.prepareVoice(context, recording, durationMs, levels, key);
+            send(context, conversationId, "", meta.toJson().toString(), key);
+        } finally {
+            VaultCrypto.deleteRecursive(recording);
+        }
     }
 
     /** Push keys sort by time and are made offline: a message's identity from its first moment. */
@@ -218,7 +289,8 @@ final class ChatSync {
     /** What the conversation list shows for a message. */
     static String preview(@Nullable String text, @Nullable String media) {
         ChatMedia.Meta meta = ChatMedia.Meta.parse(media);
-        String kind = meta == null ? null : meta.isVideo() ? "Video" : "Photo";
+        String kind = meta == null ? null : meta.isAudio() ? "Voice message"
+                : (meta.once ? "View-once " : "") + (meta.isVideo() ? (meta.once ? "video" : "Video") : (meta.once ? "photo" : "Photo"));
         if (kind == null) return text;
         return text == null || text.isEmpty() ? kind : kind + " · " + text;
     }
@@ -245,15 +317,15 @@ final class ChatSync {
                 dao.setStatus(m.msgKey, ChatStore.FAILED);
                 continue;
             }
-            DatabaseReference chat = Account.root().child("chats").child(c.chatId);
+            DatabaseReference chat = ref(c.chatId);
             Map<String, Object> update = new HashMap<>();
             if (!c.established) {
                 c.established = readable(chat.child("members").child(uid));
                 if (!c.established) {
                     String address = ChatVaults.addressOf(c.chatId, uid);
-                    update.put("chats/" + c.chatId + "/members/" + uid, address == null ? vault.code : address);
-                    update.put("chats/" + c.chatId + "/members/" + c.peerUid, c.peerVault);
-                    if (c.shownAs != null) update.put("chats/" + c.chatId + "/alias/" + uid, c.shownAs);
+                    update.put(path(c.chatId) + "/members/" + uid, address == null ? vault.code : address);
+                    update.put(path(c.chatId) + "/members/" + c.peerUid, c.peerVault);
+                    if (c.shownAs != null) update.put(path(c.chatId) + "/alias/" + uid, c.shownAs);
                 }
             }
             Map<String, Object> message = new HashMap<>();
@@ -278,16 +350,28 @@ final class ChatSync {
                     }
                     m.media = meta.toJson().toString();
                     dao.setMedia(m.msgKey, m.media);
+                    // View once: not even the sender keeps a copy to look at again.
+                    if (meta.once) ChatMedia.forget(context, m.msgKey);
                 }
                 message.put("media", toMap(meta.toJson()));
             }
-            update.put("chats/" + c.chatId + "/messages/" + m.msgKey, message);
-            // Index entries name the IDs the conversation was made with (its address), even if
-            // this vault has a new ID since: the rules check them against the members.
-            String myAddress = ChatVaults.addressOf(c.chatId, uid);
-            if (myAddress == null) myAddress = vault.code;
-            update.put("chatIndex/" + c.peerUid + "/" + c.chatId, index(uid, myName, c.peerVault, myAddress));
-            update.put("chatIndex/" + uid + "/" + c.chatId, index(c.peerUid, c.peerName, myAddress, c.peerVault));
+            update.put(path(c.chatId) + "/messages/" + m.msgKey, message);
+            if (c.isGroup) {
+                // Every member's index says this group has news.
+                org.json.JSONObject members = json(c.members);
+                for (java.util.Iterator<String> it = members.keys(); it.hasNext(); ) {
+                    String member = it.next();
+                    org.json.JSONObject info = members.optJSONObject(member);
+                    if (info != null) update.put("chatIndex/" + member + "/" + c.chatId, groupIndex(c.chatId, c.peerName, info.optString("code")));
+                }
+            } else {
+                // Index entries name the IDs the conversation was made with (its address), even if
+                // this vault has a new ID since: the rules check them against the members.
+                String myAddress = ChatVaults.addressOf(c.chatId, uid);
+                if (myAddress == null) myAddress = vault.code;
+                update.put("chatIndex/" + c.peerUid + "/" + c.chatId, index(uid, myName, c.peerVault, myAddress));
+                update.put("chatIndex/" + uid + "/" + c.chatId, index(c.peerUid, c.peerName, myAddress, c.peerVault));
+            }
             try {
                 await(Account.root().updateChildren(update));
             } catch (ExecutionException e) {
@@ -342,6 +426,170 @@ final class ChatSync {
             if (refused(e)) return false;
             throw e;
         }
+    }
+
+    private static Map<String, Object> groupIndex(String chatId, String name, String vault) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("group", true);
+        m.put("gid", chatId.substring(2)); // The rules can't cut it out of the key.
+        m.put("name", name == null ? "Group" : name);
+        m.put("vault", vault);
+        m.put("at", ServerValue.TIMESTAMP);
+        return m;
+    }
+
+    private static org.json.JSONObject json(@Nullable String s) {
+        try {
+            return s == null ? new org.json.JSONObject() : new org.json.JSONObject(s);
+        } catch (Exception e) {
+            return new org.json.JSONObject();
+        }
+    }
+
+    // ============================================================== groups
+
+    /**
+     * Makes a group chat in {@code vaultId} with these people (up to {@link #MAX_GROUP} with
+     * me). Each member takes part from the vault their address names. Blocking.
+     */
+    static int createGroup(Context context, int vaultId, String name, List<Contact> people) throws Exception {
+        ChatStore.Dao dao = AppDatabase.getInstance(context).chatDao();
+        String uid = Account.uid();
+        ChatStore.Vault vault = dao.vault(vaultId);
+        if (uid == null || vault == null) throw new IOException("Sign in first");
+        if (people.size() + 1 > MAX_GROUP) throw new IOException("A group has at most " + MAX_GROUP + " members");
+        String myName = await(Account.root().child("users").child(uid).child("profile").child("username").get())
+                .getValue(String.class);
+        if (myName == null) throw new IOException("Choose a username in your account first");
+        String gid = Account.root().child("groupChats").push().getKey();
+        String chatId = "g_" + gid;
+        org.json.JSONObject members = new org.json.JSONObject();
+        members.put(uid, new org.json.JSONObject().put("code", vault.code).put("name", myName));
+        for (Contact p : people) members.put(p.uid, new org.json.JSONObject().put("code", p.code).put("name", p.name));
+        Map<String, Object> update = new HashMap<>();
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("name", name);
+        meta.put("owner", uid);
+        meta.put("createdAt", ServerValue.TIMESTAMP);
+        update.put("groupChats/" + gid + "/meta", meta);
+        update.put("groupChats/" + gid + "/size", members.length());
+        for (java.util.Iterator<String> it = members.keys(); it.hasNext(); ) {
+            String member = it.next();
+            org.json.JSONObject info = members.getJSONObject(member);
+            update.put("groupChats/" + gid + "/members/" + member, toMap(info));
+            update.put("chatIndex/" + member + "/" + chatId, groupIndex(chatId, name, info.getString("code")));
+        }
+        await(Account.root().updateChildren(update));
+        ChatStore.Conversation c = new ChatStore.Conversation();
+        c.vaultId = vaultId;
+        c.chatId = chatId;
+        c.isGroup = true;
+        c.peerName = name;
+        c.members = members.toString();
+        c.established = true;
+        c.lastAt = System.currentTimeMillis();
+        c.lastText = "Group created";
+        return (int) dao.insertConversation(c);
+    }
+
+    /** Adds people to a group, up to {@link #MAX_GROUP} members. Blocking. */
+    static void addToGroup(Context context, int conversationId, List<Contact> people) throws Exception {
+        ChatStore.Dao dao = AppDatabase.getInstance(context).chatDao();
+        ChatStore.Conversation c = dao.conversation(conversationId);
+        if (c == null || !c.isGroup) return;
+        DatabaseReference group = ref(c.chatId);
+        DataSnapshot online = await(group.child("members").get());
+        org.json.JSONObject members = membersOf(online);
+        int size = members.length();
+        Map<String, Object> update = new HashMap<>();
+        for (Contact p : people) {
+            if (members.has(p.uid)) continue;
+            members.put(p.uid, new org.json.JSONObject().put("code", p.code).put("name", p.name));
+            update.put("members/" + p.uid, toMap(members.getJSONObject(p.uid)));
+        }
+        if (members.length() > MAX_GROUP) throw new IOException("A group has at most " + MAX_GROUP + " members");
+        if (update.isEmpty()) return;
+        update.put("size", members.length());
+        Map<String, Object> all = new HashMap<>();
+        for (Map.Entry<String, Object> e : update.entrySet()) all.put(path(c.chatId) + "/" + e.getKey(), e.getValue());
+        for (Contact p : people) all.put("chatIndex/" + p.uid + "/" + c.chatId, groupIndex(c.chatId, c.peerName, p.code));
+        if (size == 0) throw new IOException("This group no longer exists");
+        await(Account.root().updateChildren(all));
+        c.members = members.toString();
+        dao.updateConversation(c);
+    }
+
+    /** Leaves a group: gone from its members, and from this vault. Blocking. */
+    static void leaveGroup(Context context, int conversationId) throws Exception {
+        ChatStore.Dao dao = AppDatabase.getInstance(context).chatDao();
+        ChatStore.Conversation c = dao.conversation(conversationId);
+        String uid = Account.uid();
+        if (c == null || !c.isGroup || uid == null) return;
+        try {
+            Long size = await(ref(c.chatId).child("size").get()).getValue(Long.class);
+            Map<String, Object> update = new HashMap<>();
+            update.put(path(c.chatId) + "/members/" + uid, null);
+            update.put(path(c.chatId) + "/size", Math.max(0, (size == null ? 1 : size) - 1));
+            update.put("chatIndex/" + uid + "/" + c.chatId, null);
+            await(Account.root().updateChildren(update));
+        } catch (ExecutionException e) {
+            if (!refused(e)) throw e; // Already removed: leaving here is all that's left.
+        }
+        dao.deleteMessagesOf(c.id);
+        dao.deleteConversation(c.id);
+    }
+
+    /** The group's owner, or null if it can't be read. Blocking. */
+    @Nullable
+    static String groupOwner(Context context, int conversationId) {
+        ChatStore.Conversation c = AppDatabase.getInstance(context).chatDao().conversation(conversationId);
+        if (c == null || !c.isGroup) return null;
+        try {
+            return await(ref(c.chatId).child("meta").child("owner").get()).getValue(String.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * The owner removes someone: out of the members, so the group stops sending them anything
+     * and they can't read it any more. What their phone already has stays there. Blocking.
+     */
+    static void removeFromGroup(Context context, int conversationId, String member) throws Exception {
+        ChatStore.Dao dao = AppDatabase.getInstance(context).chatDao();
+        ChatStore.Conversation c = dao.conversation(conversationId);
+        if (c == null || !c.isGroup) return;
+        org.json.JSONObject members = membersOf(await(ref(c.chatId).child("members").get()));
+        if (!members.has(member)) return;
+        members.remove(member);
+        Map<String, Object> update = new HashMap<>();
+        update.put(path(c.chatId) + "/members/" + member, null);
+        update.put(path(c.chatId) + "/size", members.length());
+        await(Account.root().updateChildren(update));
+        c.members = members.toString();
+        dao.updateConversation(c);
+    }
+
+    /** Renames a group for everyone. Blocking. */
+    static void renameGroup(Context context, int conversationId, String name) throws Exception {
+        ChatStore.Dao dao = AppDatabase.getInstance(context).chatDao();
+        ChatStore.Conversation c = dao.conversation(conversationId);
+        if (c == null || !c.isGroup) return;
+        await(ref(c.chatId).child("meta").child("name").setValue(name));
+        c.peerName = name;
+        dao.updateConversation(c);
+    }
+
+    /** {uid: {"code","name"}} from a members snapshot. */
+    private static org.json.JSONObject membersOf(DataSnapshot members) throws Exception {
+        org.json.JSONObject out = new org.json.JSONObject();
+        for (DataSnapshot m : members.getChildren()) {
+            if (m.getKey() == null) continue;
+            out.put(m.getKey(), new org.json.JSONObject()
+                    .put("code", m.child("code").getValue(String.class))
+                    .put("name", m.child("name").getValue(String.class)));
+        }
+        return out;
     }
 
     private static Map<String, Object> index(String peer, String peerName, String vault, String peerVault) {
@@ -529,7 +777,7 @@ final class ChatSync {
         if (c == null) return;
         c.theme = theme == null ? null : new org.json.JSONObject(theme).toString();
         dao.updateConversation(c);
-        if (c.established) Account.root().child("chats").child(c.chatId).child("theme").setValue(theme);
+        if (c.established) ref(c.chatId).child("theme").setValue(theme);
     }
 
     static Map<String, Object> toMap(org.json.JSONObject o) {
@@ -559,12 +807,14 @@ final class ChatSync {
             c.vaultId = vault.id; // Moved on another phone.
             dao.updateConversation(c);
         }
-        String peerName = entry.child("peerName").getValue(String.class);
+        boolean group = isGroup(chatId);
+        String peerName = entry.child(group ? "name" : "peerName").getValue(String.class);
         if (c == null) {
             c = new ChatStore.Conversation();
             c.vaultId = vault.id;
             c.chatId = chatId;
-            c.peerUid = entry.child("peer").getValue(String.class);
+            c.isGroup = group;
+            c.peerUid = group ? null : entry.child("peer").getValue(String.class);
             c.peerName = peerName;
             c.peerVault = entry.child("peerVault").getValue(String.class);
             c.established = true;
@@ -574,11 +824,16 @@ final class ChatSync {
                 c.moved = true;
             }
             c.id = (int) dao.insertConversation(c);
-        } else if (peerName != null && !peerName.equals(c.peerName)) {
+        } else if (!group && peerName != null && !peerName.equals(c.peerName)) {
             c.peerName = peerName; // They changed their username.
             dao.updateConversation(c);
         }
-        fetch(context, uid, c);
+        try {
+            fetch(context, uid, c);
+        } catch (ExecutionException e) {
+            // A group I was removed from refuses me now; keep what's here, stop asking.
+            if (!group || !refused(e)) throw e;
+        }
     }
 
     /**
@@ -595,13 +850,18 @@ final class ChatSync {
         String from = c.cursor;
         String open = dao.oldestOpen(c.id);
         if (open != null && (from == null || open.compareTo(from) < 0)) from = open;
-        Query query = Account.root().child("chats").child(c.chatId).child("messages").orderByKey();
+        Query query = ref(c.chatId).child("messages").orderByKey();
         if (from != null) query = query.startAt(from);
         DataSnapshot messages = await(query.limitToLast(KEEP).get());
-        DataSnapshot theme = await(Account.root().child("chats").child(c.chatId).child("theme").get());
+        DataSnapshot theme = await(ref(c.chatId).child("theme").get());
         c.theme = themeJson(theme);
+        if (c.isGroup) {
+            c.members = membersOf(await(ref(c.chatId).child("members").get())).toString();
+            String name = await(ref(c.chatId).child("meta").child("name").get()).getValue(String.class);
+            if (name != null) c.peerName = name;
+        }
         if (c.peerUid != null) {
-            c.peerShown = await(Account.root().child("chats").child(c.chatId).child("alias").child(c.peerUid).get())
+            c.peerShown = await(ref(c.chatId).child("alias").child(c.peerUid).get())
                     .getValue(String.class);
         }
         List<String> unacknowledged = new ArrayList<>();
@@ -611,8 +871,8 @@ final class ChatSync {
         dao.updateConversation(c);
         if (receipts && !unacknowledged.isEmpty()) {
             Map<String, Object> update = new HashMap<>();
-            for (String key : unacknowledged) update.put(key + "/received", ServerValue.TIMESTAMP);
-            await(Account.root().child("chats").child(c.chatId).child("messages").updateChildren(update));
+            for (String key : unacknowledged) update.put(key + receiptPath(c, "received", uid), ServerValue.TIMESTAMP);
+            await(ref(c.chatId).child("messages").updateChildren(update));
         }
     }
 
@@ -620,6 +880,25 @@ final class ChatSync {
     static String themeJson(DataSnapshot theme) {
         Object value = theme.getValue();
         return value instanceof Map ? new org.json.JSONObject((Map<?, ?>) value).toString() : null;
+    }
+
+    /** Two people: one "received"/"seen" each. A group: one per member ("rcv"/"seen" by uid). */
+    private static String receiptPath(ChatStore.Conversation c, String kind, String uid) {
+        if (!c.isGroup) return "/" + kind;
+        return "/" + ("received".equals(kind) ? "rcv" : "seen") + "/" + uid;
+    }
+
+    /** True if every other member is in a group message's receipt map. */
+    private static boolean everyone(ChatStore.Conversation c, String uid, DataSnapshot receipts) {
+        org.json.JSONObject members = json(c.members);
+        int others = 0;
+        for (java.util.Iterator<String> it = members.keys(); it.hasNext(); ) {
+            String m = it.next();
+            if (m.equals(uid)) continue;
+            others++;
+            if (!receipts.hasChild(m)) return false;
+        }
+        return others > 0;
     }
 
     /** Stores or updates one message. True if it is theirs and they don't know it arrived. */
@@ -632,7 +911,19 @@ final class ChatSync {
         if (key == null || from == null || (text == null && media == null)) return false;
         if (text == null) text = "";
         boolean mine = uid.equals(from);
-        boolean received = s.hasChild("received"), seen = s.hasChild("seen");
+        boolean received, seen;
+        if (!c.isGroup) {
+            received = s.hasChild("received");
+            seen = s.hasChild("seen");
+        } else if (mine) {
+            received = everyone(c, uid, s.child("rcv"));
+            seen = everyone(c, uid, s.child("seen"));
+        } else {
+            received = s.child("rcv").hasChild(uid);
+            seen = s.child("seen").hasChild(uid);
+        }
+        boolean opened = !c.isGroup ? s.hasChild("opened")
+                : mine ? everyone(c, uid, s.child("opened")) : s.child("opened").hasChild(uid);
         Long sentAt = s.child("sentAt").getValue(Long.class);
         ChatStore.Message local = dao.message(key);
         if (local == null) {
@@ -641,7 +932,12 @@ final class ChatSync {
             m.msgKey = key;
             m.mine = mine;
             m.text = text;
-            m.media = media;
+            m.media = opened ? flag(media, "opened") : media;
+            if (c.isGroup && !mine) {
+                m.sender = from;
+                org.json.JSONObject info = json(c.members).optJSONObject(from);
+                m.senderName = info == null ? null : info.optString("name", null);
+            }
             m.at = sentAt == null ? System.currentTimeMillis() : sentAt;
             // Mine: how far it got. Theirs: here now, and seen only if I saw it elsewhere.
             m.status = mine ? (seen ? ChatStore.SEEN : received ? ChatStore.RECEIVED : ChatStore.SENT)
@@ -649,14 +945,68 @@ final class ChatSync {
             dao.insertMessage(m);
             if (!mine && !seen) c.unread++;
             if (c.cursor == null || key.compareTo(c.cursor) >= 0) {
-                c.lastText = preview(text, media);
+                c.lastText = (m.senderName != null ? m.senderName + ": " : "") + preview(text, media);
                 c.lastAt = m.at;
             }
-        } else if (mine) {
-            dao.advance(key, seen ? ChatStore.SEEN : received ? ChatStore.RECEIVED : ChatStore.SENT);
+        } else {
+            if (mine) dao.advance(key, seen ? ChatStore.SEEN : received ? ChatStore.RECEIVED : ChatStore.SENT);
+            ChatMedia.Meta meta = ChatMedia.Meta.parse(local.media);
+            if (meta != null && meta.once && opened && !hasFlag(local.media, "opened")) {
+                dao.setMedia(key, flag(local.media, "opened"));
+                // Opened by everyone it was for: its file leaves the sender's Drive for good.
+                if (mine && meta.id != null && appContext != null) {
+                    DriveStore drive = Account.drive(appContext);
+                    if (drive != null) {
+                        try {
+                            drive.deleteFile(meta.id);
+                        } catch (IOException e) {
+                            Log.w(TAG, "Couldn't remove an opened view-once file", e);
+                        }
+                    }
+                }
+            }
         }
         if (c.cursor == null || key.compareTo(c.cursor) > 0) c.cursor = key;
         return !mine && !received;
+    }
+
+    /** Local-only marks on a message's media JSON (e.g. "opened"). */
+    static String flag(@Nullable String media, String name) {
+        if (media == null) return null;
+        try {
+            return new org.json.JSONObject(media).put(name, true).toString();
+        } catch (Exception e) {
+            return media;
+        }
+    }
+
+    static boolean hasFlag(@Nullable String media, String name) {
+        if (media == null) return false;
+        try {
+            return new org.json.JSONObject(media).optBoolean(name, false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * A view-once photo or video was just looked at: its copy here goes, and the sender hears
+     * it was opened (their phone then deletes the file from their Drive).
+     */
+    static void markOpened(Context context, String msgKey) {
+        Context app = context.getApplicationContext();
+        AppDatabase.IO.execute(() -> {
+            ChatStore.Dao dao = AppDatabase.getInstance(app).chatDao();
+            ChatStore.Message m = dao.message(msgKey);
+            if (m == null) return;
+            dao.setMedia(msgKey, flag(m.media, "opened"));
+            ChatMedia.forget(app, msgKey);
+            ChatStore.Conversation c = dao.conversation(m.threadId);
+            String uid = Account.uid();
+            if (c == null || uid == null) return;
+            DatabaseReference ref = ref(c.chatId).child("messages").child(msgKey).child("opened");
+            (c.isGroup ? ref.child(uid) : ref).setValue(ServerValue.TIMESTAMP);
+        });
     }
 
     /** The conversation is on screen: tell them it was seen. */
@@ -672,8 +1022,8 @@ final class ChatSync {
             dao.markSeen(conversationId);
             if (Account.uid() == null) return;
             Map<String, Object> update = new HashMap<>();
-            for (String key : keys) update.put(key + "/seen", ServerValue.TIMESTAMP);
-            Account.root().child("chats").child(c.chatId).child("messages").updateChildren(update);
+            for (String key : keys) update.put(key + receiptPath(c, "seen", Account.uid()), ServerValue.TIMESTAMP);
+            ref(c.chatId).child("messages").updateChildren(update);
         });
     }
 
@@ -702,8 +1052,8 @@ final class ChatSync {
             ChatStore.Conversation c = dao.conversation(conversationId);
             if (c == null) return;
             if (apply(dao, uid, c, snapshot)) {
-                Account.root().child("chats").child(c.chatId).child("messages").child(snapshot.getKey())
-                        .child("received").setValue(ServerValue.TIMESTAMP);
+                ref(c.chatId).child("messages").child(snapshot.getKey())
+                        .child(receiptPath(c, "received", uid).substring(1)).setValue(ServerValue.TIMESTAMP);
             }
             dao.updateConversation(c);
             onChange.run();
@@ -712,7 +1062,7 @@ final class ChatSync {
             ChatStore.Conversation c = dao.conversation(conversationId);
             if (c == null) return;
             synchronized (query) {
-                query[0] = Account.root().child("chats").child(c.chatId).child("messages").orderByKey().limitToLast(KEEP);
+                query[0] = ref(c.chatId).child("messages").orderByKey().limitToLast(KEEP);
                 query[0].addChildEventListener(listener);
             }
         });
@@ -748,7 +1098,7 @@ final class ChatSync {
             ChatStore.Conversation c = dao.conversation(conversationId);
             if (c == null || !c.established || Account.uid() == null) return;
             synchronized (ref) {
-                ref[0] = Account.root().child("chats").child(c.chatId).child("theme");
+                ref[0] = ref(c.chatId).child("theme");
                 ref[0].addValueEventListener(listener);
             }
         });
@@ -784,6 +1134,7 @@ final class ChatSync {
 
     /** Off the main thread, one at a time with the worker; never parks a shared thread on it. */
     private static void background(Context context, Step step) {
+        appContext = context.getApplicationContext();
         AppDatabase.IO.execute(() -> {
             if (!LOCK.tryLock()) {
                 schedule(context);
@@ -872,10 +1223,16 @@ final class ChatSync {
     }
 
     static void run(Context context) throws Exception {
+        appContext = context.getApplicationContext();
         String uid = Account.uid();
         if (uid == null) return;
-        if (AppDatabase.getInstance(context).chatDao().mainVault() == null) return;
         if (!ChatVaults.boundTo(context, uid)) return; // This phone's chats belong to another account.
+        if (AppDatabase.getInstance(context).chatDao().mainVault() == null) {
+            // Chat not opened on this phone yet: still bring the account's vaults (and their
+            // locks) here, so they're ready the first time it is.
+            ChatVaults.sync(context, uid);
+            return;
+        }
         LOCK.lock();
         try {
             // Each stage on its own: one failing (say, vault sync) must not hold messages back.

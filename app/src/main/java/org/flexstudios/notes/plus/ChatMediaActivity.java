@@ -28,9 +28,12 @@ public class ChatMediaActivity extends VaultActivity {
 
     static final String EXTRA_TAG = "media_tag";
     static final String EXTRA_META = "media_meta";
+    /** View once: never capturable, and gone from this phone when closed. */
+    static final String EXTRA_ONCE = "media_once";
 
     private ExoPlayer player;
     private File plain;
+    private boolean once, shown;
 
     @Override
     protected String realm() {
@@ -40,6 +43,8 @@ public class ChatMediaActivity extends VaultActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        once = getIntent().getBooleanExtra(EXTRA_ONCE, false);
+        if (once) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
         setContentView(root);
@@ -60,6 +65,7 @@ public class ChatMediaActivity extends VaultActivity {
                     File file = ChatMedia.decryptToTemp(this, tag, meta);
                     runOnUiThread(() -> {
                         plain = file;
+                        shown = true;
                         root.removeView(spinner);
                         play(root, file);
                     });
@@ -77,6 +83,7 @@ public class ChatMediaActivity extends VaultActivity {
                     }
                     Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
                     runOnUiThread(() -> {
+                        shown = true;
                         root.removeView(spinner);
                         PhotoView photo = new PhotoView(this);
                         photo.setImageBitmap(bitmap);
@@ -112,9 +119,18 @@ public class ChatMediaActivity extends VaultActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        // The space's "allow screenshots" never applies to view-once media.
+        if (once) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
         if (player != null) player.pause();
+        // Leaving a view-once item ends it, even by switching apps.
+        if (once && shown && !isFinishing()) finish();
     }
 
     @Override
@@ -122,5 +138,6 @@ public class ChatMediaActivity extends VaultActivity {
         super.onDestroy();
         if (player != null) player.release();
         if (plain != null) VaultCrypto.deleteRecursive(plain);
+        if (once && shown) ChatSync.markOpened(this, getIntent().getStringExtra(EXTRA_TAG));
     }
 }

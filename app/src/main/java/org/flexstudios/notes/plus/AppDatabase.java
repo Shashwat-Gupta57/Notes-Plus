@@ -12,7 +12,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 import java.util.concurrent.Executors;
 
 @Database(entities = {NoteEntity.class, SecretEntity.class, VaultEntity.class, AlbumEntity.class,
-        ChatStore.Vault.class, ChatStore.Conversation.class, ChatStore.Message.class}, version = 17, exportSchema = false)
+        ChatStore.Vault.class, ChatStore.Conversation.class, ChatStore.Message.class}, version = 18, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static AppDatabase instance;
 
@@ -36,7 +36,7 @@ public abstract class AppDatabase extends RoomDatabase {
                     .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
                             MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
-                            MIGRATION_16_17)
+                            MIGRATION_16_17, MIGRATION_17_18)
                     .addCallback(new Callback() {
                         @Override
                         public void onOpen(@NonNull SupportSQLiteDatabase db) {
@@ -94,6 +94,19 @@ public abstract class AppDatabase extends RoomDatabase {
      * and every lookup by file name was a full table scan, which is what made opening a vault
      * of thousands of items slow.
      */
+    /** Group notes, group chats, and who wrote each group message. */
+    static final Migration MIGRATION_17_18 = new Migration(17, 18) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE `notes` ADD COLUMN `groupId` TEXT");
+            database.execSQL("ALTER TABLE `notes` ADD COLUMN `groupMembers` TEXT");
+            database.execSQL("ALTER TABLE `chat_threads` ADD COLUMN `isGroup` INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE `chat_threads` ADD COLUMN `members` TEXT");
+            database.execSQL("ALTER TABLE `chat_messages` ADD COLUMN `sender` TEXT");
+            database.execSQL("ALTER TABLE `chat_messages` ADD COLUMN `senderName` TEXT");
+        }
+    };
+
     /** Chat profile photos, changed vault IDs shown to peers, chat list backgrounds. */
     static final Migration MIGRATION_16_17 = new Migration(16, 17) {
         @Override

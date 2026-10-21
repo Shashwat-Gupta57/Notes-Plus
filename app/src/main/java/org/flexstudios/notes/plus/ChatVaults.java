@@ -122,17 +122,34 @@ final class ChatVaults {
      * vault at all. A first visit on a phone whose account has none yet creates one with the
      * main gallery vault's lock at that moment; from then on the two are independent.
      */
-    static synchronized void ensureMain(Context context) {
+    static void ensureMain(Context context) {
         AppDatabase db = AppDatabase.getInstance(context);
         ChatStore.Dao dao = db.chatDao();
         String uid = Account.uid();
-        if (dao.mainVault() == null && uid != null && boundTo(context, uid)) {
+        if (uid != null && boundTo(context, uid)) {
+            // Every visit first takes the account's vaults (IDs, names, locks), so a lock
+            // changed on another phone works here. Bounded, so an offline phone isn't held up:
+            // longer when this phone has no vault yet and has to wait for them.
+            Thread fetch = new Thread(() -> {
+                try {
+                    sync(context, uid);
+                } catch (Exception e) {
+                    Log.w(TAG, "Could not fetch the account's vaults first", e);
+                }
+            }, "chat-vault-sync");
+            fetch.start();
             try {
-                sync(context, uid);
-            } catch (Exception e) {
-                Log.w(TAG, "Could not fetch the account's vaults first", e);
+                fetch.join(dao.mainVault() == null ? 10_000 : 4_000);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
             }
         }
+        createMainIfMissing(context);
+    }
+
+    private static synchronized void createMainIfMissing(Context context) {
+        AppDatabase db = AppDatabase.getInstance(context);
+        ChatStore.Dao dao = db.chatDao();
         try {
             upgradeLocks(context);
             if (dao.mainVault() != null) return;

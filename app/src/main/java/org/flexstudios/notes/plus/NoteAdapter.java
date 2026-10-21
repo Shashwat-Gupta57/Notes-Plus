@@ -127,7 +127,9 @@ public class NoteAdapter extends ListAdapter<NoteEntity, NoteAdapter.Card> {
 
         c.typeIcon.setImageResource(kind.icon);
         c.typeIcon.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(ctx, kind.accent)));
-        c.date.setText(relative(note.getTimestamp()));
+        String when = relative(note.getTimestamp());
+        int people = note.getGroupId() == null ? 0 : GroupNotes.count(note.getGroupMembers());
+        c.date.setText(people > 0 ? "Shared · " + people + "  ·  " + when : when);
         c.pinned.setVisibility(note.isPinned() ? View.VISIBLE : View.GONE);
     }
 

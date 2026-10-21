@@ -501,6 +501,7 @@ final class Account {
         wipe.put("chatNick/" + uid, null);
         wipe.put("profiles/" + uid, null);
         wipe.put("vaultPhotos/" + uid, null);
+        wipe.put("groupIndex/" + uid, null);
         if (username != null) wipe.put("usernames/" + username, null);
         Tasks.await(root().updateChildren(wipe), TIMEOUT_S, TimeUnit.SECONDS);
         Tasks.await(user.delete(), TIMEOUT_S, TimeUnit.SECONDS);

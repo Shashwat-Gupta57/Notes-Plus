@@ -89,6 +89,10 @@ public final class ChatStore {
         public String peerShown;
         /** Their photo: {"url":...} (Google) or ChatMedia.Meta JSON (custom). */
         public String peerPhoto;
+        /** A group chat ({@code chatId} "g_" + its id): peerName is its name, peer fields unused. */
+        public boolean isGroup;
+        /** Group members as JSON {uid: {"code":..,"name":..}}. */
+        public String members;
     }
 
     @Entity(tableName = "chat_messages",
@@ -105,8 +109,11 @@ public final class ChatStore {
         /** When it was written (mine) or sent (theirs). */
         public long at;
         public int status;
-        /** A photo or video: {@link ChatMedia.Meta} as JSON. Null for text. */
+        /** A photo, video or voice note: {@link ChatMedia.Meta} as JSON. Null for text. */
         public String media;
+        /** In a group: who wrote it. */
+        public String sender;
+        public String senderName;
     }
 
     @androidx.room.Dao

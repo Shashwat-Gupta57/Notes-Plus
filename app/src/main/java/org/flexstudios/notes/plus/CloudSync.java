@@ -184,7 +184,7 @@ public class CloudSync {
     public Snapshot backup(Plan plan, Resolution resolution, Progress progress) throws Exception {
         return exclusive(progress, () -> {
             resolveFolders();
-            ensureKeyring();
+            settleKeyring(null);
 
             ObjectIndex index = loadIndex();
             SecretKey dataKey = VaultCrypto.getOrCreateDataKey(context);
@@ -296,8 +296,21 @@ public class CloudSync {
     // ----------------------------------------------------------------- restore
 
     public List<Snapshot.Summary> listRestorePoints() throws Exception {
-        resolveFolders();
-        return readSnapshotIndex();
+        return listRestorePoints(null);
+    }
+
+    /**
+     * The restore points. A backup made by another installation (a reinstall, the desktop) is
+     * unlocked first with {@code password}, or the main vault lock when that is null.
+     *
+     * @throws VaultCrypto.WrongPasswordException carrying {@link VaultCrypto#describeKeyring}
+     */
+    public List<Snapshot.Summary> listRestorePoints(String password) throws Exception {
+        return exclusive(null, () -> {
+            resolveFolders();
+            adoptKeyFromKeyring(password);
+            return readSnapshotIndex();
+        });
     }
 
     /**
@@ -313,7 +326,7 @@ public class CloudSync {
             resolveFolders();
 
             stage(progress, "Unlocking backup");
-            adoptKeyFromKeyring(lockValue);
+            adoptKeyFromKeyring(lockValue == null || lockValue.isEmpty() ? null : lockValue);
 
             stage(progress, "Reading restore point");
             VaultCrypto.KeyResolver resolver = VaultCrypto.localResolver(context, lockValue);
@@ -660,10 +673,27 @@ public class CloudSync {
 
     // -------------------------------------------------------------------- keyring
 
-    /** Publishes a keyring if the store has none. Never overwrites another install's. */
-    private void ensureKeyring() throws Exception {
+    /**
+     * Before a backup: a new store, or one under this phone's key, gets a fresh keyring (so a
+     * changed lock or backup lock always reaches Drive). One under another installation's key
+     * is taken over first, opened with {@code password} or the main vault lock; otherwise the
+     * backup stops rather than write under a key the store's restore points don't share.
+     */
+    private void settleKeyring(String password) throws Exception {
         JSONObject existing = store.readPlain(VaultCrypto.KEYRING_FILE, rootId);
-        if (existing == null) publishKeyring();
+        String theirs = VaultCrypto.keyIdOf(existing);
+        if (theirs == null || theirs.isEmpty() || theirs.equals(VaultCrypto.getKeyId(context))) {
+            publishKeyring();
+            return;
+        }
+        adoptKeyFromKeyring(password);
+        publishKeyring();
+    }
+
+    /** The main vault's lock: the first thing tried on a backup's keyring. */
+    private String mainLock() {
+        VaultEntity main = db.vaultDao().getMainVault();
+        return main == null ? null : main.getLockValue();
     }
 
     /**
@@ -690,15 +720,24 @@ public class CloudSync {
         store.writePlain(VaultCrypto.KEYRING_FILE, rootId, keyring);
     }
 
-    /** Unwraps the store's data key with a lock or backup password and adopts it locally. */
+    /**
+     * Unwraps the store's data key and adopts it locally. {@code password}: a lock or the backup
+     * lock; null tries the main vault lock. A wrong one throws, saying what does open it.
+     */
     private void adoptKeyFromKeyring(String password) throws Exception {
         JSONObject keyring = store.readPlain(VaultCrypto.KEYRING_FILE, rootId);
         if (keyring == null) return; // Pre-keyring store: payloads are legacy, handled by the resolver.
 
         String keyId = VaultCrypto.keyIdOf(keyring);
-        if (keyId != null && keyId.equals(VaultCrypto.getKeyId(context))) return;
+        if (keyId == null || keyId.equals(VaultCrypto.getKeyId(context))) return;
 
-        SecretKey dataKey = VaultCrypto.unwrapDataKey(keyring, password);
+        String tried = password != null ? password : mainLock();
+        SecretKey dataKey;
+        try {
+            dataKey = VaultCrypto.unwrapDataKey(keyring, tried == null ? "" : tried);
+        } catch (VaultCrypto.WrongPasswordException e) {
+            throw new VaultCrypto.WrongPasswordException(VaultCrypto.describeKeyring(keyring));
+        }
         VaultCrypto.adoptDataKey(context, dataKey, keyId);
     }
 

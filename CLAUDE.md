@@ -64,8 +64,11 @@ Audio), its JSON and its folder. Editors extend `NoteActivity`, which loads, sav
 (only when changed), discards abandoned new notes, and owns pin / colour / delete:
 `NoteEditorActivity` (text, list, journal), `MindMapActivity` (+ `MindMapView`, also the card
 preview; an idea may carry a picture from the desktop, `MindNode.image`, drawn above its text with the
-desktop's geometry), `SketchActivity` (+ `DrawingView`; strokes in `sketch.json`, card in `sketch.png`),
-`AudioNoteActivity` (+ `WaveformView`). `NoteAdapter` draws one card layout for all types.
+desktop's geometry; `MindNode.sub` is an optional sub-text under the idea; ideas wrap at 180 dp unless the map's
+`wrap` is off, and are never cut short; "Add idea behind" inserts a parent), `SketchActivity` (+ `DrawingView`; strokes in `sketch.json`, card in `sketch.png`),
+`AudioNoteActivity` (+ `WaveformView`; a recording not here yet is fetched on tap through
+`NoteSync.fetch`, since the sync skips notes open in an editor). Lists and mind maps carry `"wrap": false` in
+their data when the editor's "Wrap text" (`NoteActivity.wrapText`) is off. `NoteAdapter` draws one card layout for all types.
 Long swipes on the notes grid are the secret gestures (left: gallery, right: chat), so there
 is no swipe-to-delete; notes are deleted from their options or their editor.
 Notes are not in the vault's `.bak` or Drive backups; they sync through the notes account.
@@ -79,10 +82,12 @@ Notes are not in the vault's `.bak` or Drive backups; they sync through the note
 | `AccountActivity` | Sign-in, verify-your-email, then profile / sync status / Drive / username / sign out / delete. |
 
 Sync rules, all in `NoteSync`: every write bumps `rev` by one (the database rules enforce it);
-push is a transaction that only lands on the `rev` it was based on, otherwise the server's
-version takes the note and ours becomes a "(conflict, <device>)" copy. Pull only overwrites
-clean notes. A note in `NoteSync.OPEN` (open in an editor, or deleted with Undo still on
-screen) is neither pushed nor overwritten; sync is queued when an editor closes or the app goes
+push is a transaction that only lands on the `rev` it was based on; if the server moved on,
+an edit made here replaces it (re-pushed on the server's rev; no conflict copies). Pull only
+overwrites clean notes. A note in `NoteSync.OPEN` (open in an editor, or deleted with Undo still on
+screen) is neither pushed nor overwritten, except that an editor with no changes takes a newer
+version in place (`NoteSync.takeNewer`); "changed" is measured against what the editor itself
+produced after loading (`NoteActivity.markBaseline`), so opening a note never counts as an edit; sync is queued when an editor closes or the app goes
 to the background, never while typing. Deletes are tombstones, swept after 30 days.
 Mind-map links travel as `linkUuid`, because row ids differ per phone.
 
@@ -280,8 +285,9 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-The build file and `version.json` are both at 11 / "10.0" (released as v10.0.0,
-with `sha256`).
+The build file is at 12 / "11.0"; `version.json` still advertises 11 / "10.0" (released as v10.0.0,
+with `sha256`) until an 11.0 APK is published. The desktop app (`pom.xml`) carries the same
+version name, so the two stay in step.
 Bump `version.json` only when the APK for a new version is actually published, or every user
 is prompted to download a release that does not exist.
 

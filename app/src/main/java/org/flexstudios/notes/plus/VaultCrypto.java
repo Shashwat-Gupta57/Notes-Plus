@@ -580,10 +580,13 @@ public final class VaultCrypto {
                 String lockValue = vault.getLockValue();
                 if (lockValue == null || lockValue.isEmpty() || seen.contains(lockValue)) continue;
                 seen.add(lockValue);
-                wraps.put(wrap(dataKey, lockValue, vault.getName()));
+                wraps.put(wrap(dataKey, lockValue, vault.getName(), vault.getLockType()));
             }
         }
         keyring.put("wraps", wraps);
+        // Shown when another device needs to unlock it: "made on ...".
+        keyring.put("device", android.os.Build.MODEL);
+        keyring.put("updatedAt", System.currentTimeMillis());
         return keyring;
     }
 
@@ -593,17 +596,66 @@ public final class VaultCrypto {
 
     /** Sets (or with null, removes) the backup password. Only the wrap is stored. */
     public static void setBackupPassword(Context context, String password) throws Exception {
+        setBackupLock(context, "PASSWORD", password);
+    }
+
+    /**
+     * The backup lock: a PIN, password or pattern that, when set, is the only key to backups
+     * (Drive and .bak); unset, the vault locks open them. Null removes it. Only the wrap is kept.
+     */
+    public static void setBackupLock(Context context, String type, String value) throws Exception {
         SharedPreferences.Editor editor = SecurityHelper.getEncryptedPrefs(context).edit();
-        if (password == null) {
+        if (value == null) {
             editor.remove(KEY_BACKUP_WRAP);
         } else {
             editor.putString(KEY_BACKUP_WRAP,
-                    wrap(getOrCreateDataKey(context), password, "Backup password").toString());
+                    wrap(getOrCreateDataKey(context), value, "Backup lock", type).toString());
         }
-        if (!editor.commit()) throw new IOException("Could not save the backup password");
+        if (!editor.commit()) throw new IOException("Could not save the backup lock");
+    }
+
+    /** PIN, PASSWORD or PATTERN; null when no backup lock is set. */
+    public static String backupLockType(Context context) {
+        String wrap = SecurityHelper.getEncryptedPrefs(context).getString(KEY_BACKUP_WRAP, null);
+        if (wrap == null) return null;
+        try {
+            return new JSONObject(wrap).optString("lockType", "PASSWORD");
+        } catch (Exception e) {
+            return "PASSWORD";
+        }
+    }
+
+    /**
+     * In words, what opens a keyring: shown on the unlock screen, so nobody has to guess which
+     * lock (or which device's lock) a backup wants.
+     */
+    public static String describeKeyring(JSONObject keyring) {
+        if (keyring == null) return "This backup has no key list; it opens with the lock it was made with.";
+        List<String> ways = new ArrayList<>();
+        JSONArray wraps = keyring.optJSONArray("wraps");
+        for (int i = 0; wraps != null && i < wraps.length(); i++) {
+            JSONObject w = wraps.optJSONObject(i);
+            if (w == null) continue;
+            String label = w.optString("label", "Vault");
+            String type = w.optString("lockType", "");
+            String kind = "PIN".equals(type) ? " (a PIN)" : "PATTERN".equals(type) ? " (a pattern)"
+                    : "PASSWORD".equals(type) ? " (a password)" : "";
+            ways.add(label.startsWith("Backup") ? "its backup lock" + (kind.isEmpty() ? " (a password)" : kind)
+                    : "the lock of \u201c" + label + "\u201d" + kind);
+        }
+        String device = keyring.optString("device", "");
+        StringBuilder out = new StringBuilder("This backup");
+        if (!device.isEmpty()) out.append(" was last set up on ").append(device).append(" and");
+        out.append(ways.isEmpty() ? " has no way to open it." : " opens with " + String.join(", or ", ways) + ".");
+        out.append(" Use the lock as it was then: if you changed it since, try the old one.");
+        return out.toString();
     }
 
     private static JSONObject wrap(SecretKey dataKey, String password, String label) throws Exception {
+        return wrap(dataKey, password, label, null);
+    }
+
+    private static JSONObject wrap(SecretKey dataKey, String password, String label, String lockType) throws Exception {
         byte[] salt = randomBytes(SALT_LEN);
         byte[] iv = randomBytes(IV_LEN);
         SecretKey wrappingKey = deriveKey(password, salt, PBKDF2_ITERATIONS);
@@ -615,6 +667,7 @@ public final class VaultCrypto {
         entry.put("salt", Base64.encodeToString(salt, Base64.NO_WRAP));
         entry.put("iv", Base64.encodeToString(iv, Base64.NO_WRAP));
         entry.put("wrapped", Base64.encodeToString(wrapped, Base64.NO_WRAP));
+        if (lockType != null) entry.put("lockType", lockType);
         return entry;
     }
 

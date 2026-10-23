@@ -119,7 +119,7 @@ public class NoteEditorActivity extends NoteActivity {
                 kept.add(item);
                 text.append(item.text.trim()).append('\n');
             }
-            note.setData(NoteData.todosJson(kept));
+            note.setData(NoteData.todosJson(kept, wrapItems));
             note.setContent(text.toString().trim());
             return !kept.isEmpty() || !t.isEmpty();
         }
@@ -148,6 +148,21 @@ public class NoteEditorActivity extends NoteActivity {
 
     // ===================================================================== list
 
+    /** List items wrap onto more lines (the default) or each stays on one line. */
+    private boolean wrapItems = true;
+
+    @Nullable
+    @Override
+    protected Boolean wrapText() {
+        return NoteData.LIST.equals(type) ? wrapItems : null;
+    }
+
+    @Override
+    protected void setWrapText(boolean wrap) {
+        wrapItems = wrap;
+        if (listAdapter != null) listAdapter.notifyDataSetChanged();
+    }
+
     private void setUpList(NoteEntity note) {
         body.setVisibility(View.GONE);
         findViewById(R.id.listSection).setVisibility(View.VISIBLE);
@@ -156,7 +171,14 @@ public class NoteEditorActivity extends NoteActivity {
         RecyclerView listView = findViewById(R.id.listItems);
         items.clear();
         items.addAll(NoteData.todos(note.getData()));
+        wrapItems = NoteData.wraps(note.getData());
         if (items.isEmpty()) items.add(new NoteData.TodoItem("", false));
+        if (listAdapter != null) {
+            // Loaded again (a newer version from another device): same list, new items.
+            listAdapter.notifyDataSetChanged();
+            updateProgress();
+            return;
+        }
 
         listAdapter = new ListAdapter();
         listView.setLayoutManager(new LinearLayoutManager(this));
@@ -239,6 +261,9 @@ public class NoteEditorActivity extends NoteActivity {
         public void onBindViewHolder(@NonNull Holder h, int position) {
             NoteData.TodoItem item = items.get(position);
             h.bound = null;
+            // Still one item per line for the keyboard (Next adds the next item); only the view wraps.
+            h.text.setHorizontallyScrolling(!wrapItems);
+            h.text.setMaxLines(wrapItems ? Integer.MAX_VALUE : 1);
             h.text.setText(item.text);
             h.check.setChecked(item.done);
             h.styleDone(item.done);
@@ -319,6 +344,7 @@ public class NoteEditorActivity extends NoteActivity {
         showDay();
 
         moodRow = findViewById(R.id.moodRow);
+        moodRow.removeAllViews(); // Loaded again: no second row of moods.
         float density = getResources().getDisplayMetrics().density;
         for (String mood : MOODS) {
             TextView chip = new TextView(this);

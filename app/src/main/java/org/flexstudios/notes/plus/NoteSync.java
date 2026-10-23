@@ -95,11 +95,18 @@ final class NoteSync {
 
     /** Ids of notes open in an editor right now. */
     static final Set<Integer> OPEN = ConcurrentHashMap.newKeySet();
+    /** Newer versions of open notes, held until their editor says it has changed nothing. */
+    private static final Map<Integer, Remote> NEWER = new ConcurrentHashMap<>();
+    /** Open editors to tell when a newer version of their note arrives (run on the main thread). */
+    static final Map<Integer, Runnable> WATCHERS = new ConcurrentHashMap<>();
 
     /** One sync at a time, worker or live listener. */
     private static final ReentrantLock LOCK = new ReentrantLock();
 
     private NoteSync() {}
+
+    /** True while a sync pass runs: the notes grid shows "Syncing…" and warns before editing. */
+    static final androidx.lifecycle.MutableLiveData<Boolean> SYNCING = new androidx.lifecycle.MutableLiveData<>(false);
 
     static String newUuid() {
         return UUID.randomUUID().toString().replace("-", "");
@@ -239,6 +246,7 @@ final class NoteSync {
         String uid = Account.uid();
         if (uid == null) return;
         LOCK.lock();
+        SYNCING.postValue(true);
         try {
             NoteDao dao = AppDatabase.getInstance(context).noteDao();
             for (NoteEntity t : dao.localTombstones()) {
@@ -275,6 +283,7 @@ final class NoteSync {
             sweepTombstones(context, uid, notes);
             prefs(context).edit().putLong(PREF_LAST_SYNC + uid, System.currentTimeMillis()).apply();
         } finally {
+            SYNCING.postValue(false);
             LOCK.unlock();
         }
     }
@@ -377,6 +386,13 @@ final class NoteSync {
                 local != null && local.isDirty(), local == null ? 0 : local.getRev(), remote.rev, remote.deleted);
         switch (action) {
             case WAIT:
+                // Open here: if this device hasn't changed it, the editor takes the newer version
+                // in place (see takeNewer); if it has, the edit replaces this one on leaving.
+                if (!local.isDirty() && remote.rev > local.getRev()) {
+                    NEWER.put(local.getId(), remote);
+                    Runnable watcher = WATCHERS.get(local.getId());
+                    if (watcher != null) new android.os.Handler(android.os.Looper.getMainLooper()).post(watcher);
+                }
                 return false;
             case INSERT: {
                 NoteEntity note = new NoteEntity("", "", remote.edited);
@@ -402,6 +418,23 @@ final class NoteSync {
             default:
                 return true;
         }
+    }
+
+    /**
+     * The newer version that arrived for an open note, written in, for an editor whose note is
+     * unchanged. Blocking. Null when there is none (or this device has changed the note since).
+     */
+    @Nullable
+    static NoteEntity takeNewer(Context context, int noteId) {
+        Remote remote = NEWER.remove(noteId);
+        if (remote == null || remote.deleted) return null;
+        NoteDao dao = AppDatabase.getInstance(context).noteDao();
+        NoteEntity local = dao.getNoteById(noteId);
+        if (local == null || local.isDirty() || remote.rev <= local.getRev()) return null;
+        remote.copyInto(local);
+        dao.update(local);
+        writeSketch(context, local.getId(), remote.sketch);
+        return local;
     }
 
     // ================================================================ push
@@ -499,23 +532,11 @@ final class NoteSync {
             if (remote.deleted && mayRetry) pushOne(context, uid, notes, note, drive, false);
             return;
         }
-        keepBoth(context, uid, note, remote);
-    }
-
-    /** A real conflict: the account's version takes the note, ours becomes a copy beside it. */
-    private static void keepBoth(Context context, String uid, NoteEntity mine, Remote theirs) {
-        NoteDao dao = AppDatabase.getInstance(context).noteDao();
-        NoteEntity copy = new NoteEntity(conflictTitle(mine.getTitle()), mine.getContent(), mine.getTimestamp());
-        copy.setType(mine.getType());
-        copy.setData(mine.getData());
-        copy.setColor(mine.getColor());
-        copy.setPinned(mine.isPinned());
-        copy.setAccount(uid);
-        copy.setId((int) dao.insert(copy));
-        copyFiles(NoteData.dir(context, mine.getId()), NoteData.dir(context, copy.getId()));
-        theirs.copyInto(mine);
-        dao.update(mine);
-        writeSketch(context, mine.getId(), theirs.sketch);
+        // Changed elsewhere and edited here: this device's edit is the later intent, so it
+        // replaces the account's version (no "conflict" copy), based on the rev it now has.
+        note.setRev(remote.rev);
+        dao.update(note);
+        if (mayRetry) pushOne(context, uid, notes, note, drive, false);
     }
 
     @VisibleForTesting
@@ -703,27 +724,52 @@ final class NoteSync {
                 File target = new File(dir, name);
                 if (target.exists() && target.length() == entry.optLong("size", target.length())) continue;
                 onTransfer.run();
-                if (group || !entry.optString("key").isEmpty()) {
-                    try {
-                        ChatMedia.Meta meta = ChatMedia.Meta.parse(new JSONObject()
-                                .putOpt("id", entry.optString("driveId")).putOpt("key", entry.optString("key"))
-                                .putOpt("mime", entry.optString("mime")).toString());
-                        if (meta == null) continue;
-                        ChatMedia.decryptTo(context, groupTag(note.getUuid(), name), meta, target);
-                    } catch (IOException e) {
-                        throw e;
-                    } catch (Exception e) {
-                        throw new IOException(e);
-                    }
-                    continue;
-                }
-                File part = new File(dir, name + ".part");
-                drive.downloadFile(entry.optString("driveId"), part);
-                if (!part.renameTo(target)) {
-                    VaultCrypto.deleteRecursive(part);
-                    throw new IOException("Could not save " + name);
-                }
+                fetchOne(context, note, name, entry, target, drive);
             }
+        }
+    }
+
+    /**
+     * Fetches one file of a note now, e.g. a recording tapped before the sync got to it (open
+     * notes are skipped by the sync). Blocking. False if the note doesn't list it or it is in my
+     * Drive and Drive isn't connected here.
+     */
+    static boolean fetch(Context context, int noteId, String name) throws IOException {
+        NoteEntity note = AppDatabase.getInstance(context).noteDao().getNoteById(noteId);
+        if (note == null || note.getMedia() == null || !safeName(name)) return false;
+        JSONObject entry = json(note.getMedia()).optJSONObject(name);
+        if (entry == null) return false;
+        boolean keyed = note.getGroupId() != null || note.isReceived() || !entry.optString("key").isEmpty();
+        DriveStore drive = keyed ? null : Account.drive(context);
+        if (!keyed && drive == null) return false;
+        fetchOne(context, note, name, entry, new File(NoteData.dir(context, note.getId()), name), drive);
+        return true;
+    }
+
+    private static void fetchOne(Context context, NoteEntity note, String name, JSONObject entry, File target,
+                                 @Nullable DriveStore drive) throws IOException {
+        boolean group = note.getGroupId() != null || note.isReceived();
+        if (group || !entry.optString("key").isEmpty()) {
+            try {
+                ChatMedia.Meta meta = ChatMedia.Meta.parse(new JSONObject()
+                        .putOpt("id", entry.optString("driveId")).putOpt("key", entry.optString("key"))
+                        .putOpt("mime", entry.optString("mime")).toString());
+                if (meta == null) return;
+                ChatMedia.decryptTo(context, groupTag(note.getUuid(), name), meta, target);
+            } catch (IOException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IOException(e);
+            }
+            return;
+        }
+        if (drive == null) return;
+        File part = new File(target.getParentFile(), name + ".part");
+        drive.downloadFile(entry.optString("driveId"), part);
+        if (!target.delete() && target.exists()) Log.w(TAG, "Could not replace " + name);
+        if (!part.renameTo(target)) {
+            VaultCrypto.deleteRecursive(part);
+            throw new IOException("Could not save " + name);
         }
     }
 

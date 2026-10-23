@@ -84,6 +84,12 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        // "Syncing…" under the title while notes come in from the account.
+        NoteSync.SYNCING.observe(this, on -> {
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setSubtitle(Boolean.TRUE.equals(on) && Account.uid() != null ? "Syncing…" : null);
+            }
+        });
 
         emptyState = findViewById(R.id.emptyStateNotes);
         emptyText = findViewById(R.id.emptyStateText);
@@ -99,7 +105,7 @@ public class MainActivity extends AppCompatActivity {
         adapter.setListener(new NoteAdapter.Listener() {
             @Override
             public void onOpen(NoteEntity note) {
-                startActivity(NoteData.editor(MainActivity.this, note.getType(), note.getId()));
+                openWhenSafe(note);
             }
 
             @Override
@@ -326,6 +332,25 @@ public class MainActivity extends AppCompatActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         handleRelock(intent);
+    }
+
+    /**
+     * Opens a note, unless a sync is bringing changes in: then it asks first, because what is
+     * typed now can replace what is arriving from the other devices (or leave a conflict copy).
+     */
+    private void openWhenSafe(NoteEntity note) {
+        if (!Boolean.TRUE.equals(NoteSync.SYNCING.getValue()) || Account.uid() == null || note.isReceived()) {
+            startActivity(NoteData.editor(this, note.getType(), note.getId()));
+            return;
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Notes are syncing")
+                .setMessage("Changes from your other devices are coming in. Wait a moment so this note is up to date.\n\n"
+                        + "Editing it now may overwrite what's arriving, or leave a conflict copy.")
+                .setPositiveButton("Wait", null)
+                .setNegativeButton("Edit anyway", (d, w) ->
+                        startActivity(NoteData.editor(this, note.getType(), note.getId())))
+                .show();
     }
 
     @Override

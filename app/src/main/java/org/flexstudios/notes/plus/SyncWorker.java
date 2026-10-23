@@ -235,6 +235,10 @@ public class SyncWorker extends Worker {
             return Result.success();
         } catch (DriveStore.AuthException | DriveStore.QuotaException e) {
             return Result.failure(message(e.getMessage()));
+        } catch (VaultCrypto.WrongPasswordException e) {
+            // The Drive backup is under another installation's key: unlocking it is a question
+            // for the person, asked from Settings, never guessed here.
+            return Result.failure(message("Your Drive backup needs unlocking. Open Settings, Restore from Drive."));
         } catch (IOException e) {
             Log.w(TAG, "Backup interrupted; will retry", e);
             return Result.retry();
@@ -334,7 +338,8 @@ public class SyncWorker extends Worker {
             notifyDone("Restored from Google Drive", "Everything is back on this phone");
             return Result.success(message("Restored from Drive"));
         } catch (VaultCrypto.WrongPasswordException e) {
-            return Result.failure(new Data.Builder().putBoolean(RESULT_WRONG_PASSWORD, true).build());
+            return Result.failure(new Data.Builder().putBoolean(RESULT_WRONG_PASSWORD, true)
+                    .putString(RESULT_MESSAGE, e.getMessage()).build());
         } catch (CancellationException e) {
             return Result.failure(message("Restore cancelled"));
         } catch (Exception e) {

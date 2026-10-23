@@ -91,6 +91,7 @@ abstract class NoteEditor extends Screen {
             applyColor();
             showPin();
             onNoteLoaded(note);
+            if (!readOnly) markBaseline();
             if (readOnly) {
                 lockForReading();
                 javafx.scene.control.Label from = Ui.label("From @" + loaded.getSharedFrom() + "  ·  read only", 14, "secondary");
@@ -244,10 +245,23 @@ abstract class NoteEditor extends Screen {
                 labels.add(note.getGroupId() != null ? "People" : "Share with people");
                 actions.add(() -> afterSave(SharingUi::peopleSheet));
             }
+            Boolean wrap = wrapText();
+            if (wrap != null) {
+                labels.add(wrap ? "Don't wrap text" : "Wrap text");
+                actions.add(() -> setWrapText(!wrap));
+            }
             labels.add("Delete");
             actions.add(() -> Ui.confirm("Delete this note?", "Delete", () -> delete(true)));
         }
         Ui.menu(more, labels, actions);
+    }
+
+    /** Whether long lines wrap, for the note types that offer the choice; null for the rest. */
+    protected Boolean wrapText() {
+        return null;
+    }
+
+    protected void setWrapText(boolean wrap) {
     }
 
     /** Saves first and lets the write land, so what is shared is what's on screen. */
@@ -311,6 +325,20 @@ abstract class NoteEditor extends Screen {
     }
 
     // ===================================================================== helpers
+
+    /**
+     * "Unchanged" is what this editor makes of the note once it is on screen, not the stored
+     * text: editors normalise as they load, and that alone must never count as an edit, or
+     * leaving an untouched note pushes a stale copy over a newer one.
+     */
+    private void markBaseline() {
+        javafx.application.Platform.runLater(() -> {
+            if (note == null) return;
+            NoteEntity probe = note.copy();
+            collect(probe);
+            savedState = state(probe);
+        });
+    }
 
     private static String state(NoteEntity n) {
         return n.getTitle() + "\u0000" + n.getContent() + "\u0000" + n.getData() + "\u0000"

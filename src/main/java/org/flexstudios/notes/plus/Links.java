@@ -41,6 +41,18 @@ final class Links {
     static final BooleanProperty ctrl = new SimpleBooleanProperty(false);
 
     private static final Pattern URL = Pattern.compile("(?i)\\b(?:https?://|www\\.)[^\\s<>\"'`]+");
+    /**
+     * Bare domains ("google.com", "notes.talken.in/download"), which need no scheme or www. Only
+     * known endings count, so file names ("README.md", "main.py") and abbreviations ("e.g.")
+     * stay plain text; an address after @ is an email, not a link.
+     */
+    private static final Pattern DOMAIN = Pattern.compile("(?i)(?<![@\\w.\\-/])"
+            + "(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+"
+            + "(?:com|net|org|edu|gov|mil|int|io|co|ai|app|dev|me|info|biz|xyz|online|site|tech|store|shop|blog"
+            + "|news|live|cloud|page|link|art|design|studio|media|world|today|space|website|email|tv|gg|fm|ly|to"
+            + "|in|uk|us|ca|au|nz|ie|de|fr|es|it|nl|be|ch|at|se|no|dk|fi|pt|gr|cz|ro|hu|ua|ru|eu|jp|cn|kr|hk"
+            + "|tw|sg|my|id|ph|th|vn|pk|bd|ae|sa|il|tr|za|ng|ke|eg|br|mx|ar|cl|pe)"
+            + "(?![\\w-])(?::\\d{2,5})?(?:[/?#][^\\s<>\"'`]*)?");
     private static final Pattern IP = Pattern.compile(
             "(?<![\\d.])(?:(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(?::\\d{1,5})?(?![\\d.]\\d)");
 
@@ -57,6 +69,15 @@ final class Links {
             while (end > m.start() && ".,;:!?)]}".indexOf(text.charAt(end - 1)) >= 0) end--;
             out.add(new Match(m.start(), end, text.substring(m.start(), end), true));
         }
+        Matcher d = DOMAIN.matcher(text);
+        while (d.find()) {
+            boolean inLink = false;
+            for (Match u : out) if (d.start() < u.end() && d.end() > u.start()) inLink = true;
+            if (inLink) continue;
+            int end = d.end();
+            while (end > d.start() && ".,;:!?)]}".indexOf(text.charAt(end - 1)) >= 0) end--;
+            out.add(new Match(d.start(), end, text.substring(d.start(), end), true));
+        }
         Matcher ip = IP.matcher(text);
         while (ip.find()) {
             boolean inLink = false;
@@ -70,7 +91,8 @@ final class Links {
     /** Opens a link in the browser, or copies an IP address. */
     static void activate(Match m) {
         if (m.url()) {
-            String target = m.text().toLowerCase().startsWith("www.") ? "https://" + m.text() : m.text();
+            // "www.…" and bare domains have no scheme: the browser gets https.
+            String target = m.text().matches("(?i)https?://.*") ? m.text() : "https://" + m.text();
             NotesApp.openInBrowser(target);
         } else {
             ClipboardContent c = new ClipboardContent();

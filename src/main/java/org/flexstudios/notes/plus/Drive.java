@@ -110,6 +110,51 @@ final class Drive {
         return json(done).getString("id");
     }
 
+    /**
+     * Uploads a file, replacing the newest one of that name in {@code parent} if there is one
+     * (the phone's DriveStore.putFile): documents keep one copy, and a retried object doesn't
+     * leave a twin. Returns its id.
+     */
+    String putOrReplace(Path file, String name, String mime, String parent) throws IOException {
+        String existing = newest(name, parent);
+        if (existing == null) return putFile(file, name, mime, parent);
+        HttpResponse<String> start = send(request(UPLOAD + "/" + enc(existing) + "?uploadType=resumable&fields=id")
+                .header("Content-Type", "application/json; charset=UTF-8")
+                .header("X-Upload-Content-Type", mime)
+                .method("PATCH", HttpRequest.BodyPublishers.ofString("{}")));
+        String session = start.headers().firstValue("Location").orElseThrow(() -> new IOException("No upload session"));
+        send(HttpRequest.newBuilder(URI.create(session))
+                .timeout(Duration.ofMinutes(30))
+                .header("Content-Type", mime)
+                .PUT(HttpRequest.BodyPublishers.ofFile(file)));
+        return existing;
+    }
+
+    /** The newest file called {@code name} in {@code parent}, or null. */
+    String newest(String name, String parent) throws IOException {
+        String q = "name = '" + escape(name) + "' and '" + escape(parent) + "' in parents and trashed = false";
+        JSONObject r = json(send(request(API + "?fields=files(id)&spaces=drive&orderBy=createdTime%20desc&q=" + enc(q)).GET()));
+        JSONArray files = r.optJSONArray("files");
+        return files == null || files.isEmpty() ? null : files.getJSONObject(0).getString("id");
+    }
+
+    /** Everything in {@code parent}: {id, name, size}, every page. */
+    java.util.List<JSONObject> children(String parent) throws IOException {
+        java.util.List<JSONObject> all = new java.util.ArrayList<>();
+        String q = "'" + escape(parent) + "' in parents and trashed = false";
+        String page = null;
+        do {
+            String url = API + "?pageSize=1000&spaces=drive&fields=" + enc("nextPageToken,files(id,name,size)")
+                    + "&q=" + enc(q) + (page == null ? "" : "&pageToken=" + enc(page));
+            JSONObject r = json(send(request(url).GET()));
+            JSONArray files = r.optJSONArray("files");
+            for (int i = 0; files != null && i < files.length(); i++) all.add(files.getJSONObject(i));
+            page = r.optString("nextPageToken", null);
+            if (page != null && page.isEmpty()) page = null;
+        } while (page != null);
+        return all;
+    }
+
     /** Downloads a file to {@code target} (through a .part file, so a broken one never appears). */
     void download(String id, Path target) throws IOException {
         Path part = target.resolveSibling(target.getFileName() + ".part");

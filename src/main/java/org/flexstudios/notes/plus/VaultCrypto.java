@@ -232,6 +232,31 @@ final class VaultCrypto {
         writeKeyring(ring);
     }
 
+    /**
+     * Takes another installation's backup key (the phone's, from its Drive keyring), so this
+     * computer and the phone write one Drive backup that either can read. Media keys don't
+     * change; only the bundle's backup key does, rewrapped under every vault's lock.
+     * {@code passwordWrap}: the backup password's wrap of that key, or null to drop ours (it
+     * wrapped the old key).
+     */
+    static synchronized void adoptBackupKey(byte[] key, String keyId, JSONObject passwordWrap) throws IOException {
+        if (dataKey == null) throw new IOException("The vault is locked");
+        JSONObject locks = readLocks();
+        JSONObject bundle = new JSONObject(new String(dataKey, StandardCharsets.UTF_8))
+                .put("backupKey", b64(key)).put("keyId", keyId);
+        try {
+            open(bundle.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            throw new IOException("Could not take the backup key", e);
+        }
+        JSONObject entries = readKeyring().getJSONObject("entries");
+        for (String uuid : new java.util.ArrayList<>(entries.keySet())) {
+            JSONObject lock = locks.optJSONObject(uuid);
+            if (lock != null) wrapFor(uuid, lock.optString("type"), lock.optString("value"));
+        }
+        setBackupPasswordWrap(passwordWrap);
+    }
+
     private static Path locksFile() {
         return dir().resolve("locks.bin");
     }

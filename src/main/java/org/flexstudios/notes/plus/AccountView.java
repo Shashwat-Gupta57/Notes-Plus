@@ -94,6 +94,47 @@ final class AccountView extends Screen {
         if (!Account.signedIn()) column.getChildren().add(signInPanel());
         else if (Account.uid() == null) column.getChildren().add(verifyPanel());
         else column.getChildren().add(accountPanel());
+        column.getChildren().add(appSection());
+    }
+
+    /** Updates and About: in every state, signed in or not. */
+    private Node appSection() {
+        Label updateStatus = Ui.label("You're on " + Updates.VERSION, 13, "secondary");
+        VBox app = card(
+                row(Icons.SAVE, "tile_green", "Check for updates", updateStatus, null, () -> checkForUpdate(updateStatus)),
+                row(Icons.INFO, "tile_gray", "About", Ui.label("Version " + Updates.VERSION, 13, "secondary"), null,
+                        AccountView::showAbout));
+        return new VBox(header("Notes+"), app);
+    }
+
+    private static void checkForUpdate(Label status) {
+        status.setText("Checking…");
+        Account.BG.execute(() -> {
+            String text;
+            Updates.Release found = null;
+            try {
+                found = Updates.check();
+                text = found == null ? "Up to date (" + Updates.VERSION + ")" : "Version " + found.versionName() + " is available";
+            } catch (Exception e) {
+                text = "Couldn't check. Are you online?";
+            }
+            String shown = text;
+            Updates.Release release = found;
+            Platform.runLater(() -> {
+                status.setText(shown);
+                if (release != null) Updates.offer(release);
+            });
+        });
+    }
+
+    private static void showAbout() {
+        Ui.dialog().title("Notes+ for Windows")
+                .message("Version " + Updates.VERSION + "\n\n"
+                        + "Notes, lists, mind maps, sketches and recordings, synced with your phone.\n\n"
+                        + "Flex Studios · notes.talken.in")
+                .positive("OK", null)
+                .neutral("Website", () -> NotesApp.openInBrowser("https://notes.talken.in"))
+                .show();
     }
 
     private void busy(boolean on) {
@@ -306,7 +347,7 @@ final class AccountView extends Screen {
                     .positive("OK", null).width(440).show();
             return;
         }
-        Ui.Modal waiting = browserWait("Choose your Google account in the browser window that just opened, then come back here.");
+        Ui.Modal waiting = browserWait("Choose your Google account in the browser window that just opened, then come back here.", null);
         background(Account::signInWithGoogle, error -> {
             waiting.dismiss();
             NotesApp.stage().toFront();
@@ -318,24 +359,60 @@ final class AccountView extends Screen {
      * "Continue in your browser", with ways back in if the window didn't open or was closed:
      * open it again, or copy the link to paste into any browser.
      */
-    private static Ui.Modal browserWait(String message) {
+    /**
+     * "Continue in your browser", with ways back if the window didn't open or was closed: open
+     * it again, copy the link, or select it by hand from the field. Shared with the vault's
+     * Drive connection. {@code onCancel} runs after the sign-in is called off.
+     */
+    static Ui.Modal browserWait(String message, Runnable onCancel) {
+        javafx.scene.control.TextField link = new javafx.scene.control.TextField();
+        link.setEditable(false);
+        link.setPromptText("The sign-in link appears here");
+        link.setVisible(false);
+        link.setManaged(false);
         javafx.scene.control.Button again = Ui.textButton("Open browser again", () -> {
             String url = GoogleAuth.pendingUrl();
             if (url != null) NotesApp.openInBrowser(url);
+            else Ui.toast("Still preparing the link; try again in a moment");
         });
         javafx.scene.control.Button copy = Ui.textButton("Copy link", () -> {
             String url = GoogleAuth.pendingUrl();
-            if (url == null) return;
-            javafx.scene.input.ClipboardContent c = new javafx.scene.input.ClipboardContent();
-            c.putString(url);
-            javafx.scene.input.Clipboard.getSystemClipboard().setContent(c);
-            Ui.toast("Link copied. Paste it into your browser.");
+            if (url == null) {
+                Ui.toast("Still preparing the link; try again in a moment");
+                return;
+            }
+            boolean copied = false;
+            try {
+                javafx.scene.input.ClipboardContent c = new javafx.scene.input.ClipboardContent();
+                c.putString(url);
+                copied = javafx.scene.input.Clipboard.getSystemClipboard().setContent(c);
+            } catch (Exception ignored) {
+                // AWT below.
+            }
+            try {
+                // Windows sometimes refuses JavaFX's clipboard while another window holds it.
+                java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
+                        .setContents(new java.awt.datatransfer.StringSelection(url), null);
+                copied = true;
+            } catch (Exception ignored) {
+                // The field below still shows it.
+            }
+            // Shown either way, selected, so Ctrl+C works even if both clipboards refused.
+            link.setText(url);
+            link.setVisible(true);
+            link.setManaged(true);
+            link.requestFocus();
+            link.selectAll();
+            Ui.toast(copied ? "Link copied. Paste it into your browser." : "Select the link below and press Ctrl+C");
         });
         javafx.scene.layout.HBox actions = new javafx.scene.layout.HBox(4, again, copy);
         javafx.scene.layout.VBox.setMargin(actions, new javafx.geometry.Insets(4, 0, 0, -12));
-        javafx.scene.layout.VBox box = new javafx.scene.layout.VBox(actions);
+        javafx.scene.layout.VBox box = new javafx.scene.layout.VBox(6, actions, link);
         return Ui.dialog().title("Continue in your browser").message(message + " Nothing opened, or closed it by mistake?")
-                .content(box).negative("Cancel", GoogleAuth::cancel).width(440).show();
+                .content(box).negative("Cancel", () -> {
+                    GoogleAuth.cancel();
+                    if (onCancel != null) onCancel.run();
+                }).width(460).show();
     }
 
     private void forgotPassword() {
@@ -443,7 +520,7 @@ final class AccountView extends Screen {
             signInWithGoogle(); // Explains the missing setup.
             return;
         }
-        Ui.Modal waiting = browserWait("Allow Notes+ to keep its files in your Google Drive, then come back here.");
+        Ui.Modal waiting = browserWait("Allow Notes+ to keep its files in your Google Drive, then come back here.", null);
         background(Account::connectDrive, error -> {
             waiting.dismiss();
             NotesApp.stage().toFront();

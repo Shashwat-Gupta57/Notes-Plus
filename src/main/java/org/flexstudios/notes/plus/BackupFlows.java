@@ -8,6 +8,7 @@ import javafx.scene.control.ProgressBar;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -26,6 +27,9 @@ import java.util.function.Consumer;
 final class BackupFlows {
 
     private BackupFlows() {}
+
+    /** What opens the backup that just refused a password, when it says (Drive keyrings do). */
+    private static volatile String lastWhy;
 
     interface Job {
         Backup.Result run(Backup.Progress progress) throws Exception;
@@ -76,6 +80,7 @@ final class BackupFlows {
                 error = "";
             } catch (Backup.WrongPassword e) {
                 error = "WRONG";
+                lastWhy = e.getMessage() != null && e.getMessage().startsWith("This backup") ? e.getMessage() : null;
             } catch (Exception e) {
                 System.getLogger("Backup").log(System.Logger.Level.WARNING, title + " failed", e);
                 error = e.getMessage() == null ? "Something went wrong" : e.getMessage();
@@ -181,7 +186,14 @@ final class BackupFlows {
      * pattern (drawn, not typed).
      */
     static void askKey(boolean retry, Consumer<String> onKey, Runnable onCancel) {
-        Ui.Field field = new Ui.Field("Password or PIN", null, true);
+        String why = lastWhy;
+        lastWhy = null;
+        askKey(retry, why, onKey, onCancel);
+    }
+
+    /** As above, saying what opens this backup ({@code why}, or the general rule when null). */
+    static void askKey(boolean retry, String why, Consumer<String> onKey, Runnable onCancel) {
+        Ui.Field field = new Ui.Field("PIN or password", null, true);
         PatternView pattern = new PatternView(240);
         StackPane slot = new StackPane(field);
         Button toggle = Ui.textButton("Draw a pattern instead", () -> { });
@@ -202,11 +214,118 @@ final class BackupFlows {
             onKey.accept(field.input.getText());
         });
         m[0] = Ui.dialog().title("Unlock backup")
-                .message((retry ? "That didn't open it. " : "") + "Enter the backup password, or the lock of any vault in that backup.")
+                .message((retry ? "That didn't open it. " : "") + (why != null ? why
+                        : "Enter the backup lock, or the lock of any vault in that backup."))
                 .content(box).width(420)
                 .positive("Open", () -> onKey.accept(field.input.getText()))
                 .negative("Cancel", onCancel).show();
         Platform.runLater(field.input::requestFocus);
+    }
+
+    // ========================================================== Google Drive
+
+    /** Signs the vault's own Google account in for Drive, in the browser. */
+    static void driveConnect(Runnable changed) {
+        Ui.Modal[] waiting = {AccountView.browserWait(
+                "Choose the Google account for your vault's backups, and allow Notes+ to keep its own files in your Drive.", null)};
+        Vault.busy(true);
+        Vault.expectExternal();
+        Thread worker = new Thread(() -> {
+            String error = null;
+            try {
+                CloudBackup.connect();
+            } catch (Exception e) {
+                error = "cancelled".equals(e.getMessage()) ? "" : e.getMessage() == null ? "Couldn't connect" : e.getMessage();
+            }
+            String err = error;
+            Platform.runLater(() -> {
+                Vault.busy(false);
+                waiting[0].dismiss();
+                if (err == null) {
+                    Ui.toast("Google Drive connected");
+                    changed.run();
+                    driveBackup(null, changed);
+                } else if (!err.isEmpty()) {
+                    Ui.dialog().title("Couldn't connect").message(err).positive("OK", null).show();
+                }
+            });
+        }, "notes-drive-connect");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    /**
+     * Backs up to Drive. {@code password}: null at first; when the Drive backup was started by
+     * the phone, it is asked for once (a phone vault's lock, or its backup password).
+     */
+    static void driveBackup(String password, Runnable changed) {
+        run("Backing up to Google Drive", p -> CloudBackup.backup(password, p), r -> {
+            changed.run();
+            if (r == null) return;
+            Ui.toast("Backed up · " + r.items() + (r.items() == 1 ? " item" : " items") + " on Drive");
+        }, () -> askKey(password != null, key -> driveBackup(key, changed), () -> { }));
+    }
+
+    /** Lists the restore points on Drive, then restores the one picked. */
+    static void driveRestore(String password, Runnable after) {
+        java.util.concurrent.atomic.AtomicReference<java.util.List<CloudBackup.Summary>> found = new java.util.concurrent.atomic.AtomicReference<>();
+        run("Restore from Google Drive", p -> {
+            found.set(CloudBackup.restorePoints(password, p));
+            return new Backup.Result(found.get().size(), 0);
+        }, r -> {
+            if (r == null) return;
+            java.util.List<CloudBackup.Summary> points = found.get();
+            if (points.isEmpty()) {
+                Ui.dialog().title("No restore points yet").message("Back up from this computer or the phone first.")
+                        .positive("OK", null).show();
+                return;
+            }
+            SimpleDateFormat when = new SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault());
+            java.util.List<String> labels = new java.util.ArrayList<>();
+            java.util.List<Runnable> actions = new java.util.ArrayList<>();
+            for (CloudBackup.Summary x : points) {
+                labels.add(when.format(new Date(x.createdAt)) + "  ·  " + (x.device == null ? "Unknown device" : x.device)
+                        + "  ·  " + x.itemCount + (x.itemCount == 1 ? " item" : " items") + (x.pinned ? "  ·  kept" : ""));
+                actions.add(() -> confirmDriveRestore(x, after));
+            }
+            Ui.dialog().title("Pick a restore point").items(labels, actions).negative("Cancel", null).width(520).show();
+        }, () -> askKey(password != null, key -> driveRestore(key, after), () -> { }));
+    }
+
+    private static void confirmDriveRestore(CloudBackup.Summary point, Runnable after) {
+        Ui.dialog().title("Restore this point?")
+                .message("Items already here stay; only missing ones are downloaded. The backup's vaults open with the locks they had.")
+                .positive("Restore", () -> driveRestore(point, false, after))
+                .neutral("Use its settings too", () -> driveRestore(point, true, after))
+                .negative("Cancel", null).width(460).show();
+    }
+
+    private static void driveRestore(CloudBackup.Summary point, boolean replace, Runnable after) {
+        run("Restoring from Google Drive", p -> CloudBackup.restore(point.id, replace, p), r -> {
+            after.run();
+            if (r == null) return;
+            Ui.dialog().title("Restored").message(r.items() + (r.items() == 1 ? " item" : " items")
+                    + " brought back. Each restored vault opens with the lock it had in the backup.")
+                    .positive("Done", null).show();
+        });
+    }
+
+    /** The connected account: disconnect it here (the backup on Drive stays). */
+    static void driveAccount(Runnable changed) {
+        String email = CloudBackup.email();
+        Ui.dialog().title("Google Drive")
+                .message("Backing up to " + (email == null || email.isEmpty() ? "your Google Drive" : email)
+                        + ".\n\nDisconnecting stops backups from this computer. What's on Drive stays, and connecting again picks it up.")
+                .positive("Done", null)
+                .neutral("Disconnect", () -> {
+                    try {
+                        CloudBackup.disconnect();
+                        Ui.toast("Google Drive disconnected");
+                    } catch (Exception e) {
+                        Ui.toast("Couldn't disconnect");
+                    }
+                    changed.run();
+                }).width(460).show();
     }
 
     // ======================================================= backup password
@@ -219,47 +338,86 @@ final class BackupFlows {
         }
     }
 
-    static void password(Runnable changed) {
-        if (hasPassword()) {
-            Ui.dialog().title("Backup password")
-                    .message("New backups open only with this password. Without it, any vault's lock opens them.")
-                    .positive("Change", () -> setPassword(changed))
-                    .neutral("Remove", () -> store(null, changed))
-                    .negative("Cancel", null).width(440).show();
-        } else {
-            setPassword(changed);
+    /** PIN, PASSWORD or PATTERN; null when backups open with the vault locks. */
+    static String lockType() {
+        try {
+            JSONObject w = VaultCrypto.backupPasswordWrap();
+            return w == null ? null : w.optString("lockType", LockInput.PASSWORD);
+        } catch (Exception e) {
+            return null;
         }
     }
 
-    private static void setPassword(Runnable changed) {
-        Ui.Field field = new Ui.Field("Backup password", null, true);
-        Ui.dialog().title("Backup password")
-                .message("Recommended: a 4-digit PIN falls to an offline guesser in minutes. With a password set, it is the only key to new backups. Keep it safe: it can't be recovered.")
-                .content(field).width(440)
-                .positive("Save", () -> {
-                    String pw = field.input.getText();
-                    if (pw.length() < 8) {
-                        Ui.toast("Use at least 8 characters");
-                        return;
-                    }
-                    store(pw, changed);
-                })
-                .negative("Cancel", null).show();
-        Platform.runLater(field.input::requestFocus);
+    /**
+     * The backup lock: by default backups (Drive and .bak) open with the vault locks, the main
+     * one included; set one, of any kind, and it is their only key.
+     */
+    static void password(Runnable changed) {
+        String type = lockType();
+        if (type != null) {
+            Ui.dialog().title("Backup lock")
+                    .message("Your Drive and file backups open only with your backup " + LockInput.label(type).toLowerCase(Locale.ROOT)
+                            + ". Keep it safe: without it, a backup can't be opened on a new device.")
+                    .positive("Change", () -> setLock(changed))
+                    .neutral("Use the vault lock", () -> store(null, null, changed))
+                    .negative("Cancel", null).width(440).show();
+        } else {
+            Ui.dialog().title("Backup lock")
+                    .message("Your Drive and file backups open with your main vault lock. Set a backup lock (a PIN, "
+                            + "password or pattern) and only it will open them.")
+                    .positive("Set a backup lock", () -> setLock(changed))
+                    .negative("Cancel", null).width(440).show();
+        }
     }
 
-    private static void store(String password, Runnable changed) {
+    /** PIN / Password / Pattern, entered twice. */
+    private static void setLock(Runnable changed) {
+        Ui.Tabs tabs = new Ui.Tabs("m3_primary", "PIN", "Password", "Pattern");
+        LockInput[] inputs = new LockInput[3];
+        for (int i = 0; i < 3; i++) inputs[i] = new LockInput(LockInput.TYPES[i], null, null);
+        StackPane slot = new StackPane(inputs[0]);
+        slot.setMinHeight(300);
+        tabs.selected.addListener((o, a, b) -> slot.getChildren().setAll(inputs[b.intValue()]));
+        tabs.selected.set(0);
+        Ui.dialog().title("New backup lock").content(new VBox(12, tabs, slot)).width(440)
+                .positive("Next", () -> {
+                    LockInput first = inputs[tabs.selected.get()];
+                    String value = first.value();
+                    String problem = LockInput.problem(first.type, value);
+                    if (problem != null) {
+                        Ui.toast(problem);
+                        return;
+                    }
+                    LockInput again = new LockInput(first.type, "Once more", null);
+                    StackPane confirm = new StackPane(again);
+                    confirm.setMinHeight(300);
+                    Ui.dialog().title("Once more, to confirm").content(confirm).width(440)
+                            .positive("Save", () -> {
+                                if (!value.equals(again.value())) {
+                                    Ui.toast("Those didn't match. Try again.");
+                                    return;
+                                }
+                                store(first.type, value, changed);
+                            })
+                            .negative("Cancel", null).show();
+                    again.focus();
+                })
+                .negative("Cancel", null).show();
+        inputs[0].focus();
+    }
+
+    private static void store(String type, String password, Runnable changed) {
         VaultStore.load(s -> {
             try {
                 VaultCrypto.setBackupPasswordWrap(password == null ? null
-                        : Backup.wrap(VaultCrypto.backupKey(), password, "Backup password"));
+                        : Backup.wrap(VaultCrypto.backupKey(), password, "Backup lock").put("lockType", type));
                 return true;
             } catch (Exception e) {
                 return false;
             }
         }, ok -> {
-            Ui.toast(Boolean.TRUE.equals(ok) ? (password == null ? "Backup password removed" : "Backup password set")
-                    : "Couldn't change the backup password");
+            Ui.toast(Boolean.TRUE.equals(ok) ? (password == null ? "Backups open with your vault lock" : "Backup lock saved")
+                    : "Couldn't change the backup lock");
             changed.run();
         });
     }

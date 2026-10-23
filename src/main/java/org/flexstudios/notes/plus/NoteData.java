@@ -111,10 +111,21 @@ final class NoteData {
         return items;
     }
 
+    /** Whether a list's or a mind map's long lines wrap (the default) rather than run on one line. */
+    static boolean wraps(String json) {
+        return object(json).optBoolean("wrap", true);
+    }
+
     static String todosJson(List<TodoItem> items) {
+        return todosJson(items, true);
+    }
+
+    static String todosJson(List<TodoItem> items, boolean wrap) {
         JSONArray array = new JSONArray();
         for (TodoItem item : items) array.put(new JSONObject().put("text", item.text).put("done", item.done));
-        return new JSONObject().put("items", array).toString();
+        JSONObject o = new JSONObject().put("items", array);
+        if (!wrap) o.put("wrap", false);
+        return o.toString();
     }
 
     // ================================================================ mind map
@@ -134,6 +145,8 @@ final class NoteData {
         String linkUuid;
         /** A picture shown in the idea: a file in the note's folder, or null. */
         String image;
+        /** Sub-text: more about the idea, drawn smaller under its text. Never null. */
+        String sub = "";
 
         MindNode(long id, long parent, String text, double x, double y) {
             this.id = id;
@@ -157,6 +170,8 @@ final class NoteData {
     static final class MindMap {
         final List<MindNode> nodes = new ArrayList<>();
         final List<long[]> links = new ArrayList<>();
+        /** Long ideas wrap onto more lines (the default); off, each stays on one line, in full. */
+        boolean wrap = true;
     }
 
     static MindMap mindMap(String json) {
@@ -172,6 +187,7 @@ final class NoteData {
             n.link = o.optInt("link", 0);
             n.linkUuid = o.optString("linkUuid", "").isEmpty() ? null : o.optString("linkUuid");
             n.image = o.optString("image", "").isEmpty() ? null : o.optString("image");
+            n.sub = o.optString("sub", "");
             map.nodes.add(n);
         }
         JSONArray links = array(json, "links");
@@ -179,6 +195,7 @@ final class NoteData {
             JSONArray pair = links.optJSONArray(i);
             if (pair != null && pair.length() == 2) map.links.add(new long[]{pair.optLong(0), pair.optLong(1)});
         }
+        map.wrap = wraps(json);
         return map;
     }
 
@@ -193,10 +210,13 @@ final class NoteData {
             if (n.link != 0) o.put("link", n.link);
             if (n.linkUuid != null) o.put("linkUuid", n.linkUuid);
             if (n.image != null) o.put("image", n.image);
+            if (!n.sub.isEmpty()) o.put("sub", n.sub);
             array.put(o);
         }
         for (long[] l : map.links) links.put(new JSONArray().put(l[0]).put(l[1]));
-        return new JSONObject().put("nodes", array).put("links", links).toString();
+        JSONObject o = new JSONObject().put("nodes", array).put("links", links);
+        if (!map.wrap) o.put("wrap", false);
+        return o.toString();
     }
 
     // ================================================================= journal

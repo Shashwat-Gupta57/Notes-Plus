@@ -144,7 +144,7 @@ final class NoteEditorView extends NoteEditor {
                 kept.add(item);
                 text.append(item.text.trim()).append('\n');
             }
-            note.setData(NoteData.todosJson(kept));
+            note.setData(NoteData.todosJson(kept, wrapItems));
             note.setContent(text.toString().trim());
             return !kept.isEmpty() || !t.isEmpty();
         }
@@ -179,9 +179,25 @@ final class NoteEditorView extends NoteEditor {
 
     // ===================================================================== list
 
+    /** List items wrap onto more lines (the default) or each stays on one line. */
+    private boolean wrapItems = true;
+
+    @Override
+    protected Boolean wrapText() {
+        return NoteData.LIST.equals(type) ? wrapItems : null;
+    }
+
+    @Override
+    protected void setWrapText(boolean wrap) {
+        wrapItems = wrap;
+        itemRows.getChildren().clear();
+        for (NoteData.TodoItem item : items) itemRows.getChildren().add(new ItemRow(item));
+    }
+
     private Node listSection(NoteEntity note) {
         items.clear();
         items.addAll(NoteData.todos(note.getData()));
+        wrapItems = NoteData.wraps(note.getData());
         if (items.isEmpty()) items.add(new NoteData.TodoItem("", false));
 
         StackPane track = new StackPane(progressFill);
@@ -226,7 +242,7 @@ final class NoteEditorView extends NoteEditor {
 
     private void focusItem(int position, boolean atEnd) {
         if (position < 0 || position >= itemRows.getChildren().size()) return;
-        TextField field = ((ItemRow) itemRows.getChildren().get(position)).text;
+        javafx.scene.control.TextInputControl field = ((ItemRow) itemRows.getChildren().get(position)).text;
         Platform.runLater(() -> {
             field.requestFocus();
             if (atEnd) field.end();
@@ -255,12 +271,20 @@ final class NoteEditorView extends NoteEditor {
     /** One list item: drag handle, tick box, the text, and × on hover. */
     private final class ItemRow extends HBox {
         final NoteData.TodoItem item;
-        final TextField text = new TextField();
+        /** A growing text area when the list wraps, otherwise a one-line field. */
+        final javafx.scene.control.TextInputControl text;
         private final StackPane box = new StackPane();
         private final Ui.IconView tick = Ui.icon(Icons.CHECK, 16, "white");
 
         ItemRow(NoteData.TodoItem item) {
             this.item = item;
+            if (wrapItems) {
+                TextArea area = new TextArea();
+                area.setPrefRowCount(1);
+                text = area;
+            } else {
+                text = new TextField();
+            }
             setAlignment(Pos.CENTER_LEFT);
             setMinHeight(48);
             setPadding(new Insets(0, 16, 0, 4));
@@ -286,13 +310,14 @@ final class NoteEditorView extends NoteEditor {
             text.setStyle("-fx-font-size: 17px; -fx-text-fill: " + Theme.ref("text_body") + ";");
             text.setPromptText("Item");
             text.setText(item.text);
+            if (text instanceof TextArea area) Ui.autoGrow(area, 0, 0);
             Links.install(text);
             HBox.setHgrow(text, Priority.ALWAYS);
             text.textProperty().addListener((o, a, b) -> {
                 item.text = b;
                 updateProgress();
             });
-            text.setOnKeyPressed(e -> {
+            text.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
                 int index = itemRows.getChildren().indexOf(this);
                 if (e.getCode() == KeyCode.ENTER && e.isShortcutDown()) {
                     e.consume();

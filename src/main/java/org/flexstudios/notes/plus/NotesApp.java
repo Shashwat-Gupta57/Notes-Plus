@@ -100,6 +100,7 @@ public class NotesApp extends Application {
         // The first run asks for the app's lock, as the phone does.
         if (!Vault.isSetupDone()) open(new SetupLockView());
         stage.show();
+        Updates.checkSoon();
     }
 
     private void onKey(KeyEvent e) {

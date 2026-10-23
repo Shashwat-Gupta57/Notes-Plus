@@ -108,10 +108,28 @@ final class VaultSettingsView extends Screen {
                             () -> BackupFlows.restore(() -> { })),
                     row(Icons.CHECK, "tile_teal", "Check a backup file", "Reads it end to end and confirms it will restore",
                             chevron(), BackupFlows::check),
-                    row(Icons.LOCK, "tile_orange", "Backup password", BackupFlows.hasPassword()
-                                    ? "Set: only it opens new backups" : "Recommended: PINs are easy to guess offline",
-                            chevron(), () -> BackupFlows.password(this::build))),
-                    footer("Google Drive backups come to the desktop later."));
+                    row(Icons.LOCK, "tile_orange", "Backup lock", BackupFlows.hasPassword()
+                                    ? "On: only it opens new backups" : "Off: backups open with your main vault lock",
+                            chevron(), () -> BackupFlows.password(this::build))));
+            if (CloudBackup.connected()) {
+                long last = CloudBackup.lastBackup();
+                String email = CloudBackup.email();
+                column.getChildren().addAll(header("Google Drive"), card(
+                        row(Icons.CLOUD, "tile_blue", "Back up now", last == 0 ? "Not backed up from this computer yet"
+                                        : "Last backup " + new java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale.getDefault())
+                                        .format(new java.util.Date(last)),
+                                chevron(), () -> BackupFlows.driveBackup(null, this::build)),
+                        row(Icons.SAVE, "tile_green", "Restore from Drive", "Pick a restore point, from here or the phone",
+                                chevron(), () -> BackupFlows.driveRestore(null, this::build)),
+                        row(Icons.PERSON, "tile_gray", "Google account", email == null || email.isEmpty() ? "Connected" : email,
+                                chevron(), () -> BackupFlows.driveAccount(this::build))),
+                        footer("Only new items are uploaded. Drive holds them encrypted, in the same backup as the phone's."));
+            } else {
+                column.getChildren().addAll(header("Google Drive"), card(
+                        row(Icons.CLOUD, "tile_blue", "Connect Google Drive", "Back up to Drive and restore from it, with the phone",
+                                chevron(), () -> BackupFlows.driveConnect(this::build))),
+                        footer("Use the Google account the phone's vault backs up to, and both share one backup."));
+            }
         }
     }
 

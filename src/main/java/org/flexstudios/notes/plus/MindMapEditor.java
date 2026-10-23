@@ -128,7 +128,10 @@ final class MindMapEditor extends NoteEditor {
         note.setTitle(title.getText().trim());
         note.setData(NoteData.mindMapJson(map.model));
         StringBuilder text = new StringBuilder();
-        for (NoteData.MindNode n : map.model.nodes) if (!n.text.isEmpty()) text.append(n.text).append('\n');
+        for (NoteData.MindNode n : map.model.nodes) {
+            if (!n.text.isEmpty()) text.append(n.text).append('\n');
+            if (!n.sub.isEmpty()) text.append(n.sub).append('\n');
+        }
         note.setContent(text.toString().trim());
         return !text.toString().trim().isEmpty() || !note.getTitle().isEmpty();
     }
@@ -192,6 +195,17 @@ final class MindMapEditor extends NoteEditor {
         }
     }
 
+    @Override
+    protected Boolean wrapText() {
+        return map.model.wrap;
+    }
+
+    @Override
+    protected void setWrapText(boolean wrap) {
+        map.model.wrap = wrap;
+        map.refresh();
+    }
+
     // ================================================================ ideas
 
     private void addChild(NoteData.MindNode parent) {
@@ -204,9 +218,17 @@ final class MindMapEditor extends NoteEditor {
      * so a brainstorm never leaves the keyboard.
      */
     private void name(NoteData.MindNode node, boolean isNew) {
+        name(node, isNew, false);
+    }
+
+    /** {@code behind}: the idea was just put between another and its parent; abandoned, it unwinds. */
+    private void name(NoteData.MindNode node, boolean isNew, boolean behind) {
         boolean root = node.parent < 0;
         Runnable discard = () -> {
-            if (isNew && !root && node.text.isEmpty()) map.removeBranch(node);
+            if (isNew && !root && node.text.isEmpty()) {
+                if (behind) map.unwrap(node);
+                else map.removeBranch(node);
+            }
             map.requestFocus();
         };
         Consumer<String> apply = text -> {
@@ -234,6 +256,15 @@ final class MindMapEditor extends NoteEditor {
         actions.add(() -> name(node, false));
         labels.add("Add idea");
         actions.add(() -> addChild(node));
+        if (!root) {
+            labels.add("Add idea behind");
+            actions.add(() -> {
+                NoteData.MindNode behind = map.insertBehind(node);
+                if (behind != null) name(behind, true, true);
+            });
+        }
+        labels.add(node.sub.isEmpty() ? "Add sub-text" : "Edit sub-text");
+        actions.add(() -> editSub(node));
         labels.add("Colour");
         actions.add(() -> pickColor(node));
         if (map.hasChildren(node)) {
@@ -277,6 +308,24 @@ final class MindMapEditor extends NoteEditor {
             actions.add(() -> map.removeBranch(node));
         }
         Ui.dialog().title(node.text.isEmpty() ? "Idea" : node.text).items(labels, actions).show();
+    }
+
+    /** Sub-text: more about an idea, shown smaller under it. Empty removes it. */
+    private void editSub(NoteData.MindNode node) {
+        javafx.scene.control.TextArea area = new javafx.scene.control.TextArea(node.sub);
+        area.setPromptText("More about this idea");
+        area.setWrapText(true);
+        area.setPrefRowCount(4);
+        Ui.dialog().title("Sub-text").content(area).width(420)
+                .positive("Done", () -> {
+                    node.sub = area.getText().trim();
+                    map.select(node);
+                    map.refresh();
+                    map.requestFocus();
+                })
+                .negative("Cancel", map::requestFocus)
+                .show();
+        Platform.runLater(area::requestFocus);
     }
 
     private void pickColor(NoteData.MindNode node) {

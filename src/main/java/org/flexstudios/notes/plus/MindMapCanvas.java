@@ -73,8 +73,17 @@ final class MindMapCanvas extends Region {
 
     /** Scratch rectangle of the last {@link #bounds} call: left, top, right, bottom... */
     private double rl, rt, rr, rb;
-    /** ...and, for an idea with a picture, the picture's size and the text line's centre. */
-    private double rpw, rph, rty;
+    /** ...the picture's size (if any), the middle of the text area and the top of the text. */
+    private double rpw, rph, rty, rtt;
+    private static final double MAX_SUB = 220, SUB_GAP = 2;
+    /** Each idea's text and sub-text, broken into lines once at scale 1. */
+    private final Map<Long, Block> blocks = new HashMap<>();
+
+    private static final class Block {
+        String key;
+        List<String> title, sub;
+        double w, h, titleLine, subLine;
+    }
 
     private static final double PIC_W = 160, PIC_H = 120;
     private java.nio.file.Path folder;
@@ -141,6 +150,7 @@ final class MindMapCanvas extends Region {
 
     void setMap(NoteData.MindMap map) {
         model = map;
+        blocks.clear();
         fitted = false;
         refresh();
         if (!interactive && getWidth() > 0) fit(false);
@@ -207,16 +217,67 @@ final class MindMapCanvas extends Region {
         boolean any = false;
         for (NoteData.MindNode n : model.nodes) {
             if (n.parent == parent.id && Math.signum(n.x - parent.x) == side) {
-                y = any ? Math.max(y, n.y + ROW) : n.y + ROW;
+                double below = n.y + Math.max(ROW, size(n)[1] / 2 + 44);
+                y = any ? Math.max(y, below) : below;
                 any = true;
             }
         }
-        NoteData.MindNode child = new NoteData.MindNode(id, parent.id, "", parent.x + side * COLUMN, y);
+        double gap = Math.max(COLUMN, size(parent)[0] / 2 + 110);
+        NoteData.MindNode child = new NoteData.MindNode(id, parent.id, "", parent.x + side * gap, y);
         model.nodes.add(child);
         refresh();
         select(child);
         ensureVisible(child);
         return child;
+    }
+
+    /**
+     * Puts a new idea between this one and its parent, where this one was; this one and its
+     * branch step outward to make room. Null for the central idea.
+     */
+    NoteData.MindNode insertBehind(NoteData.MindNode node) {
+        if (node.parent < 0) return null;
+        long id = 1;
+        for (NoteData.MindNode n : model.nodes) id = Math.max(id, n.id + 1);
+        double side = side(node);
+        NoteData.MindNode mid = new NoteData.MindNode(id, node.parent, "", node.x, node.y);
+        shiftBranch(node, side * COLUMN);
+        node.parent = id;
+        model.nodes.add(mid);
+        refresh();
+        select(mid);
+        ensureVisible(mid);
+        return mid;
+    }
+
+    /** Undoes {@link #insertBehind}: the idea goes, its children rejoin its parent and step back. */
+    void unwrap(NoteData.MindNode mid) {
+        if (mid.parent < 0) return;
+        double side = side(mid);
+        for (NoteData.MindNode k : new ArrayList<>(model.nodes)) {
+            if (k.parent != mid.id) continue;
+            k.parent = mid.parent;
+            shiftBranch(k, -side * COLUMN);
+        }
+        model.nodes.remove(mid);
+        model.links.removeIf(l -> l[0] == mid.id || l[1] == mid.id);
+        selectedId = -1;
+        refresh();
+    }
+
+    /** Moves an idea and everything under it sideways. */
+    private void shiftBranch(NoteData.MindNode node, double dx) {
+        List<Long> queue = new ArrayList<>();
+        queue.add(node.id);
+        node.x += dx;
+        for (int q = 0; q < queue.size(); q++) {
+            for (NoteData.MindNode k : model.nodes) {
+                if (k.parent == queue.get(q)) {
+                    k.x += dx;
+                    queue.add(k.id);
+                }
+            }
+        }
     }
 
     void removeBranch(NoteData.MindNode node) {
@@ -277,8 +338,9 @@ final class MindMapCanvas extends Region {
         for (NoteData.MindNode n : model.nodes) {
             if (n.parent == root.id) (i++ % 2 == 0 ? right : left).add(n);
         }
-        placeColumn(right, 1, 1, 0, target);
-        placeColumn(left, -1, 1, 0, target);
+        double rootW = size(root)[0];
+        placeColumn(right, 1, 0, rootW, 0, target);
+        placeColumn(left, -1, 0, rootW, 0, target);
 
         Map<Long, double[]> start = new HashMap<>();
         for (NoteData.MindNode n : model.nodes) start.put(n.id, new double[]{n.x, n.y});
@@ -293,27 +355,39 @@ final class MindMapCanvas extends Region {
         }).setOnFinished(e -> fit(true));
     }
 
-    private void placeColumn(List<NoteData.MindNode> column, int side, int depth, double centerY,
+    /** Stacks a column of ideas, each with vertical room for its own size or its branch's. */
+    private void placeColumn(List<NoteData.MindNode> column, int side, double parentX, double parentW, double centerY,
                              Map<Long, double[]> target) {
         double total = 0;
-        for (NoteData.MindNode n : column) total += leaves(n);
-        double y = centerY - total * ROW / 2;
+        for (NoteData.MindNode n : column) total += span(n);
+        double y = centerY - total / 2;
         for (NoteData.MindNode n : column) {
-            double span = leaves(n) * ROW;
+            double span = span(n);
             double cy = y + span / 2;
-            target.put(n.id, new double[]{side * depth * COLUMN, cy});
+            double w = size(n)[0];
+            // Wide ideas push the next column out, so long text never runs under its neighbours.
+            double x = parentX + side * Math.max(COLUMN, parentW / 2 + w / 2 + 48);
+            target.put(n.id, new double[]{x, cy});
             List<NoteData.MindNode> kids = new ArrayList<>();
             for (NoteData.MindNode k : model.nodes) if (k.parent == n.id) kids.add(k);
-            placeColumn(kids, side, depth + 1, cy, target);
+            placeColumn(kids, side, x, w, cy, target);
             y += span;
         }
     }
 
-    private int leaves(NoteData.MindNode n) {
-        if (n.collapsed) return 1;
-        int sum = 0;
-        for (NoteData.MindNode k : model.nodes) if (k.parent == n.id) sum += leaves(k);
-        return Math.max(1, sum);
+    /** Vertical room an idea needs: its own height plus the usual gap, or its branch's. */
+    private double span(NoteData.MindNode n) {
+        double own = size(n)[1] + ROW - NODE_H;
+        if (n.collapsed) return own;
+        double sum = 0;
+        for (NoteData.MindNode k : model.nodes) if (k.parent == n.id) sum += span(k);
+        return Math.max(own, sum);
+    }
+
+    /** An idea's width and height at scale 1. */
+    private double[] size(NoteData.MindNode n) {
+        bounds(n, 1, 0, 0);
+        return new double[]{rr - rl, rb - rt};
     }
 
     // ---------------------------------------------------------- derived state
@@ -449,9 +523,12 @@ final class MindMapCanvas extends Region {
 
     private void bounds(NoteData.MindNode n, double s, double ox, double oy) {
         boolean isRoot = n.parent < 0;
-        double w = Math.min(textWidth(label(n), font(isRoot, isRoot ? 18 : 15)), MAX_TEXT) + PAD_X * 2;
+        Block b = block(n);
+        double w = b.w + PAD_X * 2;
         double line = isRoot ? ROOT_H : NODE_H;
-        double h = line;
+        // One line keeps the old height; more lines (wrapped, or a sub-text) grow the idea.
+        double textH = Math.max(line, b.h + (isRoot ? 26 : 20));
+        double h = textH;
         rpw = rph = 0;
         if (n.image != null) {
             javafx.scene.image.Image img = picture(n.image);
@@ -460,16 +537,84 @@ final class MindMapCanvas extends Region {
             rpw = iw * f;
             rph = ih * f;
             w = Math.max(w, rpw + 16);
-            h = line + rph + 8;
+            h = textH + rph + 8;
         }
         double cx = n.x * s + ox, cy = n.y * s + oy;
         rl = cx - w * s / 2;
         rt = cy - h * s / 2;
         rr = cx + w * s / 2;
         rb = cy + h * s / 2;
-        rty = rb - line * s / 2;
+        rty = rb - textH * s / 2;
+        rtt = rty - b.h * s / 2;
         rpw *= s;
         rph *= s;
+    }
+
+    /**
+     * An idea's text, never cut short: wrapped at {@link #MAX_TEXT} (sub-text at {@link #MAX_SUB})
+     * when the map wraps, otherwise each line in full.
+     */
+    private Block block(NoteData.MindNode n) {
+        boolean isRoot = n.parent < 0;
+        String label = label(n);
+        String key = label + '\u0000' + n.sub + '\u0000' + model.wrap + isRoot;
+        Block b = blocks.get(n.id);
+        if (b != null && b.key.equals(key)) return b;
+        Font tf = font(isRoot, isRoot ? 18 : 15), sf = subFont(isRoot, 1);
+        b = new Block();
+        b.key = key;
+        double max = model.wrap ? MAX_TEXT : Double.MAX_VALUE;
+        b.title = wrap(label, tf, max);
+        b.sub = n.sub.isEmpty() ? List.of() : wrap(n.sub, sf, model.wrap ? Math.max(MAX_SUB, widest(b.title, tf)) : Double.MAX_VALUE);
+        b.titleLine = tf.getSize() * 1.3;
+        b.subLine = sf.getSize() * 1.3;
+        b.w = Math.max(widest(b.title, tf), widest(b.sub, sf));
+        b.h = b.title.size() * b.titleLine + (b.sub.isEmpty() ? 0 : SUB_GAP + b.sub.size() * b.subLine);
+        blocks.put(n.id, b);
+        return b;
+    }
+
+    private static Font subFont(boolean root, double s) {
+        return Font.font("Roboto", (root ? 13.5 : 12.5) * s);
+    }
+
+    private double widest(List<String> lines, Font f) {
+        double w = 0;
+        for (String line : lines) w = Math.max(w, textWidth(line, f));
+        return w;
+    }
+
+    /** Breaks text into lines no wider than {@code max}: at spaces, or inside a word too long for a line. */
+    private List<String> wrap(String text, Font f, double max) {
+        List<String> out = new ArrayList<>();
+        for (String para : text.split("\n", -1)) {
+            if (max == Double.MAX_VALUE || textWidth(para, f) <= max) {
+                out.add(para);
+                continue;
+            }
+            StringBuilder line = new StringBuilder();
+            for (String word : para.split(" ")) {
+                String tried = line.length() == 0 ? word : line + " " + word;
+                if (textWidth(tried, f) <= max) {
+                    line.setLength(0);
+                    line.append(tried);
+                    continue;
+                }
+                if (line.length() > 0) out.add(line.toString());
+                line.setLength(0);
+                // A word wider than a line is split where it has to be.
+                String rest = word;
+                while (textWidth(rest, f) > max && rest.length() > 1) {
+                    int cut = rest.length() - 1;
+                    while (cut > 1 && textWidth(rest.substring(0, cut), f) > max) cut--;
+                    out.add(rest.substring(0, cut));
+                    rest = rest.substring(cut);
+                }
+                line.append(rest);
+            }
+            out.add(line.toString());
+        }
+        return out;
     }
 
     private static String label(NoteData.MindNode n) {
@@ -625,17 +770,31 @@ final class MindMapCanvas extends Region {
                 double grow = 4;
                 g.strokeRoundRect(rl - grow, rt - grow, w + grow * 2, h + grow * 2, (radius + grow) * 2, (radius + grow) * 2);
             }
+            Block b = block(n);
             Font f = font(isRoot, (isRoot ? 18 : 15) * s);
             g.setFont(f);
             g.setFill(isRoot ? Color.BLACK : n.text.isEmpty() ? muted : ink);
-            String shown = ellipsize(label(n), f, MAX_TEXT * s);
-            g.fillText(shown, (rl + rr) / 2, rty);
-            if (decorations && Links.ctrl.get() && !Links.find(n.text).isEmpty()) {
-                double tw = textWidth(shown, f);
-                g.setStroke(accent);
-                g.setLineWidth(1.5);
-                double uy = rty + f.getSize() * 0.55;
-                g.strokeLine((rl + rr) / 2 - tw / 2, uy, (rl + rr) / 2 + tw / 2, uy);
+            double cxm = (rl + rr) / 2, y = rtt;
+            boolean underline = decorations && Links.ctrl.get() && !Links.find(n.text).isEmpty();
+            for (String line : b.title) {
+                g.fillText(line, cxm, y + b.titleLine * s / 2);
+                if (underline) {
+                    double tw = textWidth(line, f);
+                    g.setStroke(accent);
+                    g.setLineWidth(1.5);
+                    double uy = y + b.titleLine * s / 2 + f.getSize() * 0.55;
+                    g.strokeLine(cxm - tw / 2, uy, cxm + tw / 2, uy);
+                }
+                y += b.titleLine * s;
+            }
+            if (!b.sub.isEmpty()) {
+                y += SUB_GAP * s;
+                g.setFont(subFont(isRoot, s));
+                g.setFill(isRoot ? Color.color(0, 0, 0, 0.7) : muted);
+                for (String line : b.sub) {
+                    g.fillText(line, cxm, y + b.subLine * s / 2);
+                    y += b.subLine * s;
+                }
             }
             if (n.image != null) {
                 javafx.scene.image.Image img = picture(n.image);
@@ -656,17 +815,6 @@ final class MindMapCanvas extends Region {
             }
             drawBadges(g, n, s, color);
         }
-    }
-
-    private String ellipsize(String text, Font f, double max) {
-        if (textWidth(text, f) <= max) return text;
-        int lo = 0, hi = text.length();
-        while (lo < hi) {
-            int mid = (lo + hi + 1) / 2;
-            if (textWidth(text.substring(0, mid) + "…", f) <= max) lo = mid;
-            else hi = mid - 1;
-        }
-        return text.substring(0, lo) + "…";
     }
 
     /** "+N" on a folded idea (outward side) and an arrow on one that links to a note. */

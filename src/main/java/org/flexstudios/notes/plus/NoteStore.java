@@ -108,7 +108,12 @@ final class NoteStore {
 
     /** Runs {@code write} on {@link #IO}. */
     static void write(Consumer<NoteStore> write) {
-        IO.execute(() -> write.accept(get()));
+        if (IO.isShutdown()) return; // Exiting: drain() already let the last writes land.
+        try {
+            IO.execute(() -> write.accept(get()));
+        } catch (java.util.concurrent.RejectedExecutionException closing) {
+            // The window lost focus while closing, after the writer stopped.
+        }
     }
 
     /** Lets queued writes land before the app exits. */

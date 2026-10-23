@@ -414,23 +414,11 @@ final class NoteSync {
             if (remote.deleted && mayRetry) pushOne(uid, note, drive, false);
             return;
         }
-        keepBoth(uid, note, remote);
-    }
-
-    /** A real conflict: the account's version takes the note, ours becomes a copy beside it. */
-    private static void keepBoth(String uid, NoteEntity mine, Remote theirs) {
-        NoteStore store = NoteStore.get();
-        NoteEntity copy = new NoteEntity(conflictTitle(mine.getTitle()), mine.getContent(), mine.getTimestamp());
-        copy.setType(mine.getType());
-        copy.setData(mine.getData());
-        copy.setColor(mine.getColor());
-        copy.setPinned(mine.isPinned());
-        copy.setAccount(uid);
-        copy.setId(store.insert(copy));
-        copyFiles(NoteData.dir(mine.getId()), NoteData.dir(copy.getId()));
-        theirs.copyInto(mine);
-        store.update(mine);
-        writeSketch(mine.getId(), theirs.sketch);
+        // Changed elsewhere and edited here: this device's edit is the later intent, so it
+        // replaces the account's version (no "conflict" copy), based on the rev it now has.
+        note.setRev(remote.rev);
+        store.update(note);
+        if (mayRetry) pushOne(uid, note, drive, false);
     }
 
     static String conflictTitle(String title) {
@@ -637,6 +625,30 @@ final class NoteSync {
             // The grid shows the pictures as soon as they are here.
             if (fetched) NoteStore.get().notifyChanged();
         }
+    }
+
+    /**
+     * Fetches one file of a note now, e.g. a recording clicked before the sync got to it (open
+     * notes are skipped by the sync). Blocking. False if the note doesn't list it, or it is in my
+     * Drive and Drive isn't connected here.
+     */
+    static boolean fetch(int noteId, String name) throws IOException {
+        NoteEntity note = NoteStore.get().byId(noteId);
+        if (note == null || note.getMedia() == null || !safeName(name)) return false;
+        JSONObject entry = json(note.getMedia()).optJSONObject(name);
+        if (entry == null) return false;
+        Path target = NoteData.dir(note.getId()).resolve(name);
+        if (!entry.optString("key").isEmpty()) {
+            ChatMedia.Meta meta = ChatMedia.Meta.parse(new JSONObject().put("id", entry.optString("driveId"))
+                    .put("key", entry.optString("key")).put("mime", entry.optString("mime")).toString());
+            if (meta == null) return false;
+            ChatMedia.decryptTo(groupTag(note.getUuid(), name), meta, target);
+            return true;
+        }
+        Drive drive = Account.drive();
+        if (drive == null) return false;
+        drive.download(entry.optString("driveId"), target);
+        return true;
     }
 
     private static void trashAttachments(Drive drive, NoteEntity note) {

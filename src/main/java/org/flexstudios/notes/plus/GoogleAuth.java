@@ -123,6 +123,12 @@ final class GoogleAuth {
             if (!state.equals(q.get("state"))) throw new IOException("Google's answer didn't match the request");
             JSONObject t = token("grant_type=authorization_code&code=" + enc(q.get("code"))
                     + "&redirect_uri=" + enc(redirect) + "&code_verifier=" + verifier, client);
+            // Google's page lets people untick Drive; then the sign-in "works" but every Drive
+            // call is refused later. Say so now, while they are still looking.
+            if (scopes.contains(SCOPE_DRIVE) && !t.optString("scope", "").contains(SCOPE_DRIVE)) {
+                throw new IOException("Notes+ needs the Google Drive box ticked on Google's page "
+                        + "(\"See, edit, create and delete only the specific Google Drive files…\"). Try again and leave it ticked.");
+            }
             JSONObject claims = claims(t.optString("id_token", null));
             return new Tokens(t.optString("id_token", null), t.optString("access_token", null),
                     t.optString("refresh_token", null), claims.optString("email", null),

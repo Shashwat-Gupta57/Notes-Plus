@@ -75,6 +75,34 @@ final class Backup {
         WrongPassword() {
             super("That password doesn't open this backup");
         }
+
+        /** {@code why}: what does open it, in words. */
+        WrongPassword(String why) {
+            super(why);
+        }
+    }
+
+    /** In words, what opens a keyring (the phone's VaultCrypto.describeKeyring). */
+    static String describe(JSONObject keyring) {
+        if (keyring == null) return "This backup has no key list; it opens with the lock it was made with.";
+        List<String> ways = new ArrayList<>();
+        JSONArray wraps = keyring.optJSONArray("wraps");
+        for (int i = 0; wraps != null && i < wraps.length(); i++) {
+            JSONObject w = wraps.optJSONObject(i);
+            if (w == null) continue;
+            String label = w.optString("label", "Vault");
+            String type = w.optString("lockType", "");
+            String kind = "PIN".equals(type) ? " (a PIN)" : "PATTERN".equals(type) ? " (a pattern)"
+                    : "PASSWORD".equals(type) ? " (a password)" : "";
+            ways.add(label.startsWith("Backup") ? "its backup lock" + (kind.isEmpty() ? " (a password)" : kind)
+                    : "the lock of \u201c" + label + "\u201d" + kind);
+        }
+        String device = keyring.optString("device", "");
+        StringBuilder out = new StringBuilder("This backup");
+        if (!device.isEmpty()) out.append(" was last set up on ").append(device).append(" and");
+        out.append(ways.isEmpty() ? " has no way to open it." : " opens with " + String.join(", or ", ways) + ".");
+        out.append(" Use the lock as it was then: if you changed it since, try the old one.");
+        return out.toString();
     }
 
     // ================================================================ create
@@ -139,7 +167,7 @@ final class Backup {
     }
 
     /** Every vault's lock wraps the backup key, or only the backup password when one is set. */
-    private static JSONObject keyring(VaultStore store) throws Exception {
+    static JSONObject keyring(VaultStore store) throws Exception {
         JSONArray wraps = new JSONArray();
         JSONObject passwordWrap = VaultCrypto.backupPasswordWrap();
         if (passwordWrap != null) {
@@ -148,10 +176,11 @@ final class Backup {
             byte[] key = VaultCrypto.backupKey();
             for (VaultStore.Vault v : store.vaults()) {
                 String lock = VaultCrypto.lockValue(v.uuid);
-                if (lock != null) wraps.put(wrap(key, lock, v.name));
+                if (lock != null) wraps.put(wrap(key, lock, v.name).put("lockType", v.lockType));
             }
         }
-        return new JSONObject().put("formatVersion", KEYRING_FORMAT).put("keyId", VaultCrypto.backupKeyId()).put("wraps", wraps);
+        return new JSONObject().put("formatVersion", KEYRING_FORMAT).put("keyId", VaultCrypto.backupKeyId()).put("wraps", wraps)
+                .put("device", NoteSync.device() + " (Notes+ desktop)").put("updatedAt", System.currentTimeMillis());
     }
 
     /** The phone's wrap: {label, iterations, salt, iv, wrapped}. */

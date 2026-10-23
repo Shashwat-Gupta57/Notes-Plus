@@ -44,7 +44,7 @@
 .text-area.bare .scroll-pane .viewport { -fx-background-color: transparent; }
 .text-area.bare .scroll-pane > .corner { -fx-background-color: transparent; }
 .text-area.lined .text { -fx-line-spacing: 4.5px; }
-.text-field.done .text { -fx-strikethrough: true; }
+.text-field.done .text, .text-area.done .text { -fx-strikethrough: true; }
 
 /* =================================================================== scrolling */
 

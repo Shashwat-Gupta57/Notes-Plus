@@ -258,6 +258,27 @@ final class AudioNoteEditor extends NoteEditor {
 
     // ================================================================== play
 
+    /** A recording from another device that hasn't come down yet: fetch it now, then play it. */
+    private void fetchThenPlay(NoteData.Recording r, Path file) {
+        Ui.toast("Getting this recording…");
+        int id = note.getId();
+        Account.BG.execute(() -> {
+            String problem;
+            try {
+                problem = NoteSync.fetch(id, r.file) ? null : Account.drive() == null
+                        ? "Connect Google Drive in your account to get recordings from your other devices"
+                        : "This recording hasn't been uploaded from its device yet";
+            } catch (Exception e) {
+                problem = "Couldn't download this recording. Check your connection";
+            }
+            String message = problem;
+            javafx.application.Platform.runLater(() -> {
+                if (message != null || !Files.exists(file)) Ui.toast(message != null ? message : "This recording isn't here yet");
+                else toggle(r);
+            });
+        });
+    }
+
     private void toggle(NoteData.Recording r) {
         if (playing == r && player != null) {
             if (player.getStatus() == MediaPlayer.Status.PLAYING) player.pause();
@@ -266,6 +287,10 @@ final class AudioNoteEditor extends NoteEditor {
         }
         stopPlayback();
         Path file = NoteData.dir(note.getId()).resolve(r.file);
+        if (!Files.exists(file)) {
+            fetchThenPlay(r, file);
+            return;
+        }
         MediaPlayer p;
         try {
             p = new MediaPlayer(new Media(file.toUri().toString()));

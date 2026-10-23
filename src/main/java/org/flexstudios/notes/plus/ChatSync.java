@@ -971,11 +971,15 @@ final class ChatSync {
         void run() throws Exception;
     }
 
-    /** One at a time with the job; if the job runs, it'll pick this up, so queue another run instead. */
+    /**
+     * One at a time with the job. While the job holds the lock (a long send), the step waits and
+     * tries again shortly: dropping it left the callers' "pending" flag set, so every later
+     * message was ignored until the next send ran the job.
+     */
     private static void background(Step step) {
         LIVE.execute(() -> {
             if (!LOCK.tryLock()) {
-                schedule();
+                LIVE.schedule(() -> background(step), 400, TimeUnit.MILLISECONDS);
                 return;
             }
             try {

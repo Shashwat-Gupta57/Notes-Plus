@@ -41,6 +41,12 @@ public class NoteEntity {
     private String groupId;
     /** Members as JSON {uid: username}, for the card and the members screen. */
     private String groupMembers;
+    /** Mine, sent to people ({@code sentNotes/{uuid}}): who, as JSON {uid: username}. */
+    private String sentTo;
+    /** The sent copy's files: encrypted and shared by link, as a manifest like {@link #media}. */
+    private String sentMedia;
+    /** Someone else's note sent to me: their @username. Read-only here; never pushed. */
+    private String sharedFrom;
 
     public NoteEntity(String title, String content, long timestamp) {
         this.title = title;
@@ -80,12 +86,22 @@ public class NoteEntity {
     public void setGroupId(String groupId) { this.groupId = groupId; }
     public String getGroupMembers() { return groupMembers; }
     public void setGroupMembers(String groupMembers) { this.groupMembers = groupMembers; }
+    public String getSentTo() { return sentTo; }
+    public void setSentTo(String sentTo) { this.sentTo = sentTo; }
+    public String getSentMedia() { return sentMedia; }
+    public void setSentMedia(String sentMedia) { this.sentMedia = sentMedia; }
+    public String getSharedFrom() { return sharedFrom; }
+    public void setSharedFrom(String sharedFrom) { this.sharedFrom = sharedFrom; }
+
+    /** Someone else's note, sent to me. */
+    boolean isReceived() { return sharedFrom != null; }
 
     /** For the list differ: anything a card shows. */
     boolean sameContentAs(NoteEntity o) {
         return java.util.Objects.equals(title, o.title) && java.util.Objects.equals(content, o.content)
                 && java.util.Objects.equals(data, o.data) && timestamp == o.timestamp
                 && color == o.color && pinned == o.pinned && getType().equals(o.getType())
-                && java.util.Objects.equals(groupMembers, o.groupMembers);
+                && java.util.Objects.equals(groupMembers, o.groupMembers)
+                && java.util.Objects.equals(sentTo, o.sentTo) && java.util.Objects.equals(sharedFrom, o.sharedFrom);
     }
 }

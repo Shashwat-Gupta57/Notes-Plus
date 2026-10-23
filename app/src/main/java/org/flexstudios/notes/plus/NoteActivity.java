@@ -31,6 +31,8 @@ abstract class NoteActivity extends AppCompatActivity {
     private static final ExecutorService WRITES = Executors.newSingleThreadExecutor();
 
     protected NoteEntity note;
+    /** Someone else's note sent to me: shown, never changed (pin and colour are mine). */
+    protected boolean readOnly;
     private boolean createdHere;
     private String savedState;
     private View root;
@@ -76,11 +78,18 @@ abstract class NoteActivity extends AppCompatActivity {
                     return;
                 }
                 note = loaded;
+                readOnly = loaded.isReceived();
                 NoteSync.OPEN.add(note.getId());
                 savedState = state(note);
                 applyColor();
                 invalidateOptionsMenu();
                 onNoteLoaded(note);
+                if (readOnly) {
+                    lockForReading();
+                    if (getSupportActionBar() != null) {
+                        getSupportActionBar().setSubtitle("From @" + loaded.getSharedFrom() + "  ·  read only");
+                    }
+                }
             });
         });
     }
@@ -130,9 +139,43 @@ abstract class NoteActivity extends AppCompatActivity {
         NoteSync.OPEN.add(live.getId());
     }
 
+    /**
+     * Makes the editor read-only, for a note sent to me. The default stops every text field from
+     * being edited; editors with more to lock (drawing, the map, recording) add to it.
+     */
+    protected void lockForReading() {
+        lockTextFields(root);
+    }
+
+    private static void lockTextFields(View v) {
+        if (v instanceof android.widget.EditText) {
+            android.widget.EditText e = (android.widget.EditText) v;
+            e.setKeyListener(null);
+            e.setFocusable(false);
+            e.setLongClickable(true);
+            e.setTextIsSelectable(true); // Still copyable.
+        } else if (v instanceof android.widget.CompoundButton) {
+            v.setEnabled(false);
+        } else if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) lockTextFields(g.getChildAt(i));
+        }
+    }
+
     /** Saves if anything changed. Safe to call any time on the main thread. */
     protected void save() {
         if (note == null) return;
+        if (readOnly) {
+            // Only my own choices about it: pinned, and its colour.
+            final int id = note.getId(), color = note.getColor();
+            final boolean pinned = note.isPinned();
+            WRITES.execute(() -> {
+                NoteDao dao = AppDatabase.getInstance(this).noteDao();
+                dao.setPinned(id, pinned);
+                dao.setColor(id, color);
+            });
+            return;
+        }
         boolean keep = collect(note);
         if (!keep) {
             // A note made and abandoned here leaves nothing behind, files included.
@@ -184,8 +227,18 @@ abstract class NoteActivity extends AppCompatActivity {
         if (share != null) {
             boolean shared = note != null && note.getGroupId() != null;
             share.setTitle(shared ? "People" : "Share with people");
-            share.setVisible(note != null && !NoteData.AUDIO.equals(note.getType()) && Account.uid() != null);
+            share.setVisible(note != null && !readOnly && !NoteData.AUDIO.equals(note.getType()) && Account.uid() != null);
         }
+        MenuItem send = menu.findItem(R.id.action_send);
+        if (send != null) {
+            int sent = note == null ? 0 : SentNotes.count(note.getSentTo());
+            send.setTitle(sent > 0 ? "Sent to " + sent : "Send to people");
+            send.setVisible(note != null && !readOnly && note.getGroupId() == null && Account.uid() != null);
+        }
+        MenuItem copy = menu.findItem(R.id.action_save_copy);
+        if (copy != null) copy.setVisible(readOnly);
+        MenuItem delete = menu.findItem(R.id.action_delete);
+        if (delete != null) delete.setTitle(readOnly ? "Remove" : "Delete");
         MenuItem pin = menu.findItem(R.id.action_pin);
         if (pin != null && note != null) {
             pin.setTitle(note.isPinned() ? "Unpin" : "Pin");
@@ -215,8 +268,28 @@ abstract class NoteActivity extends AppCompatActivity {
                 if (note != null) GroupNotes.showSheet(this, note.getId(), () -> {});
             }));
             return true;
+        } else if (id == R.id.action_send) {
+            save();
+            WRITES.execute(() -> runOnUiThread(() -> {
+                if (note != null) SentNotes.showSheet(this, note.getId(), () -> {});
+            }));
+            return true;
+        } else if (id == R.id.action_save_copy) {
+            final NoteEntity received = note;
+            AppDatabase.IO.execute(() -> {
+                int copyId = SentNotes.saveCopy(this, received);
+                runOnUiThread(() -> {
+                    android.widget.Toast.makeText(this, "Saved as your own note", android.widget.Toast.LENGTH_SHORT).show();
+                    startActivity(NoteData.editor(this, received.getType(), copyId));
+                    finish();
+                });
+            });
+            return true;
         } else if (id == R.id.action_color) {
             pickColor();
+            return true;
+        } else if (id == R.id.action_delete && readOnly) {
+            SentNotes.confirmRemove(this, note, this::finish);
             return true;
         } else if (id == R.id.action_delete) {
             new MaterialAlertDialogBuilder(this)

@@ -115,6 +115,11 @@
             }
           }
         },
+        "sent": {
+          "$sid": {
+            ".validate": "$sid.matches(/^[0-9a-f]{32}$/) && newData.isBoolean()"
+          }
+        },
         "$other": {
           ".validate": false
         }
@@ -449,6 +454,7 @@
     },
     "vaultPhotos": {
       "$uid": {
+        ".write": "auth != null && auth.uid === $uid && !newData.exists() && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com')",
         "$code": {
           ".read": "auth != null",
           ".write": "auth != null && auth.uid === $uid && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com')",
@@ -757,6 +763,126 @@
           ".validate": "newData.hasChildren(['at'])",
           "at": {
             ".validate": "newData.val() === now"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "sentNotes": {
+      "$sid": {
+        ".read": "auth != null && (data.child('from').val() === auth.uid || data.child('to').child(auth.uid).exists())",
+        ".write": "auth != null && !newData.exists() && data.child('from').val() === auth.uid",
+        "from": {
+          ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && !data.exists() && newData.val() === auth.uid",
+          ".validate": "newData.isString()"
+        },
+        "fromName": {
+          ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && (data.parent().child('from').val() === auth.uid || (!data.parent().child('from').exists() && newData.parent().child('from').val() === auth.uid))",
+          ".validate": "newData.isString() && root.child('usernames').child(newData.val()).val() === auth.uid"
+        },
+        "to": {
+          "$m": {
+            ".write": "auth != null && (((auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && (data.parent().parent().child('from').val() === auth.uid || (!data.parent().parent().child('from').exists() && newData.parent().parent().child('from').val() === auth.uid))) || (!newData.exists() && $m === auth.uid))",
+            ".validate": "newData.isString() && root.child('usernames').child(newData.val()).val() === $m"
+          }
+        },
+        "note": {
+          ".validate": "$sid.matches(/^[0-9a-f]{32}$/) && newData.hasChildren(['rev', 'updatedAt']) && (newData.child('deleted').val() === true || newData.hasChildren(['type'])) && ((!data.exists() && newData.child('rev').val() >= 1) || newData.child('rev').val() === data.child('rev').val() + 1)",
+          "rev": {
+            ".validate": "newData.isNumber()"
+          },
+          "updatedAt": {
+            ".validate": "newData.val() === now"
+          },
+          "deleted": {
+            ".validate": "newData.isBoolean()"
+          },
+          "type": {
+            ".validate": "newData.val().matches(/^(TEXT|LIST|MINDMAP|JOURNAL|SKETCH|AUDIO)$/)"
+          },
+          "title": {
+            ".validate": "newData.isString() && newData.val().length <= 500"
+          },
+          "content": {
+            ".validate": "newData.isString() && newData.val().length <= 200000"
+          },
+          "data": {
+            ".validate": "newData.isString() && newData.val().length <= 1000000"
+          },
+          "sketch": {
+            ".validate": "newData.isString() && newData.val().length <= 1000000"
+          },
+          "color": {
+            ".validate": "newData.isNumber()"
+          },
+          "pinned": {
+            ".validate": "newData.isBoolean()"
+          },
+          "edited": {
+            ".validate": "newData.isNumber()"
+          },
+          "device": {
+            ".validate": "newData.isString() && newData.val().length <= 64"
+          },
+          "media": {
+            "$file": {
+              ".validate": "newData.hasChildren(['name', 'driveId', 'size'])",
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 200"
+              },
+              "driveId": {
+                ".validate": "newData.isString() && newData.val().length <= 200"
+              },
+              "mime": {
+                ".validate": "newData.isString() && newData.val().length <= 100"
+              },
+              "size": {
+                ".validate": "newData.isNumber()"
+              },
+              "w": {
+                ".validate": "newData.isNumber()"
+              },
+              "h": {
+                ".validate": "newData.isNumber()"
+              },
+              "durationMs": {
+                ".validate": "newData.isNumber()"
+              },
+              "sha256": {
+                ".validate": "newData.isString() && newData.val().length === 64"
+              },
+              "key": {
+                ".validate": "newData.isString() && newData.val().length <= 64"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "$other": {
+            ".validate": false
+          },
+          ".write": "auth != null && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && (data.parent().child('from').val() === auth.uid || (!data.parent().child('from').exists() && newData.parent().child('from').val() === auth.uid))"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "inbox": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && !newData.exists()",
+        "$sid": {
+          ".write": "auth != null && ((newData.exists() && (auth.token.email_verified === true || auth.token.firebase.sign_in_provider === 'google.com') && newData.parent().parent().parent().child('sentNotes').child($sid).child('from').val() === auth.uid && newData.parent().parent().parent().child('sentNotes').child($sid).child('to').child($uid).exists()) || (!newData.exists() && ($uid === auth.uid || root.child('sentNotes').child($sid).child('from').val() === auth.uid)))",
+          ".validate": "newData.hasChildren(['at', 'from'])",
+          "at": {
+            ".validate": "newData.val() === now"
+          },
+          "from": {
+            ".validate": "newData.val() === auth.uid"
           },
           "$other": {
             ".validate": false

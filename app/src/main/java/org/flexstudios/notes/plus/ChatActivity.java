@@ -546,7 +546,7 @@ public class ChatActivity extends VaultActivity {
 
     // ---- playback: one voice note at a time, decrypted to a temporary file while it plays
 
-    private android.media.MediaPlayer player;
+    private AudioPlayback player;
     private String playingKey;
     private float[] playingWave;
     private File playingFile;
@@ -584,10 +584,9 @@ public class ChatActivity extends VaultActivity {
                     }
                     try {
                         playingFile = file;
-                        player = new android.media.MediaPlayer();
-                        player.setDataSource(file.getPath());
-                        player.setOnCompletionListener(p -> stopPlayback());
-                        player.prepare();
+                        // Desktop voice messages are WAV: AudioPlayback plays those on every phone.
+                        player = AudioPlayback.open(file);
+                        player.setOnCompletionListener(this::stopPlayback);
                         player.start();
                         playTicker.post(playProgress);
                         refreshRow(m.msgKey);

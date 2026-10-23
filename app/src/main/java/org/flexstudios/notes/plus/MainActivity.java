@@ -19,6 +19,7 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -60,6 +61,8 @@ public class MainActivity extends AppCompatActivity {
 
     private List<NoteEntity> allNotes = new ArrayList<>();
     private String filterType;
+    /** The "Shared with me" filter: notes sent to me by others. */
+    private static final String SHARED = "SHARED";
     private String query = "";
 
     private final Handler secretHandler = new Handler(Looper.getMainLooper());
@@ -134,7 +137,7 @@ public class MainActivity extends AppCompatActivity {
         List<NoteEntity> shown = new ArrayList<>();
         String q = query.toLowerCase(Locale.getDefault());
         for (NoteEntity n : allNotes) {
-            if (filterType != null && !filterType.equals(n.getType())) continue;
+            if (SHARED.equals(filterType) ? !n.isReceived() : filterType != null && !filterType.equals(n.getType())) continue;
             if (!q.isEmpty()) {
                 String hay = ((n.getTitle() == null ? "" : n.getTitle()) + "\n"
                         + (n.getContent() == null ? "" : n.getContent())).toLowerCase(Locale.getDefault());
@@ -145,6 +148,7 @@ public class MainActivity extends AppCompatActivity {
         adapter.submitList(shown);
         emptyState.setVisibility(shown.isEmpty() ? View.VISIBLE : View.GONE);
         emptyText.setText(!q.isEmpty() ? "Nothing matches “" + query + "”"
+                : SHARED.equals(filterType) ? "Nothing shared with you yet. When someone sends you a note, it shows up here."
                 : filterType != null ? "No " + NoteData.kind(filterType).plural.toLowerCase(Locale.getDefault()) + " yet"
                 : "No notes yet. Tap New to start.");
     }
@@ -152,6 +156,7 @@ public class MainActivity extends AppCompatActivity {
     private void buildFilterChips() {
         ChipGroup chips = findViewById(R.id.filterChips);
         addChip(chips, "All", null, true);
+        addChip(chips, "Shared with me", SHARED, false);
         for (NoteData.Kind kind : NoteData.KINDS) addChip(chips, kind.plural, kind.type, false);
     }
 
@@ -168,7 +173,11 @@ public class MainActivity extends AppCompatActivity {
                 new int[][]{{android.R.attr.state_checked}, {}},
                 new int[]{ContextCompat.getColor(this, R.color.black), ContextCompat.getColor(this, R.color.text_primary)}));
         chip.setChipStrokeWidth(0);
-        if (type != null) {
+        if (SHARED.equals(type)) {
+            chip.setChipIconResource(R.drawable.ic_person);
+            chip.setChipIconTint(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.tile_teal)));
+            chip.setChipIconVisible(true);
+        } else if (type != null) {
             chip.setChipIconResource(NoteData.kind(type).icon);
             chip.setChipIconTint(ColorStateList.valueOf(ContextCompat.getColor(this, NoteData.kind(type).accent)));
             chip.setChipIconVisible(true);
@@ -205,13 +214,37 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showNoteOptions(NoteEntity note) {
-        String[] options = {note.isPinned() ? "Unpin" : "Pin to top", "Colour", "Delete"};
+        String title = note.getTitle() == null || note.getTitle().isEmpty()
+                ? NoteData.kind(note.getType()).label : note.getTitle();
+        if (note.isReceived()) {
+            // Someone else's note: mine to pin, colour, copy or put away, not to change.
+            String[] options = {note.isPinned() ? "Unpin" : "Pin to top", "Colour", "Save a copy", "Remove"};
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle(title)
+                    .setItems(options, (d, which) -> {
+                        if (which == 0) executor.execute(() -> database.noteDao().setPinned(note.getId(), !note.isPinned()));
+                        else if (which == 1) pickColor(note);
+                        else if (which == 2) executor.execute(() -> {
+                            SentNotes.saveCopy(this, note);
+                            runOnUiThread(() -> Toast.makeText(this, "Saved as your own note", Toast.LENGTH_SHORT).show());
+                        });
+                        else SentNotes.confirmRemove(this, note, () -> {});
+                    })
+                    .show();
+            return;
+        }
+        boolean canSend = Account.uid() != null && note.getGroupId() == null;
+        int sent = SentNotes.count(note.getSentTo());
+        String[] options = canSend
+                ? new String[]{note.isPinned() ? "Unpin" : "Pin to top", "Colour",
+                sent > 0 ? "Sent to " + sent + "…" : "Send to people…", "Delete"}
+                : new String[]{note.isPinned() ? "Unpin" : "Pin to top", "Colour", "Delete"};
         new MaterialAlertDialogBuilder(this)
-                .setTitle(note.getTitle() == null || note.getTitle().isEmpty()
-                        ? NoteData.kind(note.getType()).label : note.getTitle())
+                .setTitle(title)
                 .setItems(options, (d, which) -> {
                     if (which == 0) executor.execute(() -> database.noteDao().setPinned(note.getId(), !note.isPinned()));
                     else if (which == 1) pickColor(note);
+                    else if (canSend && which == 2) SentNotes.showSheet(this, note.getId(), () -> {});
                     else deleteWithUndo(note);
                 })
                 .show();

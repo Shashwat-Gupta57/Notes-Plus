@@ -54,10 +54,11 @@ public interface NoteDao {
 
     // ------------------------------------------------------------------- sync
 
-    @Query("SELECT * FROM notes WHERE account = :account AND dirty = 1")
+    /** Received notes are someone else's: never pushed from here. */
+    @Query("SELECT * FROM notes WHERE account = :account AND dirty = 1 AND sharedFrom IS NULL")
     List<NoteEntity> dirtyNotes(String account);
 
-    @Query("SELECT COUNT(*) FROM notes WHERE account = :account AND dirty = 1")
+    @Query("SELECT COUNT(*) FROM notes WHERE account = :account AND dirty = 1 AND sharedFrom IS NULL")
     int countDirty(String account);
 
     /** Notes on this phone outside {@code account}: offered when signing in. */
@@ -70,12 +71,28 @@ public interface NoteDao {
     void adopt(String account);
 
     /** Leaving an account but keeping its notes: they become this phone's own again. */
-    @Query("UPDATE notes SET account = NULL, rev = 0, dirty = 1, media = NULL, groupId = NULL, groupMembers = NULL "
-            + "WHERE account = :account")
+    @Query("UPDATE notes SET account = NULL, rev = 0, dirty = 1, media = NULL, groupId = NULL, groupMembers = NULL, "
+            + "sentTo = NULL, sentMedia = NULL WHERE account = :account AND sharedFrom IS NULL")
     void release(String account);
 
     @Query("SELECT * FROM notes WHERE account = :account")
     List<NoteEntity> notesOf(String account);
+
+    // ------------------------------------------------------------- sent notes
+
+    /** Mine, sent to people. */
+    @Query("SELECT * FROM notes WHERE account = :account AND sentTo IS NOT NULL AND sharedFrom IS NULL")
+    List<NoteEntity> sentNotes(String account);
+
+    /** Theirs, sent to me. */
+    @Query("SELECT * FROM notes WHERE account = :account AND sharedFrom IS NOT NULL")
+    List<NoteEntity> receivedNotes(String account);
+
+    @Query("UPDATE notes SET sentTo = :sentTo WHERE id = :noteId")
+    void setSentTo(int noteId, String sentTo);
+
+    @Query("UPDATE notes SET sentMedia = :sentMedia WHERE id = :noteId")
+    void setSentMedia(int noteId, String sentMedia);
 
     /** Deleted notes nobody else needs to hear about: purge right away. */
     @Query("SELECT * FROM notes WHERE deleted = 1 AND account IS NULL")

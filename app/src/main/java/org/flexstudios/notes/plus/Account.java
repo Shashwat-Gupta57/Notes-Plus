@@ -491,6 +491,14 @@ final class Account {
         NoteSync.eraseAttachments(context);
         String username = Tasks.await(root().child("users").child(uid).child("profile").child("username").get(),
                 TIMEOUT_S, TimeUnit.SECONDS).getValue(String.class);
+        // Notes I sent stop being readable by anyone.
+        for (NoteEntity n : AppDatabase.getInstance(context).noteDao().sentNotes(uid)) {
+            try {
+                SentNotes.takeDown(context, uid, n);
+            } catch (Exception e) {
+                Log.w(TAG, "A sent note wasn't taken down", e);
+            }
+        }
         Map<String, Object> wipe = new HashMap<>();
         wipe.put("users/" + uid, null);
         wipe.put("chatHome/" + uid, null);
@@ -502,6 +510,7 @@ final class Account {
         wipe.put("profiles/" + uid, null);
         wipe.put("vaultPhotos/" + uid, null);
         wipe.put("groupIndex/" + uid, null);
+        wipe.put("inbox/" + uid, null);
         if (username != null) wipe.put("usernames/" + username, null);
         Tasks.await(root().updateChildren(wipe), TIMEOUT_S, TimeUnit.SECONDS);
         Tasks.await(user.delete(), TIMEOUT_S, TimeUnit.SECONDS);

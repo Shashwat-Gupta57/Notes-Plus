@@ -58,6 +58,8 @@ final class GroupNotes {
         String uid = Account.uid();
         if (note == null || uid == null) throw new IOException("Sign in first");
         if (NoteData.AUDIO.equals(note.getType())) throw new IOException("Audio notes can't be shared");
+        if (note.isReceived()) throw new IOException("Only the person who wrote it can share it");
+        if (note.getSentTo() != null) throw new IOException("This note is sent to people: stop sending it first");
         String myName = await(Account.root().child("users").child(uid).child("profile").child("username").get())
                 .getValue(String.class);
         if (myName == null) throw new IOException("Choose a username in your account first");
@@ -241,7 +243,7 @@ final class GroupNotes {
 
     private static void askInvite(Activity activity, int noteId) {
         Prompts.text(activity, "Invite people", "Usernames, separated by commas.", "Usernames", null,
-                Prompts.TEXT, "Invite", raw -> ChatSync.resolveAll(raw, people -> AppDatabase.IO.execute(() -> {
+                Prompts.TEXT, "Invite", raw -> ChatSync.resolvePeople(raw, people -> AppDatabase.IO.execute(() -> {
                     String error = null;
                     try {
                         invite(activity, noteId, people);

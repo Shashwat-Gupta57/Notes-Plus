@@ -21,6 +21,16 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_send"
+        android:title="Send to people"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_save_copy"
+        android:title="Save a copy"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_delete"
         android:title="Delete"
         app:showAsAction="never" />

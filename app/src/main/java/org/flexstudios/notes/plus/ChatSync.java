@@ -159,6 +159,53 @@ final class ChatSync {
     }
 
     /**
+     * People for a note (sending it, or a group note): "nancy, @bob" by username only. Unlike
+     * {@link #resolveAll}, they don't need to have started chatting. Calls {@code error} with the
+     * first problem, naming who it was about.
+     */
+    static void resolvePeople(String raw, Consumer<List<Contact>> found, Consumer<String> error) {
+        String me = Account.uid();
+        List<String> names = new ArrayList<>();
+        for (String token : raw.split("[,;\\s]+")) {
+            if (token.trim().isEmpty()) continue;
+            String name = Account.normaliseUsername(token.split("/")[0]);
+            if (name == null) {
+                error.accept(token.trim() + ": that isn't a username");
+                return;
+            }
+            if (!names.contains(name)) names.add(name);
+        }
+        if (me == null) {
+            error.accept("Sign in to your account first");
+            return;
+        }
+        if (names.isEmpty()) {
+            error.accept("Enter at least one username");
+            return;
+        }
+        resolveNextPerson(names, 0, new ArrayList<>(), me, found, error);
+    }
+
+    private static void resolveNextPerson(List<String> names, int index, List<Contact> done, String me,
+                                          Consumer<List<Contact>> found, Consumer<String> error) {
+        if (index == names.size()) {
+            found.accept(done);
+            return;
+        }
+        String name = names.get(index);
+        Account.root().child("usernames").child(name).get().addOnCompleteListener(t -> {
+            String uid = t.isSuccessful() ? t.getResult().getValue(String.class) : null;
+            if (!t.isSuccessful()) error.accept("No connection. Try again.");
+            else if (uid == null) error.accept("No one is called @" + name);
+            else if (uid.equals(me)) error.accept("@" + name + " is you");
+            else {
+                done.add(contact(uid, name, ""));
+                resolveNextPerson(names, index + 1, done, me, found, error);
+            }
+        });
+    }
+
+    /**
      * Resolves a list like "nancy, alice/AB12, @bob" (an optional /ID picks a vault; none means
      * their main vault). Calls {@code error} with the first problem, naming who it was about.
      */

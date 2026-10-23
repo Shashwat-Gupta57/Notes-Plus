@@ -316,13 +316,13 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
      */
     static void askForBackupKey(android.app.Activity activity, String message, java.util.function.Consumer<String> onKey,
                                 Runnable onCancel) {
-        lockDialog(activity, "Unlock backup", message, null, "Open", onKey, onCancel);
+        lockDialog(activity, "Unlock backup", message, null, "Open", onCancel == null ? "Cancel" : "Skip", onKey, onCancel);
     }
 
     /** One new lock of {@code type} (PIN, PASSWORD or PATTERN), checked like a vault's. */
     static void askForNewLock(android.app.Activity activity, String type, String title,
                               java.util.function.Consumer<String> onLock) {
-        lockDialog(activity, title, null, type, "Next", value -> {
+        lockDialog(activity, title, null, type, "Next", "Cancel", value -> {
             String problem = value.isEmpty() ? "It can't be empty"
                     : "PIN".equals(type) && value.length() < 4 ? "A PIN needs at least 4 digits"
                     : "PASSWORD".equals(type) && value.length() < 6 ? "Use at least 6 characters"
@@ -340,8 +340,15 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
      * A lock entry dialog. {@code fixedType} null: PIN / Password / Pattern tabs to pick from;
      * otherwise just that kind.
      */
+    /** Entering an existing lock of {@code type} (a locked note's): {@code onCancel} runs on Cancel. */
+    static void askForLock(android.app.Activity activity, String type, String title, String message,
+                           java.util.function.Consumer<String> onKey, Runnable onCancel) {
+        lockDialog(activity, title, message, type, "Open", "Cancel", onKey, onCancel);
+    }
+
     private static void lockDialog(android.app.Activity activity, String title, String message, String fixedType,
-                                   String okLabel, java.util.function.Consumer<String> onKey, Runnable onCancel) {
+                                   String okLabel, String cancelLabel, java.util.function.Consumer<String> onKey,
+                                   Runnable onCancel) {
         float density = activity.getResources().getDisplayMetrics().density;
         int pad = Math.round(24 * density);
         android.widget.LinearLayout box = new android.widget.LinearLayout(activity);
@@ -403,7 +410,7 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
                         .setTitle(title)
                         .setView(box)
                         .setPositiveButton(okLabel, (d, w) -> onKey.accept(Prompts.textOf(input)))
-                        .setNegativeButton(onCancel == null ? "Cancel" : "Skip", (d, w) -> {
+                        .setNegativeButton(cancelLabel, (d, w) -> {
                             if (onCancel != null) onCancel.run();
                         })
                         .setCancelable(false);

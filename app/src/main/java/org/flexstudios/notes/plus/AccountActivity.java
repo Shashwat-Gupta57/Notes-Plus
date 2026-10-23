@@ -113,6 +113,8 @@ public class AccountActivity extends AppCompatActivity {
         updateStatus = findViewById(R.id.txtUpdateStatus);
         updateStatus.setText(Updater.isReadyToInstall(this) ? "Update downloaded. Tap to install" : "You're on " + versionName());
         findViewById(R.id.rowUpdate).setOnClickListener(v -> checkForUpdate());
+        showNoteLockTime();
+        findViewById(R.id.rowNoteLock).setOnClickListener(v -> chooseNoteLockTime());
         ((TextView) findViewById(R.id.txtAboutVersion)).setText("Version " + versionName());
         findViewById(R.id.rowAbout).setOnClickListener(v -> showAbout());
 
@@ -501,6 +503,37 @@ public class AccountActivity extends AppCompatActivity {
                 Updater.showReleaseDialog(this, release);
             }
         });
+    }
+
+    private static final int[] LOCK_MINUTES = {0, 1, 5, 15, 30, 60, -1};
+
+    private static String lockTimeLabel(int minutes) {
+        return minutes == 0 ? "Lock again as soon as I leave the note"
+                : minutes < 0 ? "Stay open until the app closes"
+                : "Lock again " + (minutes == 60 ? "1 hour" : minutes + (minutes == 1 ? " minute" : " minutes")) + " after leaving";
+    }
+
+    private void showNoteLockTime() {
+        ((TextView) findViewById(R.id.txtNoteLock)).setText(lockTimeLabel(NoteLock.timeoutMinutes(this)));
+    }
+
+    /** How long an unlocked note stays open after leaving it, like a vault's auto-lock. */
+    private void chooseNoteLockTime() {
+        String[] labels = new String[LOCK_MINUTES.length];
+        int current = 0;
+        for (int i = 0; i < LOCK_MINUTES.length; i++) {
+            labels[i] = lockTimeLabel(LOCK_MINUTES[i]);
+            if (LOCK_MINUTES[i] == NoteLock.timeoutMinutes(this)) current = i;
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Locked notes")
+                .setSingleChoiceItems(labels, current, (d, which) -> {
+                    NoteLock.setTimeoutMinutes(this, LOCK_MINUTES[which]);
+                    showNoteLockTime();
+                    d.dismiss();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void showAbout() {

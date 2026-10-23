@@ -37,6 +37,8 @@ abstract class NoteActivity extends AppCompatActivity {
     private boolean createdHere;
     private String savedState;
     private View root;
+    /** The key of a locked note while it is open: the editor holds the text, the database only its envelope. */
+    private NoteLock.Key lock;
 
     /** Fill the editor from the note. Main thread. */
     protected abstract void onNoteLoaded(NoteEntity note);
@@ -78,25 +80,79 @@ abstract class NoteActivity extends AppCompatActivity {
                     finish();
                     return;
                 }
-                note = loaded;
-                readOnly = loaded.isReceived();
-                NoteSync.OPEN.add(note.getId());
-                savedState = state(note);
-                applyColor();
-                invalidateOptionsMenu();
-                onNoteLoaded(note);
-                if (!readOnly) {
-                    NoteSync.WATCHERS.put(note.getId(), this::takeNewerIfUnchanged);
-                    markBaseline();
+                if (!loaded.isReceived() && NoteLock.isLocked(loaded.getData())) {
+                    NoteSync.OPEN.add(loaded.getId());
+                    unlockThenShow(loaded);
+                    return;
                 }
-                if (readOnly) {
-                    lockForReading();
-                    if (getSupportActionBar() != null) {
-                        getSupportActionBar().setSubtitle("From @" + loaded.getSharedFrom() + "  ·  read only");
-                    }
-                }
+                showLoaded(loaded);
             });
         });
+    }
+
+    /** Fills the editor with a loaded note (already decrypted, if it was locked). */
+    private void showLoaded(NoteEntity loaded) {
+        note = loaded;
+        readOnly = loaded.isReceived();
+        NoteSync.OPEN.add(note.getId());
+        savedState = state(note);
+        applyColor();
+        invalidateOptionsMenu();
+        onNoteLoaded(note);
+        if (!readOnly) {
+            NoteSync.WATCHERS.put(note.getId(), this::takeNewerIfUnchanged);
+            markBaseline();
+        }
+        if (readOnly) {
+            lockForReading();
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setSubtitle("From @" + loaded.getSharedFrom() + "  ·  read only");
+            }
+        }
+    }
+
+    /** A locked note: the key from the recent session, or asked for. Cancel closes the note. */
+    private void unlockThenShow(NoteEntity loaded) {
+        NoteLock.Key cached = NoteLock.session(this, loaded.getUuid());
+        if (cached != null && NoteLock.fits(cached, loaded.getData())) {
+            openLocked(loaded, cached);
+            return;
+        }
+        String type = NoteLock.typeOf(loaded.getData());
+        String title = loaded.getTitle() == null || loaded.getTitle().isEmpty() ? "Locked note" : loaded.getTitle();
+        UnlockActivity.askForLock(this, type, title, "Enter this note's " + NoteLock.typeWord(type) + ".", value ->
+                AppDatabase.IO.execute(() -> {
+                    try {
+                        NoteLock.Key k = NoteLock.open(loaded.getData(), value);
+                        runOnUiThread(() -> openLocked(loaded, k));
+                    } catch (Exception e) {
+                        runOnUiThread(() -> {
+                            if (isFinishing()) return;
+                            android.widget.Toast.makeText(this, "That isn't this note's " + NoteLock.typeWord(type),
+                                    android.widget.Toast.LENGTH_SHORT).show();
+                            unlockThenShow(loaded);
+                        });
+                    }
+                }), () -> {
+                    NoteSync.OPEN.remove(loaded.getId());
+                    finish();
+                });
+    }
+
+    private void openLocked(NoteEntity loaded, NoteLock.Key k) {
+        if (isFinishing()) return;
+        try {
+            String[] plain = NoteLock.unseal(k, loaded.getData());
+            loaded.setContent(plain[0]);
+            loaded.setData(plain[1]);
+        } catch (Exception e) {
+            android.widget.Toast.makeText(this, "Couldn't open this note", android.widget.Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+        lock = k;
+        NoteLock.opened(loaded.getUuid(), k);
+        showLoaded(loaded);
     }
 
     /** The note's media folder, inserting the row first if this is a brand-new note. */
@@ -156,6 +212,20 @@ abstract class NoteActivity extends AppCompatActivity {
             if (fresh == null) return;
             runOnUiThread(() -> {
                 if (note == null || note.getId() != id || isFinishing()) return;
+                if (NoteLock.isLocked(fresh.getData())) {
+                    // Locked elsewhere with another lock: this editor can't show it; it stays as is.
+                    if (lock == null || !NoteLock.fits(lock, fresh.getData())) return;
+                    try {
+                        String[] plain = NoteLock.unseal(lock, fresh.getData());
+                        fresh.setContent(plain[0]);
+                        fresh.setData(plain[1]);
+                    } catch (Exception e) {
+                        return;
+                    }
+                } else if (lock != null) {
+                    lock = null; // The lock was removed on another device.
+                    invalidateOptionsMenu();
+                }
                 note = fresh;
                 savedState = state(fresh);
                 applyColor();
@@ -170,6 +240,7 @@ abstract class NoteActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         if (note != null) NoteSync.WATCHERS.remove(note.getId());
+        if (note != null) NoteLock.left(this, note.getUuid());
         if (note != null) NoteSync.OPEN.remove(note.getId());
         if (isFinishing()) {
             android.content.Context app = getApplicationContext();
@@ -234,6 +305,16 @@ abstract class NoteActivity extends AppCompatActivity {
         note.setTimestamp(System.currentTimeMillis());
         final NoteEntity snapshot = copy(note);
         final NoteEntity live = note;
+        if (lock != null) {
+            try {
+                snapshot.setData(NoteLock.seal(lock, snapshot.getContent(), snapshot.getData()));
+                snapshot.setContent("");
+            } catch (Exception e) {
+                android.util.Log.e("NoteActivity", "Couldn't seal a locked note; not saved", e);
+                savedState = null;
+                return;
+            }
+        }
         WRITES.execute(() -> {
             // Checked here, on the serial writer, so an earlier insert has always landed.
             if (live.getId() <= 0) {
@@ -269,6 +350,26 @@ abstract class NoteActivity extends AppCompatActivity {
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
+        MenuItem lockItem = menu.findItem(R.id.action_lock);
+        if (lockItem != null) {
+            boolean can = note != null && !readOnly && NoteLock.lockable(note.getType())
+                    && note.getGroupId() == null && SentNotes.count(note.getSentTo()) == 0;
+            lockItem.setVisible(can);
+            // Locked and opened: an open padlock in yellow (unlocked for now; stored copies stay
+            // encrypted). Not locked: a grey padlock, to lock it.
+            lockItem.setTitle(lock != null ? "Unlocked for now" : "Lock");
+            lockItem.setIcon(lock != null ? R.drawable.ic_lock_open : R.drawable.ic_lock);
+            androidx.core.view.MenuItemCompat.setIconTintList(lockItem,
+                    android.content.res.ColorStateList.valueOf(ContextCompat.getColor(this,
+                            lock != null ? R.color.brand_yellow : R.color.text_secondary)));
+        }
+        MenuItem changeLock = menu.findItem(R.id.action_change_lock);
+        if (changeLock != null) changeLock.setVisible(lock != null);
+        MenuItem removeLock = menu.findItem(R.id.action_remove_lock);
+        if (removeLock != null) {
+            removeLock.setVisible(lock != null);
+            removeLock.setTitle("Decrypt…");
+        }
         MenuItem wrap = menu.findItem(R.id.action_wrap);
         if (wrap != null) {
             Boolean on = note == null || readOnly ? null : wrapText();
@@ -279,13 +380,13 @@ abstract class NoteActivity extends AppCompatActivity {
         if (share != null) {
             boolean shared = note != null && note.getGroupId() != null;
             share.setTitle(shared ? "People" : "Share with people");
-            share.setVisible(note != null && !readOnly && !NoteData.AUDIO.equals(note.getType()) && Account.uid() != null);
+            share.setVisible(note != null && !readOnly && lock == null && !NoteData.AUDIO.equals(note.getType()) && Account.uid() != null);
         }
         MenuItem send = menu.findItem(R.id.action_send);
         if (send != null) {
             int sent = note == null ? 0 : SentNotes.count(note.getSentTo());
             send.setTitle(sent > 0 ? "Sent to " + sent : "Send to people");
-            send.setVisible(note != null && !readOnly && note.getGroupId() == null && Account.uid() != null);
+            send.setVisible(note != null && !readOnly && lock == null && note.getGroupId() == null && Account.uid() != null);
         }
         MenuItem copy = menu.findItem(R.id.action_save_copy);
         if (copy != null) copy.setVisible(readOnly);
@@ -308,6 +409,23 @@ abstract class NoteActivity extends AppCompatActivity {
             finish();
             return true;
         } else if (note == null) {
+            return true;
+        } else if (id == R.id.action_lock) {
+            if (lock == null) startLocking();
+            else lockedOptions();
+            return true;
+        } else if (id == R.id.action_change_lock) {
+            chooseNewLock(); // Seals it under the new lock on the next save (right away).
+            return true;
+        } else if (id == R.id.action_remove_lock) {
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle("Decrypt this note?")
+                    .setMessage("Its text will be stored unencrypted: here, in your account and on your other devices "
+                            + "(and in its file, if it's linked to one on a computer). Tap the lock any time to encrypt it "
+                            + "again with the same lock.")
+                    .setPositiveButton("Decrypt", (d, w) -> removeLock())
+                    .setNegativeButton("Cancel", null)
+                    .show();
             return true;
         } else if (id == R.id.action_wrap) {
             Boolean on = wrapText();
@@ -357,6 +475,107 @@ abstract class NoteActivity extends AppCompatActivity {
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    // ==================================================================== lock
+
+    /** Locks the note: with the key still open from earlier, with its last lock, or a new one. */
+    private void startLocking() {
+        if (note == null) return;
+        String uuid = note.getUuid();
+        NoteLock.Key open = NoteLock.session(this, uuid);
+        if (open != null) {
+            applyLock(open);
+            return;
+        }
+        String lastType = NoteLock.lastType(this, uuid);
+        if (lastType == null) {
+            chooseNewLock();
+            return;
+        }
+        String word = NoteLock.typeWord(lastType);
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Lock this note")
+                .setMessage("Lock it again with its last " + word + "?")
+                .setPositiveButton("Use last " + word, (d, w) -> UnlockActivity.askForLock(this, lastType,
+                        "Last " + word, "Enter it once.", value -> AppDatabase.IO.execute(() -> {
+                            try {
+                                NoteLock.Key k = NoteLock.lastKey(this, uuid, value);
+                                runOnUiThread(() -> applyLock(k));
+                            } catch (Exception e) {
+                                runOnUiThread(() -> android.widget.Toast.makeText(this, "That isn't its last " + word,
+                                        android.widget.Toast.LENGTH_SHORT).show());
+                            }
+                        }), null))
+                .setNeutralButton("New lock", (d, w) -> chooseNewLock())
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void chooseNewLock() {
+        String[] types = {"PIN", "PASSWORD", "PATTERN"};
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Lock with")
+                .setItems(new String[]{"PIN", "Password", "Pattern"}, (d, which) ->
+                        UnlockActivity.askForNewLock(this, types[which], "New lock for this note", first ->
+                                UnlockActivity.askForNewLock(this, types[which], "Once more, to confirm", second -> {
+                                    if (!first.equals(second)) {
+                                        android.widget.Toast.makeText(this, "Those didn't match. Try again.",
+                                                android.widget.Toast.LENGTH_LONG).show();
+                                        return;
+                                    }
+                                    AppDatabase.IO.execute(() -> {
+                                        try {
+                                            NoteLock.Key k = NoteLock.newKey(types[which], first);
+                                            runOnUiThread(() -> applyLock(k));
+                                        } catch (Exception e) {
+                                            runOnUiThread(() -> android.widget.Toast.makeText(this, "Couldn't lock it",
+                                                    android.widget.Toast.LENGTH_SHORT).show());
+                                        }
+                                    });
+                                })))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void applyLock(NoteLock.Key k) {
+        if (note == null || isFinishing()) return;
+        lock = k;
+        NoteLock.opened(note.getUuid(), k);
+        NoteLock.remember(this, note.getUuid(), k);
+        savedState = null; // Written now, sealed.
+        save();
+        invalidateOptionsMenu();
+        android.widget.Toast.makeText(this, "Locked. It opens only with this " + NoteLock.typeWord(k.type)
+                + ", on every device.", android.widget.Toast.LENGTH_LONG).show();
+    }
+
+    private void lockedOptions() {
+        int minutes = NoteLock.timeoutMinutes(this);
+        String stays = minutes < 0 ? "until the app closes" : minutes == 0 ? "only while it's on screen"
+                : "for " + minutes + (minutes == 1 ? " minute" : " minutes") + " after you leave it";
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Unlocked for now")
+                .setMessage("It stays open " + stays + ", then needs its " + NoteLock.typeWord(lock.type) + " again. "
+                        + "It stays encrypted all along in your account and on your other devices. "
+                        + "To store it unencrypted, use ⋮ → Decrypt.")
+                .setPositiveButton("Lock now", (d, w) -> {
+                    NoteLock.forget(note.getUuid());
+                    finish();
+                })
+                .setNegativeButton("Close", null)
+                .show();
+    }
+
+    /** Decrypts the note for good; its lock is remembered, so the lock icon puts it back. */
+    private void removeLock() {
+        if (note == null || lock == null) return;
+        lock = null;
+        savedState = null;
+        save();
+        invalidateOptionsMenu();
+        android.widget.Toast.makeText(this, "Decrypted. Tap the lock to encrypt it again.",
+                android.widget.Toast.LENGTH_LONG).show();
     }
 
     /** Whether long lines wrap, for the note types that offer the choice; null for the rest. */

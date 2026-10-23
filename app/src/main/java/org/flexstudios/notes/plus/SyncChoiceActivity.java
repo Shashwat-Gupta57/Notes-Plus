@@ -126,6 +126,11 @@ public class SyncChoiceActivity extends VaultActivity {
     }
 
     private void run(CloudSync.Resolution resolution) {
+        run(resolution, null);
+    }
+
+    /** {@code password}: what the person entered on the unlock screen; null tries this vault's lock first. */
+    private void run(CloudSync.Resolution resolution, String password) {
         AlertDialog dialog = Prompts.progress(this, "Syncing with Google Drive");
 
         executor.execute(() -> {
@@ -146,9 +151,9 @@ public class SyncChoiceActivity extends VaultActivity {
                         || resolution == CloudSync.Resolution.MERGE) {
                     // Pull first so a merge never has to guess: whatever is on Drive comes
                     // down, then the union goes back up as a new restore point.
-                    List<Snapshot.Summary> points = sync.listRestorePoints();
+                    List<Snapshot.Summary> points = sync.listRestorePoints(password);
                     if (!points.isEmpty()) {
-                        sync.restore(points.get(0).id, false, lockValue(), progress);
+                        sync.restore(points.get(0).id, false, password != null ? password : lockValue(), progress);
                     }
                 }
                 if (resolution != CloudSync.Resolution.DOWNLOAD) {
@@ -163,6 +168,13 @@ public class SyncChoiceActivity extends VaultActivity {
                     Toast.makeText(this, "Google Drive is up to date", Toast.LENGTH_SHORT).show();
                     setResult(RESULT_OK);
                     finish();
+                });
+            } catch (VaultCrypto.WrongPasswordException e) {
+                // The backup opens with another lock: ask for it (PIN, password or pattern) and go on.
+                runOnUiThread(() -> {
+                    dialog.dismiss();
+                    UnlockActivity.askForBackupKey(this, (password != null ? "That didn't open it. " : "")
+                            + readable(e), key -> run(resolution, key), null);
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {

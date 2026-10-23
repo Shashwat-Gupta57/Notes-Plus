@@ -374,6 +374,16 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 
+                    <LinearLayout android:id="@+id/rowNoteLock" style="@style/Settings.Row">
+                        <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_orange" android:src="@drawable/ic_lock" />
+                        <LinearLayout style="@style/Settings.Texts">
+                            <TextView style="@style/Settings.Title" android:text="Locked notes" />
+                            <TextView android:id="@+id/txtNoteLock" style="@style/Settings.Subtitle" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <View style="@style/Settings.Divider" />
+
                     <LinearLayout android:id="@+id/rowUpdate" style="@style/Settings.Row">
                         <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_green" android:src="@drawable/ic_update" />
                         <LinearLayout style="@style/Settings.Texts">

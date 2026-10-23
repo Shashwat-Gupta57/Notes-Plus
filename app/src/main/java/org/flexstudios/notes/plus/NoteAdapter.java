@@ -116,7 +116,15 @@ public class NoteAdapter extends ListAdapter<NoteEntity, NoteAdapter.Card> {
         c.title.setText(title);
         c.title.setVisibility(title.isEmpty() ? View.GONE : View.VISIBLE);
 
-        switch (type) {
+        if (NoteLock.isLocked(note.getData())) {
+            // Locked: the title (if any) and a lock; nothing of what is inside.
+            c.body.setText("\uD83D\uDD12  Locked");
+            c.body.setVisibility(View.VISIBLE);
+            if (title.isEmpty()) {
+                c.title.setText("Locked note");
+                c.title.setVisibility(View.VISIBLE);
+            }
+        } else switch (type) {
             case NoteData.LIST: bindList(c, note); break;
             case NoteData.MINDMAP: bindMindMap(c, note); break;
             case NoteData.JOURNAL: bindJournal(c, note); break;

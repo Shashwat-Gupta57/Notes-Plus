@@ -238,7 +238,10 @@ WorkManager input data, which is persisted. Two formats with different propertie
   Settings owns the status card ("To upload: N items - X MB"), the progress bar fed by
   `WorkManager` progress, and the restore-point list with pinning.
 
-**Crypto** — `VaultCrypto` is the only crypto code. Payloads are encrypted with a random
+**Crypto** — `VaultCrypto` is the vault's only crypto code; the notes app's one exception is `NoteLock`
+(locked notes: PBKDF2 key from the note's own PIN/password/pattern, AES-GCM envelope in `data`,
+`content` emptied; byte-compatible with the desktop's; unlock lasts `note_unlock_minutes`, set on the
+Account screen; editors seal before every write in `NoteActivity.save`). Payloads are encrypted with a random
 **Vault Data Key**; a lock value (or the optional **backup password**) only *wraps* that key in
 `keyring.json`. With a backup password set it is the *only* wrap, because a 4-digit PIN falls
 to an offline guesser in minutes (PBKDF2 at 210k: ~180 ms/guess on one desktop core). Changing
@@ -285,8 +288,9 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-The build file is at 12 / "11.0"; `version.json` still advertises 11 / "10.0" (released as v10.0.0,
-with `sha256`) until an 11.0 APK is published. The desktop app (`pom.xml`) carries the same
+The build file and `version.json` are both at 12 / "11.0" (released as v11.0.0, with `sha256`).
+From 11.0 the APK is served from Cloudflare R2 (`releases` bucket, public at
+`https://releases.talken.in/android/Notes-Plus-<version>.apk`), not GitHub release assets. The desktop app (`pom.xml`) carries the same
 version name, so the two stay in step.
 Bump `version.json` only when the APK for a new version is actually published, or every user
 is prompted to download a release that does not exist.

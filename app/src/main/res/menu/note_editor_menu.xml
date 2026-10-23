@@ -3,6 +3,13 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_lock"
+        android:icon="@drawable/ic_lock_open"
+        android:title="Lock"
+        app:iconTint="@color/text_secondary"
+        app:showAsAction="always" />
+
+    <item
         android:id="@+id/action_pin"
         android:icon="@drawable/ic_pin"
         android:title="Pin"
@@ -35,6 +42,18 @@
     <item
         android:id="@+id/action_save_copy"
         android:title="Save a copy"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_change_lock"
+        android:title="Change lock…"
+        android:visible="false"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_remove_lock"
+        android:title="Remove lock"
+        android:visible="false"
         app:showAsAction="never" />
 
     <item

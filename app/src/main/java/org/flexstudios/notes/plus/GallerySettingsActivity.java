@@ -742,7 +742,7 @@ public class GallerySettingsActivity extends VaultActivity {
     private void showRestoreFlowDialog() {
         new MaterialAlertDialogBuilder(this)
                 .setTitle("Restore")
-                .setItems(new String[]{"From a backup file", "From Google Drive", "Check a backup file"},
+                .setItems(new String[]{"From a backup file", "Recover from the cloud (Google Drive)", "Check a backup file"},
                         (dialog, which) -> {
                             if (which == 0) pickLocalBackupForRestore();
                             else if (which == 1) restoreFromDrive();

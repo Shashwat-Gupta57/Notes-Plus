@@ -146,6 +146,8 @@ final class NoteData {
         int link;
         /** ...the linked note's uuid wins when present: it is the same on every phone. */
         String linkUuid;
+        /** A picture shown in the idea (set on the desktop): a file in the note's folder, or null. */
+        String image;
 
         MindNode(long id, long parent, String text, float x, float y) {
             this.id = id;
@@ -183,6 +185,7 @@ final class NoteData {
             n.collapsed = o.optBoolean("collapsed", false);
             n.link = o.optInt("link", 0);
             n.linkUuid = o.optString("linkUuid", "").isEmpty() ? null : o.optString("linkUuid");
+            n.image = o.optString("image", "").isEmpty() ? null : o.optString("image");
             map.nodes.add(n);
         }
         JSONArray links = array(json, "links");
@@ -204,6 +207,7 @@ final class NoteData {
                 if (n.collapsed) o.put("collapsed", true);
                 if (n.link != 0) o.put("link", n.link);
                 if (n.linkUuid != null) o.put("linkUuid", n.linkUuid);
+                if (n.image != null) o.put("image", n.image);
                 array.put(o);
             }
             for (long[] l : map.links) links.put(new JSONArray().put(l[0]).put(l[1]));

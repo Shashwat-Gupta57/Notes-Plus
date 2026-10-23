@@ -244,7 +244,21 @@ public class SketchActivity extends NoteActivity {
     // ============================================================== the view
 
     /** A sheet of paper with smoothed strokes in dp, so a sketch survives any screen size. */
+    @Override
+    protected void lockForReading() {
+        super.lockForReading();
+        canvas.locked = true;
+        for (int id : new int[]{R.id.inkRow, R.id.sizeRow, R.id.btnPen, R.id.btnMarker, R.id.btnEraser,
+                R.id.btnUndo, R.id.btnRedo, R.id.btnClear}) {
+            View v = findViewById(id);
+            if (v != null) v.setVisibility(View.GONE);
+        }
+    }
+
     public static class DrawingView extends View {
+        /** A sketch sent to me: shown, not drawn on. */
+        boolean locked;
+
         static final int PEN = 0, MARKER = 1, ERASER = 2;
         private static final int PAPER = Color.WHITE;
 
@@ -350,6 +364,7 @@ public class SketchActivity extends NoteActivity {
         @SuppressLint("ClickableViewAccessibility")
         @Override
         public boolean onTouchEvent(MotionEvent e) {
+            if (locked) return false;
             float x = e.getX() / density, y = e.getY() / density;
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:

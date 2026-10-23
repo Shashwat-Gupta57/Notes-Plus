@@ -187,10 +187,23 @@ public class NoteEditorActivity extends NoteActivity {
                 return false; // The handle starts drags; long-press stays text selection.
             }
         });
-        touch.attachToRecyclerView(listView);
+        if (!readOnly) touch.attachToRecyclerView(listView);
         listAdapter.touch = touch;
         findViewById(R.id.listAdd).setOnClickListener(v -> addItemAt(items.size()));
         updateProgress();
+    }
+
+    /** A note sent to me: nothing to add, tick, reorder or re-date. */
+    @Override
+    protected void lockForReading() {
+        super.lockForReading();
+        for (int id : new int[]{R.id.listAdd, R.id.btnAddMedia}) {
+            View v = findViewById(id);
+            if (v != null) v.setVisibility(View.GONE);
+        }
+        View date = findViewById(R.id.journalDate);
+        if (date != null) date.setOnClickListener(null);
+        if (moodRow != null) for (int i = 0; i < moodRow.getChildCount(); i++) moodRow.getChildAt(i).setOnClickListener(null);
     }
 
     private void addItemAt(int position) {
@@ -256,6 +269,13 @@ public class NoteEditorActivity extends NoteActivity {
                 super(v);
                 text = v.findViewById(R.id.itemText);
                 check = v.findViewById(R.id.itemCheck);
+                if (readOnly) {
+                    text.setKeyListener(null);
+                    text.setFocusable(false);
+                    text.setTextIsSelectable(true);
+                    check.setEnabled(false);
+                    v.findViewById(R.id.itemHandle).setVisibility(View.INVISIBLE);
+                }
                 text.addTextChangedListener(simpleWatcher(() -> {
                     if (bound == null) return;
                     bound.text = text.getText().toString();
@@ -431,6 +451,7 @@ public class NoteEditorActivity extends NoteActivity {
             h.play.setVisibility(NoteData.isVideo(name) ? View.VISIBLE : View.GONE);
             h.itemView.setOnClickListener(v -> openMedia(file, NoteData.isVideo(name)));
             h.itemView.setOnLongClickListener(v -> {
+                if (readOnly) return false;
                 new MaterialAlertDialogBuilder(NoteEditorActivity.this)
                         .setTitle("Remove from this entry?")
                         .setPositiveButton("Remove", (d, w) -> {

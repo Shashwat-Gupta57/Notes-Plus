@@ -25,7 +25,7 @@ No MVVM, no repository layer. Activities talk to Room DAOs directly and hop thre
 executor per click. Media operations go through `VaultMedia`, never re-implemented in a
 screen.
 
-**Persistence** — `AppDatabase` (Room, singleton, version 18, `notes_database`)
+**Persistence** — `AppDatabase` (Room, singleton, version 19, `notes_database`)
 
 | Entity | Table | Notes |
 |---|---|---|
@@ -40,7 +40,8 @@ must match the `@Index`es on `SecretEntity` exactly), 10→11 adds `durationMs`,
 `type`/`data`/`color`/`pinned`, 12→13 the note sync columns (backfilling `uuid`), 13→14 the
 chat tables, 14→15 chat vault sync (`updatedAt`/`dirty`/`deleted`) and conversation `moved`,
 15→16 chat media, nicknames and shared backgrounds, 16→17 chat photos, ID aliases and list
-backgrounds, 17→18 group notes, group chats and message senders. Only `fallbackToDestructiveMigrationFrom(1)`
+backgrounds, 17→18 group notes, group chats and message senders, 18→19 sent notes (`sentTo`,
+`sentMedia`, `sharedFrom`). Only `fallbackToDestructiveMigrationFrom(1)`
 is on, so a missing migration now crashes instead of wiping the vault — **always add it**.
 `onOpen` seeds vault 1 asynchronously; setup calls `AppDatabase.ensureMainVault` itself so it
 never races the unlock screen.
@@ -62,7 +63,8 @@ through `ThumbnailStore` / `VaultCrypto.mediaDataSource`.
 Audio), its JSON and its folder. Editors extend `NoteActivity`, which loads, saves on pause
 (only when changed), discards abandoned new notes, and owns pin / colour / delete:
 `NoteEditorActivity` (text, list, journal), `MindMapActivity` (+ `MindMapView`, also the card
-preview), `SketchActivity` (+ `DrawingView`; strokes in `sketch.json`, card in `sketch.png`),
+preview; an idea may carry a picture from the desktop, `MindNode.image`, drawn above its text with the
+desktop's geometry), `SketchActivity` (+ `DrawingView`; strokes in `sketch.json`, card in `sketch.png`),
 `AudioNoteActivity` (+ `WaveformView`). `NoteAdapter` draws one card layout for all types.
 Long swipes on the notes grid are the secret gestures (left: gallery, right: chat), so there
 is no swipe-to-delete; notes are deleted from their options or their editor.
@@ -128,6 +130,9 @@ their phone has but are refused from then on. **View once**: photos and videos s
 its Drive. The sender keeps no viewable copy either.
 **Voice notes** record AAC in `cache/chat_plain`, travel like any chat media (encrypted, by link)
 with their waveform in `media.wave`, and play from a temporary decrypted file.
+**Playback** of recordings and voice notes goes through `AudioPlayback`: WAV (what the desktop
+records) streams into an `AudioTrack`, because `MediaPlayer`'s WAV support varies by phone;
+everything else uses `MediaPlayer`. Decrypted desktop voice notes are named `.wav`, not `.m4a`.
 
 **Group notes** (`GroupNotes`): any note but audio, shared with up to 20 people, at
 `groupNotes/{id}` (owner, members {uid: username}, size, `note` in the same shape as my own
@@ -136,6 +141,18 @@ notes). `NoteSync` pushes and pulls them like my own, just at that path; `groupI
 under its own uuid and retires its personal copy online. Deleting one here means leaving it;
 being removed keeps it here as my own note. Group note files are encrypted and shared by link
 (manifest entries carry `key`), so members without Drive still get them.
+
+**Sent notes** (`SentNotes`): one of my notes sent to people by username, read-only for them
+(not a group note; a note is one or the other). Online `sentNotes/{uuid}` = `from`, `fromName`,
+`to` {uid: username}, `note` (my note's shape, its files encrypted by link as `sentMedia`). Only
+the sender writes it: after each of my edits syncs, `NoteSync` publishes it there and bumps
+`inbox/{uid}/{uuid}` ({at, from}) for every recipient; `users/{me}/sent/{uuid}` tells my other
+devices it's sent, so their edits are published too. Recipients get a row with `sharedFrom` =
+my @username (shown on the card and under the "Shared with me" filter); it is never pushed
+(`dirtyNotes` skips it), editors open it read-only (`NoteActivity.lockForReading`; pin and colour
+stay local choices), and it offers "Save a copy" and "Remove" (which takes them off `to`). When
+nobody is left on `to`, or I delete the note, it comes down. Sign-out removes received notes.
+People for notes are resolved by username only (`ChatSync.resolvePeople`), never through chat.
 
 `ChatVaults` owns the vaults across the account's phones:
 - Chat locks are stored as `h1:<salt>:<PBKDF2 hash>` (here and online), never plainly; unlock
@@ -263,8 +280,8 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-The build file is at 11 / "10.0"; `version.json` still advertises 10 / "9.2" (released as v9.2.0,
-with `sha256`) until a 10.0 APK is published.
+The build file and `version.json` are both at 11 / "10.0" (released as v10.0.0,
+with `sha256`).
 Bump `version.json` only when the APK for a new version is actually published, or every user
 is prompted to download a release that does not exist.
 

@@ -7,7 +7,6 @@ import android.content.pm.PackageManager;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
-import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Bundle;
@@ -64,7 +63,7 @@ public class AudioNoteActivity extends NoteActivity {
     private final List<Float> amplitudes = new ArrayList<>();
     private final Handler ticker = new Handler(Looper.getMainLooper());
 
-    private MediaPlayer player;
+    private AudioPlayback player;
     private NoteData.Recording playing;
 
     @Override
@@ -214,6 +213,13 @@ public class AudioNoteActivity extends NoteActivity {
         }
     }
 
+    /** Recordings sent to me: play them, nothing else. */
+    @Override
+    protected void lockForReading() {
+        super.lockForReading();
+        recordButton.setVisibility(android.view.View.GONE);
+    }
+
     // ================================================================== play
 
     private void toggle(NoteData.Recording r) {
@@ -225,18 +231,16 @@ public class AudioNoteActivity extends NoteActivity {
         }
         stopPlayback();
         File file = new File(NoteData.dir(this, note.getId()), r.file);
-        MediaPlayer p = new MediaPlayer();
+        AudioPlayback p;
         try {
-            p.setDataSource(file.getAbsolutePath());
-            p.prepare();
+            // WAV (recorded on the desktop) plays through AudioTrack, so it works on every phone.
+            p = AudioPlayback.open(file);
         } catch (Exception e) {
-            p.release();
-            Toast.makeText(this, "Couldn't play that recording", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, file.exists() ? "Couldn't play that recording"
+                    : "This recording hasn't arrived on this phone yet", Toast.LENGTH_SHORT).show();
             return;
         }
-        p.setOnCompletionListener(mp -> {
-            stopPlayback();
-        });
+        p.setOnCompletionListener(this::stopPlayback);
         p.start();
         player = p;
         playing = r;
@@ -296,8 +300,9 @@ public class AudioNoteActivity extends NoteActivity {
                     + new SimpleDateFormat("d MMM, HH:mm", Locale.getDefault()).format(new Date(r.createdAt)));
             h.play.setImageResource(isPlaying && player.isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play_big);
             h.play.setOnClickListener(v -> toggle(r));
-            h.label.setOnClickListener(v -> rename(r));
+            h.label.setOnClickListener(readOnly ? null : v -> rename(r));
             h.itemView.setOnLongClickListener(v -> {
+                if (readOnly) return false;
                 new MaterialAlertDialogBuilder(AudioNoteActivity.this)
                         .setTitle("Delete \"" + r.label + "\"?")
                         .setPositiveButton("Delete", (d, w) -> {

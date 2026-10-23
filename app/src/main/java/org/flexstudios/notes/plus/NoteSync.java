@@ -206,6 +206,10 @@ final class NoteSync {
     /** Signing out: the account's notes become this phone's own, or leave it. Blocking. */
     static void leave(Context context, String uid, boolean keepNotes) {
         NoteDao dao = AppDatabase.getInstance(context).noteDao();
+        for (NoteEntity n : dao.receivedNotes(uid)) {
+            NoteData.deleteFiles(context, n.getId());
+            dao.purge(n.getId());
+        }
         if (keepNotes) {
             dao.release(uid);
         } else {
@@ -246,6 +250,11 @@ final class NoteSync {
                 pullGroups(context, uid);
             } catch (Exception e) {
                 Log.w(TAG, "Group notes not fetched this time", e);
+            }
+            try {
+                SentNotes.pull(context, uid);
+            } catch (Exception e) {
+                Log.w(TAG, "Sent notes not fetched this time", e);
             }
             DriveStore drive = Account.drive(context);
             if (drive != null) {
@@ -416,6 +425,14 @@ final class NoteSync {
     private static void pushOne(Context context, String uid, DatabaseReference notes, NoteEntity note,
                                 @Nullable DriveStore drive, boolean mayRetry) throws Exception {
         NoteDao dao = AppDatabase.getInstance(context).noteDao();
+        if (note.isDeleted() && note.getSentTo() != null) {
+            try {
+                SentNotes.takeDown(context, uid, note);
+            } catch (Exception e) {
+                Log.w(TAG, "Couldn't take a sent note down; next time", e);
+                return;
+            }
+        }
         if (note.isDeleted() && note.getRev() == 0) {
             dao.purge(note.getId()); // Never reached the account: nothing to tell it.
             return;
@@ -446,6 +463,13 @@ final class NoteSync {
             } else {
                 dao.markSynced(note.getId(), expected + 1, note.getTimestamp());
                 if (groupId != null) GroupNotes.announce(note);
+                if (note.getSentTo() != null) {
+                    try {
+                        SentNotes.publish(context, uid, note, drive);
+                    } catch (Exception e) {
+                        Log.w(TAG, "The sent copy waits for the next sync", e);
+                    }
+                }
             }
             return;
         }
@@ -606,12 +630,11 @@ final class NoteSync {
         NoteDao dao = AppDatabase.getInstance(context).noteDao();
         String root = null;
         for (NoteEntity note : dao.notesOf(uid)) {
-            if (note.isDeleted() || OPEN.contains(note.getId())) continue;
-            String data = note.getData() == null ? "" : note.getData();
+            if (note.isDeleted() || OPEN.contains(note.getId()) || note.isReceived()) continue;
             JSONObject manifest = json(note.getMedia());
             boolean changed = false;
             for (File file : attachments(context, note)) {
-                if (!data.contains(file.getName()) || manifest.has(file.getName())) continue;
+                if (!uses(note, file.getName()) || manifest.has(file.getName())) continue;
                 if (note.getGroupId() != null) {
                     // Shared with the group: encrypted, and opened to anyone with the link, like
                     // a chat photo. The key travels in the note, which only members can read.
@@ -644,7 +667,7 @@ final class NoteSync {
             }
             for (Iterator<String> it = manifest.keys(); it.hasNext(); ) {
                 String name = it.next();
-                if (data.contains(name)) continue;
+                if (uses(note, name)) continue;
                 JSONObject gone = manifest.optJSONObject(name);
                 if (gone != null && !gone.optString("driveId").isEmpty()) {
                     try {
@@ -667,15 +690,15 @@ final class NoteSync {
         NoteDao dao = AppDatabase.getInstance(context).noteDao();
         for (NoteEntity note : dao.notesOf(uid)) {
             if (note.isDeleted() || OPEN.contains(note.getId()) || note.getMedia() == null) continue;
-            boolean group = note.getGroupId() != null;
+            // Group notes' and received notes' files are encrypted and shared by link: no Drive needed.
+            boolean group = note.getGroupId() != null || note.isReceived();
             if (!group && drive == null) continue;
-            String data = note.getData() == null ? "" : note.getData();
             JSONObject manifest = json(note.getMedia());
             File dir = null;
             for (Iterator<String> it = manifest.keys(); it.hasNext(); ) {
                 String name = it.next();
                 JSONObject entry = manifest.optJSONObject(name);
-                if (entry == null || !data.contains(name) || !safeName(name)) continue;
+                if (entry == null || !uses(note, name) || !safeName(name)) continue;
                 if (dir == null) dir = NoteData.dir(context, note.getId());
                 File target = new File(dir, name);
                 if (target.exists() && target.length() == entry.optLong("size", target.length())) continue;
@@ -704,8 +727,18 @@ final class NoteSync {
         }
     }
 
+    /**
+     * A file counts while the note names it: in its data (journal media, recordings, mind-map
+     * pictures) or in its text, where the desktop puts pictures pasted between the words as
+     * {@code ![[IMG_….png]]} lines.
+     */
+    static boolean uses(NoteEntity note, String name) {
+        return (note.getData() != null && note.getData().contains(name))
+                || (note.getContent() != null && note.getContent().contains(name));
+    }
+
     /** Where a group note's file is kept encrypted on this phone. */
-    private static String groupTag(String groupId, String name) {
+    static String groupTag(String groupId, String name) {
         return "gn_" + groupId + "_" + key(name);
     }
 
@@ -811,6 +844,8 @@ final class NoteSync {
     private static ChildEventListener liveListener;
     private static DatabaseReference liveGroups;
     private static com.google.firebase.database.ValueEventListener groupListener;
+    private static DatabaseReference liveInbox;
+    private static com.google.firebase.database.ValueEventListener inboxListener;
 
     /** While the notes grid is visible, other phones' edits arrive as they are made. */
     static synchronized void startLive(Context context) {
@@ -859,6 +894,23 @@ final class NoteSync {
             public void onCancelled(@NonNull DatabaseError error) {}
         };
         liveGroups.addValueEventListener(groupListener);
+        liveInbox = Account.root().child("inbox").child(uid);
+        inboxListener = new com.google.firebase.database.ValueEventListener() {
+            private boolean first = true;
+
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (first) {
+                    first = false;
+                    return;
+                }
+                schedule(app);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        };
+        liveInbox.addValueEventListener(inboxListener);
         liveQuery.addChildEventListener(liveListener);
         schedule(app);
     }
@@ -866,6 +918,9 @@ final class NoteSync {
     static synchronized void stopLive() {
         if (liveGroups != null && groupListener != null) liveGroups.removeEventListener(groupListener);
         liveGroups = null;
+        if (liveInbox != null && inboxListener != null) liveInbox.removeEventListener(inboxListener);
+        liveInbox = null;
+        inboxListener = null;
         groupListener = null;
         if (liveQuery != null && liveListener != null) liveQuery.removeEventListener(liveListener);
         liveQuery = null;
@@ -974,7 +1029,7 @@ final class NoteSync {
     }
 
     /** Strokes arrive as vectors; the card's picture is drawn here from them. */
-    private static void writeSketch(Context context, int noteId, @Nullable String strokes) {
+    static void writeSketch(Context context, int noteId, @Nullable String strokes) {
         if (strokes == null) return;
         File dir = NoteData.dir(context, noteId);
         try (FileOutputStream out = new FileOutputStream(new File(dir, SketchActivity.STROKES_FILE))) {
@@ -1015,7 +1070,7 @@ final class NoteSync {
                 && !name.equals("..") && name.length() <= 200;
     }
 
-    private static String mimeOf(String name) {
+    static String mimeOf(String name) {
         int dot = name.lastIndexOf('.');
         String ext = dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
         String mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);

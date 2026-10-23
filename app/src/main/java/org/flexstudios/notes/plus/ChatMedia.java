@@ -370,7 +370,8 @@ final class ChatMedia {
     /** Decrypted into a temporary file, for the video player. Delete it when done. Blocking. */
     static File decryptToTemp(Context context, String tag, Meta m) throws Exception {
         File file = ensure(context, tag, m);
-        File plain = new File(plainDir(context), tag + (m.isVideo() ? ".mp4" : m.isAudio() ? ".m4a" : ".bin"));
+        File plain = new File(plainDir(context), tag + (m.isVideo() ? ".mp4"
+                : "audio/wav".equals(m.mime) || "audio/x-wav".equals(m.mime) ? ".wav" : m.isAudio() ? ".m4a" : ".bin"));
         try (InputStream in = new FileInputStream(file); OutputStream out = new FileOutputStream(plain)) {
             VaultCrypto.decrypt(in, out, resolver(m));
         }

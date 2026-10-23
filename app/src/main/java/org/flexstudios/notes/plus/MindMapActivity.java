@@ -8,6 +8,7 @@ import android.graphics.Canvas;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.net.Uri;
 import android.os.Bundle;
@@ -94,10 +95,18 @@ public class MindMapActivity extends NoteActivity {
     }
 
     @Override
+    protected void lockForReading() {
+        super.lockForReading();
+        map.locked = true;
+        for (int id : new int[]{R.id.btnAddIdea, R.id.btnTidy}) findViewById(id).setVisibility(View.GONE);
+    }
+
+    @Override
     protected void onNoteLoaded(NoteEntity note) {
         title.setText(note.getTitle());
         NoteData.MindMap loaded = NoteData.mindMap(note.getData());
         if (loaded.nodes.isEmpty()) loaded.nodes.add(new NoteData.MindNode(1, -1, "", 0, 0));
+        map.setFolder(note.getId() > 0 ? NoteData.dir(this, note.getId()) : null);
         map.setMap(loaded);
         map.post(() -> map.fit(false));
         if (note.getId() <= 0) map.post(() -> name(map.root(), true));
@@ -300,6 +309,8 @@ public class MindMapActivity extends NoteActivity {
 
         NoteData.MindMap model = new NoteData.MindMap();
         Listener listener;
+        /** A map sent to me: look, pan, zoom and fold; nothing else. */
+        boolean locked;
         private final boolean interactive;
         private final float density;
         private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -322,6 +333,13 @@ public class MindMapActivity extends NoteActivity {
         private float lastX, lastY;
         private final GestureDetector gestures;
         private final ScaleGestureDetector scaler;
+        /** Pictures in ideas (added on the desktop): drawn above the text, at most 160 x 120 dp. */
+        private static final float PIC_W_DP = 160, PIC_H_DP = 120;
+        private File folder;
+        private final Map<String, Bitmap> pictures = new HashMap<>();
+        private final Set<String> loading = new HashSet<>();
+        /** Of the last {@link #bounds} call, for an idea with a picture: its size and the text line's centre. */
+        private float picW, picH, textY;
 
         public MindMapView(Context context, @Nullable AttributeSet attrs) {
             super(context, attrs);
@@ -360,7 +378,7 @@ public class MindMapActivity extends NoteActivity {
                 @Override
                 public boolean onDoubleTap(@NonNull MotionEvent e) {
                     NoteData.MindNode hit = hit(e.getX(), e.getY());
-                    if (hit != null && listener != null) listener.onRename(hit);
+                    if (hit != null && listener != null && !locked) listener.onRename(hit);
                     else fit(true);
                     return true;
                 }
@@ -368,7 +386,7 @@ public class MindMapActivity extends NoteActivity {
                 @Override
                 public void onLongPress(@NonNull MotionEvent e) {
                     NoteData.MindNode hit = hit(e.getX(), e.getY());
-                    if (hit == null || listener == null) return;
+                    if (hit == null || listener == null || locked) return;
                     dragging = null;
                     performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                     select(hit);
@@ -390,6 +408,46 @@ public class MindMapActivity extends NoteActivity {
         }
 
         // ------------------------------------------------------------ model edits
+
+        /** The note's folder, where its ideas' pictures are. */
+        void setFolder(@Nullable File dir) {
+            if (java.util.Objects.equals(dir, folder)) return;
+            folder = dir;
+            pictures.clear();
+            loading.clear();
+        }
+
+        /** An idea's picture, decoded in the background the first time (null until then). */
+        @Nullable
+        private Bitmap picture(String name) {
+            Bitmap b = pictures.get(name);
+            if (b != null || folder == null || !loading.add(name)) return b;
+            File file = new File(folder, name);
+            File dir = folder;
+            int max = Math.round(PIC_W_DP * density * 2);
+            AppDatabase.IO.execute(() -> {
+                Bitmap decoded = null;
+                try {
+                    android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
+                    bounds.inJustDecodeBounds = true;
+                    android.graphics.BitmapFactory.decodeFile(file.getPath(), bounds);
+                    android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+                    o.inSampleSize = 1;
+                    while (Math.max(bounds.outWidth, bounds.outHeight) / (o.inSampleSize * 2) >= max) o.inSampleSize *= 2;
+                    decoded = android.graphics.BitmapFactory.decodeFile(file.getPath(), o);
+                } catch (Exception | OutOfMemoryError ignored) {
+                    // Not here yet (still downloading) or not a picture: the placeholder stays.
+                }
+                Bitmap shown = decoded;
+                post(() -> {
+                    if (!dir.equals(folder)) return;
+                    if (shown != null) pictures.put(name, shown);
+                    else loading.remove(name); // Try again on a later draw, once it has arrived.
+                    invalidate();
+                });
+            });
+            return null;
+        }
 
         void setMap(NoteData.MindMap map) {
             model = map;
@@ -707,9 +765,25 @@ public class MindMapActivity extends NoteActivity {
             text.setTextSize((isRoot ? 18 : 15) * density);
             text.setFakeBoldText(isRoot);
             float w = Math.min(text.measureText(label(n)), MAX_TEXT_DP * density) + PAD_X_DP * 2 * density;
-            float h = (isRoot ? ROOT_H_DP : NODE_H_DP) * density;
+            float lineH = (isRoot ? ROOT_H_DP : NODE_H_DP) * density;
+            float h = lineH;
+            picW = picH = 0;
+            if (n.image != null) {
+                // The desktop's geometry, so a map looks the same on both.
+                Bitmap img = picture(n.image);
+                float iw = img == null ? PIC_W_DP : img.getWidth(), ih = img == null ? PIC_H_DP * 0.66f : img.getHeight();
+                float f = Math.min(PIC_W_DP / Math.max(1, iw), PIC_H_DP / Math.max(1, ih));
+                if (img == null) f = Math.min(1, f);
+                picW = iw * f * density;
+                picH = ih * f * density;
+                w = Math.max(w, picW + 16 * density);
+                h = lineH + picH + 8 * density;
+            }
             float cx = n.x * density * s + ox, cy = n.y * density * s + oy;
             rect.set(cx - w * s / 2, cy - h * s / 2, cx + w * s / 2, cy + h * s / 2);
+            textY = rect.bottom - lineH * s / 2;
+            picW *= s;
+            picH *= s;
         }
 
         private String label(NoteData.MindNode n) {
@@ -829,7 +903,7 @@ public class MindMapActivity extends NoteActivity {
                 bounds(n, s, ox, oy);
                 boolean isRoot = n.parent < 0;
                 Integer color = colorOf.get(n.id);
-                float radius = rect.height() / 2;
+                float radius = n.image != null ? Math.min(rect.height() / 2, 16 * density * s) : rect.height() / 2;
                 if (isRoot) {
                     fill.setColor(n.color > 0 ? ContextCompat.getColor(c, PALETTE[n.color - 1])
                             : ContextCompat.getColor(c, R.color.brand_yellow));
@@ -857,8 +931,26 @@ public class MindMapActivity extends NoteActivity {
                         MAX_TEXT_DP * density * s, TextUtils.TruncateAt.END).toString();
                 float tw = text.measureText(label);
                 Paint.FontMetrics fm = text.getFontMetrics();
-                canvas.drawText(label, rect.centerX() - tw / 2, rect.centerY() - (fm.ascent + fm.descent) / 2, text);
+                canvas.drawText(label, rect.centerX() - tw / 2, textY - (fm.ascent + fm.descent) / 2, text);
+                if (n.image != null) drawPicture(canvas, n.image, s);
                 drawBadges(canvas, n, s, color == null ? muted : color);
+            }
+        }
+
+        private final Rect picSource = new Rect();
+        private final RectF picTarget = new RectF();
+        private final Paint picPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+
+        private void drawPicture(Canvas canvas, String name, float s) {
+            Bitmap img = picture(name);
+            float px = rect.centerX() - picW / 2, py = rect.top + 8 * density * s;
+            picTarget.set(px, py, px + picW, py + picH);
+            if (img != null) {
+                picSource.set(0, 0, img.getWidth(), img.getHeight());
+                canvas.drawBitmap(img, picSource, picTarget, picPaint);
+            } else {
+                fill.setColor(ContextCompat.getColor(getContext(), R.color.thumb_placeholder));
+                canvas.drawRoundRect(picTarget, 10 * density * s, 10 * density * s, fill);
             }
         }
 
@@ -898,7 +990,7 @@ public class MindMapActivity extends NoteActivity {
             gestures.onTouchEvent(e);
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    dragging = hit(e.getX(), e.getY());
+                    dragging = locked ? null : hit(e.getX(), e.getY());
                     lastX = e.getX();
                     lastY = e.getY();
                     break;

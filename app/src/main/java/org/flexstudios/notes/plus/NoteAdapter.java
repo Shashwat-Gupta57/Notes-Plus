@@ -129,7 +129,10 @@ public class NoteAdapter extends ListAdapter<NoteEntity, NoteAdapter.Card> {
         c.typeIcon.setImageTintList(ColorStateList.valueOf(ContextCompat.getColor(ctx, kind.accent)));
         String when = relative(note.getTimestamp());
         int people = note.getGroupId() == null ? 0 : GroupNotes.count(note.getGroupMembers());
-        c.date.setText(people > 0 ? "Shared · " + people + "  ·  " + when : when);
+        int sent = SentNotes.count(note.getSentTo());
+        c.date.setText(note.isReceived() ? "@" + note.getSharedFrom() + "  ·  " + when
+                : people > 0 ? "Shared · " + people + "  ·  " + when
+                : sent > 0 ? "Sent to " + sent + "  ·  " + when : when);
         c.pinned.setVisibility(note.isPinned() ? View.VISIBLE : View.GONE);
     }
 
@@ -176,6 +179,7 @@ public class NoteAdapter extends ListAdapter<NoteEntity, NoteAdapter.Card> {
         NoteData.MindMap map = NoteData.mindMap(note.getData());
         List<NoteData.MindNode> nodes = map.nodes;
         c.mindMap.setVisibility(View.VISIBLE);
+        c.mindMap.setFolder(NoteData.dir(c.mindMap.getContext(), note.getId()));
         c.mindMap.setMap(map);
         c.mindMap.post(() -> c.mindMap.fit(false));
         if (c.title.getVisibility() == View.GONE) {

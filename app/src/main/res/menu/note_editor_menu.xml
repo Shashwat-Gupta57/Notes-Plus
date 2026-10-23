@@ -16,6 +16,13 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/action_wrap"
+        android:checkable="true"
+        android:title="Wrap text"
+        android:visible="false"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_share_group"
         android:title="Share with people"
         app:showAsAction="never" />

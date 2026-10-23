@@ -110,6 +110,11 @@ public class AccountActivity extends AppCompatActivity {
         findViewById(R.id.imgAvatar).setOnClickListener(v -> choosePhoto());
         findViewById(R.id.rowSignOut).setOnClickListener(v -> confirmSignOut());
         findViewById(R.id.rowDelete).setOnClickListener(v -> confirmDelete());
+        updateStatus = findViewById(R.id.txtUpdateStatus);
+        updateStatus.setText(Updater.isReadyToInstall(this) ? "Update downloaded. Tap to install" : "You're on " + versionName());
+        findViewById(R.id.rowUpdate).setOnClickListener(v -> checkForUpdate());
+        ((TextView) findViewById(R.id.txtAboutVersion)).setText("Version " + versionName());
+        findViewById(R.id.rowAbout).setOnClickListener(v -> showAbout());
 
         WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData(NoteSync.UNIQUE)
                 .observe(this, infos -> showSyncStatus());
@@ -456,5 +461,63 @@ public class AccountActivity extends AppCompatActivity {
 
     private void toast(String message) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    // ================================================================ the app
+
+    private TextView updateStatus;
+
+    private String versionName() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            return "?";
+        }
+    }
+
+    private long versionCode() {
+        try {
+            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return android.os.Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private void checkForUpdate() {
+        if (Updater.isReadyToInstall(this)) {
+            Updater.install(this);
+            return;
+        }
+        updateStatus.setText("Checking…");
+        Updater.check(this, (release, error) -> {
+            if (isFinishing()) return;
+            if (error != null) {
+                updateStatus.setText("Couldn't check. Are you online?");
+            } else if (release == null) {
+                updateStatus.setText("Up to date (" + versionName() + ")");
+            } else {
+                updateStatus.setText("Version " + release.versionName + " is available");
+                Updater.showReleaseDialog(this, release);
+            }
+        });
+    }
+
+    private void showAbout() {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Notes+")
+                .setMessage("Version " + versionName() + " (" + versionCode() + ")\n\n"
+                        + "Notes, lists, mind maps, sketches and recordings, synced with your other devices.\n\n"
+                        + "Flex Studios · notes.talken.in")
+                .setPositiveButton("OK", null)
+                .setNeutralButton("Website", (d, w) -> {
+                    try {
+                        startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse("https://notes.talken.in")));
+                    } catch (Exception e) {
+                        Toast.makeText(this, "No browser to open it", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .show();
     }
 }

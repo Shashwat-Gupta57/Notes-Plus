@@ -42,7 +42,13 @@ abstract class AudioPlayback {
     /** Ready to start. Throws if the file can't be played. */
     static AudioPlayback open(File file) throws IOException {
         Wav wav = Wav.read(file);
-        if (wav != null) return new PcmPlayback(file, wav);
+        if (wav != null) {
+            try {
+                return new PcmPlayback(file, wav);
+            } catch (Exception e) {
+                // No AudioTrack for this layout on this phone: MediaPlayer may still manage it.
+            }
+        }
         MediaPlayer p = new MediaPlayer();
         try {
             p.setDataSource(file.getAbsolutePath());
@@ -144,6 +150,10 @@ abstract class AudioPlayback {
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build(),
                     new AudioFormat.Builder().setSampleRate(wav.rate).setChannelMask(channelMask).setEncoding(encoding).build(),
                     buffer, AudioTrack.MODE_STREAM, android.media.AudioManager.AUDIO_SESSION_ID_GENERATE);
+            if (track.getState() != AudioTrack.STATE_INITIALIZED) {
+                track.release();
+                throw new IllegalStateException("AudioTrack not initialised");
+            }
         }
 
         @Override

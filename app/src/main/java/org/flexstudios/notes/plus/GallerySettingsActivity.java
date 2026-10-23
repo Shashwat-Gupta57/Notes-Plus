@@ -134,11 +134,15 @@ public class GallerySettingsActivity extends VaultActivity {
     private void refreshBackupPasswordState() {
         TextView state = findViewById(R.id.textBackupPasswordState);
         AppDatabase.IO.execute(() -> {
-            boolean set = VaultCrypto.hasBackupPassword(this);
-            runOnUiThread(() -> state.setText(set
-                    ? "On · backups open only with this password"
-                    : "Recommended: PINs are easy to guess offline"));
+            String type = VaultCrypto.backupLockType(this);
+            runOnUiThread(() -> state.setText(type != null
+                    ? "On · backups open only with this " + lockWord(type)
+                    : "Off · backups open with your main vault lock"));
         });
+    }
+
+    private static String lockWord(String type) {
+        return "PIN".equals(type) ? "PIN" : "PATTERN".equals(type) ? "pattern" : "password";
     }
 
     /** Screenshots of this space: off (protected) unless the owner turns them on. */
@@ -326,35 +330,60 @@ public class GallerySettingsActivity extends VaultActivity {
     }
 
     /**
-     * The backup password replaces the vault locks as the key to everything that leaves the
-     * phone. A 4-digit PIN falls to an offline guesser in minutes; a passphrase does not.
+     * The backup lock: by default backups (Drive and .bak) open with the main vault lock; set
+     * one, of any kind, and it becomes their only key. A 4-digit PIN falls to an offline guesser
+     * in minutes, so a long password is the strongest choice.
      */
     private void showBackupPasswordDialog() {
-        boolean isSet = VaultCrypto.hasBackupPassword(this);
-        com.google.android.material.textfield.TextInputLayout field =
-                Prompts.field(this, "At least 10 characters", null, Prompts.PASSWORD);
-        com.google.android.material.textfield.TextInputEditText input =
-                (com.google.android.material.textfield.TextInputEditText) field.getEditText();
-        AlertDialog.Builder builder = new MaterialAlertDialogBuilder(this)
-                .setTitle("Backup Password")
-                .setMessage((isSet ? "A backup password is set. " : "")
-                        + "When set, local and Google Drive backups open only with this password, "
-                        + "not with your vault PINs, which are short enough to be guessed. "
-                        + "Keep it somewhere safe: without it a backup cannot be opened.")
-                .setView(Prompts.padded(this, field))
-                .setPositiveButton(isSet ? "Change" : "Set", (d, w) -> {
-                    String password = Prompts.textOf(input);
-                    if (password.length() < 10) {
-                        Toast.makeText(this, "Use at least 10 characters", Toast.LENGTH_LONG).show();
-                        return;
-                    }
-                    saveBackupPassword(password);
-                })
-                .setNegativeButton("Cancel", null);
-        if (isSet) builder.setNeutralButton("Remove", (d, w) -> saveBackupPassword(null));
-        AlertDialog dialog = builder.create();
-        Prompts.wire(dialog, input);
-        dialog.show();
+        AppDatabase.IO.execute(() -> {
+            String type = VaultCrypto.backupLockType(this);
+            runOnUiThread(() -> {
+                AlertDialog.Builder builder = new MaterialAlertDialogBuilder(this)
+                        .setTitle("Backup lock")
+                        .setMessage(type != null
+                                ? "Your Drive and file backups open only with your backup " + lockWord(type) + ". "
+                                + "Keep it safe: without it, a backup can't be opened on a new phone."
+                                : "Your Drive and file backups open with your main vault lock. "
+                                + "Set a backup lock (a PIN, password or pattern) and only it will open them.")
+                        .setPositiveButton(type != null ? "Change" : "Set a backup lock", (d, w) -> chooseBackupLockType())
+                        .setNegativeButton("Cancel", null);
+                if (type != null) builder.setNeutralButton("Use the vault lock", (d, w) -> saveBackupLock(null, null));
+                builder.show();
+            });
+        });
+    }
+
+    private void chooseBackupLockType() {
+        String[] types = {"PIN", "PASSWORD", "PATTERN"};
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Kind of backup lock")
+                .setItems(new String[]{"PIN", "Password", "Pattern"}, (d, which) ->
+                        UnlockActivity.askForNewLock(this, types[which], "New backup lock", first ->
+                                UnlockActivity.askForNewLock(this, types[which], "Once more, to confirm", second -> {
+                                    if (!first.equals(second)) {
+                                        Toast.makeText(this, "Those didn't match. Try again.", Toast.LENGTH_LONG).show();
+                                        return;
+                                    }
+                                    saveBackupLock(types[which], first);
+                                })))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void saveBackupLock(String type, String value) {
+        AppDatabase.IO.execute(() -> {
+            try {
+                VaultCrypto.setBackupLock(this, type, value);
+                if (driveConnected) SyncWorker.requestKeyringRepublish(this);
+                runOnUiThread(() -> {
+                    Toast.makeText(this, value == null
+                            ? "Backups open with your main vault lock" : "Backup lock saved", Toast.LENGTH_SHORT).show();
+                    refreshBackupPasswordState();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, "Couldn't save the backup lock", Toast.LENGTH_LONG).show());
+            }
+        });
     }
 
     private void saveBackupPassword(String password) {
@@ -773,6 +802,11 @@ public class GallerySettingsActivity extends VaultActivity {
      * it, calling showRestoreOptionsDialog(null) instead. The download was pure latency.
      */
     private void restoreFromDrive() {
+        restoreFromDrive(null);
+    }
+
+    /** {@code password}: what the person typed on the unlock screen, or null to try the main lock. */
+    private void restoreFromDrive(String password) {
         GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
         if (account == null) {
             Toast.makeText(this, "Please connect Google Drive first", Toast.LENGTH_SHORT).show();
@@ -791,7 +825,7 @@ public class GallerySettingsActivity extends VaultActivity {
         AppDatabase.IO.execute(() -> {
             try {
                 CloudSync sync = new CloudSync(this, account);
-                List<Snapshot.Summary> points = sync.listRestorePoints();
+                List<Snapshot.Summary> points = sync.listRestorePoints(password);
                 runOnUiThread(() -> {
                     loading.dismiss();
                     if (points.isEmpty()) {
@@ -800,6 +834,13 @@ public class GallerySettingsActivity extends VaultActivity {
                         return;
                     }
                     showRestorePointPicker(sync, points);
+                });
+            } catch (VaultCrypto.WrongPasswordException e) {
+                // Made by another installation: ask, and say what opens it.
+                runOnUiThread(() -> {
+                    loading.dismiss();
+                    UnlockActivity.askForBackupKey(this, (password != null ? "That didn't open it. " : "")
+                            + e.getMessage(), this::restoreFromDrive, null);
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -856,7 +897,9 @@ public class GallerySettingsActivity extends VaultActivity {
     private void finishRestore(WorkInfo info, boolean replaceLocal, java.util.function.Consumer<String> retry) {
         Data out = info.getOutputData();
         if (out.getBoolean(SyncWorker.RESULT_WRONG_PASSWORD, false)) {
-            UnlockActivity.askForBackupKey(this, retry, null);
+            String why = out.getString(SyncWorker.RESULT_MESSAGE);
+            UnlockActivity.askForBackupKey(this, why != null ? why
+                    : "Enter the backup lock, or the lock of any vault in that backup.", retry, null);
             return;
         }
         String message = out.getString(SyncWorker.RESULT_MESSAGE);

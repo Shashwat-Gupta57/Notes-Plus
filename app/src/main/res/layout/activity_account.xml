@@ -38,10 +38,15 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <FrameLayout
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="vertical"
             android:paddingBottom="48dp">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
 
             <!-- ======================================================== SIGN IN -->
             <LinearLayout
@@ -358,5 +363,36 @@
                     android:text="Your notes are stored in the Notes+ cloud and only your account can open them. Photos and recordings stay in your own Google Drive, in a Notes-plus folder." />
             </LinearLayout>
         </FrameLayout>
+
+            <!-- ======================================================== THE APP (any state) -->
+            <TextView style="@style/Settings.Header" android:text="Notes+" />
+
+            <com.google.android.material.card.MaterialCardView style="@style/Settings.Card">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <LinearLayout android:id="@+id/rowUpdate" style="@style/Settings.Row">
+                        <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_green" android:src="@drawable/ic_update" />
+                        <LinearLayout style="@style/Settings.Texts">
+                            <TextView style="@style/Settings.Title" android:text="Check for updates" />
+                            <TextView android:id="@+id/txtUpdateStatus" style="@style/Settings.Subtitle" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <View style="@style/Settings.Divider" />
+
+                    <LinearLayout android:id="@+id/rowAbout" style="@style/Settings.Row">
+                        <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_gray" android:src="@drawable/ic_info" />
+                        <LinearLayout style="@style/Settings.Texts">
+                            <TextView style="@style/Settings.Title" android:text="About" />
+                            <TextView android:id="@+id/txtAboutVersion" style="@style/Settings.Subtitle" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>

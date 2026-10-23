@@ -222,6 +222,35 @@ public class AudioNoteActivity extends NoteActivity {
 
     // ================================================================== play
 
+    /** A recording from another device that hasn't come down yet: fetch it now, then play it. */
+    private void fetchThenPlay(NoteData.Recording r, File file) {
+        Toast.makeText(this, "Getting this recording…", Toast.LENGTH_SHORT).show();
+        int id = note.getId();
+        AppDatabase.IO.execute(() -> {
+            String problem = null;
+            try {
+                if (!NoteSync.fetch(getApplicationContext(), id, r.file)) {
+                    problem = Account.driveEmail(this) == null
+                            ? "Connect Google Drive in your account to get recordings from your other devices"
+                            : "This recording hasn't been uploaded from its device yet";
+                }
+            } catch (Exception e) {
+                Log.w("AudioNote", "Could not fetch a recording", e);
+                problem = "Couldn't download this recording. Check your connection";
+            }
+            String message = problem;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (message != null || !file.exists()) {
+                    Toast.makeText(this, message != null ? message : "This recording hasn't arrived on this phone yet",
+                            Toast.LENGTH_LONG).show();
+                } else {
+                    toggle(r);
+                }
+            });
+        });
+    }
+
     private void toggle(NoteData.Recording r) {
         if (playing == r && player != null) {
             if (player.isPlaying()) player.pause();
@@ -231,6 +260,10 @@ public class AudioNoteActivity extends NoteActivity {
         }
         stopPlayback();
         File file = new File(NoteData.dir(this, note.getId()), r.file);
+        if (!file.exists() || file.length() == 0) {
+            fetchThenPlay(r, file);
+            return;
+        }
         AudioPlayback p;
         try {
             // WAV (recorded on the desktop) plays through AudioTrack, so it works on every phone.

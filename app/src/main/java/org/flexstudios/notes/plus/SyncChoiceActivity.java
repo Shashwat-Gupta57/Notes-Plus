@@ -192,7 +192,8 @@ public class SyncChoiceActivity extends VaultActivity {
             return e.getMessage();
         }
         if (e instanceof VaultCrypto.WrongPasswordException) {
-            return "That lock doesn't open this backup.";
+            String m = e.getMessage();
+            return m != null && m.startsWith("This backup") ? m : "That lock doesn't open this backup.";
         }
         if (e instanceof java.net.UnknownHostException || e instanceof java.net.SocketException) {
             return "You're offline. We'll pick up where we left off.";

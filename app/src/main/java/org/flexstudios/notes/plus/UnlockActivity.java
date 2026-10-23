@@ -307,47 +307,108 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
      */
     static void askForBackupKey(android.app.Activity activity, java.util.function.Consumer<String> onKey,
                                 Runnable onCancel) {
+        askForBackupKey(activity, "Enter the backup lock, or the lock of any vault in that backup.", onKey, onCancel);
+    }
+
+    /**
+     * Unlock backup: a PIN, a password or a pattern, whichever the backup wants. {@code message}
+     * says which (see {@link VaultCrypto#describeKeyring}).
+     */
+    static void askForBackupKey(android.app.Activity activity, String message, java.util.function.Consumer<String> onKey,
+                                Runnable onCancel) {
+        lockDialog(activity, "Unlock backup", message, null, "Open", onKey, onCancel);
+    }
+
+    /** One new lock of {@code type} (PIN, PASSWORD or PATTERN), checked like a vault's. */
+    static void askForNewLock(android.app.Activity activity, String type, String title,
+                              java.util.function.Consumer<String> onLock) {
+        lockDialog(activity, title, null, type, "Next", value -> {
+            String problem = value.isEmpty() ? "It can't be empty"
+                    : "PIN".equals(type) && value.length() < 4 ? "A PIN needs at least 4 digits"
+                    : "PASSWORD".equals(type) && value.length() < 6 ? "Use at least 6 characters"
+                    : "PATTERN".equals(type) && value.length() < 4 ? "Connect at least 4 dots" : null;
+            if (problem != null) {
+                android.widget.Toast.makeText(activity, problem, android.widget.Toast.LENGTH_LONG).show();
+                askForNewLock(activity, type, title, onLock);
+                return;
+            }
+            onLock.accept(value);
+        }, null);
+    }
+
+    /**
+     * A lock entry dialog. {@code fixedType} null: PIN / Password / Pattern tabs to pick from;
+     * otherwise just that kind.
+     */
+    private static void lockDialog(android.app.Activity activity, String title, String message, String fixedType,
+                                   String okLabel, java.util.function.Consumer<String> onKey, Runnable onCancel) {
         float density = activity.getResources().getDisplayMetrics().density;
         int pad = Math.round(24 * density);
         android.widget.LinearLayout box = new android.widget.LinearLayout(activity);
         box.setOrientation(android.widget.LinearLayout.VERTICAL);
         box.setPadding(pad, Math.round(8 * density), pad, 0);
 
+        com.google.android.material.tabs.TabLayout tabs = new com.google.android.material.tabs.TabLayout(activity);
+        for (String t : new String[]{"PIN", "Password", "Pattern"}) tabs.addTab(tabs.newTab().setText(t));
+        if (fixedType == null) box.addView(tabs);
+
         com.google.android.material.textfield.TextInputLayout field =
-                Prompts.field(activity, "Password or PIN", null, Prompts.PASSWORD);
+                Prompts.field(activity, "PIN", null, android.text.InputType.TYPE_CLASS_NUMBER
+                        | android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
         com.google.android.material.textfield.TextInputEditText input =
                 (com.google.android.material.textfield.TextInputEditText) field.getEditText();
-        box.addView(field);
+        android.widget.LinearLayout.LayoutParams fieldLp = new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+        fieldLp.topMargin = Math.round(12 * density);
+        box.addView(field, fieldLp);
 
         PatternView pattern = new PatternView(activity, null);
         int size = Math.round(260 * density);
         android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(size, size);
         lp.gravity = android.view.Gravity.CENTER_HORIZONTAL;
-        pattern.setVisibility(View.GONE);
+        lp.topMargin = Math.round(8 * density);
         box.addView(pattern, lp);
 
-        com.google.android.material.button.MaterialButton toggle =
-                new com.google.android.material.button.MaterialButton(activity, null,
-                        com.google.android.material.R.attr.materialButtonOutlinedStyle);
-        toggle.setText("Draw a pattern instead");
-        box.addView(toggle);
+        String[] kind = {fixedType != null ? fixedType : "PIN"};
+        Runnable show = () -> {
+            boolean drawing = "PATTERN".equals(kind[0]);
+            pattern.setVisibility(drawing ? View.VISIBLE : View.GONE);
+            field.setVisibility(drawing ? View.GONE : View.VISIBLE);
+            boolean pin = "PIN".equals(kind[0]);
+            field.setHint(pin ? "PIN" : "Password");
+            if (input != null) {
+                input.setInputType(pin
+                        ? android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+                        : android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+                input.setText("");
+            }
+        };
+        show.run();
+        tabs.addOnTabSelectedListener(new com.google.android.material.tabs.TabLayout.OnTabSelectedListener() {
+            @Override
+            public void onTabSelected(com.google.android.material.tabs.TabLayout.Tab tab) {
+                kind[0] = tab.getPosition() == 0 ? "PIN" : tab.getPosition() == 1 ? "PASSWORD" : "PATTERN";
+                show.run();
+            }
 
-        androidx.appcompat.app.AlertDialog dialog = new com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
-                .setTitle("Unlock backup")
-                .setMessage("Enter the backup password, or the lock of any vault in that backup.")
-                .setView(box)
-                .setPositiveButton("Open", (d, w) -> onKey.accept(Prompts.textOf(input)))
-                .setNegativeButton(onCancel == null ? "Cancel" : "Skip", (d, w) -> {
-                    if (onCancel != null) onCancel.run();
-                })
-                .setCancelable(false)
-                .create();
-        toggle.setOnClickListener(v -> {
-            boolean showPattern = pattern.getVisibility() != View.VISIBLE;
-            pattern.setVisibility(showPattern ? View.VISIBLE : View.GONE);
-            field.setVisibility(showPattern ? View.GONE : View.VISIBLE);
-            toggle.setText(showPattern ? "Type a password or PIN instead" : "Draw a pattern instead");
+            @Override
+            public void onTabUnselected(com.google.android.material.tabs.TabLayout.Tab tab) {}
+
+            @Override
+            public void onTabReselected(com.google.android.material.tabs.TabLayout.Tab tab) {}
         });
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder builder =
+                new com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
+                        .setTitle(title)
+                        .setView(box)
+                        .setPositiveButton(okLabel, (d, w) -> onKey.accept(Prompts.textOf(input)))
+                        .setNegativeButton(onCancel == null ? "Cancel" : "Skip", (d, w) -> {
+                            if (onCancel != null) onCancel.run();
+                        })
+                        .setCancelable(false);
+        if (message != null) builder.setMessage(message);
+        androidx.appcompat.app.AlertDialog dialog = builder.create();
         pattern.setOnPatternListener(value -> {
             dialog.dismiss();
             onKey.accept(value);

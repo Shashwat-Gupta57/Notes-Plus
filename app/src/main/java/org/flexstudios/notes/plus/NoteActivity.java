@@ -9,6 +9,7 @@ import android.view.View;
 import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -84,6 +85,10 @@ abstract class NoteActivity extends AppCompatActivity {
                 applyColor();
                 invalidateOptionsMenu();
                 onNoteLoaded(note);
+                if (!readOnly) {
+                    NoteSync.WATCHERS.put(note.getId(), this::takeNewerIfUnchanged);
+                    markBaseline();
+                }
                 if (readOnly) {
                     lockForReading();
                     if (getSupportActionBar() != null) {
@@ -121,9 +126,50 @@ abstract class NoteActivity extends AppCompatActivity {
      * Sync waits until the user has finished with a note: an open note is never pushed or
      * overwritten, and leaving it is what queues the sync (after the last save has landed).
      */
+    /**
+     * "Unchanged" is measured against what this editor itself makes of the note once it is on
+     * screen, not the stored text: editors normalise as they load (rounding, defaults), and
+     * that alone must never count as an edit, or leaving an untouched note pushes a stale copy.
+     * Then takes any newer version that arrived meanwhile.
+     */
+    private void markBaseline() {
+        View anchor = root != null ? root : getWindow().getDecorView();
+        anchor.post(() -> {
+            if (note == null) return;
+            NoteEntity probe = copy(note);
+            collect(probe);
+            savedState = state(probe);
+            takeNewerIfUnchanged();
+        });
+    }
+
+    /** A newer version arrived for this note: shown in place, if nothing was changed here. */
+    private void takeNewerIfUnchanged() {
+        if (note == null || readOnly || isFinishing()) return;
+        NoteEntity probe = copy(note);
+        collect(probe);
+        if (!state(probe).equals(savedState)) return; // Edited here: this edit wins on leaving.
+        final int id = note.getId();
+        android.content.Context app = getApplicationContext();
+        WRITES.execute(() -> {
+            NoteEntity fresh = NoteSync.takeNewer(app, id);
+            if (fresh == null) return;
+            runOnUiThread(() -> {
+                if (note == null || note.getId() != id || isFinishing()) return;
+                note = fresh;
+                savedState = state(fresh);
+                applyColor();
+                onNoteLoaded(fresh);
+                markBaseline();
+                android.widget.Toast.makeText(this, "Updated from your other device", android.widget.Toast.LENGTH_SHORT).show();
+            });
+        });
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (note != null) NoteSync.WATCHERS.remove(note.getId());
         if (note != null) NoteSync.OPEN.remove(note.getId());
         if (isFinishing()) {
             android.content.Context app = getApplicationContext();
@@ -223,6 +269,12 @@ abstract class NoteActivity extends AppCompatActivity {
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
+        MenuItem wrap = menu.findItem(R.id.action_wrap);
+        if (wrap != null) {
+            Boolean on = note == null || readOnly ? null : wrapText();
+            wrap.setVisible(on != null);
+            wrap.setChecked(on != null && on);
+        }
         MenuItem share = menu.findItem(R.id.action_share_group);
         if (share != null) {
             boolean shared = note != null && note.getGroupId() != null;
@@ -256,6 +308,11 @@ abstract class NoteActivity extends AppCompatActivity {
             finish();
             return true;
         } else if (note == null) {
+            return true;
+        } else if (id == R.id.action_wrap) {
+            Boolean on = wrapText();
+            if (on != null) setWrapText(!on);
+            invalidateOptionsMenu();
             return true;
         } else if (id == R.id.action_pin) {
             note.setPinned(!note.isPinned());
@@ -300,6 +357,15 @@ abstract class NoteActivity extends AppCompatActivity {
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    /** Whether long lines wrap, for the note types that offer the choice; null for the rest. */
+    @Nullable
+    protected Boolean wrapText() {
+        return null;
+    }
+
+    protected void setWrapText(boolean wrap) {
     }
 
     private void pickColor() {

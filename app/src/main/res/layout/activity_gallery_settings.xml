@@ -490,7 +490,7 @@
                     <LinearLayout android:id="@+id/optionBackupPassword" style="@style/Settings.Row">
                         <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_red" android:src="@drawable/ic_key" />
                         <LinearLayout style="@style/Settings.Texts">
-                            <TextView style="@style/Settings.Title" android:text="Backup password" />
+                            <TextView style="@style/Settings.Title" android:text="Backup lock" />
                             <TextView
                                 android:id="@+id/textBackupPasswordState"
                                 style="@style/Settings.Subtitle"

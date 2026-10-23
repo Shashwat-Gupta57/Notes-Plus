@@ -12,8 +12,9 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.Layout;
+import android.text.StaticLayout;
 import android.text.TextPaint;
-import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.GestureDetector;
 import android.view.HapticFeedbackConstants;
@@ -117,9 +118,24 @@ public class MindMapActivity extends NoteActivity {
         note.setTitle(title.getText().toString().trim());
         note.setData(NoteData.mindMapJson(map.model));
         StringBuilder text = new StringBuilder();
-        for (NoteData.MindNode n : map.model.nodes) if (!n.text.isEmpty()) text.append(n.text).append('\n');
+        for (NoteData.MindNode n : map.model.nodes) {
+            if (!n.text.isEmpty()) text.append(n.text).append('\n');
+            if (!n.sub.isEmpty()) text.append(n.sub).append('\n');
+        }
         note.setContent(text.toString().trim());
         return !text.toString().trim().isEmpty() || !note.getTitle().isEmpty();
+    }
+
+    @Nullable
+    @Override
+    protected Boolean wrapText() {
+        return map.model.wrap;
+    }
+
+    @Override
+    protected void setWrapText(boolean wrap) {
+        map.model.wrap = wrap;
+        map.invalidate();
     }
 
     // ================================================================ ideas
@@ -134,9 +150,16 @@ public class MindMapActivity extends NoteActivity {
      * so a brainstorm never leaves the keyboard.
      */
     private void name(NoteData.MindNode node, boolean isNew) {
+        name(node, isNew, false);
+    }
+
+    /** {@code behind}: the idea was just put between another and its parent; abandoned, it unwinds. */
+    private void name(NoteData.MindNode node, boolean isNew, boolean behind) {
         boolean root = node.parent < 0;
         Runnable discard = () -> {
-            if (isNew && !root && node.text.isEmpty()) map.removeBranch(node);
+            if (!isNew || root || !node.text.isEmpty()) return;
+            if (behind) map.unwrap(node);
+            else map.removeBranch(node);
         };
         java.util.function.Consumer<String> apply = text -> {
             node.text = text;
@@ -162,6 +185,15 @@ public class MindMapActivity extends NoteActivity {
         actions.add(() -> name(node, false));
         labels.add("Add idea");
         actions.add(() -> addChild(node));
+        if (!root) {
+            labels.add("Add idea behind");
+            actions.add(() -> {
+                NoteData.MindNode behind = map.insertBehind(node);
+                if (behind != null) name(behind, true, true);
+            });
+        }
+        labels.add(node.sub.isEmpty() ? "Add sub-text" : "Edit sub-text");
+        actions.add(() -> editSub(node));
         labels.add("Colour");
         actions.add(() -> pickColor(node));
         if (map.hasChildren(node)) {
@@ -198,6 +230,16 @@ public class MindMapActivity extends NoteActivity {
                 .setTitle(node.text.isEmpty() ? "Idea" : node.text)
                 .setItems(labels.toArray(new String[0]), (d, which) -> actions.get(which).run())
                 .show();
+    }
+
+    /** Sub-text: more about an idea, shown smaller under it. Empty removes it. */
+    private void editSub(NoteData.MindNode node) {
+        Prompts.text(this, "Sub-text", null, "More about this idea", node.sub,
+                Prompts.TEXT | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE, "Done", text -> {
+                    node.sub = text.trim();
+                    map.select(node);
+                    map.invalidate();
+                }, null);
     }
 
     private void pickColor(NoteData.MindNode node) {
@@ -338,8 +380,18 @@ public class MindMapActivity extends NoteActivity {
         private File folder;
         private final Map<String, Bitmap> pictures = new HashMap<>();
         private final Set<String> loading = new HashSet<>();
-        /** Of the last {@link #bounds} call, for an idea with a picture: its size and the text line's centre. */
-        private float picW, picH, textY;
+        /** Of the last {@link #bounds} call: the picture's size (if any) and the top of the text. */
+        private float picW, picH, textTop;
+        private static final float MAX_SUB_DP = 220, SUB_GAP_DP = 2;
+        /** Each idea's text and sub-text, laid out once at scale 1 and drawn scaled. */
+        private final Map<Long, Block> blocks = new HashMap<>();
+
+        private static final class Block {
+            String key;
+            StaticLayout title, sub;
+            /** Pixels at scale 1. */
+            float w, h;
+        }
 
         public MindMapView(Context context, @Nullable AttributeSet attrs) {
             super(context, attrs);
@@ -451,6 +503,7 @@ public class MindMapActivity extends NoteActivity {
 
         void setMap(NoteData.MindMap map) {
             model = map;
+            blocks.clear();
             refresh();
             if (!interactive && getWidth() > 0) fit(false);
         }
@@ -517,16 +570,68 @@ public class MindMapActivity extends NoteActivity {
             boolean any = false;
             for (NoteData.MindNode n : model.nodes) {
                 if (n.parent == parent.id && Math.signum(n.x - parent.x) == side) {
-                    y = any ? Math.max(y, n.y + ROW_DP) : n.y + ROW_DP;
+                    float below = n.y + Math.max(ROW_DP, sizeDp(n)[1] / 2 + 44);
+                    y = any ? Math.max(y, below) : below;
                     any = true;
                 }
             }
-            NoteData.MindNode child = new NoteData.MindNode(id, parent.id, "", parent.x + side * COLUMN_DP, y);
+            float gap = Math.max(COLUMN_DP, sizeDp(parent)[0] / 2 + 110);
+            NoteData.MindNode child = new NoteData.MindNode(id, parent.id, "", parent.x + side * gap, y);
             model.nodes.add(child);
             refresh();
             select(child);
             ensureVisible(child);
             return child;
+        }
+
+        /**
+         * Puts a new idea between this one and its parent, where this one was; this one and its
+         * branch step outward to make room. Null for the central idea.
+         */
+        @Nullable
+        NoteData.MindNode insertBehind(NoteData.MindNode node) {
+            if (node.parent < 0) return null;
+            long id = 1;
+            for (NoteData.MindNode n : model.nodes) id = Math.max(id, n.id + 1);
+            float side = side(node);
+            NoteData.MindNode mid = new NoteData.MindNode(id, node.parent, "", node.x, node.y);
+            shiftBranch(node, side * COLUMN_DP);
+            node.parent = id;
+            model.nodes.add(mid);
+            refresh();
+            select(mid);
+            ensureVisible(mid);
+            return mid;
+        }
+
+        /** Undoes {@link #insertBehind}: the idea goes, its children rejoin its parent and step back. */
+        void unwrap(NoteData.MindNode mid) {
+            if (mid.parent < 0) return;
+            float side = side(mid);
+            for (NoteData.MindNode k : new ArrayList<>(model.nodes)) {
+                if (k.parent != mid.id) continue;
+                k.parent = mid.parent;
+                shiftBranch(k, -side * COLUMN_DP);
+            }
+            model.nodes.remove(mid);
+            model.links.removeIf(l -> l[0] == mid.id || l[1] == mid.id);
+            selectedId = -1;
+            refresh();
+        }
+
+        /** Moves an idea and everything under it sideways. */
+        private void shiftBranch(NoteData.MindNode node, float dx) {
+            List<Long> queue = new ArrayList<>();
+            queue.add(node.id);
+            node.x += dx;
+            for (int q = 0; q < queue.size(); q++) {
+                for (NoteData.MindNode k : model.nodes) {
+                    if (k.parent == queue.get(q)) {
+                        k.x += dx;
+                        queue.add(k.id);
+                    }
+                }
+            }
         }
 
         void removeBranch(NoteData.MindNode node) {
@@ -588,8 +693,9 @@ public class MindMapActivity extends NoteActivity {
             for (NoteData.MindNode n : model.nodes) {
                 if (n.parent == root.id) (i++ % 2 == 0 ? right : left).add(n);
             }
-            placeColumn(right, 1, 1, 0, target);
-            placeColumn(left, -1, 1, 0, target);
+            float rootW = sizeDp(root)[0];
+            placeColumn(right, 1, 0, rootW, 0, target);
+            placeColumn(left, -1, 0, rootW, 0, target);
 
             Map<Long, float[]> start = new HashMap<>();
             for (NoteData.MindNode n : model.nodes) start.put(n.id, new float[]{n.x, n.y});
@@ -614,27 +720,39 @@ public class MindMapActivity extends NoteActivity {
             anim.start();
         }
 
-        private void placeColumn(List<NoteData.MindNode> column, int side, int depth, float centerY,
+        /** Stacks a column of ideas, each with vertical room for its own size or its branch's. */
+        private void placeColumn(List<NoteData.MindNode> column, int side, float parentX, float parentW, float centerY,
                                  Map<Long, float[]> target) {
             float total = 0;
-            for (NoteData.MindNode n : column) total += leaves(n);
-            float y = centerY - total * ROW_DP / 2;
+            for (NoteData.MindNode n : column) total += span(n);
+            float y = centerY - total / 2;
             for (NoteData.MindNode n : column) {
-                float span = leaves(n) * ROW_DP;
+                float span = span(n);
                 float cy = y + span / 2;
-                target.put(n.id, new float[]{side * depth * COLUMN_DP, cy});
+                float w = sizeDp(n)[0];
+                // Wide ideas push the next column out, so long text never runs under its neighbours.
+                float x = parentX + side * Math.max(COLUMN_DP, parentW / 2 + w / 2 + 48);
+                target.put(n.id, new float[]{x, cy});
                 List<NoteData.MindNode> kids = new ArrayList<>();
                 for (NoteData.MindNode k : model.nodes) if (k.parent == n.id) kids.add(k);
-                placeColumn(kids, side, depth + 1, cy, target);
+                placeColumn(kids, side, x, w, cy, target);
                 y += span;
             }
         }
 
-        private int leaves(NoteData.MindNode n) {
-            if (n.collapsed) return 1;
-            int sum = 0;
-            for (NoteData.MindNode k : model.nodes) if (k.parent == n.id) sum += leaves(k);
-            return Math.max(1, sum);
+        /** Vertical room (dp) an idea needs: its own height plus the usual gap, or its branch's. */
+        private float span(NoteData.MindNode n) {
+            float own = sizeDp(n)[1] + ROW_DP - NODE_H_DP;
+            if (n.collapsed) return own;
+            float sum = 0;
+            for (NoteData.MindNode k : model.nodes) if (k.parent == n.id) sum += span(k);
+            return Math.max(own, sum);
+        }
+
+        /** An idea's width and height in dp. */
+        private float[] sizeDp(NoteData.MindNode n) {
+            bounds(n, 1, 0, 0);
+            return new float[]{rect.width() / density, rect.height() / density};
         }
 
         // ---------------------------------------------------------- derived state
@@ -762,11 +880,12 @@ public class MindMapActivity extends NoteActivity {
 
         private void bounds(NoteData.MindNode n, float s, float ox, float oy) {
             boolean isRoot = n.parent < 0;
-            text.setTextSize((isRoot ? 18 : 15) * density);
-            text.setFakeBoldText(isRoot);
-            float w = Math.min(text.measureText(label(n)), MAX_TEXT_DP * density) + PAD_X_DP * 2 * density;
+            Block b = block(n);
+            float w = b.w + PAD_X_DP * 2 * density;
             float lineH = (isRoot ? ROOT_H_DP : NODE_H_DP) * density;
-            float h = lineH;
+            // One line keeps the old height; more lines (wrapped, or a sub-text) grow the idea.
+            float textH = Math.max(lineH, b.h + (isRoot ? 26 : 20) * density);
+            float h = textH;
             picW = picH = 0;
             if (n.image != null) {
                 // The desktop's geometry, so a map looks the same on both.
@@ -777,13 +896,67 @@ public class MindMapActivity extends NoteActivity {
                 picW = iw * f * density;
                 picH = ih * f * density;
                 w = Math.max(w, picW + 16 * density);
-                h = lineH + picH + 8 * density;
+                h = textH + picH + 8 * density;
             }
             float cx = n.x * density * s + ox, cy = n.y * density * s + oy;
             rect.set(cx - w * s / 2, cy - h * s / 2, cx + w * s / 2, cy + h * s / 2);
-            textY = rect.bottom - lineH * s / 2;
+            textTop = rect.bottom - textH * s / 2 - b.h * s / 2;
             picW *= s;
             picH *= s;
+        }
+
+        /**
+         * An idea's text, never cut short: wrapped at {@link #MAX_TEXT_DP} (sub-text at
+         * {@link #MAX_SUB_DP}) when the map wraps, otherwise each line in full.
+         */
+        private Block block(NoteData.MindNode n) {
+            boolean isRoot = n.parent < 0;
+            Context c = getContext();
+            int titleColor = isRoot ? ContextCompat.getColor(c, R.color.black)
+                    : ContextCompat.getColor(c, n.text.isEmpty() ? R.color.text_secondary : R.color.text_primary);
+            int subColor = isRoot ? 0xB3000000 : ContextCompat.getColor(c, R.color.text_secondary);
+            String label = label(n);
+            String key = label + '\u0000' + n.sub + '\u0000' + model.wrap + isRoot + titleColor + '/' + subColor;
+            Block b = blocks.get(n.id);
+            if (b != null && b.key.equals(key)) return b;
+            TextPaint tp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            tp.setTextSize((isRoot ? 18 : 15) * density);
+            tp.setFakeBoldText(isRoot);
+            tp.setColor(titleColor);
+            TextPaint sp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            sp.setTextSize((isRoot ? 13.5f : 12.5f) * density);
+            sp.setColor(subColor);
+            float tw = widest(label, tp), sw = n.sub.isEmpty() ? 0 : widest(n.sub, sp);
+            if (model.wrap) {
+                tw = Math.min(tw, MAX_TEXT_DP * density);
+                sw = Math.min(sw, MAX_SUB_DP * density);
+            }
+            int width = Math.max(1, (int) Math.ceil(Math.max(tw, sw)));
+            b = new Block();
+            b.key = key;
+            b.title = layout(label, tp, width);
+            b.sub = n.sub.isEmpty() ? null : layout(n.sub, sp, width);
+            b.w = Math.max(lineWidth(b.title), b.sub == null ? 0 : lineWidth(b.sub));
+            b.h = b.title.getHeight() + (b.sub == null ? 0 : SUB_GAP_DP * density + b.sub.getHeight());
+            blocks.put(n.id, b);
+            return b;
+        }
+
+        private static float widest(String text, TextPaint paint) {
+            float w = 0;
+            for (String line : text.split("\n", -1)) w = Math.max(w, paint.measureText(line));
+            return w;
+        }
+
+        private static StaticLayout layout(String text, TextPaint paint, int width) {
+            return StaticLayout.Builder.obtain(text, 0, text.length(), paint, width)
+                    .setAlignment(Layout.Alignment.ALIGN_CENTER).setIncludePad(false).build();
+        }
+
+        private static float lineWidth(StaticLayout l) {
+            float w = 0;
+            for (int i = 0; i < l.getLineCount(); i++) w = Math.max(w, l.getLineWidth(i));
+            return w;
         }
 
         private String label(NoteData.MindNode n) {
@@ -858,7 +1031,6 @@ public class MindMapActivity extends NoteActivity {
         private void drawMap(Canvas canvas, float s, float ox, float oy, boolean decorations) {
             Context c = getContext();
             int surface = ContextCompat.getColor(c, R.color.app_surface);
-            int ink = ContextCompat.getColor(c, R.color.text_primary);
             int muted = ContextCompat.getColor(c, R.color.text_secondary);
             int accent = ContextCompat.getColor(c, R.color.accent_blue);
 
@@ -923,15 +1095,16 @@ public class MindMapActivity extends NoteActivity {
                     canvas.drawRoundRect(rect, radius + grow, radius + grow, stroke);
                     rect.inset(grow, grow);
                 }
-                text.setTextSize((isRoot ? 18 : 15) * density * s);
-                text.setFakeBoldText(isRoot);
-                text.setColor(isRoot ? ContextCompat.getColor(c, R.color.black) : n.text.isEmpty() ? muted : ink);
-                labelPaint.set(text);
-                String label = TextUtils.ellipsize(label(n), labelPaint,
-                        MAX_TEXT_DP * density * s, TextUtils.TruncateAt.END).toString();
-                float tw = text.measureText(label);
-                Paint.FontMetrics fm = text.getFontMetrics();
-                canvas.drawText(label, rect.centerX() - tw / 2, textY - (fm.ascent + fm.descent) / 2, text);
+                Block b = block(n);
+                canvas.save();
+                canvas.translate(rect.centerX() - b.title.getWidth() * s / 2, textTop);
+                canvas.scale(s, s);
+                b.title.draw(canvas);
+                if (b.sub != null) {
+                    canvas.translate(0, b.title.getHeight() + SUB_GAP_DP * density);
+                    b.sub.draw(canvas);
+                }
+                canvas.restore();
                 if (n.image != null) drawPicture(canvas, n.image, s);
                 drawBadges(canvas, n, s, color == null ? muted : color);
             }

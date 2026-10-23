@@ -80,6 +80,24 @@ final class FileLinks {
         save(all);
     }
 
+    /**
+     * A linked note was deleted: its file goes to the Recycle Bin (never deleted outright, so a
+     * mistake can be undone there), and the link with it.
+     */
+    static void trash(String uuid) {
+        Path file = pathOf(uuid);
+        if (file == null) return;
+        unlink(uuid);
+        try {
+            if (Files.exists(file) && java.awt.Desktop.isDesktopSupported()
+                    && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.MOVE_TO_TRASH)) {
+                java.awt.Desktop.getDesktop().moveToTrash(file.toFile());
+            }
+        } catch (Exception e) {
+            System.getLogger("FileLinks").log(System.Logger.Level.WARNING, "Couldn't move a linked file to the Recycle Bin", e);
+        }
+    }
+
     static void unlink(String uuid) {
         JSONObject all = links();
         all.remove(uuid);

@@ -338,6 +338,8 @@ abstract class NoteEditor extends Screen {
                 labels.add(wrap ? "Don't wrap text" : "Wrap text");
                 actions.add(() -> setWrapText(!wrap));
             }
+            labels.add("Export…");
+            actions.add(() -> afterSave(NoteExport::export));
             labels.add("Delete");
             actions.add(() -> Ui.confirm("Delete this note?", "Delete", () -> delete(true)));
         }

@@ -552,6 +552,15 @@ public class Setup extends Application {
         str(r, ".txt", "");
         key(r, CLASSES + "Applications\\Notes+.exe\\shell\\open\\command");
         r.append("@=").append(quote(open)).append("\r\n");
+        // Exported notes (.npnote) are Notes+'s own files: they open with it.
+        key(r, CLASSES + ".npnote");
+        r.append("@=").append(quote("NotesPlus.Note")).append("\r\n");
+        key(r, CLASSES + "NotesPlus.Note");
+        r.append("@=").append(quote("Notes+ note")).append("\r\n");
+        key(r, CLASSES + "NotesPlus.Note\\DefaultIcon");
+        r.append("@=").append(quote(app + ",0")).append("\r\n");
+        key(r, CLASSES + "NotesPlus.Note\\shell\\open\\command");
+        r.append("@=").append(quote(open)).append("\r\n");
         // A registered application, so Default apps lists Notes+ and what it can open.
         key(r, "HKEY_LOCAL_MACHINE\\Software\\NotesPlus\\Capabilities");
         str(r, "ApplicationName", "Notes+");
@@ -583,6 +592,8 @@ public class Setup extends Application {
         run("reg", "delete", "HKLM\\Software\\Classes\\Applications\\Notes+.exe", "/f");
         run("reg", "delete", "HKLM\\Software\\Classes\\.txt\\OpenWithProgids", "/v", PROG_ID, "/f");
         run("reg", "delete", "HKLM\\Software\\NotesPlus", "/f");
+        run("reg", "delete", "HKLM\\Software\\Classes\\.npnote", "/f");
+        run("reg", "delete", "HKLM\\Software\\Classes\\NotesPlus.Note", "/f");
         run("reg", "delete", "HKLM\\Software\\RegisteredApplications", "/v", "Notes+", "/f");
     }
 

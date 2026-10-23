@@ -159,7 +159,8 @@ public class NotesApp extends Application {
         s.requestFocus();
         if (!Vault.isSetupDone()) return; // The first run's lock comes first.
         if (app.stack.size() > 1) backToNotes();
-        app.home.showEditor(file);
+        if (NoteExport.isExport(file)) NoteExport.importFile(file); // An exported note comes back as a note.
+        else app.home.showEditor(file);
     }
 
     /** The screen on top, or null. */

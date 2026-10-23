@@ -314,6 +314,7 @@ final class NoteSync {
                 return true;
             case REMOVE:
                 NoteData.deleteFiles(local.getId());
+                FileLinks.trash(local.getUuid()); // Deleted on another device: its file here goes too.
                 store.purge(local.getId());
                 return true;
             default:

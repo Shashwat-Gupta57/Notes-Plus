@@ -194,6 +194,7 @@ final class NoteStore {
         NoteEntity n = byId(id);
         if (n == null || !n.isDeleted()) return;
         NoteData.deleteFiles(id);
+        FileLinks.trash(n.getUuid()); // Its linked text file goes too: to the Recycle Bin.
         // In an account, the next sync tells it and purges the row; otherwise it goes now.
         if (n.getAccount() == null || n.getRev() == 0) update("DELETE FROM notes WHERE id = ?", id);
         else NoteSync.schedule();

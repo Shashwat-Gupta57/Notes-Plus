@@ -12,6 +12,16 @@ const VERSION_URL =
  *   [data-version-name]   → inner text set to versionName
  *   [data-version-code]   → inner text set to versionCode
  *   [data-changelog]      → inner text set to changelog
+ *
+ * Windows, once version.json has a "desktop" entry ({versionName, url, sha256, size,
+ * changelog}); until then every page keeps its "coming soon" content:
+ *   [data-desktop-banner] / [data-desktop-available] → shown
+ *   [data-desktop-hide] / [data-desktop-soon]        → hidden
+ *   [data-desktop-status]   → "Windows v{versionName}"
+ *   [data-desktop-pill]     → turns green; [data-desktop-pill-text] → "Out now · v…"
+ *   [data-desktop-cta]      → "Download for Windows"
+ *   [data-desktop-link]     → href set to the download
+ *   [data-desktop-version] / [data-desktop-sha] / [data-desktop-size] / [data-desktop-changelog]
  */
 async function loadVersionInfo() {
   try {
@@ -48,6 +58,11 @@ async function loadVersionInfo() {
       el.textContent = data.changelog;
     });
 
+    document.querySelectorAll('[data-apk-sha]').forEach(el => {
+      el.textContent = data.sha256 || '';
+    });
+
+    if (data.desktop && data.desktop.url) showDesktop(data.desktop);
     return data;
   } catch (err) {
     console.warn('Notes+ version fetch failed:', err);
@@ -62,6 +77,22 @@ async function loadVersionInfo() {
 
     return null;
   }
+}
+
+/** Notes+ for Windows is out: every "coming soon" turns into its download. */
+function showDesktop(d) {
+  const each = (selector, fn) => document.querySelectorAll(selector).forEach(fn);
+  each('[data-desktop-banner], [data-desktop-available]', el => { el.hidden = false; });
+  each('[data-desktop-hide], [data-desktop-soon]', el => { el.hidden = true; });
+  each('[data-desktop-status]', el => { el.textContent = `Windows v${d.versionName}`; });
+  each('[data-desktop-pill]', el => el.classList.add('live'));
+  each('[data-desktop-pill-text]', el => { el.textContent = `Out now · v${d.versionName}`; });
+  each('[data-desktop-cta]', el => { el.textContent = 'Download for Windows'; });
+  each('[data-desktop-link]', el => el.setAttribute('href', d.url));
+  each('[data-desktop-version]', el => { el.textContent = `v${d.versionName}`; });
+  each('[data-desktop-sha]', el => { el.textContent = d.sha256 || ''; });
+  each('[data-desktop-size]', el => { el.textContent = d.size || ''; });
+  each('[data-desktop-changelog]', el => { el.textContent = d.changelog || ''; });
 }
 
 // Auto-run on DOM ready

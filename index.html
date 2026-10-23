@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Notes+ — The New Dimension</title>
-  <meta name="description" content="Notes+ is a notepad for Android with six kinds of notes, sync across phones, and two hidden worlds underneath: an encrypted photo vault and a private chat.">
+  <meta name="description" content="Notes+ is a notes app for Android and Windows with six kinds of notes and sync between your devices, and two hidden worlds underneath: an encrypted photo vault and a private chat.">
   <meta name="theme-color" content="#07040d">
   <meta name="author" content="Shashwat Gupta">
   <meta property="og:title" content="Notes+ — The New Dimension">
-  <meta property="og:description" content="A notepad on the surface. Two hidden worlds underneath.">
+  <meta property="og:description" content="A notepad on the surface. Two hidden worlds underneath. Now on Windows too.">
   <meta property="og:type" content="website">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,8 +26,10 @@
         Notes<span class="brand-plus">+</span>
       </a>
       <div class="nav-links" id="navLinks">
-        <a href="features.html">Features</a>
-        <a href="screenshots.html">Screens</a>
+        <a href="#notes">Notes</a>
+        <a href="#vault">Hidden worlds</a>
+        <a href="#windows">Windows</a>
+        <a href="#screens">Screens</a>
         <a href="download.html">Download</a>
         <a href="privacy.html">Privacy</a>
       </div>
@@ -39,16 +41,17 @@
   <header class="hero">
     <div class="container">
       <div>
-        <span class="tag"><span class="dot" aria-hidden="true"></span>Version 9.2 — the new dimension</span>
+        <a class="tag tag--new" href="#windows" data-desktop-banner hidden><span class="dot" aria-hidden="true"></span>New: Notes+ for Windows is out</a>
+        <span class="tag" data-desktop-hide><span class="dot" aria-hidden="true"></span>Version 9.2 — the new dimension</span>
         <h1>Your notes.<br>Two hidden <span class="portal-word">dimensions</span>.</h1>
         <p class="lead">
-          On the surface, a fast, colourful notepad that follows you to every phone.
-          Underneath, behind a gesture only you know: an encrypted vault for your photos,
-          and a private chat with its own locks.
+          On the surface, a fast, colourful notepad: lists, journals, mind maps, sketches and voice
+          notes, synced between your phone and your PC. Underneath, behind a gesture only you know:
+          an encrypted vault for your photos, and a private chat with its own locks.
         </p>
         <div class="hero-actions">
           <a href="download.html" class="btn btn--gold" data-version-text>Download APK</a>
-          <a href="features.html" class="btn">Explore →</a>
+          <a href="download.html#windows" class="btn" data-desktop-cta>Windows: coming soon</a>
         </div>
         <div class="xp" aria-label="Current version">
           <div class="xp-level"><span data-version-name>v9.2</span></div>
@@ -57,7 +60,7 @@
             <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
             <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i>
           </div>
-          <div class="xp-caption">Free · no ads · no tracking · Android 7+</div>
+          <div class="xp-caption">Free · no ads · no tracking · Android 7+ · <span data-desktop-status>Windows soon</span></div>
         </div>
       </div>
 
@@ -70,6 +73,7 @@
   </header>
 
   <main id="main">
+    <!-- Overview: everything at a glance, each slot jumps to its part of the page. -->
     <section class="section">
       <div class="container">
         <div class="section-head reveal">
@@ -79,36 +83,254 @@
         </div>
 
         <div class="slots">
-          <article class="slot block reveal">
+          <a class="slot block reveal" href="#notes">
             <div class="icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffcc00" stroke-width="2.5" stroke-linecap="square"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></div>
             <h3>Six kinds of notes</h3>
             <p>Text, checklists, journals with photos and videos, mind maps, sketches and voice recordings, each with a live preview on its card.</p>
-          </article>
-          <article class="slot block reveal">
+          </a>
+          <a class="slot block reveal" href="#sync">
             <div class="icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5ef0e4" stroke-width="2.5" stroke-linecap="square"><path d="M4 12a8 8 0 0114-5l2 2M20 12a8 8 0 01-14 5l-2-2"/><path d="M20 4v5h-5M4 20v-5h5"/></svg></div>
-            <h3>On every phone</h3>
-            <p>Sign in with Google or email and your notes sync between phones. Photos and recordings go to your own Google Drive.</p>
-          </article>
-          <article class="slot block reveal">
+            <h3>On every device</h3>
+            <p>Sign in with Google or email and your notes sync between your phones and your PC. Photos and recordings go to your own Google Drive.</p>
+          </a>
+          <a class="slot block reveal" href="#vault">
             <div class="icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff4d4d" stroke-width="2.5" stroke-linecap="square"><path d="M5 11h14v10H5z"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div>
             <h3>The hidden vault</h3>
             <p>Swipe left on your notes and hold. An encrypted gallery appears, behind a PIN, password or pattern.</p>
-          </article>
-          <article class="slot block reveal">
+          </a>
+          <a class="slot block reveal" href="#chat">
             <div class="icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#b45cff" stroke-width="2.5" stroke-linecap="square"><path d="M4 5h16v11H9l-5 4z"/></svg></div>
             <h3>The hidden chat</h3>
             <p>Swipe right and hold. A private messenger with its own locks, its own vaults, and photos only your contact can open.</p>
-          </article>
-          <article class="slot block reveal">
+          </a>
+          <a class="slot block reveal" href="#backups">
             <div class="icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3ee08f" stroke-width="2.5" stroke-linecap="square"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
             <h3>Encrypted where it counts</h3>
-            <p>Vault media is AES-256 encrypted on your phone. Chat photos are encrypted before they ever leave it.</p>
-          </article>
-          <article class="slot block reveal">
-            <div class="icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f1efb8" stroke-width="2.5" stroke-linecap="square"><path d="M4 7h16v13H4z"/><path d="M8 7V4h8v3M9 13l2 2 4-4"/></svg></div>
-            <h3>Backups that check themselves</h3>
-            <p>Every backup is read back and verified before it says "saved". Keep one on your laptop, in Google Drive, or both.</p>
-          </article>
+            <p>Vault media is AES-256 encrypted on your phone, and backups check themselves before they say "saved".</p>
+          </a>
+          <a class="slot block reveal" href="#windows">
+            <div class="icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f1efb8" stroke-width="2.5" stroke-linecap="square"><path d="M3 5h18v12H3z"/><path d="M8 21h8M12 17v4"/></svg></div>
+            <h3>Now on your PC</h3>
+            <p>Notes+ for Windows: the same notes and the same hidden worlds, on a big screen with a real keyboard.</p>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Notes -->
+    <section class="feature" id="notes">
+      <div class="container">
+        <div class="row">
+          <div class="text reveal">
+            <div class="panel block">
+              <span class="biome">[ The overworld ]</span>
+              <h2>Notes for <span class="c-gold">everything</span></h2>
+              <p class="desc">Tap New and pick what you're making. Every note becomes a card that previews what's inside, so the grid reads at a glance.</p>
+              <ul class="list">
+                <li><strong>Text</strong>: plain words, with pictures between them</li>
+                <li><strong>Lists</strong>: tick things off, see progress on the card</li>
+                <li><strong>Journal</strong>: dated entries with your mood, photos and videos</li>
+                <li><strong>Mind maps</strong>: drag ideas, fold branches, colour them, link them to other notes, tidy the whole map in one tap, share it as a picture</li>
+                <li><strong>Sketches</strong>: draw with pens, markers and an eraser</li>
+                <li><strong>Audio</strong>: record your voice, see the waveform</li>
+                <li>Pin, colour, search and filter by type; works fully offline</li>
+              </ul>
+            </div>
+          </div>
+          <div class="visual reveal">
+            <div class="phone"><img src="res/shots/02-new-note.png" alt="The New sheet with six kinds of notes" loading="lazy"></div>
+            <div class="phone"><img src="res/shots/03-mind-map.png" alt="A mind map with coloured branches" loading="lazy"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sync -->
+    <section class="feature flip" id="sync">
+      <div class="container">
+        <div class="row">
+          <div class="text reveal">
+            <div class="panel block">
+              <span class="biome">[ The sky ]</span>
+              <h2>Your notes, on <span class="c-diamond">every device</span></h2>
+              <p class="desc">Accounts are optional. Sign in and your notes follow you, phone to phone and phone to PC; stay signed out and nothing ever leaves your device.</p>
+              <ul class="list diamond">
+                <li>Sign in with Google, or with email and a password</li>
+                <li>Pick a unique @username</li>
+                <li>Edits sync when you finish a note, and appear live on your other devices</li>
+                <li>Edited in two places at once? Both versions are kept, never lost</li>
+                <li>Photos, videos and recordings go to your own Google Drive</li>
+                <li>Sign out keeping a copy, or delete the account and everything stored online</li>
+              </ul>
+            </div>
+          </div>
+          <div class="visual reveal">
+            <div class="phone"><img src="res/shots/04-journal.png" alt="A journal entry with its mood and photos" loading="lazy"></div>
+            <div class="phone"><img src="res/shots/10-account.png" alt="The account screen with username and sync status" loading="lazy"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- The vault -->
+    <section class="feature" id="vault">
+      <div class="container">
+        <div class="row">
+          <div class="text reveal">
+            <div class="panel block">
+              <span class="biome">[ Dimension one: the vault ]</span>
+              <h2>The vault <span class="c-red">nobody</span> knows about</h2>
+              <div class="gesture">
+                <span class="arrow" aria-hidden="true">◀◀</span>
+                <span class="how">On the notes list, swipe left and keep holding for 2 seconds.</span>
+              </div>
+              <p class="desc">A lock screen appears that wasn't there a second ago. Behind it, your photos and videos, encrypted with AES-256 the moment they enter.</p>
+              <ul class="list red">
+                <li>PIN, password or pattern; wrong guesses lock you out for longer each time</li>
+                <li>Locks itself again when you leave; screens can't be captured</li>
+                <li>Several vaults, each with its own lock: keep a harmless decoy</li>
+                <li>Smooth grid for thousands of items, albums and favourites</li>
+                <li>Full-screen viewer with zoom and video; delete with undo</li>
+              </ul>
+            </div>
+          </div>
+          <div class="visual reveal">
+            <div class="phone"><img src="res/shots/06-lock-screen.png" alt="The hidden lock screen with a pattern grid" loading="lazy"></div>
+            <div class="phone"><img src="res/shots/07-gallery.png" alt="The vault gallery grid, grouped by date" loading="lazy"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- The chat -->
+    <section class="feature flip" id="chat">
+      <div class="container">
+        <div class="row">
+          <div class="text reveal">
+            <div class="panel block">
+              <span class="biome">[ Dimension two: the chat ]</span>
+              <h2>A messenger <span class="c-portal">behind a wall</span></h2>
+              <div class="gesture">
+                <span class="arrow right" aria-hidden="true">▶▶</span>
+                <span class="how">On the notes list, swipe right and keep holding for 2 seconds.</span>
+              </div>
+              <p class="desc">A second lock, a second world. The chat and the vault never mention each other.</p>
+              <div class="ticks" aria-label="Message states">
+                <span>◷ waiting</span><span>✓ sent</span><span>✓✓ received</span><span class="c-gold">✓✓ seen</span>
+              </div>
+              <ul class="list portal">
+                <li>Chat vaults with their own locks; each shows only its own conversations</li>
+                <li>Reach someone by @username plus a 4-character vault ID</li>
+                <li>Photos and videos encrypted on your device before upload</li>
+                <li>Shared backgrounds, private nicknames, profile photos per vault</li>
+                <li>No notifications, ever: nothing announces that the chat exists</li>
+              </ul>
+            </div>
+          </div>
+          <div class="visual reveal">
+            <div class="phone"><img src="res/shots/12-conversation.png" alt="A conversation with ticks, a photo and a custom background" loading="lazy"></div>
+            <div class="phone"><img src="res/shots/11-chat-list.png" alt="The chat list with profile photos" loading="lazy"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Backups and customising, side by side -->
+    <section class="section" id="backups">
+      <div class="container">
+        <div class="pair">
+          <div class="panel block reveal">
+            <span class="biome">[ The ender chest ]</span>
+            <h2 class="h-small">Backups you can <span class="c-emerald">trust</span></h2>
+            <ul class="list emerald">
+              <li>Read back and checked before it ever says "saved"</li>
+              <li>An encrypted file you can copy anywhere and open on a new phone</li>
+              <li>Optional backup password; "Check a backup file" proves an old one still restores</li>
+              <li>Google Drive backup that only uploads what changed, with restore points</li>
+            </ul>
+          </div>
+          <div class="panel block reveal">
+            <span class="biome">[ Your build ]</span>
+            <h2 class="h-small">Make it <span class="c-gold">yours</span></h2>
+            <ul class="list">
+              <li>Lock screen background: a colour, a photo or a video, with blur and dim</li>
+              <li>Backgrounds for every vault, every chat list and every conversation</li>
+              <li>Note colours and pinning; light and dark, following your device</li>
+              <li>Your Google photo, or your own, as your profile picture</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Windows -->
+    <section class="feature" id="windows">
+      <div class="container">
+        <div class="row">
+          <div class="text reveal">
+            <div class="panel block">
+              <span class="status" data-desktop-pill><span class="dot" aria-hidden="true"></span><span data-desktop-pill-text>Coming soon</span></span>
+              <h2>Notes+ for <span class="c-diamond">Windows</span></h2>
+              <p class="desc">The same Notes+, on a big screen with a real keyboard. Sign in with the same account and your notes move between your phone and your PC by themselves.</p>
+              <ul class="list diamond">
+                <li>All six kinds of notes, looking just like on your phone</li>
+                <li>Paste a picture right into a note, journal or mind-map idea</li>
+                <li>Hold Ctrl to see links and IP addresses; Ctrl+click opens or copies them</li>
+                <li>Both hidden worlds, behind the same kind of gesture: click, swipe, hold</li>
+                <li>Keyboard shortcuts everywhere; no installer, nothing else to download</li>
+              </ul>
+              <div class="hero-actions" style="margin-top: 22px;">
+                <a href="download.html#windows" class="btn btn--gold" data-desktop-cta>Windows: coming soon</a>
+              </div>
+            </div>
+          </div>
+          <div class="visual visual--windows reveal">
+            <div class="window">
+              <div class="window-bar"><span>Notes+</span><span aria-hidden="true">_ □ ×</span></div>
+              <img src="res/shots/15-windows-mind-map.webp" alt="Notes+ for Windows showing a mind map with a picture in one idea" width="1266" height="783" loading="lazy">
+            </div>
+            <div class="window">
+              <div class="window-bar"><span>Notes+</span><span aria-hidden="true">_ □ ×</span></div>
+              <img src="res/shots/16-windows-notes.webp" alt="Notes+ for Windows showing the notes grid" width="1266" height="783" loading="lazy">
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Screens -->
+    <section class="section" id="screens">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="biome">[ Screenshots ]</span>
+          <h2>See it in <span class="c-gold">action</span>.</h2>
+          <p>From the overworld to the deepest vault. Tap any screen to look closer.</p>
+        </div>
+        <div class="shots">
+          <figure class="shot reveal"><div class="phone"><img src="res/shots/01-notes-grid.png" alt="Notes grid with cards of every type" loading="lazy"></div><p>Notes as cards, each previewing what's inside</p></figure>
+          <figure class="shot reveal"><div class="phone"><img src="res/shots/05-sketch.png" alt="A sketch note" loading="lazy"></div><p>Sketches with pens, markers and an eraser</p></figure>
+          <figure class="shot reveal"><div class="phone"><img src="res/shots/08-viewer.png" alt="The photo viewer" loading="lazy"></div><p>Full-screen viewer with zoom and video</p></figure>
+          <figure class="shot reveal"><div class="phone"><img src="res/shots/09-vault-settings.png" alt="Vault settings with backups" loading="lazy"></div><p>Verified backups, local and on Drive</p></figure>
+          <figure class="shot reveal"><div class="phone"><img src="res/shots/13-picker.png" alt="The photo picker under a conversation" loading="lazy"></div><p>Recent photos right where the keyboard was</p></figure>
+          <figure class="shot reveal"><div class="phone"><img src="res/shots/14-chat-settings.png" alt="Chat settings with vault IDs" loading="lazy"></div><p>Chat vaults, each with its own ID and lock</p></figure>
+          <figure class="shot reveal"><div class="phone"><img src="res/shots/03-mind-map.png" alt="A mind map" loading="lazy"></div><p>Mind maps that tidy, fold and link</p></figure>
+          <figure class="shot reveal"><div class="phone"><img src="res/shots/12-conversation.png" alt="A conversation" loading="lazy"></div><p>Ticks, encrypted photos, shared backgrounds</p></figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- Coming next -->
+    <section class="section">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="biome">[ Next level ]</span>
+          <h2>Already <span class="c-portal">loading</span>.</h2>
+        </div>
+        <div class="slots slots--4">
+          <article class="slot block reveal"><h3>Group chats</h3><p>Up to 20 people in one conversation, with receipts from everyone.</p></article>
+          <article class="slot block reveal"><h3>Shared notes</h3><p>Share a list or a mind map with up to 20 people and edit it together.</p></article>
+          <article class="slot block reveal"><h3>Voice messages</h3><p>Hold to talk in chat, with a waveform to follow.</p></article>
+          <article class="slot block reveal"><h3>View once</h3><p>Photos and videos that disappear after they're opened, from everywhere.</p></article>
         </div>
       </div>
     </section>
@@ -118,19 +340,30 @@
         <div class="block reveal">
           <span class="biome">[ Ready? ]</span>
           <h2>Step through the <span class="c-portal">portal</span>.</h2>
-          <p>One APK. No account needed to start, no ads, no trackers.</p>
-          <a href="download.html" class="btn btn--gold" data-version-text>Download APK</a>
+          <p>Free on Android and Windows. No account needed to start, no ads, no trackers.</p>
+          <div class="hero-actions" style="justify-content: center;">
+            <a href="download.html" class="btn btn--gold" data-version-text>Download APK</a>
+            <a href="download.html#windows" class="btn" data-desktop-cta>Windows: coming soon</a>
+          </div>
         </div>
       </div>
     </section>
   </main>
 
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot">
+    <button class="btn" data-close aria-label="Close">✕</button>
+    <button class="btn" data-prev aria-label="Previous">◀</button>
+    <figure><img src="" alt=""><figcaption></figcaption></figure>
+    <button class="btn" data-next aria-label="Next">▶</button>
+  </div>
+
   <footer class="footer">
     <div class="container">
       <div class="brand">Notes<span class="brand-plus">+</span></div>
       <nav aria-label="Footer">
-        <a href="features.html">Features</a>
-        <a href="screenshots.html">Screens</a>
+        <a href="#notes">Notes</a>
+        <a href="#vault">Hidden worlds</a>
+        <a href="#windows">Windows</a>
         <a href="download.html">Download</a>
         <a href="privacy.html">Privacy</a>
         <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer">GitHub</a>

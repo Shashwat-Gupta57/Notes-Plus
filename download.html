@@ -22,8 +22,10 @@
         Notes<span class="brand-plus">+</span>
       </a>
       <div class="nav-links" id="navLinks">
-        <a href="features.html">Features</a>
-        <a href="screenshots.html">Screens</a>
+        <a href="index.html#notes">Notes</a>
+        <a href="index.html#vault">Hidden worlds</a>
+        <a href="index.html#windows">Windows</a>
+        <a href="index.html#screens">Screens</a>
         <a href="download.html">Download</a>
         <a href="privacy.html">Privacy</a>
       </div>
@@ -36,21 +38,44 @@
     <div class="container">
       <span class="biome">[ Crafting table ]</span>
       <h1>Get <span class="c-gold">Notes+</span></h1>
-      <p>Free, forever. No store, no ads, no trackers: just the APK, straight from GitHub.</p>
+      <p>Free, forever, for Android and Windows. No store, no ads, no trackers: straight from GitHub.</p>
     </div>
   </header>
 
   <main id="main" class="section" style="padding-top: 30px;">
     <div class="container">
-      <div class="inventory block reveal">
+      <div class="inventories">
+      <div class="inventory block reveal" id="android">
         <div class="item" aria-hidden="true">N+</div>
         <p class="version"><span data-version-name>v9.2</span></p>
         <p class="build">Build <span data-version-code>10</span> · Android 7.0 and newer</p>
         <div class="changelog"><span data-changelog>The new dimension: six kinds of notes, accounts and sync, and a hidden chat.</span></div>
         <a href="https://github.com/Shashwat-Gupta57/Notes-Plus/releases/latest" class="btn btn--gold" data-version-link data-version-text>Download APK</a>
         <p class="small">Already have Notes+? It offers the update by itself.</p>
+        <p class="sha">SHA-256 <code data-apk-sha></code></p>
       </div>
 
+      <div class="inventory block reveal" id="windows">
+        <div class="item item--windows" aria-hidden="true">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="#0b2a3a"><path d="M3 5.5l7.5-1v7H3zM11.5 4.4L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zM11.5 12.5H21V21l-9.5-1.4z"/></svg>
+        </div>
+        <p class="version">Windows</p>
+        <div data-desktop-soon>
+          <p class="build">Windows 10 and 11 · 64-bit</p>
+          <div class="changelog">The same Notes+ on your PC, synced with your phone. It's being finished right now; this turns into the download the moment it's out.</div>
+          <span class="btn" aria-disabled="true">Coming soon</span>
+        </div>
+        <div data-desktop-available hidden>
+          <p class="build"><span data-desktop-version></span> · Windows 10 and 11 · 64-bit</p>
+          <div class="changelog"><span data-desktop-changelog></span></div>
+          <a href="https://github.com/Shashwat-Gupta57/Notes-Plus/releases" class="btn btn--gold" data-desktop-link>Download for Windows</a>
+          <p class="small"><span data-desktop-size></span> · a .zip, nothing to install</p>
+          <p class="sha">SHA-256 <code data-desktop-sha></code></p>
+        </div>
+      </div>
+      </div>
+
+      <h2 class="steps-title reveal">Installing on <span class="c-gold">Android</span></h2>
       <div class="steps">
         <div class="step block reveal">
           <div class="n">01</div>
@@ -74,6 +99,32 @@
         </div>
       </div>
 
+      <div data-desktop-available hidden>
+        <h2 class="steps-title reveal">Installing on <span class="c-diamond">Windows</span></h2>
+        <div class="steps">
+          <div class="step block reveal">
+            <div class="n">01</div>
+            <h3>Download</h3>
+            <p>Get the .zip above. Everything it needs is inside: no Java, no installer.</p>
+          </div>
+          <div class="step block reveal">
+            <div class="n">02</div>
+            <h3>Extract</h3>
+            <p>Right-click it, Extract All, into a folder you'll keep, like Documents.</p>
+          </div>
+          <div class="step block reveal">
+            <div class="n">03</div>
+            <h3>Run</h3>
+            <p>Open Notes+.exe. If SmartScreen warns about a new app: More info, then Run anyway.</p>
+          </div>
+          <div class="step block reveal">
+            <div class="n">04</div>
+            <h3>Sign in</h3>
+            <p>Use the same account as on your phone and your notes come across by themselves.</p>
+          </div>
+        </div>
+      </div>
+
       <div class="callout block reveal">
         <div class="bang" aria-hidden="true">!</div>
         <div>
@@ -88,8 +139,9 @@
     <div class="container">
       <div class="brand">Notes<span class="brand-plus">+</span></div>
       <nav aria-label="Footer">
-        <a href="features.html">Features</a>
-        <a href="screenshots.html">Screens</a>
+        <a href="index.html#notes">Notes</a>
+        <a href="index.html#vault">Hidden worlds</a>
+        <a href="index.html#windows">Windows</a>
         <a href="download.html">Download</a>
         <a href="privacy.html">Privacy</a>
         <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer">GitHub</a>

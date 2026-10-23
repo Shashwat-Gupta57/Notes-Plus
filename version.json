@@ -8,10 +8,10 @@
   "desktop": {
     "versionName": "12.0",
     "url": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v12.0/Notes-Plus-Setup-12.0.exe",
-    "sha256": "fae5039582d60209055cef022b7647bfb7c6d8bed88781a7ee22980e12a6f7be",
+    "sha256": "3cfc553c7e09caccc5946a7f8991c37b1946db11204aa933c610b2fc795e1345",
     "size": "76 MB",
     "zip": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v12.0/Notes-Plus-Windows-12.0.zip",
-    "zipSha256": "7ef0c4708dc90a45db864a4f432ac0c565cf34a85440e53226d62ff7c25d8661",
+    "zipSha256": "124af870558f554dec61b2942ca96ec2feb21d8def06eca640a891fab1b47a9e",
     "changelog": "Notes+ for Windows 12: export any note as one .npnote file (colours and pictures included) for a USB stick, linked files go to the Recycle Bin with their note, and Notes+ on the web."
   }
 }

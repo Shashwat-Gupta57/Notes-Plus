@@ -4,5 +4,12 @@
   "forced": false,
   "changelog": "The new dimension: six kinds of notes (lists, journals, mind maps, sketches, audio), optional accounts that sync your notes between phones, a faster encrypted vault with verified backups, and a second hidden space. Install over this version; don't uninstall first.",
   "apkUrl": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/v9.2.0/Notes+.apk",
-  "sha256": "36eeb905b3826fd1bdaddc460c2228e21dc3a805e9f89581edb3b0f5962d233c"
+  "sha256": "36eeb905b3826fd1bdaddc460c2228e21dc3a805e9f89581edb3b0f5962d233c",
+  "desktop": {
+    "versionName": "1.0.0",
+    "url": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v1.0.0/Notes-Plus-Windows-1.0.0.zip",
+    "sha256": "18bac30323c491977df18f53f02d4aeea7cf79207fdde4a6d5c3f8ce9b75589b",
+    "size": "75 MB",
+    "changelog": "Notes+ for Windows: all six kinds of notes, synced with your phone through the same account, pictures pasted right into notes and mind maps, and both hidden worlds. No installer: unzip and run."
+  }
 }

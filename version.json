@@ -1,17 +1,17 @@
 {
-  "versionCode": 12,
-  "versionName": "11.0",
+  "versionCode": 13,
+  "versionName": "12.0",
   "forced": false,
-  "changelog": "Lock any note with a PIN, password or pattern: it stays encrypted on every device until you decrypt it. \"Syncing...\" shows while notes come in, and no more conflict copies. Mind maps wrap their text and take sub-texts; lists can wrap too. Your vault's Drive backup opens with your main vault lock or a backup lock of its own. Install over this version; don't uninstall first.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-11.0.apk",
-  "sha256": "be5fe1ba29c3098a084275cb799477c79578614db215d30d9f407402f6562447",
+  "changelog": "Notes+ is on the web now: open notes.talken.in/app in any browser, sign in, and your notes are there, locked ones included (same lock). Install over this version; don't uninstall first.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-12.0.apk",
+  "sha256": "c2000cea3eb34b00e86ce0a5ea163e20b5286a3d6fca3ba5d7b168a288780095",
   "desktop": {
-    "versionName": "11.0",
-    "url": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v11.0/Notes-Plus-Setup-11.0.exe",
-    "sha256": "7dbf46a1c5a1d18fec3281ea9f237e2e82353ac36884d1061dadf337fc6ff8c4",
+    "versionName": "12.0",
+    "url": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v12.0/Notes-Plus-Setup-12.0.exe",
+    "sha256": "fae5039582d60209055cef022b7647bfb7c6d8bed88781a7ee22980e12a6f7be",
     "size": "76 MB",
-    "zip": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v11.0/Notes-Plus-Windows-11.0.zip",
-    "zipSha256": "ac43f26bac6802301ae6eec0c6685f726a05c21d0f373812e453b52d42929cd6",
-    "changelog": "Notes+ for Windows 11: an installer that updates itself, the Editor for .txt files that stay in your notes, locked notes, and your vault on Google Drive."
+    "zip": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v12.0/Notes-Plus-Windows-12.0.zip",
+    "zipSha256": "7ef0c4708dc90a45db864a4f432ac0c565cf34a85440e53226d62ff7c25d8661",
+    "changelog": "Notes+ for Windows 12: export any note as one .npnote file (colours and pictures included) for a USB stick, linked files go to the Recycle Bin with their note, and Notes+ on the web."
   }
 }

@@ -288,9 +288,13 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-The build file and `version.json` are both at 12 / "11.0" (released as v11.0.0, with `sha256`).
+The build file and `version.json` are both at 13 / "12.0" (released as v12.0.0, with `sha256`).
 From 11.0 the APK is served from Cloudflare R2 (`releases` bucket, public at
-`https://releases.talken.in/android/Notes-Plus-<version>.apk`), not GitHub release assets. The desktop app (`pom.xml`) carries the same
+`https://releases.talken.in/android/Notes-Plus-<version>.apk`), not GitHub release assets. The bucket
+keeps only the current APK: upload the new one, push `version.json`, then delete the old object.
+Notes+ on the web (the website repo's `web` branch, `app/`) is the notes app only, no vault or chat;
+it reads and writes the same `users/{uid}/notes` shape and the same `NoteLock` envelope, so any
+change to a note's format must be made there too. The desktop app (`pom.xml`) carries the same
 version name, so the two stay in step.
 Bump `version.json` only when the APK for a new version is actually published, or every user
 is prompted to download a release that does not exist.

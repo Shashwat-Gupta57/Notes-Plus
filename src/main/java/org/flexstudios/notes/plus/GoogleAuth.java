@@ -86,7 +86,11 @@ final class GoogleAuth {
 
         HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         CompletableFuture<Map<String, String>> answer = new CompletableFuture<>();
+        // An older sign-in still waiting gives way, so its ending can't clear this one's link.
+        CompletableFuture<Map<String, String>> older = waiting;
+        if (older != null) older.completeExceptionally(new IOException("cancelled"));
         waiting = answer;
+        String[] mine = {null};
         server.createContext("/", exchange -> {
             Map<String, String> q = params(exchange.getRequestURI().getRawQuery());
             boolean ok = q.containsKey("code");
@@ -110,6 +114,7 @@ final class GoogleAuth {
                     .append("&access_type=offline&include_granted_scopes=true&prompt=consent%20select_account");
             if (hint != null) url.append("&login_hint=").append(enc(hint));
             pendingUrl = url.toString();
+            mine[0] = pendingUrl;
             NotesApp.openInBrowser(pendingUrl);
             Map<String, String> q;
             try {
@@ -134,8 +139,8 @@ final class GoogleAuth {
                     t.optString("refresh_token", null), claims.optString("email", null),
                     claims.optString("name", null), claims.optString("picture", null));
         } finally {
-            waiting = null;
-            pendingUrl = null;
+            if (waiting == answer) waiting = null;
+            if (mine[0] != null && mine[0].equals(pendingUrl)) pendingUrl = null;
             server.stop(0);
         }
     }

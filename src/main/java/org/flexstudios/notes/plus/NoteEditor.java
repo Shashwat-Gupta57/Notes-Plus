@@ -32,7 +32,9 @@ abstract class NoteEditor extends Screen {
 
     protected final BorderPane root = new BorderPane();
     private final HBox toolbar = new HBox();
-    private Button pinButton;
+    private Button pinButton, lockButton;
+    /** The key of a locked note while it is open: the editor holds the text, the database only its envelope. */
+    private NoteLock.Key lock;
 
     NoteEditor(String type, int noteId) {
         this.type = type;
@@ -56,11 +58,15 @@ abstract class NoteEditor extends Screen {
      */
     protected void setUpNote(Node body) {
         pinButton = Ui.iconButton(Icons.PIN, "text_secondary", "Pin", this::togglePin);
+        lockButton = Ui.iconButton(Icons.LOCK_OPEN, "text_secondary", "Lock", this::lockClicked);
+        lockButton.setVisible(false);
+        lockButton.setManaged(false);
         Button more = Ui.iconButton(Icons.MORE, "text_primary", "More options", () -> {});
         more.setOnAction(e -> showMenu(more));
         toolbar.getChildren().setAll(
                 Ui.iconButton(Icons.ARROW_BACK, "text_primary", "Back (Esc)", NotesApp::back),
                 Ui.spacer(),
+                lockButton,
                 pinButton,
                 Ui.iconButton(Icons.PALETTE, "text_secondary", "Colour", this::pickColor),
                 more);
@@ -76,6 +82,7 @@ abstract class NoteEditor extends Screen {
             savedState = state(note);
             applyColor();
             showPin();
+            showLock();
             onNoteLoaded(note);
             return;
         }
@@ -84,23 +91,69 @@ abstract class NoteEditor extends Screen {
                 NotesApp.back();
                 return;
             }
-            note = loaded;
-            readOnly = loaded.isReceived();
-            NoteSync.OPEN.add(note.getId());
-            savedState = state(note);
-            applyColor();
-            showPin();
-            onNoteLoaded(note);
-            if (!readOnly) markBaseline();
-            if (readOnly) {
-                lockForReading();
-                javafx.scene.control.Label from = Ui.label("From @" + loaded.getSharedFrom() + "  ·  read only", 14, "secondary");
-                toolbar.getChildren().add(1, from);
-                HBox.setMargin(from, new javafx.geometry.Insets(0, 0, 0, 8));
+            if (!loaded.isReceived() && NoteLock.isLocked(loaded.getData())) {
+                NoteSync.OPEN.add(loaded.getId());
+                unlockThenShow(loaded);
+                return;
             }
-            // Opened to read: no caret anywhere until a click puts one, like the phone.
-            javafx.application.Platform.runLater(root::requestFocus);
+            showLoaded(loaded);
         });
+    }
+
+    /** Fills the editor with a loaded note (already decrypted, if it was locked). */
+    private void showLoaded(NoteEntity loaded) {
+        note = loaded;
+        readOnly = loaded.isReceived();
+        NoteSync.OPEN.add(note.getId());
+        savedState = state(note);
+        applyColor();
+        showPin();
+        showLock();
+        onNoteLoaded(note);
+        if (!readOnly) markBaseline();
+        if (readOnly) {
+            lockForReading();
+            javafx.scene.control.Label from = Ui.label("From @" + loaded.getSharedFrom() + "  ·  read only", 14, "secondary");
+            toolbar.getChildren().add(1, from);
+            HBox.setMargin(from, new javafx.geometry.Insets(0, 0, 0, 8));
+        }
+        // Opened to read: no caret anywhere until a click puts one, like the phone.
+        javafx.application.Platform.runLater(root::requestFocus);
+    }
+
+    /** A locked note: the key from the recent session, or asked for. Cancel leaves it. */
+    private void unlockThenShow(NoteEntity loaded) {
+        NoteLock.Key cached = NoteLock.session(loaded.getUuid());
+        if (cached != null && NoteLock.fits(cached, loaded.getData())) {
+            openLocked(loaded, cached);
+            return;
+        }
+        String type = NoteLock.typeOf(loaded.getData());
+        String title = loaded.getTitle() == null || loaded.getTitle().isEmpty() ? "Locked note" : loaded.getTitle();
+        askLock(type, title, "Enter this note's " + NoteLock.typeWord(type) + ".", value ->
+                slow(() -> NoteLock.open(loaded.getData(), value), k -> openLocked(loaded, k), e -> {
+                    Ui.toast("That isn't this note's " + NoteLock.typeWord(type));
+                    unlockThenShow(loaded);
+                }), () -> {
+            NoteSync.OPEN.remove(loaded.getId());
+            NotesApp.back();
+        });
+    }
+
+    private void openLocked(NoteEntity loaded, NoteLock.Key k) {
+        try {
+            String[] plain = NoteLock.unseal(k, loaded.getData());
+            loaded.setContent(plain[0]);
+            loaded.setData(plain[1]);
+        } catch (Exception e) {
+            Ui.toast("Couldn't open this note");
+            NoteSync.OPEN.remove(loaded.getId());
+            NotesApp.back();
+            return;
+        }
+        lock = k;
+        NoteLock.opened(loaded.getUuid(), k);
+        showLoaded(loaded);
     }
 
     /** The note's media folder, inserting the row first if this is a brand-new note. */
@@ -134,9 +187,11 @@ abstract class NoteEditor extends Screen {
     void onDestroy() {
         NoteEntity n = note;
         save(true);
+        if (n != null) NoteLock.left(n.getUuid());
         NoteStore.write(s -> {
             if (n != null) NoteSync.OPEN.remove(n.getId());
             NoteSync.schedule();
+            FileLinks.syncLater(); // Its linked file (if any) takes the edit.
         });
     }
 
@@ -176,6 +231,16 @@ abstract class NoteEditor extends Screen {
         note.setTimestamp(System.currentTimeMillis());
         final NoteEntity snapshot = note.copy();
         final NoteEntity live = note;
+        if (lock != null) {
+            try {
+                snapshot.setData(NoteLock.seal(lock, snapshot.getContent(), snapshot.getData()));
+                snapshot.setContent("");
+            } catch (Exception e) {
+                System.getLogger("NoteEditor").log(System.Logger.Level.ERROR, "Couldn't seal a locked note; not saved", e);
+                savedState = null;
+                return;
+            }
+        }
         NoteStore.write(s -> {
             // On the one IO thread, so an earlier insert has always landed.
             if (live.getId() <= 0) {
@@ -236,12 +301,35 @@ abstract class NoteEditor extends Screen {
             actions.add(() -> SharingUi.confirmRemoveReceived(received, NotesApp::back));
         } else {
             boolean signedIn = Account.uid() != null;
-            if (signedIn && note.getGroupId() == null) {
+            if (lock != null) {
+                labels.add("Change lock…");
+                actions.add(this::chooseNewLock);
+                labels.add(FileLinks.pathOf(note.getUuid()) != null ? "Decrypt note and file…" : "Decrypt…");
+                actions.add(this::confirmDecrypt);
+            }
+            Path linked = FileLinks.pathOf(note.getUuid());
+            if (linked != null) {
+                String uuid = note.getUuid();
+                labels.add("Show its file");
+                actions.add(() -> {
+                    try {
+                        new ProcessBuilder("explorer.exe", "/select,", linked.toString()).start();
+                    } catch (Exception e) {
+                        Ui.toast("Couldn't open the folder");
+                    }
+                });
+                labels.add("Stop linking to its file");
+                actions.add(() -> {
+                    FileLinks.unlink(uuid);
+                    Ui.toast("The note and " + linked.getFileName() + " now go their own ways");
+                });
+            }
+            if (signedIn && lock == null && note.getGroupId() == null) {
                 int sent = SentNotes.count(note.getSentTo());
                 labels.add(sent > 0 ? "Sent to " + sent : "Send to people");
                 actions.add(() -> afterSave(SharingUi::sendSheet));
             }
-            if (signedIn && !NoteData.AUDIO.equals(note.getType()) && note.getSentTo() == null) {
+            if (signedIn && lock == null && !NoteData.AUDIO.equals(note.getType()) && note.getSentTo() == null) {
                 labels.add(note.getGroupId() != null ? "People" : "Share with people");
                 actions.add(() -> afterSave(SharingUi::peopleSheet));
             }
@@ -254,6 +342,165 @@ abstract class NoteEditor extends Screen {
             actions.add(() -> Ui.confirm("Delete this note?", "Delete", () -> delete(true)));
         }
         Ui.menu(more, labels, actions);
+    }
+
+    // ==================================================================== lock
+
+    /** True while this editor holds a locked note open. */
+    protected boolean locked() {
+        return lock != null;
+    }
+
+    private void showLock() {
+        boolean can = note != null && !readOnly && NoteLock.lockable(note.getType())
+                && note.getGroupId() == null && SentNotes.count(note.getSentTo()) == 0;
+        lockButton.setVisible(can);
+        lockButton.setManaged(can);
+        // Locked and opened: an open padlock in yellow (unlocked for now; the stored copies stay
+        // encrypted). Not locked: a grey padlock, to lock it.
+        lockButton.setGraphic(Ui.icon(lock != null ? Icons.LOCK_OPEN : Icons.LOCK, 24, lock != null ? "brand_yellow" : "text_secondary"));
+        Ui.tooltip(lockButton, lock != null ? "Unlocked for now: click to lock it again" : "Lock this note");
+    }
+
+    private void lockClicked() {
+        if (note == null) return;
+        if (lock == null) startLocking();
+        else lockedOptions();
+    }
+
+    /** With the key still open from earlier, with its last lock, or a new one. */
+    private void startLocking() {
+        String uuid = note.getUuid();
+        NoteLock.Key open = NoteLock.session(uuid);
+        if (open != null) {
+            applyLock(open);
+            return;
+        }
+        String lastType = NoteLock.lastType(uuid);
+        if (lastType == null) {
+            chooseNewLock();
+            return;
+        }
+        String word = NoteLock.typeWord(lastType);
+        Ui.dialog().title("Lock this note").message("Lock it again with its last " + word + "?")
+                .positive("Use last " + word, () -> askLock(lastType, "Last " + word, "Enter it once.", value ->
+                        slow(() -> NoteLock.lastKey(uuid, value), this::applyLock,
+                                e -> Ui.toast("That isn't its last " + word)), null))
+                .neutral("New lock", this::chooseNewLock)
+                .negative("Cancel", null).width(420).show();
+    }
+
+    private void chooseNewLock() {
+        Ui.Tabs tabs = new Ui.Tabs("m3_primary", "PIN", "Password", "Pattern");
+        LockInput[] inputs = new LockInput[3];
+        for (int i = 0; i < 3; i++) inputs[i] = new LockInput(LockInput.TYPES[i], null, null);
+        javafx.scene.layout.StackPane slot = new javafx.scene.layout.StackPane(inputs[0]);
+        slot.setMinHeight(300);
+        tabs.selected.addListener((o, a, b) -> slot.getChildren().setAll(inputs[b.intValue()]));
+        Ui.dialog().title("Lock this note").message("Choose a lock. It opens this note on every device.")
+                .content(new javafx.scene.layout.VBox(12, tabs, slot)).width(440)
+                .positive("Next", () -> {
+                    LockInput first = inputs[tabs.selected.get()];
+                    String value = first.value();
+                    String problem = LockInput.problem(first.type, value);
+                    if (problem != null) {
+                        Ui.toast(problem);
+                        return;
+                    }
+                    LockInput again = new LockInput(first.type, "Once more", null);
+                    javafx.scene.layout.StackPane confirm = new javafx.scene.layout.StackPane(again);
+                    confirm.setMinHeight(LockInput.PATTERN.equals(first.type) ? 300 : 80);
+                    Ui.dialog().title("Once more, to confirm").content(confirm).width(440)
+                            .positive("Lock", () -> {
+                                if (!value.equals(again.value())) {
+                                    Ui.toast("Those didn't match. Try again.");
+                                    return;
+                                }
+                                slow(() -> NoteLock.newKey(first.type, value), this::applyLock, e -> Ui.toast("Couldn't lock it"));
+                            })
+                            .negative("Cancel", null).show();
+                    again.focus();
+                })
+                .negative("Cancel", null).show();
+        inputs[0].focus();
+    }
+
+    private void applyLock(NoteLock.Key k) {
+        if (note == null) return;
+        lock = k;
+        NoteLock.opened(note.getUuid(), k);
+        NoteLock.remember(note.getUuid(), k);
+        savedState = null; // Written now, sealed.
+        save(false);
+        showLock();
+        Ui.toast("Locked. It opens only with this " + NoteLock.typeWord(k.type) + ", on every device.");
+    }
+
+    private void lockedOptions() {
+        int minutes = NoteLock.timeoutMinutes();
+        String stays = minutes < 0 ? "until Notes+ closes" : minutes == 0 ? "only while it's on screen"
+                : "for " + minutes + (minutes == 1 ? " minute" : " minutes") + " after you leave it";
+        boolean linked = FileLinks.pathOf(note.getUuid()) != null;
+        Ui.dialog().title("Unlocked for now")
+                .message("It stays open " + stays + ", then needs its " + NoteLock.typeWord(lock.type) + " again. "
+                        + (linked ? "Its file stays encrypted all along, as do " : "Stays encrypted all along: ")
+                        + "the copies in your account and on your other devices. To store it unencrypted, use ⋮ → Decrypt.")
+                .positive("Lock now", () -> {
+                    NoteEntity n = note;
+                    NotesApp.back();
+                    if (n != null) NoteLock.forget(n.getUuid());
+                })
+                .negative("Close", null).width(460).show();
+    }
+
+    private void confirmDecrypt() {
+        java.nio.file.Path linked = FileLinks.pathOf(note.getUuid());
+        Ui.dialog().title("Decrypt this note?")
+                .message("Its text will be stored unencrypted: here, in your account and on your other devices"
+                        + (linked != null ? ", and in its file " + linked.getFileName() : "") + ". "
+                        + "Click the lock any time to encrypt it again with the same lock.")
+                .positive("Decrypt", this::removeLock)
+                .negative("Cancel", null).width(460).show();
+    }
+
+    /** Decrypts the note for good; its lock is remembered, so the lock button puts it back. */
+    private void removeLock() {
+        if (note == null || lock == null) return;
+        lock = null;
+        savedState = null;
+        save(false);
+        showLock();
+        Ui.toast("Decrypted. Click the lock to encrypt it again.");
+    }
+
+    /** Enters an existing lock of {@code type}: a field, or a pattern. */
+    static void askLock(String type, String title, String message, Consumer<String> onValue, Runnable onCancel) {
+        Ui.Modal[] m = new Ui.Modal[1];
+        LockInput input = new LockInput(type, null, v -> {
+            if (m[0] != null) m[0].dismiss();
+            onValue.accept(v);
+        });
+        javafx.scene.layout.StackPane slot = new javafx.scene.layout.StackPane(input);
+        slot.setMinHeight(LockInput.PATTERN.equals(type) ? 300 : 80);
+        Ui.DialogBuilder d = Ui.dialog().title(title).message(message).content(slot).width(420)
+                .negative("Cancel", onCancel);
+        if (!LockInput.PATTERN.equals(type)) d.positive("Open", () -> onValue.accept(input.value()));
+        m[0] = d.show();
+        input.focus();
+    }
+
+    /** PBKDF2 off the FX thread. */
+    private static <T> void slow(java.util.concurrent.Callable<T> work, Consumer<T> ok, Consumer<Exception> failed) {
+        Thread t = new Thread(() -> {
+            try {
+                T r = work.call();
+                javafx.application.Platform.runLater(() -> ok.accept(r));
+            } catch (Exception e) {
+                javafx.application.Platform.runLater(() -> failed.accept(e));
+            }
+        }, "note-lock");
+        t.setDaemon(true);
+        t.start();
     }
 
     /** Whether long lines wrap, for the note types that offer the choice; null for the rest. */

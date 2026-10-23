@@ -63,7 +63,15 @@ final class NoteCard extends VBox {
         title.setText(t);
         getChildren().add(inner);
 
-        switch (note.getType()) {
+        if (NoteLock.isLocked(note.getData())) {
+            // Locked: the title (if any) and a lock; nothing of what is inside.
+            addTitle("Locked note");
+            HBox locked = new HBox(6, Ui.icon(Icons.LOCK, 16, "text_secondary"), new Label("Locked"));
+            locked.getStyleClass().add("card-body");
+            locked.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            VBox.setMargin(locked, new Insets(4, 0, 0, 0));
+            inner.getChildren().add(locked);
+        } else switch (note.getType()) {
             case NoteData.LIST -> bindList();
             case NoteData.MINDMAP -> bindMindMap();
             case NoteData.JOURNAL -> bindJournal();

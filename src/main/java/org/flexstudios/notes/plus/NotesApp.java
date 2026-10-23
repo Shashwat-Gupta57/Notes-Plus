@@ -73,11 +73,18 @@ public class NotesApp extends Application {
             } else {
                 Vault.windowReturned();
                 ChatSpace.windowReturned();
+                FileLinks.syncLater(); // Files edited elsewhere while away: their notes take them.
             }
         });
         // Closing leaves every screen, as Back would: a recording in progress is kept, an empty
         // new note is thrown away, and the writes land before the process ends.
         stage.setOnCloseRequest(e -> {
+            // Unsaved text in the Editor: ask first; closing again after the answer.
+            if (home != null && !home.mayClose(() -> stage.fireEvent(
+                    new javafx.stage.WindowEvent(stage, javafx.stage.WindowEvent.WINDOW_CLOSE_REQUEST)))) {
+                e.consume();
+                return;
+            }
             Ui.closeSnack(false);
             for (Screen s : stack) {
                 s.onPause();
@@ -96,11 +103,19 @@ public class NotesApp extends Application {
         ChatStore.IO.execute(ChatMedia::sweepPlain); // A crash may have left a playing voice note.
         ChatSync.startPeriodic();
         ChatSync.schedule();
-        open(new MainView());
+        home = new MainView();
+        open(home);
         // The first run asks for the app's lock, as the phone does.
         if (!Vault.isSetupDone()) open(new SetupLockView());
         stage.show();
         Updates.checkSoon();
+        // A text file double-clicked in Explorer (or "Open with Notes+").
+        for (String arg : getParameters().getRaw()) {
+            java.nio.file.Path p = java.nio.file.Path.of(arg);
+            if (TextEditorView.openable(p)) openFile(p);
+        }
+        Instance.listen(NotesApp::openFile);
+        FileLinks.syncLater();
     }
 
     private void onKey(KeyEvent e) {
@@ -127,6 +142,24 @@ public class NotesApp extends Application {
 
     static Stage stage() {
         return app.stage;
+    }
+
+    private MainView home;
+
+    /**
+     * Opens a text file in the Editor: brings the window forward, leaves whatever is on top
+     * (an editor saves; a vault or the chat closes, as leaving it does), and shows the file.
+     */
+    static void openFile(java.nio.file.Path file) {
+        if (app == null || app.home == null) return;
+        Stage s = app.stage;
+        if (s.isIconified()) s.setIconified(false);
+        s.show();
+        s.toFront();
+        s.requestFocus();
+        if (!Vault.isSetupDone()) return; // The first run's lock comes first.
+        if (app.stack.size() > 1) backToNotes();
+        app.home.showEditor(file);
     }
 
     /** The screen on top, or null. */

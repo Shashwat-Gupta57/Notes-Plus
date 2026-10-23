@@ -192,6 +192,8 @@ final class NoteSync {
         }
         sweepTombstones(uid);
         Prefs.put(PREF_LAST_SYNC + uid, System.currentTimeMillis());
+        // Notes changed on the phone reach their linked files on this computer.
+        FileLinks.syncLater();
     }
 
     // ================================================================ pull

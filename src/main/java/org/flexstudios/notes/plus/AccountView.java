@@ -100,11 +100,35 @@ final class AccountView extends Screen {
     /** Updates and About: in every state, signed in or not. */
     private Node appSection() {
         Label updateStatus = Ui.label("You're on " + Updates.VERSION, 13, "secondary");
+        Label lockTime = Ui.label(lockTimeLabel(NoteLock.timeoutMinutes()), 13, "secondary");
         VBox app = card(
+                row(Icons.LOCK, "tile_orange", "Locked notes", lockTime, chevron(), () -> chooseLockTime(lockTime)),
                 row(Icons.SAVE, "tile_green", "Check for updates", updateStatus, null, () -> checkForUpdate(updateStatus)),
                 row(Icons.INFO, "tile_gray", "About", Ui.label("Version " + Updates.VERSION, 13, "secondary"), null,
                         AccountView::showAbout));
         return new VBox(header("Notes+"), app);
+    }
+
+    private static final int[] LOCK_MINUTES = {0, 1, 5, 15, 30, 60, -1};
+
+    private static String lockTimeLabel(int minutes) {
+        return minutes == 0 ? "Lock again as soon as I leave the note"
+                : minutes < 0 ? "Stay open until Notes+ closes"
+                : "Lock again " + (minutes == 60 ? "1 hour" : minutes + (minutes == 1 ? " minute" : " minutes")) + " after leaving";
+    }
+
+    /** How long an unlocked note stays open after leaving it, like a vault's auto-lock. */
+    private static void chooseLockTime(Label shown) {
+        java.util.List<String> labels = new java.util.ArrayList<>();
+        java.util.List<Runnable> actions = new java.util.ArrayList<>();
+        for (int minutes : LOCK_MINUTES) {
+            labels.add((minutes == NoteLock.timeoutMinutes() ? "\u2713  " : "") + lockTimeLabel(minutes));
+            actions.add(() -> {
+                NoteLock.setTimeoutMinutes(minutes);
+                shown.setText(lockTimeLabel(minutes));
+            });
+        }
+        Ui.dialog().title("Locked notes").items(labels, actions).negative("Cancel", null).width(440).show();
     }
 
     private static void checkForUpdate(Label status) {

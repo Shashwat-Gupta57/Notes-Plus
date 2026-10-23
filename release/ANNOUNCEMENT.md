@@ -1,29 +1,32 @@
-## Notes+ for Windows 1.1 — share your notes
+## Notes+ for Windows 11.0 — an installer, an editor, and locked notes
 
-Pairs with Notes+ 10 for Android.
+Pairs with Notes+ 11 for Android. Same version number on both from now on.
 
 ### New
-- **Send a note to someone**: from a note's ⋮ menu (or right-click its card), choose
-  *Send to people* and type their @username. It appears in their notes under the new
-  **Shared with me** filter, with your name on it. They can read it, but only you can change it,
-  and they always see your latest version. Pictures and recordings go along, encrypted.
-  *Save a copy* gives them their own editable version; *Remove* takes it off their list; you can
-  stop sending it to anyone at any time.
-- **Group notes on the desktop**: *Share with people* turns a note into a group note that
-  everyone in it can edit (up to 20 people), now with its pictures too. See who's in, invite
-  more, remove someone (if it's yours), or leave.
-- **Back buttons** in the vault and chat screens, alongside Esc.
+- **A real installer.** `Notes-Plus-Setup-11.0.exe` installs Notes+ into Program Files, adds it to the
+  Start menu (search "Notes+") and your desktop, and can make it your default text editor. Update,
+  Repair and Uninstall live in the same window, and Notes+ updates itself from now on.
+- **The Editor tab.** A Notepad in Notes+ style, one switch away from your notes: open any .txt,
+  find and replace, wrap, zoom. **Save to notes** turns the file into a note that stays linked to it:
+  edit it on your phone and the file on your PC changes too, and the other way round.
+- **Locked notes.** Lock any note with a PIN, password or pattern. It opens with that lock on every
+  device, stays open for as long as you choose, and its copies (in your account and in a linked
+  file) stay encrypted until you decrypt it yourself.
+- **Your vault on Google Drive.** Back up and restore the vault from Drive, in the same backup as
+  your phone's, with a backup lock of its own if you like.
+- **Mind maps:** text wraps instead of being cut, ideas can have a sub-text, and an idea can be added
+  behind another. Lists can wrap long items too.
+- **About and updates** on the account screen.
 
 ### Fixed
-- Recordings made on the desktop now play on every phone (with Notes+ 10 for Android).
-- Sharing works with anyone who has a @username, even if they've never opened chat.
-- Google sign-in reliably opens your browser, with *Open browser again* and *Copy link* if it
-  didn't.
+- Recordings from the desktop play on every phone.
+- Chat messages arrive the moment they're sent.
+- Opening a note while it syncs no longer leaves a "conflict" copy behind.
+- Links like `example.com` (no www, no https) are recognised.
 
 ### Install
-1. Download `Notes-Plus-Windows-1.1.0.zip` below. Everything it needs is inside: no Java, no installer.
-2. Extract it, replacing your old Notes+ folder if you have one (your notes are kept separately,
-   in `%APPDATA%\Notes+`), and open `Notes+.exe`.
-3. If Windows SmartScreen says it doesn't recognise the app, choose **More info → Run anyway**.
+1. Download `Notes-Plus-Setup-11.0.exe` below and run it. Your notes are kept (they live in
+   `%APPDATA%\Notes+`, not in the program folder).
+2. If Windows SmartScreen says it doesn't recognise the app, choose **More info → Run anyway**.
 
-SHA-256 of `Notes-Plus-Windows-1.1.0.zip`: `65ed7d571de4f91e5b03e2fc0070a770a003d5f06107b93515471a4ae14d04bd`
+SHA-256 of `Notes-Plus-Setup-11.0.exe`: `7dbf46a1c5a1d18fec3281ea9f237e2e82353ac36884d1061dadf337fc6ff8c4`

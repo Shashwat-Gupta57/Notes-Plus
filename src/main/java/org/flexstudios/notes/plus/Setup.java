@@ -120,9 +120,8 @@ public class Setup extends Application {
                 // System font.
             }
         }
-        page.getStyleClass().add("app-background");
-        page.setStyle("-fx-background-color: " + Theme.ref("app_background") + ";");
-        Scene scene = new Scene(page, 600, 500);
+        page.getStyleClass().add("setup-root");
+        Scene scene = new Scene(page, 640, 540);
         scene.getStylesheets().add(NotesApp.class.getResource("styles.css").toExternalForm());
         Theme.attach(scene);
         stage.setTitle("Notes+ Setup");
@@ -219,36 +218,51 @@ public class Setup extends Application {
         Path self = selfImage();
         boolean have = installed();
         String there = installedVersion();
-        VBox choices = new VBox(10);
-        choices.getChildren().add(choice("Install", "Put Notes+ " + Updates.VERSION + " on this PC", this::install));
-        choices.getChildren().add(choice("Update", "Get the newest version, if this PC doesn't have it", this::update));
-        choices.getChildren().add(choice("Repair", "Reinstall version " + Updates.VERSION + " over what is there", this::repair));
-        if (have) choices.getChildren().add(choice("Uninstall", "Remove Notes+ from this PC", this::uninstallScreen));
-        String status = have ? "Installed" + (there.isEmpty() ? "" : ": version " + there) : "Not installed on this PC yet";
-        if (self == null) status = "Run this from the packaged Setup to install.";
-        show(screen("Notes+ Setup", "Version " + Updates.VERSION + "  ·  " + status, choices,
-                null, button("Exit", false, Platform::exit)));
+        List<Node> rows = new ArrayList<>();
+        if (!have) rows.add(VaultSettingsView.row(Icons.SAVE, "tile_green", "Install",
+                "Notes+ " + Updates.VERSION + " on this PC", VaultSettingsView.chevron(), this::install));
+        rows.add(VaultSettingsView.row(Icons.CLOUD, "tile_blue", "Update",
+                "The newest version, if this PC doesn't have it", VaultSettingsView.chevron(), this::update));
+        if (have) rows.add(VaultSettingsView.row(Icons.GEAR, "tile_orange", "Repair",
+                "Reinstall " + Updates.VERSION + " over what is there", VaultSettingsView.chevron(), this::repair));
+        if (have) rows.add(VaultSettingsView.row(Icons.DELETE, "destructive", "Uninstall",
+                "Remove Notes+ from this PC", VaultSettingsView.chevron(), this::uninstallScreen));
+        String status = self == null ? "Run this from the downloaded installer to install."
+                : have ? "Notes+" + (there.isEmpty() ? "" : " " + there) + " is installed on this PC."
+                : "Notes, lists, mind maps, sketches and recordings, synced with your phone.";
+        show(screen(have ? "Welcome back" : "Welcome to Notes+", status,
+                VaultSettingsView.card(rows.toArray(new Node[0])), null, button("Close", false, Platform::exit)));
     }
 
     // ============================================================= install
+
+    /** Asked on the install screen: make Notes+ the default for text files (Windows asks the person). */
+    private boolean makeDefault;
 
     private void install() {
         if (installed()) {
             String v = installedVersion();
             show(screen("Already installed",
-                    "Notes+" + (v.isEmpty() ? "" : " " + v) + " is already installed on this PC, and can't be installed twice. "
-                            + "Use Update for a newer version, or Repair to reinstall it.",
-                    null, button("Back", false, this::home), button("Exit", true, Platform::exit)));
+                    "Notes+" + (v.isEmpty() ? "" : " " + v) + " is already on this PC, and can't be installed twice. "
+                            + "Update gets a newer version; Repair reinstalls this one.",
+                    null, button("Back", false, this::home), button("Close", true, Platform::exit)));
             return;
         }
-        CheckBox desktop = new CheckBox("Add a shortcut to the desktop");
-        CheckBox menu = new CheckBox("Add to the Start menu (so searching \"Notes+\" finds it)");
-        desktop.setSelected(true);
-        menu.setSelected(true);
-        for (CheckBox c : new CheckBox[]{desktop, menu}) c.setStyle("-fx-text-fill: " + Theme.ref("text_primary") + "; -fx-font-size: 14px;");
-        VBox box = new VBox(12, Ui.label("Installs to " + installDir(), 13, "secondary"), desktop, menu);
-        show(screen("Install Notes+", "Version " + Updates.VERSION + ". Your notes are kept apart, in your own profile.", box,
-                button("Install", true, () -> runInstall(selfImage(), Updates.VERSION, desktop.isSelected(), menu.isSelected(), "Installed")),
+        boolean[] opts = {true, true, true};
+        Node options = VaultSettingsView.card(
+                VaultSettingsView.row(Icons.PIN, "tile_blue", "Desktop shortcut", "Notes+ on your desktop",
+                        VaultSettingsView.toggle(true, on -> opts[0] = on), null),
+                VaultSettingsView.row(Icons.SEARCH, "tile_teal", "Start menu",
+                        "Find it by typing \"Notes+\" after the Windows key", VaultSettingsView.toggle(true, on -> opts[1] = on), null),
+                VaultSettingsView.row(Icons.EDIT, "tile_orange", "Default text editor",
+                        "Text files (.txt) open with Notes+", VaultSettingsView.toggle(true, on -> opts[2] = on), null));
+        Label where = Ui.label("Installs to " + installDir() + ". Your notes live apart, in your own profile.", 12.5, "secondary");
+        where.setWrapText(true);
+        show(screen("Install Notes+ " + Updates.VERSION, "Choose how you'd like to find it.", new VBox(10, options, where),
+                button("Install", true, () -> {
+                    makeDefault = opts[2];
+                    runInstall(selfImage(), Updates.VERSION, opts[0], opts[1], "All set");
+                }),
                 button("Back", false, this::home)));
     }
 
@@ -283,8 +297,17 @@ public class Setup extends Application {
                 register(dir, version, total);
                 shortcut(desktopLink(), dir, desktop);
                 shortcut(startMenuLink(), dir, menu);
+                if (makeDefault) {
+                    try {
+                        DefaultApp.set(".txt", PROG_ID);
+                    } catch (Exception e) {
+                        System.getLogger("Setup").log(System.Logger.Level.WARNING, "Couldn't make Notes+ the default for .txt", e);
+                    }
+                }
                 return null;
-            }, r -> show(screen(doneTitle, "Notes+ " + version + " is ready. Your notes are where they were.", null,
+            }, r -> show(screen(doneTitle, "Notes+ " + version + " is ready. Your notes are where they were."
+                            + (makeDefault ? " Text files now open with it." : ""),
+                    null,
                     button("Open Notes+", true, () -> {
                         try {
                             new ProcessBuilder(installDir().resolve(APP_EXE).toString()).directory(installDir().toFile()).start();
@@ -419,16 +442,16 @@ public class Setup extends Application {
     private void uninstallScreen() {
         if (!installed()) {
             show(screen("Notes+ isn't installed", "There is nothing to remove.", null,
-                    button("Exit", true, Platform::exit), button("Back", false, this::home)));
+                    button("Close", true, Platform::exit), button("Back", false, this::home)));
             return;
         }
-        CheckBox wipe = new CheckBox("Also delete my notes, vault and settings on this PC");
-        wipe.setStyle("-fx-text-fill: " + Theme.ref("destructive") + "; -fx-font-size: 14px;");
-        Label note = Ui.label("Leave it unticked to keep them: installing again brings everything back. "
-                + "Notes in your account stay online either way.", 13, "secondary");
-        note.setWrapText(true);
-        show(screen("Uninstall Notes+", "Removes the app, its shortcuts and its entry in Windows.", new VBox(10, wipe, note),
-                button("Uninstall", true, () -> runUninstall(wipe.isSelected())), button("Cancel", false, Platform::exit)));
+        boolean[] wipe = {false};
+        Node options = VaultSettingsView.card(VaultSettingsView.row(Icons.DELETE, "destructive",
+                "Also delete my notes and vault", "On this PC only. Notes in your account stay online.",
+                VaultSettingsView.toggle(false, on -> wipe[0] = on), null));
+        show(screen("Uninstall Notes+", "Removes the app, its shortcuts and its place in Windows. "
+                        + "Leave the switch off to keep your notes for next time.", options,
+                button("Uninstall", true, () -> runUninstall(wipe[0])), button("Cancel", false, Platform::exit)));
     }
 
     private void runUninstall(boolean wipe) {
@@ -437,8 +460,7 @@ public class Setup extends Application {
             work(() -> {
                 Files.deleteIfExists(desktopLink());
                 Files.deleteIfExists(startMenuLink());
-                run("reg", "delete", REG_UNINSTALL, "/f");
-                run("reg", "delete", REG_APP_PATH, "/f");
+                unregister();
                 deleteTree(installDir());
                 if (wipe) {
                     String appData = System.getenv("APPDATA");
@@ -486,24 +508,95 @@ public class Setup extends Application {
     // ======================================================= registration
 
     /** Apps &amp; features (with unins.exe) and App Paths, so Windows knows Notes+. */
+    private static final String CLASSES = "HKEY_LOCAL_MACHINE\\Software\\Classes\\";
+    private static final String PROG_ID = "NotesPlus.TextFile";
+
+    /**
+     * Apps & features (with unins.exe), App Paths, and "Open with" for .txt files, written as
+     * one .reg file and imported, so paths with spaces and quotes reach the registry exactly.
+     * Windows lets people choose the default app themselves: Notes+ appears in "Open with"
+     * for text files, and "Always" makes it theirs.
+     */
     private static void register(Path dir, String version, long bytes) throws Exception {
         String app = dir.resolve(APP_EXE).toString();
-        reg(REG_UNINSTALL, "DisplayName", "REG_SZ", "Notes+");
-        reg(REG_UNINSTALL, "DisplayVersion", "REG_SZ", version);
-        reg(REG_UNINSTALL, "Publisher", "REG_SZ", "Flex Studios");
-        reg(REG_UNINSTALL, "DisplayIcon", "REG_SZ", app);
-        reg(REG_UNINSTALL, "InstallLocation", "REG_SZ", dir.toString());
-        reg(REG_UNINSTALL, "UninstallString", "REG_SZ", "\"" + dir.resolve(UNINS_EXE) + "\"");
-        reg(REG_UNINSTALL, "ModifyPath", "REG_SZ", "\"" + dir.resolve(SETUP_EXE) + "\"");
-        reg(REG_UNINSTALL, "URLInfoAbout", "REG_SZ", "https://notes.talken.in");
-        reg(REG_UNINSTALL, "EstimatedSize", "REG_DWORD", String.valueOf(bytes / 1024));
-        reg(REG_UNINSTALL, "NoRepair", "REG_DWORD", "0");
-        run("reg", "add", REG_APP_PATH, "/ve", "/t", "REG_SZ", "/d", app, "/f");
-        run("reg", "add", REG_APP_PATH, "/v", "Path", "/t", "REG_SZ", "/d", dir.toString(), "/f");
+        String open = "\"" + app + "\" \"%1\"";
+        String uninstall = "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Notes+";
+        String appPath = "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Notes+.exe";
+        StringBuilder r = new StringBuilder("Windows Registry Editor Version 5.00\r\n\r\n");
+        key(r, uninstall);
+        str(r, "DisplayName", "Notes+");
+        str(r, "DisplayVersion", version);
+        str(r, "Publisher", "Flex Studios");
+        str(r, "DisplayIcon", app);
+        str(r, "InstallLocation", dir.toString());
+        str(r, "UninstallString", "\"" + dir.resolve(UNINS_EXE) + "\"");
+        str(r, "ModifyPath", "\"" + dir.resolve(SETUP_EXE) + "\"");
+        str(r, "URLInfoAbout", "https://notes.talken.in");
+        r.append("\"EstimatedSize\"=dword:").append(String.format("%08x", bytes / 1024)).append("\r\n");
+        r.append("\"NoRepair\"=dword:00000000\r\n");
+        key(r, appPath);
+        r.append("@=").append(quote(app)).append("\r\n");
+        str(r, "Path", dir.toString());
+        // Open with: a ProgID for Notes+'s text files, offered for .txt.
+        key(r, CLASSES + PROG_ID);
+        r.append("@=").append(quote("Text document")).append("\r\n");
+        key(r, CLASSES + PROG_ID + "\\DefaultIcon");
+        r.append("@=").append(quote(app + ",0")).append("\r\n");
+        key(r, CLASSES + PROG_ID + "\\shell\\open\\command");
+        r.append("@=").append(quote(open)).append("\r\n");
+        key(r, CLASSES + ".txt\\OpenWithProgids");
+        r.append(quote(PROG_ID)).append("=hex(0):\r\n");
+        key(r, CLASSES + "Applications\\Notes+.exe");
+        str(r, "FriendlyAppName", "Notes+");
+        key(r, CLASSES + "Applications\\Notes+.exe\\SupportedTypes");
+        str(r, ".txt", "");
+        key(r, CLASSES + "Applications\\Notes+.exe\\shell\\open\\command");
+        r.append("@=").append(quote(open)).append("\r\n");
+        // A registered application, so Default apps lists Notes+ and what it can open.
+        key(r, "HKEY_LOCAL_MACHINE\\Software\\NotesPlus\\Capabilities");
+        str(r, "ApplicationName", "Notes+");
+        str(r, "ApplicationDescription", "Notes, and a text editor that keeps .txt files in your notes.");
+        key(r, "HKEY_LOCAL_MACHINE\\Software\\NotesPlus\\Capabilities\\FileAssociations");
+        str(r, ".txt", PROG_ID);
+        key(r, "HKEY_LOCAL_MACHINE\\Software\\RegisteredApplications");
+        str(r, "Notes+", "Software\\NotesPlus\\Capabilities");
+        Path file = Files.createTempFile("notes-plus-setup", ".reg");
+        try {
+            // regedit files are UTF-16 with a BOM.
+            byte[] body = r.toString().getBytes(StandardCharsets.UTF_16LE);
+            byte[] out = new byte[body.length + 2];
+            out[0] = (byte) 0xFF;
+            out[1] = (byte) 0xFE;
+            System.arraycopy(body, 0, out, 2, body.length);
+            Files.write(file, out);
+            run("reg", "import", file.toString());
+        } finally {
+            Files.deleteIfExists(file);
+        }
     }
 
-    private static void reg(String key, String name, String type, String value) throws Exception {
-        run("reg", "add", key, "/v", name, "/t", type, "/d", value, "/f");
+    /** Removes everything {@link #register} wrote. */
+    private static void unregister() throws Exception {
+        run("reg", "delete", REG_UNINSTALL, "/f");
+        run("reg", "delete", REG_APP_PATH, "/f");
+        run("reg", "delete", "HKLM\\Software\\Classes\\" + PROG_ID, "/f");
+        run("reg", "delete", "HKLM\\Software\\Classes\\Applications\\Notes+.exe", "/f");
+        run("reg", "delete", "HKLM\\Software\\Classes\\.txt\\OpenWithProgids", "/v", PROG_ID, "/f");
+        run("reg", "delete", "HKLM\\Software\\NotesPlus", "/f");
+        run("reg", "delete", "HKLM\\Software\\RegisteredApplications", "/v", "Notes+", "/f");
+    }
+
+    private static void key(StringBuilder r, String key) {
+        r.append("\r\n[").append(key).append("]\r\n");
+    }
+
+    private static void str(StringBuilder r, String name, String value) {
+        r.append(quote(name)).append("=").append(quote(value)).append("\r\n");
+    }
+
+    /** A .reg string: in quotes, with backslashes and quotes escaped. */
+    private static String quote(String v) {
+        return "\"" + v.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
     private static Path desktopLink() {
@@ -638,72 +731,79 @@ public class Setup extends Application {
     }
 
     private void show(Node content) {
+        content.setOpacity(0);
         page.getChildren().setAll(content);
+        javafx.animation.FadeTransition fade = new javafx.animation.FadeTransition(javafx.util.Duration.millis(180), content);
+        fade.setToValue(1);
+        fade.play();
     }
 
-    /** Header (icon, title, subtitle), a body, and the buttons along the bottom. */
+    /** The brand line, a title and a line under it, the body, and the buttons with the version beside them. */
     private Node screen(String title, String subtitle, Node body, Button primary, Button secondary) {
+        Label brand = new Label("Notes+");
+        brand.getStyleClass().add("setup-brand");
+        Label chip = new Label("Setup");
+        chip.getStyleClass().add("setup-chip");
+        HBox brandRow = new HBox(10, icon(28), brand, chip);
+        brandRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label t = new Label(title);
+        t.getStyleClass().add("setup-title");
+        t.setWrapText(true);
+        Label s = new Label(subtitle);
+        s.getStyleClass().add("setup-subtitle");
+        s.setWrapText(true);
+        VBox head = new VBox(6, t, s);
+
+        VBox content = new VBox(22, brandRow, head);
+        if (body != null) content.getChildren().add(body);
+        Region grow = new Region();
+        VBox.setVgrow(grow, Priority.ALWAYS);
+        Label foot = new Label("Version " + Updates.VERSION + "  ·  Flex Studios");
+        foot.getStyleClass().add("setup-foot");
+        Region gap = new Region();
+        HBox.setHgrow(gap, Priority.ALWAYS);
+        HBox bottom = new HBox(10, foot, gap);
+        bottom.setAlignment(Pos.CENTER_LEFT);
+        if (secondary != null) bottom.getChildren().add(secondary);
+        if (primary != null) bottom.getChildren().add(primary);
+        content.getChildren().addAll(grow, bottom);
+        content.setPadding(new Insets(26, 32, 22, 32));
+        return content;
+    }
+
+    private static ImageView icon(double size) {
         ImageView icon = new ImageView();
         try (InputStream in = NotesApp.class.getResourceAsStream("icon.png")) {
-            if (in != null) icon.setImage(new Image(in, 56, 56, true, true));
+            if (in != null) icon.setImage(new Image(in, size, size, true, true));
         } catch (Exception ignored) {
             // No icon.
         }
-        Label t = Ui.label(title, 26, "bold");
-        Label s = Ui.label(subtitle, 14, "secondary");
-        s.setWrapText(true);
-        VBox head = new VBox(4, t, s);
-        HBox top = new HBox(16, icon, head);
-        top.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(head, Priority.ALWAYS);
-        Region grow = new Region();
-        VBox.setVgrow(grow, Priority.ALWAYS);
-        HBox buttons = new HBox(10);
-        buttons.setAlignment(Pos.CENTER_RIGHT);
-        if (secondary != null) buttons.getChildren().add(secondary);
-        if (primary != null) buttons.getChildren().add(primary);
-        VBox root = new VBox(20, top);
-        if (body != null) root.getChildren().add(body);
-        root.getChildren().addAll(grow, buttons);
-        root.setPadding(new Insets(32));
-        return root;
+        return icon;
     }
 
     private Node message(String title, String text, boolean back) {
-        return screen(title, text, null, button(back ? "Back" : "Exit", true, back ? this::home : Platform::exit),
-                back ? button("Exit", false, Platform::exit) : null);
+        return screen(title, text, null, button(back ? "Back" : "Close", true, back ? this::home : Platform::exit),
+                back ? button("Close", false, Platform::exit) : null);
     }
 
     private Node busy(String text) {
         ProgressBar bar = new ProgressBar(ProgressBar.INDETERMINATE_PROGRESS);
+        bar.getStyleClass().add("setup-progress");
         bar.setMaxWidth(Double.MAX_VALUE);
-        return screen("Notes+ Setup", text, bar, null, null);
+        return screen("One moment", text, bar, null, null);
     }
 
     private Node progressScreen(String title, Label status, ProgressBar bar) {
+        bar.getStyleClass().add("setup-progress");
         bar.setMaxWidth(Double.MAX_VALUE);
-        return screen(title, "Please keep this window open.", new VBox(10, bar, status), null, null);
-    }
-
-    /** One of the home screen's choices: a wide card with a title and a line under it. */
-    private Node choice(String title, String line, Runnable action) {
-        Label t = Ui.label(title, 17, "medium");
-        Label l = Ui.label(line, 13, "secondary");
-        VBox card = new VBox(2, t, l);
-        card.setPadding(new Insets(14, 18, 14, 18));
-        card.setStyle("-fx-background-color: " + Theme.ref("app_surface") + "; -fx-background-radius: 16; -fx-cursor: hand; "
-                + "-fx-border-color: " + Theme.ref("divider") + "; -fx-border-radius: 16;");
-        card.setOnMouseClicked(e -> action.run());
-        card.setOnMouseEntered(e -> card.setOpacity(0.85));
-        card.setOnMouseExited(e -> card.setOpacity(1));
-        return card;
+        status.setStyle("-fx-font-size: 12.5px;");
+        return screen(title, "This takes a moment. Keep this window open.", new VBox(10, bar, status), null, null);
     }
 
     private static Button button(String text, boolean primary, Runnable action) {
         Button b = new Button(text);
-        b.getStyleClass().setAll(primary ? "filled-button" : "tonal-button");
-        b.setMinHeight(40);
-        b.setPadding(new Insets(0, 20, 0, 20));
+        b.getStyleClass().setAll(primary ? "filled-button" : "tonal-button", "compact");
         b.setOnAction(e -> action.run());
         return b;
     }

@@ -8,6 +8,8 @@ import javafx.application.Application;
  */
 public class Main {
     public static void main(String[] args) {
+        // Notes+ already open: it opens the file, and this second start ends here.
+        if (args.length > 0 && Instance.handOff(args)) return;
         Application.launch(NotesApp.class, args);
     }
 }

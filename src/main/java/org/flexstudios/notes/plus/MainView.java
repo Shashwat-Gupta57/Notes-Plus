@@ -51,6 +51,14 @@ final class MainView extends Screen {
     private static final String SHARED = "SHARED";
     private String query = "";
     private double lastScrollY;
+    /** The Editor tab, made the first time it is shown. */
+    private TextEditorView editor;
+    private boolean editorShown;
+    private VBox notesTop;
+    private StackPane notesArea;
+    /** The title rows, each with the Notes | Editor switch centred over it. */
+    private final StackPane notesBar = new StackPane(), editorBar = new StackPane();
+    private ModeSwitch modes;
 
     MainView() {
         root.setStyle("-fx-background-color: " + Theme.ref("gallery_background") + ";");
@@ -87,7 +95,16 @@ final class MainView extends Screen {
                 chipScroll.setHvalue(chipScroll.getHvalue() - e.getDeltaY() / (chips.getWidth() - chipScroll.getWidth()));
             }
         });
-        root.setTop(new VBox(toolbar, chipScroll));
+        modes = new ModeSwitch(this::showMode);
+        notesBar.getChildren().setAll(toolbar, modes.bar());
+        notesTop = new VBox(notesBar, chipScroll);
+        Label editorTitle = new Label("Editor");
+        editorTitle.getStyleClass().add("toolbar-title");
+        HBox editorToolbar = new HBox(editorTitle);
+        editorToolbar.getStyleClass().add("toolbar");
+        editorToolbar.setAlignment(Pos.CENTER_LEFT);
+        editorBar.getChildren().setAll(editorToolbar);
+        root.setTop(notesTop);
 
         // The grid, its empty state, and "New".
         scroll.setFitToWidth(true);
@@ -115,7 +132,8 @@ final class MainView extends Screen {
             if (dy > 8) shrinkFab(true);
             else if (dy < -8) shrinkFab(false);
         });
-        root.setCenter(new StackPane(scroll, emptyState, fab));
+        notesArea = new StackPane(scroll, emptyState, fab);
+        root.setCenter(notesArea);
         setUpSecretGesture();
 
         NoteStore.get().observe(this::reload);
@@ -144,6 +162,10 @@ final class MainView extends Screen {
 
     @Override
     void onKey(KeyEvent e) {
+        if (editorShown) {
+            editor.onKey(e);
+            return;
+        }
         if (e.isShortcutDown() && e.getCode() == KeyCode.N) {
             e.consume();
             showNewSheet();
@@ -156,6 +178,122 @@ final class MainView extends Screen {
         }
     }
 
+    // ============================================================ notes | editor
+
+    /** Shows the Editor tab, opening {@code file} in it when given. */
+    void showEditor(java.nio.file.Path file) {
+        modes.select(1);
+        if (file != null) editor.openPath(file);
+    }
+
+    /** The Editor's unsaved text, before the window closes: true when it may close now. */
+    boolean mayClose(Runnable closeAgain) {
+        if (editor == null || !editor.dirty()) return true;
+        modes.select(1);
+        editor.confirmLeave(() -> {
+            editor.discard(); // "Don't save" (or saved): the next close request goes through.
+            closeAgain.run();
+        });
+        return false;
+    }
+
+    private void showMode(int mode) {
+        editorShown = mode == 1;
+        if (editorShown) {
+            if (editor == null) editor = new TextEditorView();
+            if (editorBar.getChildren().size() < 2) editorBar.getChildren().add(modes.bar());
+            root.setTop(editorBar);
+            root.setCenter(editor.view());
+            editor.focus();
+        } else {
+            if (notesBar.getChildren().size() < 2) notesBar.getChildren().add(modes.bar());
+            root.setTop(notesTop);
+            root.setCenter(notesArea);
+            Platform.runLater(grid::requestFocus);
+        }
+    }
+
+    /**
+     * The Notes | Editor switch under the top edge: a pill whose yellow block glides to the
+     * side that is showing.
+     */
+    private static final class ModeSwitch {
+        private final StackPane pill = new StackPane();
+        private final javafx.scene.layout.Region block = new javafx.scene.layout.Region();
+        private final List<Label> labels = new ArrayList<>();
+        private final java.util.function.IntConsumer onSelect;
+        private int selected;
+
+        ModeSwitch(java.util.function.IntConsumer onSelect) {
+            this.onSelect = onSelect;
+            HBox segments = new HBox();
+            String[] names = {"Notes", "Editor"};
+            Icons.Icon[] icons = {Icons.NOTE_TEXT, Icons.EDIT};
+            for (int i = 0; i < names.length; i++) {
+                int index = i;
+                Label l = new Label(names[i], Ui.icon(icons[i], 18, "text_secondary"));
+                l.getStyleClass().add("mode-segment");
+                l.setGraphicTextGap(8);
+                l.setAlignment(Pos.CENTER);
+                l.setMinWidth(112);
+                l.setPrefWidth(112);
+                l.setOnMouseClicked(e -> select(index));
+                labels.add(l);
+                segments.getChildren().add(l);
+            }
+            block.getStyleClass().add("mode-block");
+            block.setManaged(false);
+            pill.getChildren().addAll(block, segments);
+            pill.getStyleClass().add("mode-switch");
+            pill.setMaxSize(javafx.scene.layout.Region.USE_PREF_SIZE, javafx.scene.layout.Region.USE_PREF_SIZE);
+            StackPane.setAlignment(pill, Pos.CENTER);
+            pill.layoutBoundsProperty().addListener((o, a, b) -> place(false));
+            for (Label l : labels) l.widthProperty().addListener((o, a, b) -> place(false));
+            Platform.runLater(() -> place(false));
+            paint();
+        }
+
+        /** The pill itself, laid over a title row. */
+        Node bar() {
+            return pill;
+        }
+
+        void select(int index) {
+            if (index == selected) {
+                onSelect.accept(index);
+                return;
+            }
+            selected = index;
+            paint();
+            place(true);
+            onSelect.accept(index);
+        }
+
+        private void place(boolean animate) {
+            Label target = labels.get(selected);
+            double x = target.getBoundsInParent().getMinX() + 3, w = target.getWidth(), h = pill.getHeight() - 6;
+            if (w <= 0 || h <= 0) return;
+            block.resize(w, h);
+            block.setLayoutY(3);
+            if (!animate) {
+                block.setLayoutX(x);
+                return;
+            }
+            double from = block.getLayoutX();
+            Ui.animate(220, javafx.animation.Interpolator.SPLINE(0.2, 0.8, 0.2, 1), f -> block.setLayoutX(from + (x - from) * f));
+        }
+
+        private void paint() {
+            for (int i = 0; i < labels.size(); i++) {
+                boolean on = i == selected;
+                Label l = labels.get(i);
+                l.setStyle("-fx-text-fill: " + Theme.ref(on ? "black" : "text_secondary") + ";"
+                        + (on ? " -fx-font-weight: bold;" : ""));
+                ((Ui.IconView) l.getGraphic()).color(on ? "black" : "text_secondary");
+            }
+        }
+    }
+
     // ================================================================ toolbar
 
     private void showToolbar() {
@@ -164,7 +302,9 @@ final class MainView extends Screen {
             Button clear = Ui.iconButton(Icons.CLOSE, "text_secondary", "Clear", () -> search.setText(""));
             clear.visibleProperty().bind(search.textProperty().isNotEmpty());
             toolbar.getChildren().setAll(close, search, clear);
+            if (modes != null) modes.bar().setVisible(false);
         } else {
+            if (modes != null) modes.bar().setVisible(true);
             toolbar.getChildren().setAll(title, Ui.spacer(),
                     Ui.iconButton(Icons.SEARCH, "text_primary", "Search (Ctrl+F)", this::startSearch),
                     gap(12),

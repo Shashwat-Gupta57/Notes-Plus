@@ -94,6 +94,22 @@ public class Setup extends Application {
         return dir != null && Files.exists(dir.resolve(APP_EXE)) && Files.isDirectory(dir.resolve("runtime")) ? dir : null;
     }
 
+    /**
+     * Whether {@code p} is in {@code dir}, comparing real paths without regard to case: Windows
+     * may report the running program under a short (PROGRA~1) or differently cased path, and a
+     * miss here made Setup replace the runtime it was running from.
+     */
+    static boolean inside(Path p, Path dir) {
+        try {
+            if (!Files.exists(dir)) return false;
+            String a = p.toRealPath().toString().toLowerCase(java.util.Locale.ROOT);
+            String b = dir.toRealPath().toString().toLowerCase(java.util.Locale.ROOT);
+            return a.equals(b) || a.startsWith(b + java.io.File.separator);
+        } catch (IOException e) {
+            return p.toString().toLowerCase(java.util.Locale.ROOT).startsWith(dir.toString().toLowerCase(java.util.Locale.ROOT));
+        }
+    }
+
     static boolean installed() {
         return Files.exists(installDir().resolve(APP_EXE));
     }
@@ -135,7 +151,7 @@ public class Setup extends Application {
         stage.show();
 
         Path self = selfImage();
-        if (self != null && self.startsWith(installDir())) {
+        if (self != null && inside(self, installDir())) {
             // Can't replace the files it runs from: run a temporary copy instead.
             show(busy("Getting ready…"));
             work(() -> {

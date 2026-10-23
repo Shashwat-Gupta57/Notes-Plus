@@ -1,0 +1,401 @@
+// Text notes, journals and lists (the apps' NoteEditorActivity / NoteEditorView).
+//
+// Text and journal bodies are blocks: words, and pictures between them stored as a line of
+// their own, `![[IMG_….png]]`, exactly as the desktop writes them, so a note with pictures
+// reads the same everywhere. Pictures come from the button, a paste, or a drop.
+
+import { h, icon, iconButton, toast } from './ui.js';
+import { TEXT, LIST, JOURNAL, PICTURE_LINE, todos, todosJson, wraps, journal, journalJson, MOODS, mediaName, isVideo, dayStart } from './model.js';
+
+function autoGrow(ta) {
+  const fit = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+  ta.addEventListener('input', fit);
+  requestAnimationFrame(fit);
+  ta._fit = fit;
+  return ta;
+}
+
+function titleField(ctx, placeholder, onEnter) {
+  const t = autoGrow(h('textarea.title-field', { rows: 1, placeholder, readOnly: ctx.readOnly, maxlength: 500 }));
+  t.value = ctx.note.title || '';
+  t.addEventListener('input', () => ctx.changed());
+  t.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onEnter && onEnter(); }
+  });
+  return t;
+}
+
+const extOf = blob => ((blob.type || '').split('/')[1] || 'png').replace('jpeg', 'jpg').replace(/[^a-z0-9]/g, '') || 'png';
+
+/** Words with pictures between them. */
+function richBody(ctx, content, placeholder) {
+  const wrap = h('div.rich');
+  const blocks = [];
+
+  function textBlock(value) {
+    const ta = autoGrow(h('textarea.para', { rows: 1, readOnly: ctx.readOnly }));
+    ta.value = value;
+    ta.addEventListener('input', () => ctx.changed());
+    ta.addEventListener('paste', e => {
+      const files = [...(e.clipboardData ? e.clipboardData.files : [])].filter(f => f.type.startsWith('image/'));
+      if (!files.length || ctx.readOnly) return;
+      e.preventDefault();
+      files.forEach(f => insertPicture(f, ta));
+    });
+    ta.addEventListener('keydown', e => {
+      // Backspace at the start of words right after a picture removes the picture.
+      if (e.key === 'Backspace' && ta.selectionStart === 0 && ta.selectionEnd === 0) {
+        const i = blocks.findIndex(b => b.node === ta);
+        const prev = blocks[i - 1];
+        if (prev && prev.kind === 'pic') {
+          e.preventDefault();
+          removeBlock(prev);
+        }
+      }
+    });
+    return { kind: 'text', node: ta, value: () => ta.value };
+  }
+
+  function picBlock(name) {
+    const img = h('img', { alt: '' });
+    ctx.fileUrl(name).then(u => {
+      if (u) img.src = u;
+      else fig.classList.add('missing');
+    });
+    const del = ctx.readOnly ? null : h('button.pic-remove', { type: 'button', title: 'Remove picture', onClick: () => removeBlock(block) }, icon('close', 18, '#fff'));
+    const fig = h('figure.pic', img, del, h('figcaption', 'Picture on another device'));
+    img.addEventListener('click', () => { if (img.src) window.open(img.src, '_blank'); });
+    const block = { kind: 'pic', node: fig, name, value: () => `![[${name}]]` };
+    return block;
+  }
+
+  function removeBlock(b) {
+    const i = blocks.indexOf(b);
+    if (i < 0) return;
+    blocks.splice(i, 1);
+    b.node.remove();
+    // Two runs of words now meet: they become one.
+    const a = blocks[i - 1], c = blocks[i];
+    if (a && c && a.kind === 'text' && c.kind === 'text') {
+      const caret = a.node.value.length;
+      a.node.value = a.node.value + (a.node.value && c.node.value ? '\n' : '') + c.node.value;
+      blocks.splice(i, 1);
+      c.node.remove();
+      a.node._fit();
+      a.node.focus();
+      a.node.setSelectionRange(caret, caret);
+    }
+    ctx.changed();
+  }
+
+  async function insertPicture(blob, at) {
+    const name = mediaName('IMG', extOf(blob));
+    await ctx.putFile(name, blob);
+    let i = blocks.findIndex(b => b.node === at);
+    if (i < 0) i = blocks.length - 1;
+    const target = blocks[i];
+    const caret = target.kind === 'text' ? target.node.selectionStart : 0;
+    const before = target.kind === 'text' ? target.node.value.slice(0, caret).replace(/\n$/, '') : '';
+    const after = target.kind === 'text' ? target.node.value.slice(caret).replace(/^\n/, '') : '';
+    const pic = picBlock(name), rest = textBlock(after);
+    if (target.kind === 'text') {
+      target.node.value = before;
+      target.node._fit();
+    }
+    blocks.splice(i + 1, 0, pic, rest);
+    target.node.after(pic.node, rest.node);
+    rest.node.focus();
+    ctx.changed();
+  }
+
+  // Parse: runs of words, and picture lines.
+  let run = [];
+  const flush = () => { blocks.push(textBlock(run.join('\n'))); run = []; };
+  for (const line of (content || '').split('\n')) {
+    const m = PICTURE_LINE.exec(line.trim());
+    if (m) { flush(); blocks.push(picBlock(m[1])); } else run.push(line);
+  }
+  flush();
+  blocks[0].node.placeholder = placeholder;
+  wrap.append(...blocks.map(b => b.node));
+
+  wrap.addEventListener('dragover', e => { if (!ctx.readOnly && e.dataTransfer.types.includes('Files')) e.preventDefault(); });
+  wrap.addEventListener('drop', e => {
+    const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+    if (!files.length || ctx.readOnly) return;
+    e.preventDefault();
+    const target = document.activeElement && blocks.some(b => b.node === document.activeElement) ? document.activeElement : blocks[blocks.length - 1].node;
+    files.forEach(f => insertPicture(f, target));
+  });
+
+  return {
+    node: wrap,
+    value() {
+      const parts = [];
+      for (const b of blocks) {
+        const v = b.value();
+        if (b.kind === 'text' && v === '' && blocks.length > 1) continue;
+        parts.push(v);
+      }
+      return parts.join('\n');
+    },
+    words() {
+      return blocks.filter(b => b.kind === 'text').map(b => b.value()).join(' ').trim().split(/\s+/).filter(Boolean).length;
+    },
+    focusEnd() {
+      const last = [...blocks].reverse().find(b => b.kind === 'text');
+      if (last) { last.node.focus(); last.node.setSelectionRange(last.node.value.length, last.node.value.length); }
+    },
+    focusStart() { blocks[0].node.focus(); },
+    addPicture(files) {
+      const target = document.activeElement && blocks.some(b => b.node === document.activeElement) ? document.activeElement : blocks[blocks.length - 1].node;
+      [...files].forEach(f => insertPicture(f, target));
+    },
+  };
+}
+
+function pickFiles(accept, multiple, onFiles) {
+  const input = h('input', { type: 'file', accept, multiple });
+  input.addEventListener('change', () => { if (input.files.length) onFiles(input.files); });
+  input.click();
+}
+
+function footer(ctx, text) {
+  return h('div.editor-footer', text);
+}
+
+const editedLine = note => 'Edited ' + new Date(note.timestamp || Date.now())
+  .toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+// ================================================================== text
+
+export function textEditor(ctx) {
+  const n = ctx.note;
+  let body;
+  const title = titleField(ctx, 'Title', () => body.focusStart());
+  body = richBody(ctx, n.content, 'Note');
+  const foot = footer(ctx, '');
+  const update = () => { foot.textContent = editedLine(ctx.note) + '  ·  ' + body.words() + (body.words() === 1 ? ' word' : ' words'); };
+  body.node.addEventListener('input', update);
+  update();
+  const addPic = ctx.readOnly ? null : h('button.chip-btn', { type: 'button', onClick: () => pickFiles('image/*', true, f => body.addPicture(f)) }, icon('photo', 18), 'Add picture');
+  const page = h('div.page', title, body.node, h('div.page-actions', addPic), foot);
+  page.addEventListener('click', e => { if (e.target === page && !ctx.readOnly) body.focusEnd(); });
+  return {
+    node: page,
+    collect(note) {
+      note.title = title.value.trim();
+      note.content = body.value().trim();
+      return !!(note.content || note.title);
+    },
+    focus(isNew) { if (isNew) title.focus(); },
+  };
+}
+
+// =============================================================== journal
+
+export function journalEditor(ctx) {
+  const n = ctx.note;
+  const j = journal(n.data, dayStart(n.timestamp || Date.now()));
+  let body;
+  const title = titleField(ctx, 'Give the day a title', () => body.focusStart());
+  body = richBody(ctx, n.content, 'What happened today?');
+
+  const day = h('div.j-day'), weekday = h('div.j-weekday'), month = h('div.j-month');
+  const dateInput = h('input.j-date-input', { type: 'date', tabindex: -1 });
+  const showDay = () => {
+    const d = new Date(j.day);
+    day.textContent = d.getDate();
+    weekday.textContent = d.toLocaleDateString([], { weekday: 'long' });
+    month.textContent = d.toLocaleDateString([], { month: 'long', year: 'numeric' });
+    dateInput.value = new Date(j.day - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  };
+  dateInput.addEventListener('change', () => {
+    if (!dateInput.value) return;
+    const [y, m, dd] = dateInput.value.split('-').map(Number);
+    j.day = new Date(y, m - 1, dd).getTime();
+    showDay();
+    ctx.changed();
+  });
+  const header = h('div.j-header', { title: ctx.readOnly ? null : 'Change the day', onClick: () => { if (!ctx.readOnly) (dateInput.showPicker ? dateInput.showPicker() : dateInput.click()); } },
+    day, h('div', weekday, month), dateInput);
+  showDay();
+
+  const moods = h('div.moods');
+  const paintMoods = () => moods.querySelectorAll('.mood').forEach(b => b.classList.toggle('on', b.textContent === j.mood));
+  for (const m of MOODS) {
+    moods.appendChild(h('button.mood', { type: 'button', disabled: ctx.readOnly, onClick: () => { j.mood = j.mood === m ? '' : m; paintMoods(); ctx.changed(); } }, m));
+  }
+  paintMoods();
+
+  const strip = h('div.j-media');
+  function showMedia() {
+    strip.replaceChildren();
+    for (const name of j.media) {
+      const video = isVideo(name);
+      const el = video ? h('video', { muted: true, playsinline: true, preload: 'metadata' }) : h('img', { alt: '' });
+      ctx.fileUrl(name).then(u => { if (u) el.src = u; else tile.classList.add('missing'); });
+      const tile = h('div.j-tile', el, video ? h('span.j-play', icon('play', 22, '#fff')) : null,
+        ctx.readOnly ? null : h('button.pic-remove', { type: 'button', title: 'Remove', onClick: e => { e.stopPropagation(); j.media = j.media.filter(x => x !== name); showMedia(); ctx.changed(); } }, icon('close', 16, '#fff')));
+      tile.addEventListener('click', () => { if (el.src) window.open(el.src, '_blank'); });
+      strip.appendChild(tile);
+    }
+    if (!ctx.readOnly) {
+      strip.appendChild(h('button.j-add', { type: 'button', title: 'Add photos or videos', onClick: () => pickFiles('image/*,video/*', true, async files => {
+        for (const f of files) {
+          const name = mediaName(f.type.startsWith('video/') ? 'VID' : 'IMG', extOf(f));
+          await ctx.putFile(name, f);
+          j.media.push(name);
+        }
+        showMedia();
+        ctx.changed();
+      }) }, icon('add', 26)));
+    }
+  }
+  showMedia();
+
+  const foot = footer(ctx, '');
+  const update = () => { foot.textContent = editedLine(ctx.note) + '  ·  ' + body.words() + (body.words() === 1 ? ' word' : ' words'); };
+  body.node.addEventListener('input', update);
+  update();
+  const addPic = ctx.readOnly ? null : h('button.chip-btn', { type: 'button', onClick: () => pickFiles('image/*', true, f => body.addPicture(f)) }, icon('photo', 18), 'Picture in the text');
+  return {
+    node: h('div.page', header, moods, strip, title, body.node, h('div.page-actions', addPic), foot),
+    collect(note) {
+      note.title = title.value.trim();
+      note.content = body.value().trim();
+      note.data = journalJson(j);
+      return !!(note.content || note.title || j.media.length || j.mood);
+    },
+    focus(isNew) { if (isNew) body.focusStart(); },
+  };
+}
+
+// ================================================================== list
+
+export function listEditor(ctx) {
+  const n = ctx.note;
+  const items = todos(n.data);
+  let wrapItems = wraps(n.data);
+  if (!items.length) items.push({ text: '', done: false });
+  const title = titleField(ctx, 'List name', () => focusItem(0));
+  const rows = h('div.list-rows');
+  const bar = h('div.progress-fill');
+  const progress = h('div.list-progress');
+
+  function updateProgress() {
+    const real = items.filter(i => i.text.trim());
+    const done = real.filter(i => i.done).length;
+    progress.textContent = !real.length ? 'Nothing yet' : done === real.length ? 'All done 🎉' : `${done} of ${real.length} done`;
+    bar.style.width = (real.length ? (done * 100) / real.length : 0) + '%';
+  }
+
+  function row(item) {
+    const field = wrapItems
+      ? autoGrow(h('textarea.item-text', { rows: 1, placeholder: 'Item', readOnly: ctx.readOnly }))
+      : h('input.item-text', { type: 'text', placeholder: 'Item', readOnly: ctx.readOnly });
+    field.value = item.text;
+    const check = h('button.check' + (item.done ? '.on' : ''), { type: 'button', role: 'checkbox', 'aria-checked': String(item.done), disabled: ctx.readOnly }, icon('check', 16, '#fff'));
+    const handle = h('span.handle', { title: 'Drag to reorder' }, icon('noteList', 18));
+    const del = ctx.readOnly ? null : h('button.item-remove', { type: 'button', title: 'Delete item' }, icon('close', 18));
+    const el = h('div.item' + (item.done ? '.done' : ''), handle, check, field, del);
+    const setDone = d => {
+      item.done = d;
+      el.classList.toggle('done', d);
+      check.classList.toggle('on', d);
+      check.setAttribute('aria-checked', String(d));
+      updateProgress();
+      ctx.changed();
+    };
+    check.addEventListener('click', () => setDone(!item.done));
+    field.addEventListener('input', () => { item.text = field.value.replace(/\n/g, ' '); updateProgress(); ctx.changed(); });
+    field.addEventListener('keydown', e => {
+      const i = items.indexOf(item);
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setDone(!item.done); }
+      else if (e.key === 'Enter') { e.preventDefault(); addAt(i + 1); }
+      else if (e.key === 'Backspace' && !field.value && items.length > 1) { e.preventDefault(); removeAt(i); focusItem(Math.max(0, i - 1), true); }
+      else if (e.key === 'ArrowUp' && !wrapItems) { e.preventDefault(); focusItem(i - 1, true); }
+      else if (e.key === 'ArrowDown' && !wrapItems) { e.preventDefault(); focusItem(i + 1, true); }
+    });
+    if (del) del.addEventListener('click', () => { removeAt(items.indexOf(item)); if (!items.length) addAt(0); });
+    // Drag by the handle: the others make room as it passes their middle.
+    handle.addEventListener('pointerdown', e => {
+      if (ctx.readOnly) return;
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      el.classList.add('dragging');
+      const move = ev => {
+        const from = items.indexOf(item);
+        const kids = [...rows.children];
+        let to = from;
+        kids.forEach((k, idx) => {
+          const r = k.getBoundingClientRect(), mid = r.top + r.height / 2;
+          if (idx < from && ev.clientY < mid && to === from) to = idx;
+          if (idx > from && ev.clientY > mid) to = idx;
+        });
+        if (to !== from) {
+          items.splice(from, 1);
+          items.splice(to, 0, item);
+          if (to > from) kids[to].after(el); else kids[to].before(el);
+          ctx.changed();
+        }
+      };
+      const up = () => {
+        el.classList.remove('dragging');
+        handle.removeEventListener('pointermove', move);
+        handle.removeEventListener('pointerup', up);
+      };
+      handle.addEventListener('pointermove', move);
+      handle.addEventListener('pointerup', up);
+    });
+    el._field = field;
+    return el;
+  }
+
+  function render() {
+    rows.replaceChildren(...items.map(row));
+    updateProgress();
+  }
+
+  function addAt(i) {
+    const item = { text: '', done: false };
+    items.splice(i, 0, item);
+    const el = row(item);
+    if (i >= rows.children.length) rows.appendChild(el); else rows.children[i].before(el);
+    updateProgress();
+    el._field.focus();
+  }
+
+  function removeAt(i) {
+    if (i < 0 || i >= items.length) return;
+    items.splice(i, 1);
+    rows.children[i].remove();
+    updateProgress();
+    ctx.changed();
+  }
+
+  function focusItem(i, atEnd) {
+    const el = rows.children[i];
+    if (!el) return;
+    el._field.focus();
+    if (atEnd) { const l = el._field.value.length; el._field.setSelectionRange(l, l); }
+  }
+
+  render();
+  const add = ctx.readOnly ? null : h('button.add-row', { type: 'button', onClick: () => addAt(items.length) }, icon('add', 24, 'var(--tile-green)'), 'Add item');
+  return {
+    node: h('div.page', title, h('div.progress-track', bar), progress, rows, add),
+    collect(note) {
+      note.title = title.value.trim();
+      const kept = items.filter(i => i.text.trim());
+      note.data = todosJson(kept, wrapItems);
+      note.content = kept.map(i => i.text.trim()).join('\n');
+      return !!(kept.length || note.title);
+    },
+    wrap: () => wrapItems,
+    setWrap(w) { wrapItems = w; render(); },
+    focus(isNew) { if (isNew) title.focus(); },
+  };
+}
+
+export const forType = { [TEXT]: textEditor, [LIST]: listEditor, [JOURNAL]: journalEditor };

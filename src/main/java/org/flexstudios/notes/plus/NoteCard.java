@@ -267,7 +267,12 @@ final class NoteCard extends VBox {
 
     private void footer() {
         NoteData.Kind kind = NoteData.kind(note.getType());
-        Label date = new Label(relative(note.getTimestamp()));
+        String when = relative(note.getTimestamp());
+        int people = note.getGroupId() == null ? 0 : GroupNotes.count(note.getGroupMembers());
+        int sent = SentNotes.count(note.getSentTo());
+        Label date = new Label(note.isReceived() ? "@" + note.getSharedFrom() + "  ·  " + when
+                : people > 0 ? "Shared · " + people + "  ·  " + when
+                : sent > 0 ? "Sent to " + sent + "  ·  " + when : when);
         date.getStyleClass().add("card-date");
         HBox.setHgrow(date, Priority.ALWAYS);
         date.setMaxWidth(Double.MAX_VALUE);

@@ -1,26 +1,29 @@
-## Notes+ for Windows 1.0 — your notes, now on your PC
+## Notes+ for Windows 1.1 — share your notes
 
-Notes+ comes to the desktop. Same app, same look, same account: sign in and your notes move
-between your phone and your PC by themselves.
+Pairs with Notes+ 10 for Android.
 
-### What's in it
-- **All six kinds of notes**: text, lists, journals, mind maps, sketches and voice recordings,
-  looking just like on your phone, in light and dark.
-- **Sync with your phone**: sign in with the same account (Google or email) and everything comes
-  across. Edit on both at once and both versions are kept.
-- **Paste pictures anywhere**: Ctrl+V a picture into a note or journal and it lands right where
-  your cursor is. Paste one onto a mind-map idea and it's attached to that idea.
-- **Links and IPs**: hold Ctrl to see them underlined; Ctrl+click opens a link or copies an IP.
-- **Both hidden spaces**: the encrypted vault and the private chat, behind the same kind of
-  gesture as on the phone, with the same locks.
-- **Keyboard first**: Ctrl+N new note, Ctrl+F search, Tab to add mind-map ideas, Esc to go back.
+### New
+- **Send a note to someone**: from a note's ⋮ menu (or right-click its card), choose
+  *Send to people* and type their @username. It appears in their notes under the new
+  **Shared with me** filter, with your name on it. They can read it, but only you can change it,
+  and they always see your latest version. Pictures and recordings go along, encrypted.
+  *Save a copy* gives them their own editable version; *Remove* takes it off their list; you can
+  stop sending it to anyone at any time.
+- **Group notes on the desktop**: *Share with people* turns a note into a group note that
+  everyone in it can edit (up to 20 people), now with its pictures too. See who's in, invite
+  more, remove someone (if it's yours), or leave.
+- **Back buttons** in the vault and chat screens, alongside Esc.
+
+### Fixed
+- Recordings made on the desktop now play on every phone (with Notes+ 10 for Android).
+- Sharing works with anyone who has a @username, even if they've never opened chat.
+- Google sign-in reliably opens your browser, with *Open browser again* and *Copy link* if it
+  didn't.
 
 ### Install
-1. Download `Notes-Plus-Windows-1.0.0.zip` below. Everything it needs is inside: no Java, no installer.
-2. Extract it to a folder you'll keep, and open `Notes+.exe`.
+1. Download `Notes-Plus-Windows-1.1.0.zip` below. Everything it needs is inside: no Java, no installer.
+2. Extract it, replacing your old Notes+ folder if you have one (your notes are kept separately,
+   in `%APPDATA%\Notes+`), and open `Notes+.exe`.
 3. If Windows SmartScreen says it doesn't recognise the app, choose **More info → Run anyway**.
-   It appears because the app is new and not yet code-signed.
 
-Your notes are kept in `%APPDATA%\Notes+`. To update later, replace the folder; your data stays.
-
-SHA-256 of `Notes-Plus-Windows-1.0.0.zip`: `18bac30323c491977df18f53f02d4aeea7cf79207fdde4a6d5c3f8ce9b75589b`
+SHA-256 of `Notes-Plus-Windows-1.1.0.zip`: `65ed7d571de4f91e5b03e2fc0070a770a003d5f06107b93515471a4ae14d04bd`

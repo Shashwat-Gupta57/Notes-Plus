@@ -23,6 +23,8 @@ import java.util.function.Consumer;
 abstract class NoteEditor extends Screen {
 
     protected NoteEntity note;
+    /** Someone else's note sent to me: shown, never changed (pin and colour are mine). */
+    protected boolean readOnly;
     protected final String type;
     private final int noteId;
     private boolean createdHere;
@@ -55,8 +57,7 @@ abstract class NoteEditor extends Screen {
     protected void setUpNote(Node body) {
         pinButton = Ui.iconButton(Icons.PIN, "text_secondary", "Pin", this::togglePin);
         Button more = Ui.iconButton(Icons.MORE, "text_primary", "More options", () -> {});
-        more.setOnAction(e -> Ui.menu(more, List.of("Delete"), List.of(() ->
-                Ui.confirm("Delete this note?", "Delete", () -> delete(true)))));
+        more.setOnAction(e -> showMenu(more));
         toolbar.getChildren().setAll(
                 Ui.iconButton(Icons.ARROW_BACK, "text_primary", "Back (Esc)", NotesApp::back),
                 Ui.spacer(),
@@ -84,11 +85,18 @@ abstract class NoteEditor extends Screen {
                 return;
             }
             note = loaded;
+            readOnly = loaded.isReceived();
             NoteSync.OPEN.add(note.getId());
             savedState = state(note);
             applyColor();
             showPin();
             onNoteLoaded(note);
+            if (readOnly) {
+                lockForReading();
+                javafx.scene.control.Label from = Ui.label("From @" + loaded.getSharedFrom() + "  ·  read only", 14, "secondary");
+                toolbar.getChildren().add(1, from);
+                HBox.setMargin(from, new javafx.geometry.Insets(0, 0, 0, 8));
+            }
             // Opened to read: no caret anywhere until a click puts one, like the phone.
             javafx.application.Platform.runLater(root::requestFocus);
         });
@@ -146,6 +154,16 @@ abstract class NoteEditor extends Screen {
      */
     protected void save(boolean leaving) {
         if (note == null) return;
+        if (readOnly) {
+            // Only my own choices about it: pinned, and its colour.
+            final int id = note.getId(), color = note.getColor();
+            final boolean pinned = note.isPinned();
+            NoteStore.write(s -> {
+                s.setPinned(id, pinned);
+                s.setColor(id, color);
+            });
+            return;
+        }
         boolean keep = collect(note);
         if (!keep) {
             if (leaving && createdHere && note.getId() > 0) delete(false);
@@ -188,7 +206,60 @@ abstract class NoteEditor extends Screen {
         if (thenFinish) NotesApp.back();
     }
 
+    /**
+     * Makes the editor read-only, for a note sent to me. The default stops every text field and
+     * tick box from changing; editors with more to lock (drawing, the map, recording) add to it.
+     */
+    protected void lockForReading() {
+        lock(root);
+    }
+
+    static void lock(Node n) {
+        if (n instanceof javafx.scene.control.TextInputControl t) t.setEditable(false);
+        else if (n instanceof javafx.scene.control.CheckBox c) c.setDisable(true);
+        if (n instanceof javafx.scene.Parent p) for (Node c : p.getChildrenUnmodifiable()) lock(c);
+    }
+
     // ===================================================================== actions
+
+    /** The "more" menu: what can be done with this note, mine or someone else's. */
+    private void showMenu(Button more) {
+        if (note == null) return;
+        List<String> labels = new java.util.ArrayList<>();
+        List<Runnable> actions = new java.util.ArrayList<>();
+        if (readOnly) {
+            NoteEntity received = note;
+            labels.add("Save a copy");
+            actions.add(() -> SharingUi.saveCopy(received, true));
+            labels.add("Remove");
+            actions.add(() -> SharingUi.confirmRemoveReceived(received, NotesApp::back));
+        } else {
+            boolean signedIn = Account.uid() != null;
+            if (signedIn && note.getGroupId() == null) {
+                int sent = SentNotes.count(note.getSentTo());
+                labels.add(sent > 0 ? "Sent to " + sent : "Send to people");
+                actions.add(() -> afterSave(SharingUi::sendSheet));
+            }
+            if (signedIn && !NoteData.AUDIO.equals(note.getType()) && note.getSentTo() == null) {
+                labels.add(note.getGroupId() != null ? "People" : "Share with people");
+                actions.add(() -> afterSave(SharingUi::peopleSheet));
+            }
+            labels.add("Delete");
+            actions.add(() -> Ui.confirm("Delete this note?", "Delete", () -> delete(true)));
+        }
+        Ui.menu(more, labels, actions);
+    }
+
+    /** Saves first and lets the write land, so what is shared is what's on screen. */
+    private void afterSave(java.util.function.IntConsumer then) {
+        save(false);
+        if (note == null) return;
+        if (note.getId() > 0) {
+            NoteStore.load(s -> note.getId(), then::accept);
+            return;
+        }
+        withFolder(dir -> then.accept(note.getId()));
+    }
 
     private void togglePin() {
         if (note == null) return;

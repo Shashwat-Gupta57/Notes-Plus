@@ -47,6 +47,8 @@ final class MainView extends Screen {
     private List<NoteEntity> allNotes = new ArrayList<>();
     private final Map<Integer, NoteCard> cards = new HashMap<>();
     private String filterType;
+    /** The "Shared with me" filter: notes sent to me by others. */
+    private static final String SHARED = "SHARED";
     private String query = "";
     private double lastScrollY;
 
@@ -70,6 +72,7 @@ final class MainView extends Screen {
         chips.setPadding(new Insets(0, 12, 6, 12));
         ToggleGroup group = new ToggleGroup();
         chips.getChildren().add(chip(group, "All", null, true));
+        chips.getChildren().add(chip(group, "Shared with me", SHARED, false));
         for (NoteData.Kind kind : NoteData.KINDS) chips.getChildren().add(chip(group, kind.plural(), kind.type(), false));
         group.selectedToggleProperty().addListener((o, a, b) -> {
             if (b == null) a.setSelected(true); // selectionRequired
@@ -196,7 +199,10 @@ final class MainView extends Screen {
         chip.setToggleGroup(group);
         chip.setSelected(selected);
         chip.setFocusTraversable(false);
-        if (type != null) {
+        if (SHARED.equals(type)) {
+            chip.setGraphic(Ui.icon(Icons.PERSON, 18, "tile_teal"));
+            chip.getStyleClass().add("with-icon");
+        } else if (type != null) {
             NoteData.Kind kind = NoteData.kind(type);
             chip.setGraphic(Ui.icon(kind.icon(), 18, kind.accent()));
             chip.getStyleClass().add("with-icon");
@@ -234,7 +240,7 @@ final class MainView extends Screen {
         List<NoteEntity> shown = new ArrayList<>();
         String q = query.toLowerCase(Locale.getDefault());
         for (NoteEntity n : allNotes) {
-            if (filterType != null && !filterType.equals(n.getType())) continue;
+            if (SHARED.equals(filterType) ? !n.isReceived() : filterType != null && !filterType.equals(n.getType())) continue;
             if (!q.isEmpty()) {
                 String hay = ((n.getTitle() == null ? "" : n.getTitle()) + "\n"
                         + (n.getContent() == null ? "" : n.getContent())).toLowerCase(Locale.getDefault());
@@ -269,6 +275,7 @@ final class MainView extends Screen {
 
         emptyState.setVisible(shown.isEmpty());
         emptyText.setText(!q.isEmpty() ? "Nothing matches “" + query + "”"
+                : SHARED.equals(filterType) ? "Nothing shared with you yet. When someone sends you a note, it shows up here."
                 : filterType != null ? "No " + NoteData.kind(filterType).plural().toLowerCase(Locale.getDefault()) + " yet"
                 : "No notes yet. Click New to start.");
     }
@@ -354,11 +361,30 @@ final class MainView extends Screen {
     private void showNoteOptions(NoteEntity note) {
         String name = note.getTitle() == null || note.getTitle().isEmpty()
                 ? NoteData.kind(note.getType()).label() : note.getTitle();
-        Ui.dialog().title(name).items(
-                List.of(note.isPinned() ? "Unpin" : "Pin to top", "Colour", "Delete"),
-                List.of(() -> NoteStore.write(s -> s.setPinned(note.getId(), !note.isPinned())),
-                        () -> pickColor(note),
-                        () -> deleteWithUndo(note))).show();
+        java.util.List<String> labels = new java.util.ArrayList<>(List.of(note.isPinned() ? "Unpin" : "Pin to top", "Colour"));
+        java.util.List<Runnable> actions = new java.util.ArrayList<>(List.of(
+                () -> NoteStore.write(s -> s.setPinned(note.getId(), !note.isPinned())), () -> pickColor(note)));
+        if (note.isReceived()) {
+            // Someone else's note: mine to pin, colour, copy or put away, not to change.
+            labels.add("Save a copy");
+            actions.add(() -> SharingUi.saveCopy(note, false));
+            labels.add("Remove");
+            actions.add(() -> SharingUi.confirmRemoveReceived(note, null));
+        } else {
+            boolean signedIn = Account.uid() != null;
+            if (signedIn && note.getGroupId() == null) {
+                int sent = SentNotes.count(note.getSentTo());
+                labels.add(sent > 0 ? "Sent to " + sent + "…" : "Send to people…");
+                actions.add(() -> SharingUi.sendSheet(note.getId()));
+            }
+            if (signedIn && !NoteData.AUDIO.equals(note.getType()) && note.getSentTo() == null) {
+                labels.add(note.getGroupId() != null ? "People…" : "Share with people…");
+                actions.add(() -> SharingUi.peopleSheet(note.getId()));
+            }
+            labels.add("Delete");
+            actions.add(() -> deleteWithUndo(note));
+        }
+        Ui.dialog().title(name).items(labels, actions).show();
     }
 
     private void pickColor(NoteEntity note) {

@@ -44,6 +44,9 @@ import java.util.regex.Pattern;
  */
 final class RichBody extends VBox {
 
+    /** A note sent to me: read only, nothing pasted or dropped in. */
+    boolean locked;
+
     static final Pattern EMBED = Pattern.compile("^!\\[\\[([^\\]/\\\\]+)\\]\\]$");
     private static final double SPACING = 4.5;
 
@@ -63,6 +66,7 @@ final class RichBody extends VBox {
         this.scroll = scroll;
         setPadding(new Insets(0, 20, 0, 20));
         setOnDragOver(e -> {
+            if (locked) return;
             if (e.getDragboard().hasFiles() && e.getDragboard().getFiles().stream().anyMatch(RichBody::isPicture)) {
                 e.acceptTransferModes(TransferMode.COPY);
             }
@@ -204,6 +208,7 @@ final class RichBody extends VBox {
     private static final KeyCombination PASTE_INSERT = KeyCombination.keyCombination("Shift+Insert");
 
     private void keys(TextArea area, KeyEvent e) {
+        if (locked) return;
         int index = getChildren().indexOf(area);
         if (PASTE.match(e) || PASTE_INSERT.match(e)) {
             if (pasteImage(area)) e.consume();

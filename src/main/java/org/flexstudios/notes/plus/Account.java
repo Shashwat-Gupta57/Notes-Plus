@@ -335,9 +335,17 @@ final class Account {
         NoteSync.stopLive();
         NoteSync.eraseAttachments();
         Object username = Firebase.get("users/" + uid + "/profile/username", null);
+        // Notes I sent stop being readable by anyone.
+        for (NoteEntity n : NoteStore.get().sentNotes(uid)) {
+            try {
+                SentNotes.takeDown(uid, n);
+            } catch (IOException e) {
+                System.getLogger("Account").log(System.Logger.Level.WARNING, "A sent note wasn't taken down", e);
+            }
+        }
         JSONObject wipe = new JSONObject();
         for (String node : new String[]{"users", "chatHome", "chatIndex", "chatVaults", "chatPlace", "chatSessions",
-                "chatNick", "profiles", "vaultPhotos", "groupIndex"}) {
+                "chatNick", "profiles", "vaultPhotos", "groupIndex", "inbox"}) {
             wipe.put(node + "/" + uid, JSONObject.NULL);
         }
         if (username instanceof String u) wipe.put("usernames/" + u, JSONObject.NULL);

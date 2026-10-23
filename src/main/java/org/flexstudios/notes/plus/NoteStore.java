@@ -53,7 +53,21 @@ final class NoteStore {
                     + "groupId TEXT, groupMembers TEXT)");
             s.execute("CREATE INDEX IF NOT EXISTS index_notes_pinned_timestamp ON notes (pinned, timestamp)");
             s.execute("CREATE UNIQUE INDEX IF NOT EXISTS index_notes_uuid ON notes (uuid)");
-            s.execute("PRAGMA user_version = 1");
+            int version;
+            try (ResultSet r = s.executeQuery("PRAGMA user_version")) {
+                version = r.next() ? r.getInt(1) : 0;
+            }
+            if (version < 2) {
+                // Notes sent to people (mine), and notes sent to me (theirs, read-only).
+                for (String column : new String[]{"sentTo", "sentMedia", "sharedFrom"}) {
+                    try {
+                        s.execute("ALTER TABLE notes ADD COLUMN " + column + " TEXT");
+                    } catch (SQLException exists) {
+                        // Added by an interrupted earlier start.
+                    }
+                }
+            }
+            s.execute("PRAGMA user_version = 2");
         }
     }
 
@@ -128,11 +142,12 @@ final class NoteStore {
 
     synchronized int insert(NoteEntity n) {
         String sql = "INSERT INTO notes (title, content, timestamp, type, data, color, pinned, uuid, account, rev, "
-                + "dirty, deleted, media, groupId, groupMembers) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + "dirty, deleted, media, groupId, groupMembers, sentTo, sentMedia, sharedFrom) "
+                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
         try (PreparedStatement p = db.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             bind(p, n.getTitle(), n.getContent(), n.getTimestamp(), n.getType(), n.getData(), n.getColor(),
                     n.isPinned(), n.getUuid(), n.getAccount(), n.getRev(), n.isDirty(), n.isDeleted(), n.getMedia(),
-                    n.getGroupId(), n.getGroupMembers());
+                    n.getGroupId(), n.getGroupMembers(), n.getSentTo(), n.getSentMedia(), n.getSharedFrom());
             p.executeUpdate();
             try (ResultSet keys = p.getGeneratedKeys()) {
                 int id = keys.next() ? keys.getInt(1) : 0;
@@ -189,14 +204,16 @@ final class NoteStore {
     /** A whole row, as sync writes it. */
     synchronized void update(NoteEntity n) {
         update("UPDATE notes SET title = ?, content = ?, timestamp = ?, type = ?, data = ?, color = ?, pinned = ?, "
-                        + "uuid = ?, account = ?, rev = ?, dirty = ?, deleted = ?, media = ?, groupId = ?, groupMembers = ? "
-                        + "WHERE id = ?", n.getTitle(), n.getContent(), n.getTimestamp(), n.getType(), n.getData(), n.getColor(),
-                n.isPinned(), n.getUuid(), n.getAccount(), n.getRev(), n.isDirty(), n.isDeleted(), n.getMedia(),
-                n.getGroupId(), n.getGroupMembers(), n.getId());
+                        + "uuid = ?, account = ?, rev = ?, dirty = ?, deleted = ?, media = ?, groupId = ?, groupMembers = ?, "
+                        + "sentTo = ?, sentMedia = ?, sharedFrom = ? WHERE id = ?", n.getTitle(), n.getContent(), n.getTimestamp(),
+                n.getType(), n.getData(), n.getColor(), n.isPinned(), n.getUuid(), n.getAccount(), n.getRev(), n.isDirty(),
+                n.isDeleted(), n.getMedia(), n.getGroupId(), n.getGroupMembers(), n.getSentTo(), n.getSentMedia(),
+                n.getSharedFrom(), n.getId());
     }
 
+    /** Received notes are someone else's: never pushed from here. */
     synchronized List<NoteEntity> dirtyNotes(String account) {
-        return query("SELECT * FROM notes WHERE account = ? AND dirty = 1", account);
+        return query("SELECT * FROM notes WHERE account = ? AND dirty = 1 AND sharedFrom IS NULL", account);
     }
 
     synchronized int countDirty(String account) {
@@ -216,8 +233,8 @@ final class NoteStore {
 
     /** Leaving an account but keeping its notes: they become this computer's own again. */
     synchronized void release(String account) {
-        update("UPDATE notes SET account = NULL, rev = 0, dirty = 1, media = NULL, groupId = NULL, groupMembers = NULL "
-                + "WHERE account = ?", account);
+        update("UPDATE notes SET account = NULL, rev = 0, dirty = 1, media = NULL, groupId = NULL, groupMembers = NULL, "
+                + "sentTo = NULL, sentMedia = NULL WHERE account = ? AND sharedFrom IS NULL", account);
     }
 
     synchronized List<NoteEntity> notesOf(String account) {
@@ -242,6 +259,30 @@ final class NoteStore {
 
     synchronized void purge(int id) {
         update("DELETE FROM notes WHERE id = ?", id);
+    }
+
+    /** Mine, sent to people. */
+    synchronized List<NoteEntity> sentNotes(String account) {
+        return query("SELECT * FROM notes WHERE account = ? AND sentTo IS NOT NULL AND sharedFrom IS NULL", account);
+    }
+
+    /** Theirs, sent to me. */
+    synchronized List<NoteEntity> receivedNotes(String account) {
+        return query("SELECT * FROM notes WHERE account = ? AND sharedFrom IS NOT NULL", account);
+    }
+
+    synchronized void setSentTo(int id, String sentTo) {
+        update("UPDATE notes SET sentTo = ? WHERE id = ?", sentTo, id);
+    }
+
+    synchronized void setSentMedia(int id, String sentMedia) {
+        update("UPDATE notes SET sentMedia = ? WHERE id = ?", sentMedia, id);
+    }
+
+    /** Now shared: synced through groupNotes/{groupId}, at its first revision there. */
+    synchronized void makeGroup(int id, String groupId, String members, long rev, boolean dirty) {
+        update("UPDATE notes SET groupId = ?, groupMembers = ?, rev = ?, media = NULL, dirty = ? WHERE id = ?",
+                groupId, members, rev, dirty, id);
     }
 
     synchronized List<NoteEntity> groupNotes(String account) {
@@ -305,6 +346,9 @@ final class NoteStore {
         n.setMedia(r.getString("media"));
         n.setGroupId(r.getString("groupId"));
         n.setGroupMembers(r.getString("groupMembers"));
+        n.setSentTo(r.getString("sentTo"));
+        n.setSentMedia(r.getString("sentMedia"));
+        n.setSharedFrom(r.getString("sharedFrom"));
         return n;
     }
 }

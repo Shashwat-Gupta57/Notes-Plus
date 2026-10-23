@@ -74,16 +74,17 @@ final class MindMapEditor extends NoteEditor {
         StackPane.setAlignment(hint, Pos.TOP_CENTER);
         StackPane.setMargin(hint, new Insets(4, 0, 0, 0));
 
+        tidyButton = Ui.miniFab(Icons.NOTE_MINDMAP, "Tidy up the layout", map::tidy);
         HBox tools = new HBox(10,
                 Ui.miniFab(Icons.CENTER, "Show everything", () -> map.fit(true)),
-                Ui.miniFab(Icons.NOTE_MINDMAP, "Tidy up the layout", map::tidy),
+                tidyButton,
                 Ui.miniFab(Icons.SAVE, "Save as a picture", this::saveAsImage));
         tools.setMaxSize(HBox.USE_PREF_SIZE, HBox.USE_PREF_SIZE);
         tools.setPickOnBounds(false);
         StackPane.setAlignment(tools, Pos.BOTTOM_LEFT);
         StackPane.setMargin(tools, new Insets(20));
 
-        Button add = Ui.extendedFab("Add idea", Icons.ADD, () -> {
+        add = Ui.extendedFab("Add idea", Icons.ADD, () -> {
             NoteData.MindNode parent = map.selected();
             addChild(parent != null ? parent : map.root());
         });
@@ -91,6 +92,7 @@ final class MindMapEditor extends NoteEditor {
         StackPane.setAlignment(add, Pos.BOTTOM_RIGHT);
         StackPane.setMargin(add, new Insets(24));
 
+        this.hint = hint;
         StackPane stage = new StackPane(map, hint, tools, add);
         BorderPane body = new BorderPane(stage);
         VBoxed top = new VBoxed(title);
@@ -131,8 +133,24 @@ final class MindMapEditor extends NoteEditor {
         return !text.toString().trim().isEmpty() || !note.getTitle().isEmpty();
     }
 
+    private Button add, tidyButton;
+    private Label hint;
+
+    /** A map sent to me: nothing to add, move, rename, tidy or paste in. */
+    @Override
+    protected void lockForReading() {
+        super.lockForReading();
+        map.locked = true;
+        for (javafx.scene.Node n : new javafx.scene.Node[]{add, tidyButton}) {
+            n.setVisible(false);
+            n.setManaged(false);
+        }
+        hint.setText("Drag to look around · scroll to zoom · Ctrl+click opens links");
+    }
+
     /** Tab: a child of the selection. Enter: a sibling. F2: rename. Delete: the branch. */
     private void mapKeys(KeyEvent e) {
+        if (readOnly) return;
         NoteData.MindNode selected = map.selected();
         if (e.isShortcutDown() && e.getCode() == KeyCode.V) {
             Clipboard cb = Clipboard.getSystemClipboard();

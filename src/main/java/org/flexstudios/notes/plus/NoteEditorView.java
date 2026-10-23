@@ -201,7 +201,9 @@ final class NoteEditorView extends NoteEditor {
 
         HBox add = new HBox(Ui.icon(Icons.ADD, 24, "tile_green"), Ui.label("Add item", 17, "secondary"));
         add.getStyleClass().add("add-row");
-        add.setOnMouseClicked(e -> addItemAt(items.size()));
+        add.setOnMouseClicked(e -> {
+            if (!readOnly) addItemAt(items.size());
+        });
 
         updateProgress();
         return new VBox(track, listProgress, itemRows, add);
@@ -276,7 +278,9 @@ final class NoteEditorView extends NoteEditor {
             StackPane target = new StackPane(box);
             target.setMinSize(44, 44);
             target.setStyle("-fx-cursor: hand;");
-            target.setOnMouseClicked(e -> setDone(!item.done));
+            target.setOnMouseClicked(e -> {
+                if (!readOnly) setDone(!item.done);
+            });
 
             text.getStyleClass().addAll("bare");
             text.setStyle("-fx-font-size: 17px; -fx-text-fill: " + Theme.ref("text_body") + ";");
@@ -395,10 +399,13 @@ final class NoteEditorView extends NoteEditor {
         date.setMaxWidth(Region.USE_PREF_SIZE);
         date.setStyle("-fx-cursor: hand; -fx-background-radius: 12;");
         Ui.tooltip(date, "Change the day");
-        date.setOnMouseClicked(e -> Ui.pickDate(journal.day, day -> {
-            journal.day = day;
-            showDay();
-        }));
+        date.setOnMouseClicked(e -> {
+            if (readOnly) return;
+            Ui.pickDate(journal.day, day -> {
+                journal.day = day;
+                showDay();
+            });
+        });
         showDay();
 
         Label ask = Ui.label("How was it?", 13, "secondary");
@@ -411,6 +418,7 @@ final class NoteEditorView extends NoteEditor {
             chip.setUserData(mood);
             chip.setStyle("-fx-cursor: hand;");
             chip.setOnMouseClicked(e -> {
+                if (readOnly) return;
                 journal.mood = mood.equals(journal.mood) ? "" : mood;
                 showMoods();
                 ScaleTransition pop = new ScaleTransition(Duration.millis(90), chip);
@@ -435,6 +443,7 @@ final class NoteEditorView extends NoteEditor {
         Button add = new Button("Add photos or videos", Ui.icon(Icons.PHOTO, 18, "m3_on_secondary_container"));
         add.getStyleClass().setAll("tonal-button");
         add.setOnAction(e -> pickMedia());
+        add.getStyleClass().add("add-media");
         VBox.setMargin(add, new Insets(8, 0, 0, 0));
 
         VBox header = new VBox(date, ask, moodRow, mediaScroll, add);
@@ -521,19 +530,35 @@ final class NoteEditorView extends NoteEditor {
             tile.setOnMouseClicked(e -> {
                 if (e.getButton() == MouseButton.PRIMARY) MediaViewer.open(file, video);
             });
-            tile.setOnContextMenuRequested(e -> Ui.confirm("Remove from this entry?", "Remove", () -> {
-                journal.media.remove(name);
-                showMedia();
-                NoteStore.write(s -> {
-                    try {
-                        Files.deleteIfExists(file);
-                    } catch (Exception ex) {
-                        System.getLogger("NoteEditor").log(System.Logger.Level.WARNING, "Could not delete " + file, ex);
-                    }
+            tile.setOnContextMenuRequested(e -> {
+                if (readOnly) return;
+                Ui.confirm("Remove from this entry?", "Remove", () -> {
+                    journal.media.remove(name);
+                    showMedia();
+                    NoteStore.write(s -> {
+                        try {
+                            Files.deleteIfExists(file);
+                        } catch (Exception ex) {
+                            System.getLogger("NoteEditor").log(System.Logger.Level.WARNING, "Could not delete " + file, ex);
+                        }
+                    });
                 });
-            }));
-            Ui.tooltip(tile, "Click to view · right-click to remove");
+            });
+            Ui.tooltip(tile, readOnly ? "Click to view" : "Click to view · right-click to remove");
             mediaStrip.getChildren().add(tile);
+        }
+    }
+
+    /** A note sent to me: nothing to add, tick, reorder, re-date or paste in. */
+    @Override
+    protected void lockForReading() {
+        super.lockForReading();
+        if (body != null) body.locked = true;
+        for (String cls : new String[]{".add-row", ".add-media", ".list-handle"}) {
+            for (Node n : root.lookupAll(cls)) {
+                n.setVisible(false);
+                n.setManaged(!cls.equals(".add-media") && !cls.equals(".add-row"));
+            }
         }
     }
 

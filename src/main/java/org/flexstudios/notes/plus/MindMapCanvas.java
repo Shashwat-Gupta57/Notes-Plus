@@ -36,6 +36,9 @@ import java.util.Set;
  */
 final class MindMapCanvas extends Region {
 
+    /** A map sent to me: look, pan, zoom and fold; nothing else. */
+    boolean locked;
+
     interface Listener {
         void onRename(NoteData.MindNode node);
 
@@ -101,7 +104,7 @@ final class MindMapCanvas extends Region {
             setOnZoom(this::zoomed);
             setOnContextMenuRequested(e -> {
                 NoteData.MindNode hit = hit(e.getX(), e.getY());
-                if (hit == null || listener == null) return;
+                if (hit == null || listener == null || locked) return;
                 dragging = null;
                 select(hit);
                 listener.onOptions(hit);
@@ -702,6 +705,8 @@ final class MindMapCanvas extends Region {
         if (e.getButton() != MouseButton.PRIMARY) return;
         dragging = hit(e.getX(), e.getY());
         // Ctrl+click on an idea with a link or an IP address: open it, or copy it.
+        boolean linkClick = e.isShortcutDown() && dragging != null && !Links.find(dragging.text).isEmpty();
+        if (locked && !linkClick) dragging = null;
         if (e.isShortcutDown() && dragging != null) {
             List<Links.Match> found = Links.find(dragging.text);
             if (!found.isEmpty()) {
@@ -754,7 +759,7 @@ final class MindMapCanvas extends Region {
     private void clicked(MouseEvent e) {
         if (e.getButton() != MouseButton.PRIMARY || e.getClickCount() != 2 || moved) return;
         NoteData.MindNode hit = hit(e.getX(), e.getY());
-        if (hit != null && listener != null) listener.onRename(hit);
+        if (hit != null && listener != null && !locked) listener.onRename(hit);
         else fit(true);
     }
 

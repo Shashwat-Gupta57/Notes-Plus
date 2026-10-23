@@ -128,6 +128,11 @@ final class NoteSync {
     /** Signing out: the account's notes become this computer's own, or leave it. Blocking. */
     static void leave(String uid, boolean keepNotes) {
         NoteStore store = NoteStore.get();
+        // Notes sent to me were never mine to keep.
+        for (NoteEntity n : store.receivedNotes(uid)) {
+            NoteData.deleteFiles(n.getId());
+            store.purge(n.getId());
+        }
         if (keepNotes) {
             store.release(uid);
         } else {
@@ -164,6 +169,11 @@ final class NoteSync {
         } catch (Exception e) {
             LOG.log(System.Logger.Level.WARNING, "Group notes not fetched this time", e);
         }
+        try {
+            SentNotes.pull(uid);
+        } catch (Exception e) {
+            LOG.log(System.Logger.Level.WARNING, "Sent notes not fetched this time", e);
+        }
         Drive drive = Account.drive();
         if (drive != null) {
             try {
@@ -174,12 +184,11 @@ final class NoteSync {
             }
         }
         push(uid, drive);
-        if (drive != null) {
-            try {
-                downloadAttachments(uid, drive);
-            } catch (IOException e) {
-                driveFailed(e);
-            }
+        try {
+            // Group notes' and received notes' files come from their links: no Drive needed for those.
+            downloadAttachments(uid, drive);
+        } catch (IOException e) {
+            driveFailed(e);
         }
         sweepTombstones(uid);
         Prefs.put(PREF_LAST_SYNC + uid, System.currentTimeMillis());
@@ -329,6 +338,14 @@ final class NoteSync {
 
     private static void pushOne(String uid, NoteEntity note, Drive drive, boolean mayRetry) throws Exception {
         NoteStore store = NoteStore.get();
+        if (note.isDeleted() && note.getSentTo() != null) {
+            try {
+                SentNotes.takeDown(uid, note);
+            } catch (Exception e) {
+                LOG.log(System.Logger.Level.WARNING, "Couldn't take a sent note down; next time", e);
+                return;
+            }
+        }
         if (note.isDeleted() && note.getRev() == 0) {
             store.purge(note.getId()); // Never reached the account: nothing to tell it.
             return;
@@ -362,6 +379,13 @@ final class NoteSync {
             } else {
                 store.markSynced(note.getId(), expected + 1, note.getTimestamp());
                 if (groupId != null) announce(groupId, note.getGroupMembers());
+                if (note.getSentTo() != null) {
+                    try {
+                        SentNotes.publish(uid, note, drive);
+                    } catch (Exception e) {
+                        LOG.log(System.Logger.Level.WARNING, "The sent copy waits for the next sync", e);
+                    }
+                }
             }
             return;
         }
@@ -483,7 +507,7 @@ final class NoteSync {
     // ============================================================ group notes
 
     /** Tells every member's devices that the group note changed. */
-    private static void announce(String gid, String membersJson) {
+    static void announce(String gid, String membersJson) {
         JSONObject members = json(membersJson);
         JSONObject update = new JSONObject();
         for (String m : members.keySet()) update.put("groupIndex/" + m + "/" + gid, new JSONObject().put("at", Firebase.now()));
@@ -496,7 +520,7 @@ final class NoteSync {
     }
 
     /** I leave; the others keep it. */
-    private static void leaveGroup(String uid, String gid) throws IOException {
+    static void leaveGroup(String uid, String gid) throws IOException {
         try {
             Object size = Firebase.get("groupNotes/" + gid + "/size", null);
             long n = size instanceof Number num ? num.longValue() : 1;
@@ -528,7 +552,7 @@ final class NoteSync {
         }
     }
 
-    private static boolean uses(NoteEntity note, String name) {
+    static boolean uses(NoteEntity note, String name) {
         return (note.getData() != null && note.getData().contains(name))
                 || (note.getContent() != null && note.getContent().contains(name));
     }
@@ -538,13 +562,23 @@ final class NoteSync {
         NoteStore store = NoteStore.get();
         String root = null;
         for (NoteEntity note : store.notesOf(uid)) {
-            // Group notes' files are encrypted for the group, which the phone does.
-            if (note.isDeleted() || OPEN.contains(note.getId()) || note.getGroupId() != null) continue;
+            if (note.isDeleted() || OPEN.contains(note.getId()) || note.isReceived()) continue;
             JSONObject manifest = json(note.getMedia());
             boolean changed = false;
             for (Path file : attachments(note)) {
                 String name = file.getFileName().toString();
                 if (!uses(note, name) || manifest.has(name)) continue;
+                if (note.getGroupId() != null) {
+                    // Shared with the group: encrypted, and opened to anyone with the link, like a
+                    // chat photo. The key travels in the note, which only members can read.
+                    String tag = groupTag(note.getGroupId(), name);
+                    ChatMedia.Meta meta = ChatMedia.prepare(file, tag);
+                    meta.id = ChatMedia.upload(drive, tag);
+                    manifest.put(name, new JSONObject().put("driveId", meta.id).put("key", meta.key)
+                            .put("size", Files.size(file)).put("mime", mimeOf(name)));
+                    changed = true;
+                    continue;
+                }
                 if (root == null) root = drive.attachmentsRoot();
                 String folder = drive.folder(note.getUuid(), root);
                 String mime = mimeOf(name);
@@ -556,7 +590,14 @@ final class NoteSync {
                 String name = it.next();
                 if (uses(note, name)) continue;
                 JSONObject gone = manifest.optJSONObject(name);
-                if (gone != null && !gone.optString("driveId").isEmpty()) drive.delete(gone.optString("driveId"));
+                if (gone != null && !gone.optString("driveId").isEmpty()) {
+                    try {
+                        drive.delete(gone.optString("driveId"));
+                    } catch (IOException e) {
+                        // In a group, another member's file isn't mine to delete; it just drops out.
+                        if (note.getGroupId() == null) throw e;
+                    }
+                }
                 it.remove();
                 changed = true;
             }
@@ -564,20 +605,33 @@ final class NoteSync {
         }
     }
 
-    /** Fetches files a note uses that this computer doesn't have yet. */
+    /**
+     * Fetches files a note uses that this computer doesn't have yet. Encrypted ones (group notes,
+     * notes sent to me) come from their public links; my own from my Drive ({@code drive} null:
+     * not connected, so those wait).
+     */
     private static void downloadAttachments(String uid, Drive drive) throws IOException {
         for (NoteEntity note : NoteStore.get().notesOf(uid)) {
-            if (note.isDeleted() || OPEN.contains(note.getId()) || note.getMedia() == null || note.getGroupId() != null) continue;
+            if (note.isDeleted() || OPEN.contains(note.getId()) || note.getMedia() == null) continue;
             JSONObject manifest = json(note.getMedia());
             Path dir = null;
             boolean fetched = false;
             for (String name : manifest.keySet()) {
                 JSONObject entry = manifest.optJSONObject(name);
-                if (entry == null || !uses(note, name) || !safeName(name) || !entry.optString("key").isEmpty()) continue;
+                if (entry == null || !uses(note, name) || !safeName(name)) continue;
+                boolean keyed = !entry.optString("key").isEmpty();
+                if (!keyed && drive == null) continue;
                 if (dir == null) dir = NoteData.dir(note.getId());
                 Path target = dir.resolve(name);
                 if (Files.exists(target) && Files.size(target) == entry.optLong("size", Files.size(target))) continue;
-                drive.download(entry.optString("driveId"), target);
+                if (keyed) {
+                    ChatMedia.Meta meta = ChatMedia.Meta.parse(new JSONObject().put("id", entry.optString("driveId"))
+                            .put("key", entry.optString("key")).put("mime", entry.optString("mime")).toString());
+                    if (meta == null) continue;
+                    ChatMedia.decryptTo(groupTag(note.getUuid(), name), meta, target);
+                } else {
+                    drive.download(entry.optString("driveId"), target);
+                }
                 fetched = true;
             }
             // The grid shows the pictures as soon as they are here.
@@ -668,7 +722,7 @@ final class NoteSync {
 
     // ================================================================= live
 
-    private static Firebase.Listener liveNotes, liveGroups;
+    private static Firebase.Listener liveNotes, liveGroups, liveInbox;
 
     /** While the app is open and signed in, other devices' edits arrive as they are made. */
     static synchronized void startLive() {
@@ -678,13 +732,15 @@ final class NoteSync {
         // Any change (and the stream's first answer) queues a sync, which pulls incrementally.
         liveNotes = Firebase.listen(notesPath(uid), Firebase.query("updatedAt", "startAt", since), (e, d) -> schedule(300));
         liveGroups = Firebase.listen("groupIndex/" + uid, null, (e, d) -> schedule(300));
+        liveInbox = Firebase.listen("inbox/" + uid, null, (e, d) -> schedule(300));
         schedule();
     }
 
     static synchronized void stopLive() {
         if (liveNotes != null) liveNotes.close();
         if (liveGroups != null) liveGroups.close();
-        liveNotes = liveGroups = null;
+        if (liveInbox != null) liveInbox.close();
+        liveNotes = liveGroups = liveInbox = null;
     }
 
     // =============================================================== remote
@@ -766,7 +822,7 @@ final class NoteSync {
     }
 
     /** Strokes arrive as vectors; the card's picture is drawn here from them. */
-    private static void writeSketch(int noteId, String strokes) {
+    static void writeSketch(int noteId, String strokes) {
         if (strokes == null) return;
         Path dir = NoteData.dir(noteId);
         try {
@@ -800,6 +856,11 @@ final class NoteSync {
         } catch (IOException e) {
             LOG.log(System.Logger.Level.WARNING, "Could not copy a note's files", e);
         }
+    }
+
+    /** Where an encrypted group (or sent) note's file is cached: the phone's very tag. */
+    static String groupTag(String groupId, String name) {
+        return "gn_" + groupId + "_" + key(name);
     }
 
     /** Database keys can't hold . # $ [ ] / ; the real name travels in the entry. */
@@ -847,7 +908,7 @@ final class NoteSync {
         }
     }
 
-    private static JSONObject json(String s) {
+    static JSONObject json(String s) {
         if (s == null || s.isEmpty()) return new JSONObject();
         try {
             return new JSONObject(s);

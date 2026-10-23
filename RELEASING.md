@@ -19,8 +19,8 @@ Set `<version>` in `pom.xml` (e.g. `1.0.0`).
 ```bash
 release/package.sh
 ```
-Runs the tests, builds `dist/Notes-Plus-Windows-<version>.zip` (its own Java runtime inside;
-`dist/Notes+/Notes+.exe` is the app), and prints its SHA-256 and the `version.json` entry.
+Runs the tests, builds `dist/<version>/Notes-Plus-Windows-<version>.zip` (its own Java runtime inside;
+`dist/<version>/Notes+/Notes+.exe` is the app), and prints its SHA-256 and the `version.json` entry.
 
 ## 3. Check the zip
 Extract it to a new folder, run `Notes+.exe`, sign in, open a note of each kind, open both hidden
@@ -28,7 +28,7 @@ spaces. Put the SHA-256 into `release/ANNOUNCEMENT.md`.
 
 ## 4. Publish the download (GitHub release on the app's repo)
 ```bash
-gh release create desktop-v<version> dist/Notes-Plus-Windows-<version>.zip \
+gh release create desktop-v<version> dist/<version>/Notes-Plus-Windows-<version>.zip \
   -R Shashwat-Gupta57/Notes-Plus --title "Notes+ for Windows <version>" \
   --notes-file release/ANNOUNCEMENT.md --latest=false
 ```

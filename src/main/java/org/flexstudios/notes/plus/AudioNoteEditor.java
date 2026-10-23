@@ -136,10 +136,18 @@ final class AudioNoteEditor extends NoteEditor {
     @Override
     void onKey(KeyEvent e) {
         super.onKey(e);
-        if (!e.isConsumed() && e.isShortcutDown() && e.getCode() == KeyCode.R) {
+        if (!e.isConsumed() && !readOnly && e.isShortcutDown() && e.getCode() == KeyCode.R) {
             e.consume();
             toggleRecording();
         }
+    }
+
+    /** Recordings sent to me: play them, nothing else. */
+    @Override
+    protected void lockForReading() {
+        super.lockForReading();
+        recordButton.getParent().setVisible(false);
+        ((javafx.scene.layout.Region) recordButton.getParent()).setManaged(false);
     }
 
     /** Leaving finishes a recording in progress (and keeps it); losing focus does not. */

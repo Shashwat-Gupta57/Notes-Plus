@@ -152,7 +152,7 @@ final class SketchEditor extends NoteEditor {
     @Override
     void onKey(KeyEvent e) {
         super.onKey(e);
-        if (e.isConsumed() || title.isFocused()) return;
+        if (e.isConsumed() || title.isFocused() || readOnly) return;
         if (e.isShortcutDown() && e.getCode() == KeyCode.Z && !e.isShiftDown()) {
             e.consume();
             canvas.undo();
@@ -283,7 +283,25 @@ final class SketchEditor extends NoteEditor {
      * size and opens on the phone as drawn. Finished strokes live on one canvas; the stroke
      * being drawn on another above it, so a marker's transparency never stacks on itself.
      */
+    /** A sketch sent to me: no drawing, no tools. */
+    @Override
+    protected void lockForReading() {
+        super.lockForReading();
+        canvas.locked = true;
+        canvas.setCursor(javafx.scene.Cursor.DEFAULT);
+        for (javafx.scene.Node n : new javafx.scene.Node[]{penButton, markerButton, eraserButton, undoButton, redoButton}) {
+            javafx.scene.Parent bar = n.getParent();
+            if (bar != null) {
+                bar.setVisible(false);
+                if (bar instanceof javafx.scene.layout.Region r) r.setManaged(false);
+            }
+        }
+    }
+
     static final class DrawingCanvas extends StackPane {
+        /** A sketch sent to me: shown, not drawn on. */
+        boolean locked;
+
         static final int PEN = 0, MARKER = 1, ERASER = 2;
         private static final Color PAPER = Color.WHITE;
 
@@ -314,9 +332,15 @@ final class SketchEditor extends NoteEditor {
             setMinSize(0, 0);
             setFocusTraversable(true);
             setCursor(Cursor.CROSSHAIR);
-            setOnMousePressed(this::pressed);
-            setOnMouseDragged(this::dragged);
-            setOnMouseReleased(this::released);
+            setOnMousePressed(e -> {
+                if (!locked) pressed(e);
+            });
+            setOnMouseDragged(e -> {
+                if (!locked) dragged(e);
+            });
+            setOnMouseReleased(e -> {
+                if (!locked) released(e);
+            });
         }
 
         boolean hasInk() {

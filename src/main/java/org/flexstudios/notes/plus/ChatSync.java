@@ -144,6 +144,38 @@ final class ChatSync {
         return done;
     }
 
+    /**
+     * People for a note (sending it, or a group note): "nancy, @bob" by username only. Unlike
+     * {@link #resolveAll}, they don't need to have started chatting. Blocking; the error names who
+     * it was about.
+     */
+    static List<Contact> resolvePeople(String raw) throws IOException {
+        String me = Account.uid();
+        if (me == null) throw new IOException("Sign in to your account first");
+        List<Contact> done = new ArrayList<>();
+        for (String token : raw.split("[,;\\s]+")) {
+            if (token.trim().isEmpty()) continue;
+            String name = Account.normaliseUsername(token.split("/")[0]);
+            if (name == null) throw new IOException(token.trim() + ": that isn't a username");
+            if (done.stream().anyMatch(c -> c.name.equals(name))) continue;
+            Object uid;
+            try {
+                uid = Firebase.get("usernames/" + name, null);
+            } catch (IOException e) {
+                throw new IOException("No connection. Try again.");
+            }
+            if (!(uid instanceof String found)) throw new IOException("No one is called @" + name);
+            if (found.equals(me)) throw new IOException("@" + name + " is you");
+            Contact c = new Contact();
+            c.uid = found;
+            c.name = name;
+            c.code = "";
+            done.add(c);
+        }
+        if (done.isEmpty()) throw new IOException("Enter at least one username");
+        return done;
+    }
+
     /** The conversation between {@code vaultId} and {@code contact}, made if new (moved here if filed elsewhere). Blocking. */
     static int open(int vaultId, Contact contact) {
         ChatStore store = ChatStore.get();

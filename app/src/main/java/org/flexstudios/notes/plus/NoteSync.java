@@ -273,6 +273,11 @@ final class NoteSync {
                     drive = null;
                 }
             }
+            try {
+                ShareLinks.refresh(uid); // Which notes have links: they are published again as they go up.
+            } catch (Exception e) {
+                Log.w(TAG, "Links not checked this time", e);
+            }
             push(context, uid, notes, drive);
             try {
                 // Group notes' files come from their public links: no Drive needed for those.
@@ -467,6 +472,7 @@ final class NoteSync {
             }
         }
         if (note.isDeleted() && note.getRev() == 0) {
+            ShareLinks.afterPush(context, uid, note); // A link made before its first sync goes too.
             dao.purge(note.getId()); // Never reached the account: nothing to tell it.
             return;
         }
@@ -490,6 +496,7 @@ final class NoteSync {
             return true;
         });
         if (outcome.committed) {
+            if (groupId == null) ShareLinks.afterPush(context, uid, note); // Its link shows this version (or goes, deleted).
             if (note.isDeleted()) {
                 if (drive != null) trashAttachments(drive, note);
                 dao.purge(note.getId());
@@ -562,6 +569,11 @@ final class NoteSync {
         m.put("color", note.getColor());
         m.put("pinned", note.isPinned());
         m.put("edited", note.getTimestamp());
+        // How it's filed is mine alone: never part of a group note.
+        if (note.getGroupId() == null) {
+            if (note.isArchived()) m.put("archived", true);
+            if (note.getFolder() != null && !note.getFolder().isEmpty()) m.put("folder", clip(note.getFolder(), 100));
+        }
         if (NoteData.SKETCH.equals(note.getType())) {
             String sketch = readSketch(context, note.getId());
             if (sketch != null) m.put("sketch", sketch);
@@ -996,10 +1008,12 @@ final class NoteSync {
 
     /** One note as the database holds it. */
     static final class Remote {
-        String uuid, type, title, content, data, sketch, media;
+        String uuid, type, title, content, data, sketch, media, folder;
         long rev, updatedAt, edited;
         int color;
-        boolean pinned, deleted;
+        boolean pinned, deleted, archived;
+        /** One of my own notes (users/{uid}/notes): only these say how the note is filed. */
+        boolean mine;
 
         @Nullable
         static Remote of(DataSnapshot s) {
@@ -1016,6 +1030,11 @@ final class NoteSync {
             r.sketch = s.child("sketch").getValue(String.class);
             r.color = (int) number(s.child("color"));
             r.pinned = Boolean.TRUE.equals(s.child("pinned").getValue(Boolean.class));
+            r.archived = Boolean.TRUE.equals(s.child("archived").getValue(Boolean.class));
+            r.folder = s.child("folder").getValue(String.class);
+            if (r.folder != null && r.folder.isEmpty()) r.folder = null;
+            DatabaseReference parent = s.getRef().getParent();
+            r.mine = parent != null && "notes".equals(parent.getKey());
             r.edited = number(s.child("edited"));
             if (r.edited == 0) r.edited = r.updatedAt;
             JSONObject manifest = new JSONObject();
@@ -1045,6 +1064,10 @@ final class NoteSync {
             note.setData(data);
             note.setColor(color);
             note.setPinned(pinned);
+            if (mine) {
+                note.setArchived(archived);
+                note.setFolder(folder);
+            }
             note.setTimestamp(edited);
             note.setRev(rev);
             note.setMedia(media);
@@ -1056,7 +1079,8 @@ final class NoteSync {
     private static boolean sameContent(NoteEntity n, Remote r) {
         return java.util.Objects.equals(n.getTitle(), r.title) && java.util.Objects.equals(n.getContent(), r.content)
                 && java.util.Objects.equals(n.getData(), r.data) && n.getColor() == r.color
-                && n.isPinned() == r.pinned && n.getType().equals(r.type);
+                && n.isPinned() == r.pinned && n.getType().equals(r.type)
+                && (!r.mine || n.isArchived() == r.archived && java.util.Objects.equals(n.getFolder(), r.folder));
     }
 
     // ============================================================== sketches

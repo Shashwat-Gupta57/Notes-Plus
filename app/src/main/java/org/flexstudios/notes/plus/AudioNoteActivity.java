@@ -232,7 +232,7 @@ public class AudioNoteActivity extends NoteActivity {
                 if (!NoteSync.fetch(getApplicationContext(), id, r.file)) {
                     problem = Account.driveEmail(this) == null
                             ? "Connect Google Drive in your account to get recordings from your other devices"
-                            : "This recording hasn't been uploaded from its device yet";
+                            : "This recording hasn't been uploaded from its device yet. Made on the web? Open Notes+ there and connect Google Drive.";
                 }
             } catch (Exception e) {
                 Log.w("AudioNote", "Could not fetch a recording", e);

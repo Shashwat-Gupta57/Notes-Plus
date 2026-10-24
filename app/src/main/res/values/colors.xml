@@ -55,4 +55,10 @@
     <color name="note_purple">#FFEDE2FF</color>
     <color name="note_pink">#FFFFE0EA</color>
     <color name="note_gray">#FFE9E9EE</color>
+    <color name="note_orange">#FFFFE3CC</color>
+    <color name="note_red">#FFFFD9D6</color>
+    <color name="note_teal">#FFD3F2EF</color>
+    <color name="note_indigo">#FFDEDDFB</color>
+    <color name="note_brown">#FFEBDDD2</color>
+    <color name="note_lime">#FFEDF7C9</color>
 </resources>

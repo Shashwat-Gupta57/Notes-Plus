@@ -139,6 +139,30 @@ abstract class NoteActivity extends AppCompatActivity {
                 });
     }
 
+    /** Decrypting asks for the lock itself, even though the note is open: it's the lock's owner deciding. */
+    private void askThenDecrypt() {
+        NoteLock.Key k = lock;
+        if (k == null) return;
+        String word = NoteLock.typeWord(k.type);
+        UnlockActivity.askForLock(this, k.type, "Decrypt this note", "Enter its " + word + " to decrypt it.", value ->
+                AppDatabase.IO.execute(() -> {
+                    boolean right;
+                    try {
+                        NoteLock.open(NoteLock.seal(k, "", ""), value);
+                        right = true;
+                    } catch (Exception e) {
+                        right = false;
+                    }
+                    boolean ok = right;
+                    runOnUiThread(() -> {
+                        if (isFinishing()) return;
+                        if (ok) removeLock();
+                        else android.widget.Toast.makeText(this, "That isn't this note's " + word,
+                                android.widget.Toast.LENGTH_SHORT).show();
+                    });
+                }), () -> {});
+    }
+
     private void openLocked(NoteEntity loaded, NoteLock.Key k) {
         if (isFinishing()) return;
         try {
@@ -388,6 +412,11 @@ abstract class NoteActivity extends AppCompatActivity {
             send.setTitle(sent > 0 ? "Sent to " + sent : "Send to people");
             send.setVisible(note != null && !readOnly && lock == null && note.getGroupId() == null && Account.uid() != null);
         }
+        MenuItem link = menu.findItem(R.id.action_link);
+        if (link != null) {
+            link.setTitle(note != null && note.getGroupId() != null ? "Invite link" : "Share link");
+            link.setVisible(note != null && !readOnly && lock == null && !NoteData.AUDIO.equals(note.getType()) && Account.uid() != null);
+        }
         MenuItem copy = menu.findItem(R.id.action_save_copy);
         if (copy != null) copy.setVisible(readOnly);
         MenuItem delete = menu.findItem(R.id.action_delete);
@@ -423,7 +452,7 @@ abstract class NoteActivity extends AppCompatActivity {
                     .setMessage("Its text will be stored unencrypted: here, in your account and on your other devices "
                             + "(and in its file, if it's linked to one on a computer). Tap the lock any time to encrypt it "
                             + "again with the same lock.")
-                    .setPositiveButton("Decrypt", (d, w) -> removeLock())
+                    .setPositiveButton("Decrypt", (d, w) -> askThenDecrypt())
                     .setNegativeButton("Cancel", null)
                     .show();
             return true;
@@ -447,6 +476,14 @@ abstract class NoteActivity extends AppCompatActivity {
             save();
             WRITES.execute(() -> runOnUiThread(() -> {
                 if (note != null) SentNotes.showSheet(this, note.getId(), () -> {});
+            }));
+            return true;
+        } else if (id == R.id.action_link) {
+            save();
+            WRITES.execute(() -> runOnUiThread(() -> {
+                if (note == null) return;
+                if (note.getGroupId() != null) ShareLinks.inviteSheet(this, note);
+                else ShareLinks.sheet(this, note.getId());
             }));
             return true;
         } else if (id == R.id.action_save_copy) {
@@ -590,7 +627,8 @@ abstract class NoteActivity extends AppCompatActivity {
     private void pickColor() {
         float density = getResources().getDisplayMetrics().density;
         int size = Math.round(40 * density), gap = Math.round(8 * density);
-        LinearLayout row = new LinearLayout(this);
+        android.widget.GridLayout row = new android.widget.GridLayout(this); // Thirteen: rows of five.
+        row.setColumnCount(5);
         row.setPadding(gap * 3, gap * 2, gap * 3, 0);
         AlertDialog dialog = new MaterialAlertDialogBuilder(this).setTitle("Colour").setView(row).create();
         for (int i = 0; i < NoteData.COLORS.length; i++) {
@@ -602,8 +640,10 @@ abstract class NoteActivity extends AppCompatActivity {
             circle.setStroke(Math.round((i == note.getColor() ? 3 : 1) * density),
                     ContextCompat.getColor(this, i == note.getColor() ? R.color.brand_yellow : R.color.divider));
             swatch.setBackground(circle);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
-            lp.setMarginEnd(gap);
+            android.widget.GridLayout.LayoutParams lp = new android.widget.GridLayout.LayoutParams();
+            lp.width = size;
+            lp.height = size;
+            lp.setMargins(0, 0, gap, gap);
             row.addView(swatch, lp);
             swatch.setOnClickListener(v -> {
                 note.setColor(index);

@@ -25,7 +25,7 @@ No MVVM, no repository layer. Activities talk to Room DAOs directly and hop thre
 executor per click. Media operations go through `VaultMedia`, never re-implemented in a
 screen.
 
-**Persistence** — `AppDatabase` (Room, singleton, version 19, `notes_database`)
+**Persistence** — `AppDatabase` (Room, singleton, version 20, `notes_database`)
 
 | Entity | Table | Notes |
 |---|---|---|
@@ -41,7 +41,7 @@ must match the `@Index`es on `SecretEntity` exactly), 10→11 adds `durationMs`,
 chat tables, 14→15 chat vault sync (`updatedAt`/`dirty`/`deleted`) and conversation `moved`,
 15→16 chat media, nicknames and shared backgrounds, 16→17 chat photos, ID aliases and list
 backgrounds, 17→18 group notes, group chats and message senders, 18→19 sent notes (`sentTo`,
-`sentMedia`, `sharedFrom`). Only `fallbackToDestructiveMigrationFrom(1)`
+`sentMedia`, `sharedFrom`), 19→20 `archived` and `folder` (how a note is filed). Only `fallbackToDestructiveMigrationFrom(1)`
 is on, so a missing migration now crashes instead of wiping the vault — **always add it**.
 `onOpen` seeds vault 1 asynchronously; setup calls `AppDatabase.ensureMainVault` itself so it
 never races the unlock screen.
@@ -146,6 +146,30 @@ notes). `NoteSync` pushes and pulls them like my own, just at that path; `groupI
 under its own uuid and retires its personal copy online. Deleting one here means leaving it;
 being removed keeps it here as my own note. Group note files are encrypted and shared by link
 (manifest entries carry `key`), so members without Drive still get them.
+
+**Filing** (`NoteFolders`): `archived` hides a note everywhere but the Archived filter; `folder` is a
+name (≤ 100) and a folder exists while a note is in it (empty ones made on a device are remembered in
+its prefs, `note_folders`). Both travel only with my own notes (`users/{uid}/notes`, `Remote.mine`),
+never in a group or sent note's copy. A list item that is just `![[IMG_….png]]` is a picture
+(`TodoItem.picture()`), the same embed line as pictures in desktop/web text notes.
+
+**Vault Drive sync**: backups are add-only (`Snapshot.mergeFrom`: a new restore point keeps
+everything the newest one held), and `CloudSync.pullThenPush` ("Sync now", and at every start when
+`vault_sync_on_start` is on) brings down what the backup has before backing up. The web opens the
+same store read-only (`app/js/gallery.js`, same left-swipe gesture): keyring → data key → newest
+restore point; it never writes and keeps nothing.
+
+**Mind maps** may have several central ideas (`parent < 0`); each is the top of its own tree and
+never becomes another's idea (`roots()`, `rootOf()`, `canRemove()`); tidy stacks the trees.
+**Theme** (`AppTheme`, `app_theme`): system / light / dark via `AppCompatDelegate`.
+
+**Share links** (`ShareLinks`): `links/{token}` (read by anyone with the token, never listable) holds
+a note's words and structure, no files; `users/{uid}/links/{uuid}` = token, and every push of that
+note republishes it (deleting or locking it takes the link down). The web opens it at
+`/app/#/s/<token>` without an account. Group notes have invite links instead:
+`groupInvites/{token}` + `groupNotes/{gid}/invite`; the rules let a signed-in person add themself as a
+member (with `joins/{uid}` = token, size + 1) only with a valid token. Joining happens on the web
+(`/app/#/j/<token>`); the apps pick the group up through `groupIndex`.
 
 **Sent notes** (`SentNotes`): one of my notes sent to people by username, read-only for them
 (not a group note; a note is one or the other). Online `sentNotes/{uuid}` = `from`, `fromName`,
@@ -288,7 +312,7 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-The build file and `version.json` are both at 13 / "12.0" (released as v12.0.0, with `sha256`).
+The build file and `version.json` are both at 14 / "13.0" (released as v13.0.0, with `sha256`).
 From 11.0 the APK is served from Cloudflare R2 (`releases` bucket, public at
 `https://releases.talken.in/android/Notes-Plus-<version>.apk`), not GitHub release assets. The bucket
 keeps only the current APK: upload the new one, push `version.json`, then delete the old object.

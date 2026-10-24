@@ -378,8 +378,29 @@
                         android:layout_height="52dp"
                         android:layout_marginTop="16dp"
                         android:backgroundTint="@color/brand_yellow"
-                        android:text="Back up now"
+                        android:text="Sync now"
                         android:textColor="@color/on_brand_yellow"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/textSyncExplained"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Brings down what the backup has and this phone doesn't, then backs up what's new here. Nothing is removed on either side."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp"
+                        android:visibility="gone" />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switchSyncOnStart"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:minHeight="48dp"
+                        android:text="Sync every time Notes+ starts"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
                         android:visibility="gone" />
 
                     <com.google.android.material.materialswitch.MaterialSwitch

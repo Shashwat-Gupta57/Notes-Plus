@@ -17,6 +17,9 @@ import androidx.room.PrimaryKey;
  * only), {@code rev} the server revision this copy is based on, {@code dirty} unpushed edits,
  * {@code deleted} a tombstone waiting to be pushed, and {@code media} the Drive manifest of its
  * files. Editors never write them; they save through {@link NoteDao#saveContent}.
+ *
+ * {@code archived} and {@code folder} are how the note is filed: off the main grid, and under a
+ * folder name (null: none). Both sync with my own notes, never with a group or sent note's copy.
  */
 @Entity(tableName = "notes", indices = {@Index({"pinned", "timestamp"}), @Index(value = "uuid", unique = true)})
 public class NoteEntity {
@@ -47,6 +50,8 @@ public class NoteEntity {
     private String sentMedia;
     /** Someone else's note sent to me: their @username. Read-only here; never pushed. */
     private String sharedFrom;
+    private boolean archived;
+    private String folder;
 
     public NoteEntity(String title, String content, long timestamp) {
         this.title = title;
@@ -92,6 +97,10 @@ public class NoteEntity {
     public void setSentMedia(String sentMedia) { this.sentMedia = sentMedia; }
     public String getSharedFrom() { return sharedFrom; }
     public void setSharedFrom(String sharedFrom) { this.sharedFrom = sharedFrom; }
+    public boolean isArchived() { return archived; }
+    public void setArchived(boolean archived) { this.archived = archived; }
+    public String getFolder() { return folder; }
+    public void setFolder(String folder) { this.folder = folder; }
 
     /** Someone else's note, sent to me. */
     boolean isReceived() { return sharedFrom != null; }
@@ -102,6 +111,7 @@ public class NoteEntity {
                 && java.util.Objects.equals(data, o.data) && timestamp == o.timestamp
                 && color == o.color && pinned == o.pinned && getType().equals(o.getType())
                 && java.util.Objects.equals(groupMembers, o.groupMembers)
-                && java.util.Objects.equals(sentTo, o.sentTo) && java.util.Objects.equals(sharedFrom, o.sharedFrom);
+                && java.util.Objects.equals(sentTo, o.sentTo) && java.util.Objects.equals(sharedFrom, o.sharedFrom)
+                && archived == o.archived && java.util.Objects.equals(folder, o.folder);
     }
 }

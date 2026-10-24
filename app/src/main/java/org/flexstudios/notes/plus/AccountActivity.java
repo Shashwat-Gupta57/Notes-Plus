@@ -115,6 +115,15 @@ public class AccountActivity extends AppCompatActivity {
         findViewById(R.id.rowUpdate).setOnClickListener(v -> checkForUpdate());
         showNoteLockTime();
         findViewById(R.id.rowNoteLock).setOnClickListener(v -> chooseNoteLockTime());
+        ((TextView) findViewById(R.id.txtTheme)).setText(AppTheme.NAMES[AppTheme.index(this)]);
+        findViewById(R.id.rowTheme).setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
+                .setTitle("Theme")
+                .setSingleChoiceItems(AppTheme.NAMES, AppTheme.index(this), (d, which) -> {
+                    d.dismiss();
+                    AppTheme.set(this, AppTheme.MODES[which]); // Screens redraw in the new look.
+                })
+                .setNegativeButton("Cancel", null)
+                .show());
         ((TextView) findViewById(R.id.txtAboutVersion)).setText("Version " + versionName());
         findViewById(R.id.rowAbout).setOnClickListener(v -> showAbout());
 

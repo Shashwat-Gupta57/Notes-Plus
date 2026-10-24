@@ -48,6 +48,17 @@ public interface NoteDao {
     @Query("UPDATE notes SET color = :color, dirty = 1 WHERE id = :noteId")
     void setColor(int noteId, int color);
 
+    @Query("UPDATE notes SET archived = :archived, dirty = 1 WHERE id = :noteId")
+    void setArchived(int noteId, boolean archived);
+
+    /** Into a folder; null takes it out of any. */
+    @Query("UPDATE notes SET folder = :folder, dirty = 1 WHERE id = :noteId")
+    void setFolder(int noteId, String folder);
+
+    /** A folder renamed (or, with null, removed: its notes stay, in no folder). */
+    @Query("UPDATE notes SET folder = :to, dirty = 1 WHERE folder = :from AND sharedFrom IS NULL")
+    void renameFolder(String from, String to);
+
     /** Hidden at once; removed for good by {@link NoteSync} once the account has heard of it. */
     @Query("UPDATE notes SET deleted = :deleted, dirty = 1 WHERE id = :noteId")
     void setDeleted(int noteId, boolean deleted);

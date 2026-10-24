@@ -20,4 +20,10 @@
     <color name="note_purple">#FF33284A</color>
     <color name="note_pink">#FF452A34</color>
     <color name="note_gray">#FF2C2C30</color>
+    <color name="note_orange">#FF43301F</color>
+    <color name="note_red">#FF45231F</color>
+    <color name="note_teal">#FF1D3836</color>
+    <color name="note_indigo">#FF26264A</color>
+    <color name="note_brown">#FF372B23</color>
+    <color name="note_lime">#FF323A1C</color>
 </resources>

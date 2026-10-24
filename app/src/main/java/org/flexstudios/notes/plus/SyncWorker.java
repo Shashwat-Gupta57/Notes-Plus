@@ -73,6 +73,8 @@ public class SyncWorker extends Worker {
     private static final long NOTIFY_INTERVAL_MS = 500;
 
     public static final String ACTION_BACKUP = "backup";
+    /** Pull, then push: see {@link CloudSync#pullThenPush}. */
+    public static final String ACTION_PULL_PUSH = "pull_push";
     public static final String ACTION_REPUBLISH_KEYRING = "republish_keyring";
     public static final String ACTION_LOCAL_BACKUP = "local_backup";
     public static final String ACTION_LOCAL_RESTORE = "local_restore";
@@ -123,6 +125,20 @@ public class SyncWorker extends Worker {
     public static OneTimeWorkRequest requestBackupNow(Context context) {
         return scheduleSync(context, ACTION_BACKUP, true);
     }
+
+    /** "Sync now", and every start when that's switched on: pull, then push. */
+    public static OneTimeWorkRequest requestPullThenPush(Context context) {
+        return scheduleSync(context, ACTION_PULL_PUSH, true);
+    }
+
+    /** At app start, if this device syncs its vaults at every start and Drive is connected. */
+    public static void syncOnStart(Context context) {
+        if (!SecurityHelper.getAppPrefs(context).getBoolean(PREF_SYNC_ON_START, false)) return;
+        if (GoogleSignIn.getLastSignedInAccount(context) == null) return;
+        requestPullThenPush(context);
+    }
+
+    public static final String PREF_SYNC_ON_START = "vault_sync_on_start";
 
     /** After a lock change, republish the keyring. Tiny, and the only thing that has to move. */
     public static void requestKeyringRepublish(Context context) {
@@ -215,6 +231,12 @@ public class SyncWorker extends Worker {
         try {
             if (ACTION_REPUBLISH_KEYRING.equals(action)) {
                 sync.republishKeyring();
+                return Result.success();
+            }
+            if (ACTION_PULL_PUSH.equals(action)) {
+                notifyProgress("Syncing", 0, 0, true);
+                sync.pullThenPush(cloudProgress("Syncing"));
+                SecurityHelper.getAppPrefs(getApplicationContext()).edit().putBoolean(PREF_NEEDS_CHOICE, false).apply();
                 return Result.success();
             }
             CloudSync.Plan plan = sync.plan();

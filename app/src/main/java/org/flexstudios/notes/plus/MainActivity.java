@@ -63,6 +63,12 @@ public class MainActivity extends AppCompatActivity {
     private String filterType;
     /** The "Shared with me" filter: notes sent to me by others. */
     private static final String SHARED = "SHARED";
+    /** The archive: notes put away, shown nowhere else. */
+    private static final String ARCHIVED = "ARCHIVED";
+    /** A folder's filter: this prefix and its name. */
+    private static final String FOLDER = "F:";
+    /** The folders the chips show now, to rebuild them only when that changes. */
+    private List<String> shownFolders;
     private String query = "";
 
     private final Handler secretHandler = new Handler(Looper.getMainLooper());
@@ -73,6 +79,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        AppTheme.apply(this); // Before the first screen draws: the chosen look.
         super.onCreate(savedInstanceState);
 
         if (!SecurityHelper.isSetupDone(this)) {
@@ -112,11 +119,29 @@ public class MainActivity extends AppCompatActivity {
             public void onOptions(NoteEntity note) {
                 showNoteOptions(note);
             }
+
+            @Override
+            public void onFolder(String name) {
+                filterType = FOLDER + name;
+                shownFolders = null;
+                buildFilterChips();
+                applyFilter();
+            }
+
+            @Override
+            public void onFolderOptions(String name) {
+                NoteFolders.manage(MainActivity.this, name, () -> {
+                    shownFolders = null;
+                    buildFilterChips();
+                    applyFilter();
+                });
+            }
         });
 
         database = AppDatabase.getInstance(this);
         database.noteDao().getAllNotes().observe(this, notes -> {
             allNotes = notes;
+            buildFilterChips();
             applyFilter();
         });
 
@@ -135,6 +160,7 @@ public class MainActivity extends AppCompatActivity {
 
         handleRelock(getIntent());
         Account.init(this);
+        if (savedInstanceState == null) SyncWorker.syncOnStart(this);
     }
 
     // ================================================================ content
@@ -142,8 +168,17 @@ public class MainActivity extends AppCompatActivity {
     private void applyFilter() {
         List<NoteEntity> shown = new ArrayList<>();
         String q = query.toLowerCase(Locale.getDefault());
+        String folder = filterType != null && filterType.startsWith(FOLDER) ? filterType.substring(FOLDER.length()) : null;
         for (NoteEntity n : allNotes) {
-            if (SHARED.equals(filterType) ? !n.isReceived() : filterType != null && !filterType.equals(n.getType())) continue;
+            if (ARCHIVED.equals(filterType)) {
+                if (!n.isArchived()) continue;
+            } else if (n.isArchived()) {
+                continue; // Put away: only under Archived.
+            } else if (folder != null) {
+                if (!folder.equals(n.getFolder())) continue;
+            } else if (SHARED.equals(filterType) ? !n.isReceived() : filterType != null && !filterType.equals(n.getType())) {
+                continue;
+            }
             if (!q.isEmpty()) {
                 String hay = ((n.getTitle() == null ? "" : n.getTitle()) + "\n"
                         + (n.getContent() == null ? "" : n.getContent())).toLowerCase(Locale.getDefault());
@@ -151,19 +186,59 @@ public class MainActivity extends AppCompatActivity {
             }
             shown.add(n);
         }
-        adapter.submitList(shown);
-        emptyState.setVisibility(shown.isEmpty() ? View.VISIBLE : View.GONE);
+        // All, not searching: a folder's notes are one tile (opening the folder), before the rest.
+        java.util.Map<String, List<NoteEntity>> byFolder = new java.util.LinkedHashMap<>();
+        if (filterType == null && q.isEmpty()) {
+            for (String f : NoteFolders.all(this, allNotes)) byFolder.put(f, new ArrayList<>());
+            List<NoteEntity> loose = new ArrayList<>();
+            for (NoteEntity n : shown) {
+                List<NoteEntity> in = n.getFolder() == null ? null : byFolder.get(n.getFolder());
+                if (in != null) in.add(n);
+                else loose.add(n);
+            }
+            shown = loose;
+        }
+        adapter.submit(shown, byFolder);
+        emptyState.setVisibility(shown.isEmpty() && byFolder.isEmpty() ? View.VISIBLE : View.GONE);
         emptyText.setText(!q.isEmpty() ? "Nothing matches “" + query + "”"
                 : SHARED.equals(filterType) ? "Nothing shared with you yet. When someone sends you a note, it shows up here."
+                : ARCHIVED.equals(filterType) ? "Nothing archived. Archive a note from its options to put it away here."
+                : folder != null ? "Nothing in “" + folder + "” yet. Move notes here from their options."
                 : filterType != null ? "No " + NoteData.kind(filterType).plural.toLowerCase(Locale.getDefault()) + " yet"
                 : "No notes yet. Tap New to start.");
     }
 
+    /** All, the folders (long press: rename or remove), Shared with me, Archived, the types, and "New folder". */
     private void buildFilterChips() {
+        List<String> folders = NoteFolders.all(this, allNotes);
+        if (folders.equals(shownFolders)) return;
+        shownFolders = folders;
+        if (filterType != null && filterType.startsWith(FOLDER) && !folders.contains(filterType.substring(FOLDER.length()))) {
+            filterType = null; // Its folder went (renamed or removed).
+        }
         ChipGroup chips = findViewById(R.id.filterChips);
-        addChip(chips, "All", null, true);
-        addChip(chips, "Shared with me", SHARED, false);
-        for (NoteData.Kind kind : NoteData.KINDS) addChip(chips, kind.plural, kind.type, false);
+        chips.removeAllViews();
+        addChip(chips, "All", null, filterType == null);
+        for (String f : folders) addChip(chips, f, FOLDER + f, (FOLDER + f).equals(filterType));
+        addChip(chips, "Shared with me", SHARED, SHARED.equals(filterType));
+        addChip(chips, "Archived", ARCHIVED, ARCHIVED.equals(filterType));
+        for (NoteData.Kind kind : NoteData.KINDS) addChip(chips, kind.plural, kind.type, kind.type.equals(filterType));
+        Chip add = new Chip(this);
+        add.setText("New folder");
+        add.setChipIconResource(R.drawable.ic_add);
+        add.setChipIconTint(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.text_secondary)));
+        add.setChipIconVisible(true);
+        add.setCheckable(false);
+        add.setChipBackgroundColor(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.app_surface)));
+        add.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+        add.setChipStrokeWidth(0);
+        add.setOnClickListener(v -> NoteFolders.create(this, name -> {
+            filterType = FOLDER + name;
+            shownFolders = null;
+            buildFilterChips();
+            applyFilter();
+        }));
+        chips.addView(add);
     }
 
     private void addChip(ChipGroup group, String label, String type, boolean checked) {
@@ -183,6 +258,23 @@ public class MainActivity extends AppCompatActivity {
             chip.setChipIconResource(R.drawable.ic_person);
             chip.setChipIconTint(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.tile_teal)));
             chip.setChipIconVisible(true);
+        } else if (ARCHIVED.equals(type)) {
+            chip.setChipIconResource(R.drawable.ic_archive);
+            chip.setChipIconTint(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.text_secondary)));
+            chip.setChipIconVisible(true);
+        } else if (type != null && type.startsWith(FOLDER)) {
+            chip.setChipIconResource(R.drawable.ic_folder);
+            chip.setChipIconTint(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.brand_yellow)));
+            chip.setChipIconVisible(true);
+            String name = type.substring(FOLDER.length());
+            chip.setOnLongClickListener(v -> {
+                NoteFolders.manage(this, name, () -> {
+                    shownFolders = null;
+                    buildFilterChips();
+                    applyFilter();
+                });
+                return true;
+            });
         } else if (type != null) {
             chip.setChipIconResource(NoteData.kind(type).icon);
             chip.setChipIconTint(ColorStateList.valueOf(ContextCompat.getColor(this, NoteData.kind(type).accent)));
@@ -222,42 +314,49 @@ public class MainActivity extends AppCompatActivity {
     private void showNoteOptions(NoteEntity note) {
         String title = note.getTitle() == null || note.getTitle().isEmpty()
                 ? NoteData.kind(note.getType()).label : note.getTitle();
+        List<String> labels = new ArrayList<>();
+        List<Runnable> actions = new ArrayList<>();
+        labels.add(note.isPinned() ? "Unpin" : "Pin to top");
+        actions.add(() -> executor.execute(() -> database.noteDao().setPinned(note.getId(), !note.isPinned())));
+        labels.add("Colour");
+        actions.add(() -> pickColor(note));
+        labels.add("Move to folder…");
+        actions.add(() -> NoteFolders.move(this, note, NoteFolders.all(this, allNotes)));
+        labels.add(note.isArchived() ? "Unarchive" : "Archive");
+        actions.add(() -> NoteFolders.setArchived(this, note, !note.isArchived()));
         if (note.isReceived()) {
-            // Someone else's note: mine to pin, colour, copy or put away, not to change.
-            String[] options = {note.isPinned() ? "Unpin" : "Pin to top", "Colour", "Save a copy", "Remove"};
-            new MaterialAlertDialogBuilder(this)
-                    .setTitle(title)
-                    .setItems(options, (d, which) -> {
-                        if (which == 0) executor.execute(() -> database.noteDao().setPinned(note.getId(), !note.isPinned()));
-                        else if (which == 1) pickColor(note);
-                        else if (which == 2) executor.execute(() -> {
-                            SentNotes.saveCopy(this, note);
-                            runOnUiThread(() -> Toast.makeText(this, "Saved as your own note", Toast.LENGTH_SHORT).show());
-                        });
-                        else SentNotes.confirmRemove(this, note, () -> {});
-                    })
-                    .show();
-            return;
+            // Someone else's note: mine to pin, colour, file, copy or put away, not to change.
+            labels.add("Save a copy");
+            actions.add(() -> executor.execute(() -> {
+                SentNotes.saveCopy(this, note);
+                runOnUiThread(() -> Toast.makeText(this, "Saved as your own note", Toast.LENGTH_SHORT).show());
+            }));
+            labels.add("Remove");
+            actions.add(() -> SentNotes.confirmRemove(this, note, () -> {}));
+        } else {
+            if (Account.uid() != null && note.getGroupId() == null) {
+                int sent = SentNotes.count(note.getSentTo());
+                labels.add(sent > 0 ? "Sent to " + sent + "…" : "Send to people…");
+                actions.add(() -> SentNotes.showSheet(this, note.getId(), () -> {}));
+            }
+            if (Account.uid() != null && !NoteData.AUDIO.equals(note.getType())) {
+                labels.add(note.getGroupId() != null ? "Invite link…" : "Share link…");
+                actions.add(() -> {
+                    if (note.getGroupId() != null) ShareLinks.inviteSheet(this, note);
+                    else ShareLinks.sheet(this, note.getId());
+                });
+            }
+            labels.add("Delete");
+            actions.add(() -> deleteWithUndo(note));
         }
-        boolean canSend = Account.uid() != null && note.getGroupId() == null;
-        int sent = SentNotes.count(note.getSentTo());
-        String[] options = canSend
-                ? new String[]{note.isPinned() ? "Unpin" : "Pin to top", "Colour",
-                sent > 0 ? "Sent to " + sent + "…" : "Send to people…", "Delete"}
-                : new String[]{note.isPinned() ? "Unpin" : "Pin to top", "Colour", "Delete"};
         new MaterialAlertDialogBuilder(this)
                 .setTitle(title)
-                .setItems(options, (d, which) -> {
-                    if (which == 0) executor.execute(() -> database.noteDao().setPinned(note.getId(), !note.isPinned()));
-                    else if (which == 1) pickColor(note);
-                    else if (canSend && which == 2) SentNotes.showSheet(this, note.getId(), () -> {});
-                    else deleteWithUndo(note);
-                })
+                .setItems(labels.toArray(new String[0]), (d, which) -> actions.get(which).run())
                 .show();
     }
 
     private void pickColor(NoteEntity note) {
-        String[] names = {"None", "Yellow", "Green", "Blue", "Purple", "Pink", "Grey"};
+        String[] names = NoteData.COLOR_NAMES;
         new MaterialAlertDialogBuilder(this)
                 .setTitle("Colour")
                 .setSingleChoiceItems(names, note.getColor(), (d, which) -> {
@@ -313,8 +412,31 @@ public class MainActivity extends AppCompatActivity {
         if (account != null) {
             androidx.core.view.MenuItemCompat.setIconTintList(account, ColorStateList.valueOf(
                     ContextCompat.getColor(this, Account.user() != null ? R.color.brand_yellow : R.color.text_primary)));
+            showAccountPhoto(account);
         }
         return true;
+    }
+
+    /** Signed in: the account's photo (the custom one, else Google's) in place of the person icon. */
+    private void showAccountPhoto(MenuItem item) {
+        com.google.firebase.auth.FirebaseUser user = Account.user();
+        if (user == null) return;
+        float density = getResources().getDisplayMetrics().density;
+        ImageView photo = new ImageView(this);
+        int size = Math.round(32 * density), pad = Math.round(12 * density);
+        photo.setLayoutParams(new ViewGroup.LayoutParams(size + pad * 2, size));
+        photo.setPadding(pad, 0, pad, 0);
+        photo.setContentDescription("Account");
+        photo.setOnClickListener(v -> startActivity(new Intent(this, AccountActivity.class)));
+        String google = user.getPhotoUrl() == null ? null
+                : "{\"url\":" + org.json.JSONObject.quote(user.getPhotoUrl().toString()) + "}";
+        Account.loadPhoto(json -> {
+            if (isDestroyed()) return;
+            String shown = json != null ? json : google;
+            if (shown == null) return; // No photo anywhere: the icon stays.
+            item.setActionView(photo);
+            ChatMedia.loadAvatar(this, photo, shown, () -> item.setActionView(null));
+        });
     }
 
     @Override

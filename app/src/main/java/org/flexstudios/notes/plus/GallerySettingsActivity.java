@@ -493,6 +493,13 @@ public class GallerySettingsActivity extends VaultActivity {
         layoutDriveStats.setVisibility(visibility);
         btnDriveSyncNow.setVisibility(visibility);
         switchAutoSync.setVisibility(visibility);
+        findViewById(R.id.textSyncExplained).setVisibility(visibility);
+        com.google.android.material.materialswitch.MaterialSwitch onStart = findViewById(R.id.switchSyncOnStart);
+        onStart.setVisibility(visibility);
+        onStart.setOnCheckedChangeListener(null);
+        onStart.setChecked(SecurityHelper.getAppPrefs(this).getBoolean(SyncWorker.PREF_SYNC_ON_START, false));
+        onStart.setOnCheckedChangeListener((v, checked) -> SecurityHelper.getAppPrefs(this).edit()
+                .putBoolean(SyncWorker.PREF_SYNC_ON_START, checked).apply());
         textRestorePointsHeader.setVisibility(visibility);
         textRetentionNote.setVisibility(visibility);
 
@@ -570,17 +577,13 @@ public class GallerySettingsActivity extends VaultActivity {
         });
     }
 
+    /**
+     * Pull, then push: what the backup holds comes here, then what's new here goes up. Nothing
+     * is removed on either side, so it needs no question first, even on a new device.
+     */
     private void triggerDriveSync() {
         if (!driveConnected) return;
-
-        // A device that has never reconciled with an existing backup must be asked first.
-        // Guessing here is what used to delete the whole thing.
-        if (SecurityHelper.getAppPrefs(this).getBoolean(SyncWorker.PREF_NEEDS_CHOICE, false)) {
-            startActivity(SyncChoiceActivity.intent(this, vaultId));
-            return;
-        }
-
-        observeSyncProgress(SyncWorker.requestBackupNow(this).getId());
+        observeSyncProgress(SyncWorker.requestPullThenPush(this).getId());
     }
 
     /**

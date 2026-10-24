@@ -112,6 +112,46 @@ public class Snapshot {
         return names;
     }
 
+    /**
+     * Add-only: takes in everything {@code older} describes that this one doesn't, as long as
+     * its bytes are stored. A backup from a device holding fewer items (a new laptop with one
+     * photo) then never shrinks the backup made by the others (a phone with twenty).
+     * The older one's main vault is this one's main vault: its items land there.
+     */
+    public void mergeFrom(Snapshot older, Set<String> stored) {
+        Set<String> vaultIds = new HashSet<>(), albumIds = new HashSet<>(), files = new HashSet<>();
+        String main = null;
+        for (VaultRecord v : vaults) {
+            vaultIds.add(v.uuid);
+            if (v.isMain) main = v.uuid;
+        }
+        Map<String, String> sameVault = new HashMap<>();
+        for (VaultRecord v : older.vaults) {
+            if (v.uuid == null || vaultIds.contains(v.uuid)) continue;
+            if (v.isMain && main != null) {
+                sameVault.put(v.uuid, main);
+                continue;
+            }
+            vaults.add(v);
+            vaultIds.add(v.uuid);
+            if (v.isMain) main = v.uuid;
+        }
+        for (AlbumRecord a : albums) albumIds.add(a.uuid);
+        for (AlbumRecord a : older.albums) {
+            if (a.uuid == null || albumIds.contains(a.uuid)) continue;
+            if (sameVault.containsKey(a.vaultUuid)) a.vaultUuid = sameVault.get(a.vaultUuid);
+            albums.add(a);
+            albumIds.add(a.uuid);
+        }
+        for (MediaRecord m : media) files.add(m.fileName);
+        for (MediaRecord m : older.media) {
+            if (m.fileName == null || files.contains(m.fileName) || (stored != null && !stored.contains(m.fileName))) continue;
+            if (sameVault.containsKey(m.vaultUuid)) m.vaultUuid = sameVault.get(m.vaultUuid);
+            media.add(m);
+            files.add(m.fileName);
+        }
+    }
+
     // ------------------------------------------------------------------ capture
 
     /**

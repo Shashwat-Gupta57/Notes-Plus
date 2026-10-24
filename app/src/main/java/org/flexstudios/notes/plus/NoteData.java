@@ -83,8 +83,11 @@ final class NoteData {
     /** Card tints, chosen to read well in light and dark. Index 0 is "no colour". */
     static final int[] COLORS = {
             0, R.color.note_yellow, R.color.note_green, R.color.note_blue,
-            R.color.note_purple, R.color.note_pink, R.color.note_gray
+            R.color.note_purple, R.color.note_pink, R.color.note_gray,
+            R.color.note_orange, R.color.note_red, R.color.note_teal, R.color.note_indigo, R.color.note_brown, R.color.note_lime
     };
+
+    static final String[] COLOR_NAMES = {"None", "Yellow", "Green", "Blue", "Purple", "Pink", "Grey", "Orange", "Red", "Teal", "Indigo", "Brown", "Lime"};
 
     // =================================================================== files
 
@@ -109,7 +112,20 @@ final class NoteData {
             this.text = text;
             this.done = done;
         }
+
+        /**
+         * A picture between the items: an item that is just {@code ![[IMG_….png]]} (the embed line
+         * the desktop uses in text notes), its file in the note's folder. Its name, or null.
+         */
+        @androidx.annotation.Nullable
+        String picture() {
+            if (text == null) return null;
+            java.util.regex.Matcher m = PICTURE_ITEM.matcher(text.trim());
+            return m.matches() ? m.group(1) : null;
+        }
     }
+
+    private static final java.util.regex.Pattern PICTURE_ITEM = java.util.regex.Pattern.compile("^!\\[\\[([^\\]/\\\\]+)\\]\\]$");
 
     static List<TodoItem> todos(String json) {
         List<TodoItem> items = new ArrayList<>();

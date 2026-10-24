@@ -238,7 +238,7 @@ public class NoteEditorActivity extends NoteActivity {
     private void updateProgress() {
         int done = 0, total = 0;
         for (NoteData.TodoItem item : items) {
-            if (item.text.trim().isEmpty()) continue;
+            if (item.text.trim().isEmpty() || item.picture() != null) continue;
             total++;
             if (item.done) done++;
         }
@@ -261,6 +261,21 @@ public class NoteEditorActivity extends NoteActivity {
         public void onBindViewHolder(@NonNull Holder h, int position) {
             NoteData.TodoItem item = items.get(position);
             h.bound = null;
+            String picture = item.picture();
+            h.text.setVisibility(picture == null ? View.VISIBLE : View.GONE);
+            h.check.setVisibility(picture == null ? View.VISIBLE : View.INVISIBLE);
+            h.picture.setVisibility(picture == null ? View.GONE : View.VISIBLE);
+            if (picture != null) {
+                // A picture item: shown, moved and swiped away like any item; nothing to type.
+                File file = note == null || note.getId() <= 0 ? null
+                        : new File(NoteData.dir(NoteEditorActivity.this, note.getId()), picture);
+                if (file != null && file.exists()) Glide.with(h.picture).load(file).into(h.picture);
+                else h.picture.setImageDrawable(null);
+                h.text.setText("");
+                h.bound = item;
+                return;
+            }
+            Glide.with(h.picture).clear(h.picture);
             // Still one item per line for the keyboard (Next adds the next item); only the view wraps.
             h.text.setHorizontallyScrolling(!wrapItems);
             h.text.setMaxLines(wrapItems ? Integer.MAX_VALUE : 1);
@@ -287,6 +302,7 @@ public class NoteEditorActivity extends NoteActivity {
         final class Holder extends RecyclerView.ViewHolder {
             final EditText text;
             final CheckBox check;
+            final ImageView picture;
             NoteData.TodoItem bound;
 
             @android.annotation.SuppressLint("ClickableViewAccessibility")
@@ -294,6 +310,7 @@ public class NoteEditorActivity extends NoteActivity {
                 super(v);
                 text = v.findViewById(R.id.itemText);
                 check = v.findViewById(R.id.itemCheck);
+                picture = v.findViewById(R.id.itemPicture);
                 if (readOnly) {
                     text.setKeyListener(null);
                     text.setFocusable(false);
@@ -302,7 +319,7 @@ public class NoteEditorActivity extends NoteActivity {
                     v.findViewById(R.id.itemHandle).setVisibility(View.INVISIBLE);
                 }
                 text.addTextChangedListener(simpleWatcher(() -> {
-                    if (bound == null) return;
+                    if (bound == null || bound.picture() != null) return;
                     bound.text = text.getText().toString();
                     updateProgress();
                 }));

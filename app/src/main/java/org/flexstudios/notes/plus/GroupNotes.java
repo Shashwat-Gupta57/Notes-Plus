@@ -97,6 +97,8 @@ final class GroupNotes {
         fresh.setRev(0);
         fresh.setMedia(null); // Its files are re-shared the group's way on the next sync.
         Map<String, Object> value = NoteSync.toRemote(context, fresh);
+        value.remove("archived"); // How it's filed stays mine.
+        value.remove("folder");
         Map<String, Object> update = new HashMap<>();
         update.put("groupNotes/" + gid + "/owner", uid);
         update.put("groupNotes/" + gid + "/size", members.length());

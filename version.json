@@ -1,17 +1,17 @@
 {
-  "versionCode": 13,
-  "versionName": "12.0",
+  "versionCode": 14,
+  "versionName": "13.0",
   "forced": false,
-  "changelog": "Notes+ is on the web now: open notes.talken.in/app in any browser, sign in, and your notes are there, locked ones included (same lock). Install over this version; don't uninstall first.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-12.0.apk",
-  "sha256": "c2000cea3eb34b00e86ce0a5ea163e20b5286a3d6fca3ba5d7b168a288780095",
+  "changelog": "Notes+ 13: folders and an archive, share notes by link, invite links for group notes, 13 note colours, a theme of your own, pictures in lists, mind maps with several central ideas, and vault backups that only ever add (with Sync now). Install over this version; don't uninstall first.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-13.0.apk",
+  "sha256": "ba7b6c924966777c8459a1c7fb2b1792c397ba984d7e80541481c9e8731ece01",
   "desktop": {
-    "versionName": "12.0",
-    "url": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v12.0/Notes-Plus-Setup-12.0.exe",
-    "sha256": "3cfc553c7e09caccc5946a7f8991c37b1946db11204aa933c610b2fc795e1345",
+    "versionName": "13.0",
+    "url": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v13.0/Notes-Plus-Setup-13.0.exe",
+    "sha256": "6482246466335f4035b887cd6d41fc5490a402a5591b51d014e29b684218efea",
     "size": "76 MB",
-    "zip": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v12.0/Notes-Plus-Windows-12.0.zip",
-    "zipSha256": "124af870558f554dec61b2942ca96ec2feb21d8def06eca640a891fab1b47a9e",
-    "changelog": "Notes+ for Windows 12: export any note as one .npnote file (colours and pictures included) for a USB stick, linked files go to the Recycle Bin with their note, and Notes+ on the web."
+    "zip": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v13.0/Notes-Plus-Windows-13.0.zip",
+    "zipSha256": "5d6f3af59044d17a56ea548d5eee3bb2550bd6f0e38c5166b6fd426b44e7584a",
+    "changelog": "Notes+ for Windows 13: many windows, Ctrl+F and zoom in notes, folders and an archive, share links, themes, and vault backups that only ever add."
   }
 }

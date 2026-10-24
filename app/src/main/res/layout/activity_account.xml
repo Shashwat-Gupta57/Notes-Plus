@@ -374,6 +374,16 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 
+                    <LinearLayout android:id="@+id/rowTheme" style="@style/Settings.Row">
+                        <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_purple" android:src="@drawable/ic_palette" />
+                        <LinearLayout style="@style/Settings.Texts">
+                            <TextView style="@style/Settings.Title" android:text="Theme" />
+                            <TextView android:id="@+id/txtTheme" style="@style/Settings.Subtitle" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <View style="@style/Settings.Divider" />
+
                     <LinearLayout android:id="@+id/rowNoteLock" style="@style/Settings.Row">
                         <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_orange" android:src="@drawable/ic_lock" />
                         <LinearLayout style="@style/Settings.Texts">

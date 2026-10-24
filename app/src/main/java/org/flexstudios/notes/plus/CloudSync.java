@@ -263,6 +263,9 @@ public class CloudSync {
 
             stage(progress, "Creating restore point");
             Snapshot snapshot = Snapshot.capture(context, db, index.names());
+            // Add-only: what the newest restore point holds stays, whatever this device has.
+            Snapshot previous = newestRemote(VaultCrypto.localResolver(context, null));
+            if (previous != null) snapshot.mergeFrom(previous, index.names());
             store.writeEncrypted(snapshot.fileName(), snapshotsId, snapshot.toJson());
 
             List<Snapshot.Summary> summaries = readSnapshotIndex();
@@ -291,6 +294,89 @@ public class CloudSync {
             stage(progress, "Done");
             return snapshot;
         });
+    }
+
+    /** The newest restore point, or null (none yet, or one this device can't open). */
+    private Snapshot newestRemote(VaultCrypto.KeyResolver resolver) {
+        try {
+            List<Snapshot.Summary> summaries = readSnapshotIndex();
+            if (summaries.isEmpty()) return null;
+            JSONObject document = store.readEncrypted(summaries.get(0).id + ".json", snapshotsId, resolver);
+            return document == null ? null : Snapshot.fromJson(document);
+        } catch (Exception e) {
+            Log.w(TAG, "Couldn't read the newest restore point", e);
+            return null;
+        }
+    }
+
+    /**
+     * Pull, then push, as git does: first what the backup holds that this device doesn't
+     * (downloaded and added, nothing here removed or changed), then what this device holds
+     * that the backup doesn't. Afterwards both hold everything. The backup opens with this
+     * device's keys or the main vault lock; one under another lock asks for it in Settings.
+     */
+    public void pullThenPush(Progress progress) throws Exception {
+        exclusive(progress, () -> {
+            resolveFolders();
+            stage(progress, "Unlocking backup");
+            adoptKeyFromKeyring(null);
+            VaultCrypto.KeyResolver resolver = VaultCrypto.localResolver(context, null);
+            stage(progress, "Reading the backup");
+            Snapshot newest = newestRemote(resolver);
+            if (newest != null) {
+                int failed = download(newest, resolver, progress);
+                stage(progress, "Adding to your vaults");
+                newest.apply(context, db, false);
+                ThumbnailStore.get(context).clearAll();
+                writeBaseline(newest.mediaFileNames());
+                if (failed > 0) Log.w(TAG, failed + " item(s) couldn't come down this time");
+            }
+            backup(plan(), Resolution.MERGE, progress);
+            return null;
+        });
+    }
+
+    /** Downloads the snapshot's items this device doesn't have. Returns how many failed. */
+    private int download(Snapshot snapshot, VaultCrypto.KeyResolver resolver, Progress progress) throws Exception {
+        ObjectIndex index = loadIndex();
+        File vaultDir = VaultMedia.vaultDir(context);
+        List<Snapshot.MediaRecord> missing = new ArrayList<>();
+        for (Snapshot.MediaRecord record : snapshot.media) {
+            if (!new File(vaultDir, record.fileName).exists()) missing.add(record);
+        }
+        int total = missing.size(), done = 0, failed = 0;
+        long bytesTotal = 0, bytesDone = 0;
+        for (Snapshot.MediaRecord record : missing) {
+            ObjectIndex.Entry entry = index.get(record.fileName);
+            if (entry != null) bytesTotal += entry.size;
+        }
+        for (Snapshot.MediaRecord record : missing) {
+            if (progress != null && progress.isStopped()) throw new InterruptedIOException("Sync paused; it will resume");
+            ObjectIndex.Entry entry = index.get(record.fileName);
+            if (entry == null) {
+                failed++;
+                done++;
+                continue;
+            }
+            stage(progress, "Downloading " + (done + 1) + " of " + total);
+            File staged = stagingFile(record.fileName);
+            try {
+                store.downloadFile(entry.driveId, staged);
+                String expected = record.sha256 != null ? record.sha256 : entry.sha256;
+                transcodeForStorage(staged, new File(vaultDir, record.fileName), resolver, expected);
+            } catch (IOException network) {
+                throw network;
+            } catch (Exception e) {
+                failed++;
+                Log.w(TAG, "Could not bring down " + record.fileName, e);
+            } finally {
+                delete(staged);
+            }
+            done++;
+            bytesDone += entry.size;
+            item(progress, done, total, bytesDone, bytesTotal);
+        }
+        return failed;
     }
 
     // ----------------------------------------------------------------- restore

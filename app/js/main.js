@@ -5,6 +5,8 @@
 //   #/n/<uuid>    a note
 //   #/new/<TYPE>  a new note
 //   #/account     the account
+//   #/s/<token>   a note shared by link (no account needed)
+//   #/j/<token>   an invite to a shared note
 
 import * as account from './account.js';
 import * as sync from './sync.js';
@@ -12,6 +14,7 @@ import { hasModal, closeTop, toast } from './ui.js';
 import { homeScreen } from './home.js';
 import { accountScreen } from './account-ui.js';
 import { openEditor } from './editor.js';
+import { sharedNoteScreen, joinScreen } from './share-ui.js';
 import { forType as textEditors } from './ed-text.js';
 import { mindMapEditor } from './ed-mindmap.js';
 import { sketchEditor } from './ed-sketch.js';
@@ -44,6 +47,10 @@ function route() {
       if (!screen) { history.replaceState(null, '', '#/'); screen = homeScreen(go); }
     } else if ((m = /^#\/new\/([A-Z]+)$/.exec(hash)) && KINDS.some(k => k.type === m[1])) {
       screen = await openEditor({ type: m[1] }, implFor, go);
+    } else if ((m = /^#\/s\/([A-Za-z0-9_-]+)$/.exec(hash))) {
+      screen = await sharedNoteScreen(m[1], implFor, go);
+    } else if ((m = /^#\/j\/([A-Za-z0-9_-]+)$/.exec(hash))) {
+      screen = await joinScreen(m[1], go);
     } else if (hash === '#/account') {
       screen = accountScreen(go);
     } else {
@@ -91,7 +98,15 @@ async function boot() {
   if (account.uid()) {
     sync.startLive();
   }
-  account.observe(() => { if (account.uid()) sync.startLive(); else sync.stopLive(); });
+  account.observe(() => {
+    if (account.uid()) sync.startLive(); else sync.stopLive();
+    // Signed in from a link ("Sign in to save" / "to join"): back to the link.
+    const back = sessionStorage.getItem('np_return');
+    if (account.uid() && back) {
+      sessionStorage.removeItem('np_return');
+      go(back);
+    }
+  });
   setInterval(() => sync.schedule(0), 5 * 60 * 1000);
 }
 

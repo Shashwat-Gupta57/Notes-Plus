@@ -6,6 +6,7 @@ import * as db from './db.js';
 import * as lock from './lock.js';
 import * as sync from './sync.js';
 import * as account from './account.js';
+import * as links from './links.js';
 import { h, icon, iconButton, toast, dialog, confirm, menu, pickColor, askLock, newLock, choices } from './ui.js';
 import { newNote, kind, tint, COLOR_NAMES, SKETCH, AUDIO } from './model.js';
 
@@ -174,6 +175,9 @@ export async function openEditor({ uuid, type }, implFor, go) {
       if (key) {
         items.push({ text: 'Change lock…', onClick: () => chooseNewLock() });
         items.push({ text: 'Decrypt…', onClick: () => confirmDecrypt() });
+      }
+      if (account.uid() && !key && note.type !== AUDIO) {
+        items.push({ text: 'Share link…', onClick: async () => { await (saving = saving.then(save)); links.sheet(await db.getNote(note.uuid) || note); } });
       }
       items.push({ text: 'Delete', danger: true, onClick: () => confirm('Delete this note?', null, 'Delete', () => remove(), true) });
     }

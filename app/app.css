@@ -394,3 +394,12 @@ input.item-text { white-space: nowrap; text-overflow: ellipsis; }
   .card { margin-bottom: 10px; }
   .dialog { border-radius: 22px; }
 }
+
+/* A picture between a list's items. */
+.item.picture-item { align-items: flex-start; }
+.item-pic { flex: 1; margin: 4px 0 4px 12px; max-width: 520px; }
+
+/* What a link opens (a shared note's message, an invite). */
+.link-page { max-width: 560px; padding-top: 32px; }
+.link-message { font-size: 17px; line-height: 1.5; margin: 0 0 20px; }
+.btn.small { height: 36px; padding: 0 16px; font-size: 14px; }

@@ -10,6 +10,7 @@
 //  • Notes sent to me ("Shared with me") come from inbox/{uid} → sentNotes/{uuid}: read-only.
 //  • Pictures and recordings go to the person's Drive when connected (drive.js).
 
+import * as links from './links.js';
 import * as db from './db.js';
 import * as account from './account.js';
 import * as drive from './drive.js';
@@ -40,8 +41,8 @@ function decide(exists, open, dirty, localRev, remoteRev, remoteDeleted) {
   return remoteDeleted ? REMOVE : OVERWRITE;
 }
 
-/** A synced note as the apps write it. */
-function remoteOf(uuid, v) {
+/** A synced note as the apps write it. `mine`: one of my own notes, the only kind that says how it's filed. */
+function remoteOf(uuid, v, mine = true) {
   if (!v || typeof v.rev !== 'number') return null;
   const media = {};
   if (v.media && typeof v.media === 'object') {
@@ -59,6 +60,7 @@ function remoteOf(uuid, v) {
     content: typeof v.content === 'string' ? v.content : '', data: typeof v.data === 'string' ? v.data : null,
     sketch: typeof v.sketch === 'string' ? v.sketch : null, color: Number(v.color) || 0, pinned: v.pinned === true,
     edited: Number(v.edited) || Number(v.updatedAt) || Date.now(), media: Object.keys(media).length ? media : null,
+    mine, archived: v.archived === true, folder: typeof v.folder === 'string' && v.folder ? v.folder : null,
   };
 }
 
@@ -67,6 +69,7 @@ function copyInto(r, note) {
     type: r.type, title: r.title, content: r.content, data: r.data, color: r.color, pinned: r.pinned,
     timestamp: r.edited, rev: r.rev, media: r.media, sketch: r.sketch, dirty: false, deleted: false,
   });
+  if (r.mine) Object.assign(note, { archived: r.archived, folder: r.folder });
   return note;
 }
 
@@ -83,6 +86,9 @@ function toRemote(note) {
     type: note.type, title: note.title || '', content: note.content || '', color: note.color || 0,
     pinned: !!note.pinned, edited: note.timestamp,
   });
+  // How it's filed is mine alone.
+  if (note.archived) m.archived = true;
+  if (note.folder) m.folder = String(note.folder).slice(0, 100);
   if (note.data !== null && note.data !== undefined) m.data = note.data;
   if (note.type === SKETCH && note.sketch) m.sketch = note.sketch;
   const media = {};
@@ -100,7 +106,8 @@ function toRemote(note) {
 }
 
 const sameContent = (n, r) => n.type === r.type && (n.title || '') === r.title && (n.content || '') === r.content
-  && (n.data || null) === r.data && (n.color || 0) === r.color && !!n.pinned === r.pinned;
+  && (n.data || null) === r.data && (n.color || 0) === r.color && !!n.pinned === r.pinned
+  && (!r.mine || !!n.archived === r.archived && (n.folder || null) === r.folder);
 
 // ------------------------------------------------------------------ the pass
 
@@ -128,6 +135,8 @@ export async function run() {
       if (drive.hasToken()) {
         try { await uploadFiles(uid); } catch (e) { console.warn('Drive upload', e); }
       }
+      // Which notes have links: they are published again as they go up.
+      try { await links.refresh(uid); } catch (e) { console.warn('Links not checked', e); }
       await push(uid);
       if (drive.hasToken()) {
         try { await downloadFiles(uid); } catch (e) { console.warn('Drive download', e); }
@@ -232,6 +241,7 @@ async function push(uid) {
 
 async function pushOne(uid, note, mayRetry) {
   if (note.deleted && note.rev === 0) {
+    await links.afterPush(uid, note); // A link made before its first sync goes too.
     await db.purgeNote(note.uuid, true);
     return;
   }
@@ -243,6 +253,7 @@ async function pushOne(uid, note, mayRetry) {
     return value;
   }, { applyLocally: false });
   if (result.committed) {
+    await links.afterPush(uid, note); // Its link shows this version (or goes, deleted).
     if (note.deleted) {
       await db.purgeNote(note.uuid, true);
       return;
@@ -293,7 +304,7 @@ async function pullReceived(uid) {
       continue; // Taken down, or no longer sent to me.
     }
     if (!sent || !sent.to || !sent.to[uid]) continue;
-    const r = remoteOf(sid, sent.note);
+    const r = remoteOf(sid, sent.note, false);
     if (!r) continue;
     listed.add(sid);
     const local = await db.getNote(sid);

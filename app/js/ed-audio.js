@@ -115,14 +115,20 @@ export function audioEditor(ctx) {
 
   async function start() {
     stop();
+    // Made (and resumed) inside the click: made after the permission prompt, the browser
+    // starts it suspended and nothing is ever recorded.
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const resumed = ac.resume().catch(() => {});
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
     } catch {
+      ac.close();
       toast('Notes+ needs the microphone. Allow it in your browser and try again.');
       return;
     }
-    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    await resumed;
+    if (ac.state !== 'running') await ac.resume().catch(() => {});
     const src = ac.createMediaStreamSource(stream);
     const proc = ac.createScriptProcessor(4096, 1, 1);
     const chunks = [], peaks = [];
@@ -161,6 +167,7 @@ export function audioEditor(ctx) {
     recPanel.hidden = true;
     const duration = Math.round(performance.now() - r.started);
     if (duration < 500) { render(); return; }
+    if (!r.chunks.some(c => c.length)) { render(); toast('Nothing was recorded. Check the microphone and try again.'); return; }
     const name = mediaName('rec', 'wav').replace(/^rec_(\d+)_[0-9a-f]+/, 'rec_$1');
     await ctx.putFile(name, wavBlob(r.chunks, RATE));
     const wave = [];

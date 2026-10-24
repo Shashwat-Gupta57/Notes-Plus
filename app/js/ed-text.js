@@ -283,14 +283,50 @@ export function listEditor(ctx) {
   const bar = h('div.progress-fill');
   const progress = h('div.list-progress');
 
+  // A picture between the items is an item of its own, `![[name]]` (the text notes' embed line).
+  const pictureOf = item => { const m = PICTURE_LINE.exec((item.text || '').trim()); return m ? m[1] : null; };
+
   function updateProgress() {
-    const real = items.filter(i => i.text.trim());
+    const real = items.filter(i => i.text.trim() && !pictureOf(i));
     const done = real.filter(i => i.done).length;
     progress.textContent = !real.length ? 'Nothing yet' : done === real.length ? 'All done 🎉' : `${done} of ${real.length} done`;
     bar.style.width = (real.length ? (done * 100) / real.length : 0) + '%';
   }
 
+  /** Pasted or dropped pictures go in as items at `i` (in place of an empty item there). */
+  async function addPictures(files, i) {
+    for (const f of files) {
+      const name = mediaName('IMG', extOf(f));
+      await ctx.putFile(name, f);
+      const at = Math.max(0, Math.min(i, items.length));
+      if (items[at] && !items[at].text.trim() && !pictureOf(items[at]) && items.length > 1) removeAt(at);
+      const item = { text: `![[${name}]]`, done: false };
+      items.splice(at, 0, item);
+      const el = row(item);
+      if (at >= rows.children.length) rows.appendChild(el); else rows.children[at].before(el);
+      i = at + 1;
+    }
+    updateProgress();
+    ctx.changed();
+  }
+
+  function pictureRow(item, name) {
+    const img = h('img', { alt: '' });
+    const fig = h('figure.pic.item-pic', img, h('figcaption', 'Picture on another device'));
+    ctx.fileUrl(name).then(u => { if (u) img.src = u; else fig.classList.add('missing'); });
+    img.addEventListener('click', () => { if (img.src) window.open(img.src, '_blank'); });
+    const handle = h('span.handle', { title: 'Drag to reorder' }, icon('noteList', 18));
+    const del = ctx.readOnly ? null : h('button.item-remove', { type: 'button', title: 'Remove picture' }, icon('close', 18));
+    const el = h('div.item.picture-item', handle, fig, del);
+    if (del) del.addEventListener('click', () => { removeAt(items.indexOf(item)); if (!items.length) addAt(0); });
+    dragByHandle(item, el, handle);
+    el._field = null;
+    return el;
+  }
+
   function row(item) {
+    const picture = pictureOf(item);
+    if (picture) return pictureRow(item, picture);
     const field = wrapItems
       ? autoGrow(h('textarea.item-text', { rows: 1, placeholder: 'Item', readOnly: ctx.readOnly }))
       : h('input.item-text', { type: 'text', placeholder: 'Item', readOnly: ctx.readOnly });
@@ -309,6 +345,13 @@ export function listEditor(ctx) {
     };
     check.addEventListener('click', () => setDone(!item.done));
     field.addEventListener('input', () => { item.text = field.value.replace(/\n/g, ' '); updateProgress(); ctx.changed(); });
+    field.addEventListener('paste', e => {
+      const files = [...(e.clipboardData ? e.clipboardData.files : [])].filter(f => f.type.startsWith('image/'));
+      if (!files.length || ctx.readOnly) return;
+      e.preventDefault();
+      const i = items.indexOf(item);
+      addPictures(files, item.text.trim() ? i + 1 : i);
+    });
     field.addEventListener('keydown', e => {
       const i = items.indexOf(item);
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setDone(!item.done); }
@@ -318,7 +361,13 @@ export function listEditor(ctx) {
       else if (e.key === 'ArrowDown' && !wrapItems) { e.preventDefault(); focusItem(i + 1, true); }
     });
     if (del) del.addEventListener('click', () => { removeAt(items.indexOf(item)); if (!items.length) addAt(0); });
-    // Drag by the handle: the others make room as it passes their middle.
+    dragByHandle(item, el, handle);
+    el._field = field;
+    return el;
+  }
+
+  /** Drag by the handle: the others make room as it passes their middle. */
+  function dragByHandle(item, el, handle) {
     handle.addEventListener('pointerdown', e => {
       if (ctx.readOnly) return;
       e.preventDefault();
@@ -348,8 +397,6 @@ export function listEditor(ctx) {
       handle.addEventListener('pointermove', move);
       handle.addEventListener('pointerup', up);
     });
-    el._field = field;
-    return el;
   }
 
   function render() {
@@ -377,11 +424,19 @@ export function listEditor(ctx) {
   function focusItem(i, atEnd) {
     const el = rows.children[i];
     if (!el) return;
+    if (!el._field) { if (i + (atEnd ? -1 : 1) !== i) focusItem(i + (atEnd ? -1 : 1), atEnd); return; }
     el._field.focus();
     if (atEnd) { const l = el._field.value.length; el._field.setSelectionRange(l, l); }
   }
 
   render();
+  rows.addEventListener('dragover', e => { if (!ctx.readOnly && e.dataTransfer.types.includes('Files')) e.preventDefault(); });
+  rows.addEventListener('drop', e => {
+    const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+    if (!files.length || ctx.readOnly) return;
+    e.preventDefault();
+    addPictures(files, items.length);
+  });
   const add = ctx.readOnly ? null : h('button.add-row', { type: 'button', onClick: () => addAt(items.length) }, icon('add', 24, 'var(--tile-green)'), 'Add item');
   return {
     node: h('div.page', title, h('div.progress-track', bar), progress, rows, add),

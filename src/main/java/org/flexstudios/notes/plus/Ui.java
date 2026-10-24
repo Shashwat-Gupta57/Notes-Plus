@@ -64,7 +64,7 @@ final class Ui {
 
     private Ui() {}
 
-    /** The window's floating layer, over the current screen. Set once by {@link NotesApp}. */
+    /** The current window's floating layer, over its screens. Set by {@link NotesApp} as windows take focus. */
     static StackPane layer;
 
     // ==================================================================== icons
@@ -191,7 +191,7 @@ final class Ui {
             modals.remove(this);
             FadeTransition out = new FadeTransition(Duration.millis(110), root);
             out.setToValue(0);
-            out.setOnFinished(e -> layer.getChildren().remove(root));
+            out.setOnFinished(e -> unparent(root));
             out.play();
             root.setMouseTransparent(true);
             if (returnFocus != null && returnFocus.getScene() != null) returnFocus.requestFocus();
@@ -207,16 +207,30 @@ final class Ui {
 
     private static final Deque<Modal> modals = new ArrayDeque<>();
 
+    /** Something floats over the current window. */
     static boolean hasModal() {
-        return !modals.isEmpty();
+        return topModal() != null;
     }
 
-    /** Cancels the topmost floating thing, if any. */
+    /** Cancels the current window's topmost floating thing, if any. */
     static boolean dismissTop() {
-        Modal top = modals.peekLast();
+        Modal top = topModal();
         if (top == null) return false;
         top.cancel();
         return true;
+    }
+
+    private static Modal topModal() {
+        for (java.util.Iterator<Modal> it = modals.descendingIterator(); it.hasNext(); ) {
+            Modal m = it.next();
+            if (m.root.getParent() == layer) return m;
+        }
+        return null;
+    }
+
+    /** Takes a floating node off whichever window's layer it is on. */
+    private static void unparent(Node n) {
+        if (n.getParent() instanceof javafx.scene.layout.Pane p) p.getChildren().remove(n);
     }
 
     /** Shows {@code content} over everything; Escape or a click outside cancels it. */
@@ -626,7 +640,7 @@ final class Ui {
         if (snackTimer != null) snackTimer.stop();
         FadeTransition out = new FadeTransition(Duration.millis(150), bar);
         out.setToValue(0);
-        out.setOnFinished(e -> layer.getChildren().remove(bar));
+        out.setOnFinished(e -> unparent(bar));
         out.play();
         if (done != null) done.accept(byAction);
     }
@@ -645,7 +659,7 @@ final class Ui {
         PauseTransition hold = new PauseTransition(Duration.millis(2000));
         FadeTransition out = new FadeTransition(Duration.millis(250), t);
         out.setToValue(0);
-        out.setOnFinished(e -> layer.getChildren().remove(t));
+        out.setOnFinished(e -> unparent(t));
         new javafx.animation.SequentialTransition(in, hold, out).play();
     }
 
@@ -725,6 +739,10 @@ final class Ui {
             String t = area.getText() == null || area.getText().isEmpty() ? "X" : area.getText();
             measure.setText(t.endsWith("\n") ? t + "X" : t);
             double h = Math.max(minHeight, Math.ceil(measure.getLayoutBounds().getHeight()) + 6);
+            // The area's own text can wrap a little narrower than the measure: never cut it off.
+            Text inner = innerText(area, null);
+            if (inner != null) h = Math.max(h, Math.ceil(inner.getLayoutBounds().getHeight()) + 12);
+            if (Math.abs(h - area.getPrefHeight()) < 0.5) return;
             area.setMinHeight(h);
             area.setPrefHeight(h);
             area.setMaxHeight(h);
@@ -732,8 +750,51 @@ final class Ui {
         area.textProperty().addListener((o, a, b) -> fit.run());
         area.widthProperty().addListener((o, a, b) -> fit.run());
         area.fontProperty().addListener((o, a, b) -> fit.run());
+        area.skinProperty().addListener((o, a, b) -> javafx.application.Platform.runLater(() -> innerText(area, fit)));
         area.setWrapText(true);
         fit.run();
+    }
+
+    /**
+     * The text node a TextArea draws its words with (not its prompt). With {@code onResize}, it
+     * is also told whenever that node's size changes (once per node).
+     */
+    static Text innerText(TextArea area, Runnable onResize) {
+        for (Node n : area.lookupAll(".text")) {
+            if (!(n instanceof Text t) || !java.util.Objects.equals(t.getText(), area.getText())) continue;
+            if (onResize != null && t.getProperties().putIfAbsent("np-grow", Boolean.TRUE) == null) {
+                t.layoutBoundsProperty().addListener((o, a, b) -> onResize.run());
+                onResize.run();
+            }
+            return t;
+        }
+        return null;
+    }
+
+    /**
+     * Left and Right move one character back or forward in the text, as Notepad does. JavaFX
+     * moves the caret by what's on screen instead, and with right-to-left letters or direction
+     * marks in a text it gets stuck or jumps between line ends. Ctrl (word) moves stay its own.
+     */
+    static void logicalArrows(javafx.scene.control.TextInputControl area) {
+        area.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
+            if (e.isShortcutDown() || e.isAltDown() || e.isMetaDown()) return;
+            boolean left = e.getCode() == javafx.scene.input.KeyCode.LEFT, right = e.getCode() == javafx.scene.input.KeyCode.RIGHT;
+            if (!left && !right) return;
+            e.consume();
+            if (e.isShiftDown()) {
+                if (left) area.selectBackward();
+                else area.selectForward();
+            } else if (area.getSelection().getLength() > 0) {
+                int to = left ? area.getSelection().getStart() : area.getSelection().getEnd();
+                area.deselect();
+                area.positionCaret(to);
+            } else if (left) {
+                area.backward();
+            } else {
+                area.forward();
+            }
+        });
     }
 
     /** Keeps the caret of a growing TextArea inside the page's scroll viewport while typing. */

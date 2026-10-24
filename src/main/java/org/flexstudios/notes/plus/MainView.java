@@ -49,6 +49,13 @@ final class MainView extends Screen {
     private String filterType;
     /** The "Shared with me" filter: notes sent to me by others. */
     private static final String SHARED = "SHARED";
+    /** The archive: notes put away, shown nowhere else. */
+    private static final String ARCHIVED = "ARCHIVED";
+    /** A folder's filter: this prefix and its name. */
+    private static final String FOLDER = "F:";
+    private final HBox chips = new HBox(8);
+    /** The folders the chips show now, to rebuild them only when that changes. */
+    private List<String> shownFolders;
     private String query = "";
     private double lastScrollY;
     /** The Editor tab, made the first time it is shown. */
@@ -76,15 +83,8 @@ final class MainView extends Screen {
         showToolbar();
 
         // Filter chips.
-        HBox chips = new HBox(8);
         chips.setPadding(new Insets(0, 12, 6, 12));
-        ToggleGroup group = new ToggleGroup();
-        chips.getChildren().add(chip(group, "All", null, true));
-        chips.getChildren().add(chip(group, "Shared with me", SHARED, false));
-        for (NoteData.Kind kind : NoteData.KINDS) chips.getChildren().add(chip(group, kind.plural(), kind.type(), false));
-        group.selectedToggleProperty().addListener((o, a, b) -> {
-            if (b == null) a.setSelected(true); // selectionRequired
-        });
+        buildChips();
         ScrollPane chipScroll = new ScrollPane(chips);
         chipScroll.getStyleClass().add("no-bars");
         chipScroll.setFitToHeight(true);
@@ -136,14 +136,22 @@ final class MainView extends Screen {
         root.setCenter(notesArea);
         setUpSecretGesture();
 
-        NoteStore.get().observe(this::reload);
+        NoteStore.get().observe(reloader);
         Account.observe(this::showToolbar);
         reload();
     }
 
+    /** Every write, from any window or from sync, reaches every grid at once. */
+    private final Runnable reloader = this::reload;
+
     @Override
     Node view() {
         return root;
+    }
+
+    @Override
+    void onDestroy() {
+        NoteStore.get().unobserve(reloader);
     }
 
     /**
@@ -307,10 +315,41 @@ final class MainView extends Screen {
             if (modes != null) modes.bar().setVisible(true);
             toolbar.getChildren().setAll(title, Ui.spacer(),
                     Ui.iconButton(Icons.SEARCH, "text_primary", "Search (Ctrl+F)", this::startSearch),
-                    gap(12),
-                    Ui.iconButton(Icons.PERSON, Account.signedIn() ? "brand_yellow" : "text_primary", "Account",
-                            () -> NotesApp.open(new AccountView())));
+                    gap(4),
+                    Ui.iconButton(Icons.WINDOWS, "text_primary", "New window (Ctrl+Shift+N)", NotesApp::newWindow),
+                    gap(8),
+                    accountButton());
         }
+    }
+
+    /** The account button: signed in, its photo (custom, else Google's); otherwise the person icon. */
+    private Button accountButton() {
+        Button b = Ui.iconButton(Icons.PERSON, Account.signedIn() ? "brand_yellow" : "text_primary", "Account",
+                () -> NotesApp.open(new AccountView()));
+        if (Account.uid() == null) return b;
+        Account.BG.execute(() -> {
+            String json;
+            try {
+                json = Account.loadProfile().photoJson;
+            } catch (Exception e) {
+                return; // Offline: the icon stays.
+            }
+            Platform.runLater(() -> ChatMedia.loadAvatar(json, img -> {
+                if (img == null) return;
+                javafx.scene.image.ImageView view = new javafx.scene.image.ImageView(img);
+                view.setFitWidth(30);
+                view.setFitHeight(30);
+                view.setClip(new javafx.scene.shape.Circle(15, 15, 15));
+                Runnable show = () -> {
+                    if (!img.isError()) b.setGraphic(view);
+                };
+                if (img.getProgress() >= 1) show.run();
+                else img.progressProperty().addListener((o, x, y) -> {
+                    if (y.doubleValue() >= 1) show.run();
+                });
+            }));
+        });
+        return b;
     }
 
     private static javafx.scene.layout.Region gap(double w) {
@@ -333,6 +372,38 @@ final class MainView extends Screen {
         showToolbar();
     }
 
+    /** All, the folders (right-click: rename or remove), Shared with me, Archived, the types, and "New folder". */
+    private void buildChips() {
+        List<String> folders = NoteFolders.all(allNotes);
+        if (folders.equals(shownFolders)) return;
+        shownFolders = folders;
+        if (filterType != null && filterType.startsWith(FOLDER) && !folders.contains(filterType.substring(FOLDER.length()))) {
+            filterType = null; // Its folder went (renamed or removed).
+        }
+        ToggleGroup group = new ToggleGroup();
+        chips.getChildren().clear();
+        chips.getChildren().add(chip(group, "All", null, filterType == null));
+        for (String f : folders) chips.getChildren().add(chip(group, f, FOLDER + f, (FOLDER + f).equals(filterType)));
+        chips.getChildren().add(chip(group, "Shared with me", SHARED, SHARED.equals(filterType)));
+        chips.getChildren().add(chip(group, "Archived", ARCHIVED, ARCHIVED.equals(filterType)));
+        for (NoteData.Kind kind : NoteData.KINDS) {
+            chips.getChildren().add(chip(group, kind.plural(), kind.type(), kind.type().equals(filterType)));
+        }
+        group.selectedToggleProperty().addListener((o, a, b) -> {
+            if (b == null && a != null) a.setSelected(true); // selectionRequired
+        });
+        Button add = new Button("New folder", Ui.icon(Icons.ADD, 18, "text_secondary"));
+        add.getStyleClass().setAll("chip", "with-icon");
+        add.setFocusTraversable(false);
+        add.setOnAction(e -> NoteFolders.create(name -> {
+            filterType = FOLDER + name;
+            shownFolders = null;
+            buildChips();
+            applyFilter();
+        }));
+        chips.getChildren().add(add);
+    }
+
     private ToggleButton chip(ToggleGroup group, String label, String type, boolean selected) {
         ToggleButton chip = new ToggleButton(label);
         chip.getStyleClass().setAll("chip");
@@ -342,6 +413,19 @@ final class MainView extends Screen {
         if (SHARED.equals(type)) {
             chip.setGraphic(Ui.icon(Icons.PERSON, 18, "tile_teal"));
             chip.getStyleClass().add("with-icon");
+        } else if (ARCHIVED.equals(type)) {
+            chip.setGraphic(Ui.icon(Icons.ARCHIVE, 18, "text_secondary"));
+            chip.getStyleClass().add("with-icon");
+        } else if (type != null && type.startsWith(FOLDER)) {
+            chip.setGraphic(Ui.icon(Icons.FOLDER, 18, "brand_yellow"));
+            chip.getStyleClass().add("with-icon");
+            String name = type.substring(FOLDER.length());
+            Ui.tooltip(chip, "Right-click to rename or remove");
+            chip.setOnContextMenuRequested(e -> NoteFolders.manage(name, () -> {
+                shownFolders = null;
+                buildChips();
+                applyFilter();
+            }));
         } else if (type != null) {
             NoteData.Kind kind = NoteData.kind(type);
             chip.setGraphic(Ui.icon(kind.icon(), 18, kind.accent()));
@@ -372,6 +456,7 @@ final class MainView extends Screen {
     private void reload() {
         NoteStore.load(NoteStore::all, notes -> {
             allNotes = notes;
+            buildChips();
             applyFilter();
         });
     }
@@ -379,8 +464,17 @@ final class MainView extends Screen {
     private void applyFilter() {
         List<NoteEntity> shown = new ArrayList<>();
         String q = query.toLowerCase(Locale.getDefault());
+        String folder = filterType != null && filterType.startsWith(FOLDER) ? filterType.substring(FOLDER.length()) : null;
         for (NoteEntity n : allNotes) {
-            if (SHARED.equals(filterType) ? !n.isReceived() : filterType != null && !filterType.equals(n.getType())) continue;
+            if (ARCHIVED.equals(filterType)) {
+                if (!n.isArchived()) continue;
+            } else if (n.isArchived()) {
+                continue; // Put away: only under Archived.
+            } else if (folder != null) {
+                if (!folder.equals(n.getFolder())) continue;
+            } else if (SHARED.equals(filterType) ? !n.isReceived() : filterType != null && !filterType.equals(n.getType())) {
+                continue;
+            }
             if (!q.isEmpty()) {
                 String hay = ((n.getTitle() == null ? "" : n.getTitle()) + "\n"
                         + (n.getContent() == null ? "" : n.getContent())).toLowerCase(Locale.getDefault());
@@ -389,9 +483,35 @@ final class MainView extends Screen {
             shown.add(n);
         }
 
+        // All, not searching: a folder's notes are one tile (opening the folder), before the rest.
+        List<Node> nodes = new ArrayList<>();
+        if (filterType == null && q.isEmpty()) {
+            Map<String, List<NoteEntity>> byFolder = new java.util.LinkedHashMap<>();
+            for (String f : NoteFolders.all(allNotes)) byFolder.put(f, new ArrayList<>());
+            List<NoteEntity> loose = new ArrayList<>();
+            for (NoteEntity n : shown) {
+                List<NoteEntity> in = n.getFolder() == null ? null : byFolder.get(n.getFolder());
+                if (in != null) in.add(n);
+                else loose.add(n);
+            }
+            shown = loose;
+            for (Map.Entry<String, List<NoteEntity>> f : byFolder.entrySet()) {
+                String name = f.getKey();
+                nodes.add(new FolderTile(name, f.getValue(), () -> {
+                    filterType = FOLDER + name;
+                    shownFolders = null;
+                    buildChips();
+                    applyFilter();
+                }, () -> NoteFolders.manage(name, () -> {
+                    shownFolders = null;
+                    buildChips();
+                    applyFilter();
+                })));
+            }
+        }
+
         // Unchanged notes keep their card (and its loaded pictures); the rest are rebuilt.
         Map<Integer, NoteCard> next = new HashMap<>();
-        List<Node> nodes = new ArrayList<>();
         NoteCard.Listener listener = new NoteCard.Listener() {
             @Override
             public void onOpen(NoteEntity note) {
@@ -413,9 +533,11 @@ final class MainView extends Screen {
         cards.putAll(next);
         grid.getChildren().setAll(nodes);
 
-        emptyState.setVisible(shown.isEmpty());
+        emptyState.setVisible(nodes.isEmpty());
         emptyText.setText(!q.isEmpty() ? "Nothing matches “" + query + "”"
                 : SHARED.equals(filterType) ? "Nothing shared with you yet. When someone sends you a note, it shows up here."
+                : ARCHIVED.equals(filterType) ? "Nothing archived. Archive a note from its options (right-click) to put it away here."
+                : folder != null ? "Nothing in “" + folder + "” yet. Move notes here from their options (right-click)."
                 : filterType != null ? "No " + NoteData.kind(filterType).plural().toLowerCase(Locale.getDefault()) + " yet"
                 : "No notes yet. Click New to start.");
     }
@@ -504,6 +626,12 @@ final class MainView extends Screen {
         java.util.List<String> labels = new java.util.ArrayList<>(List.of(note.isPinned() ? "Unpin" : "Pin to top", "Colour"));
         java.util.List<Runnable> actions = new java.util.ArrayList<>(List.of(
                 () -> NoteStore.write(s -> s.setPinned(note.getId(), !note.isPinned())), () -> pickColor(note)));
+        labels.add("Open in a new window");
+        actions.add(() -> NotesApp.popOut(NoteData.editor(note.getType(), note.getId())));
+        labels.add("Move to folder…");
+        actions.add(() -> NoteFolders.move(note, NoteFolders.all(allNotes)));
+        labels.add(note.isArchived() ? "Unarchive" : "Archive");
+        actions.add(() -> NoteFolders.setArchived(note, !note.isArchived()));
         if (note.isReceived()) {
             // Someone else's note: mine to pin, colour, copy or put away, not to change.
             labels.add("Save a copy");
@@ -520,6 +648,13 @@ final class MainView extends Screen {
             if (signedIn && !NoteData.AUDIO.equals(note.getType()) && note.getSentTo() == null) {
                 labels.add(note.getGroupId() != null ? "People…" : "Share with people…");
                 actions.add(() -> SharingUi.peopleSheet(note.getId()));
+            }
+            if (signedIn && !NoteData.AUDIO.equals(note.getType())) {
+                labels.add(note.getGroupId() != null ? "Invite link…" : "Share link…");
+                actions.add(() -> {
+                    if (note.getGroupId() != null) ShareLinks.inviteSheet(note);
+                    else ShareLinks.sheet(note.getId());
+                });
             }
             labels.add("Delete");
             actions.add(() -> deleteWithUndo(note));

@@ -78,7 +78,10 @@ final class MindMapEditor extends NoteEditor {
         HBox tools = new HBox(10,
                 Ui.miniFab(Icons.CENTER, "Show everything", () -> map.fit(true)),
                 tidyButton,
-                Ui.miniFab(Icons.SAVE, "Save as a picture", this::saveAsImage));
+                Ui.miniFab(Icons.SAVE, "Save as a picture", this::saveAsImage),
+                Ui.miniFab(Icons.ADD, "Add another central idea", () -> {
+                    if (!readOnly) addCentralIdea();
+                }));
         tools.setMaxSize(HBox.USE_PREF_SIZE, HBox.USE_PREF_SIZE);
         tools.setPickOnBounds(false);
         StackPane.setAlignment(tools, Pos.BOTTOM_LEFT);
@@ -121,6 +124,35 @@ final class MindMapEditor extends NoteEditor {
             map.requestFocus();
             if (note.getId() <= 0) name(map.root(), true);
         });
+    }
+
+    /** Ctrl+F: the ideas (and their sub-texts) with the words, in map order; each one found is selected. */
+    @Override
+    protected FindBar.Searcher searcher() {
+        return new FindBar.Searcher() {
+            @Override
+            public List<FindBar.Match> matches(String needle) {
+                List<FindBar.Match> out = new ArrayList<>();
+                for (NoteData.MindNode n : map.model.nodes) {
+                    if (!map.visible(n)) continue;
+                    if (!FindBar.occurrences(n.text + " " + n.sub, needle).isEmpty()) out.add(new FindBar.Match(n, 0, 0));
+                }
+                return out;
+            }
+
+            @Override
+            public void show(FindBar.Match m) {
+                NoteData.MindNode n = (NoteData.MindNode) m.target();
+                map.select(n);
+                map.ensureVisible(n);
+            }
+        };
+    }
+
+    /** Ctrl+= / Ctrl+-: the map zooms about its middle. */
+    @Override
+    protected void onZoom(double from, double to) {
+        map.zoomAt(map.getWidth() / 2, map.getHeight() / 2, to == 1 && from == 1 ? 1 : to / from);
     }
 
     @Override
@@ -180,7 +212,7 @@ final class MindMapEditor extends NoteEditor {
             e.consume();
             name(selected, false);
         } else if ((e.getCode() == KeyCode.DELETE || e.getCode() == KeyCode.BACK_SPACE)
-                && selected != null && selected.parent >= 0) {
+                && selected != null && map.canRemove(selected)) {
             e.consume();
             map.removeBranch(selected);
         } else if (e.isShortcutDown() && (e.getCode() == KeyCode.EQUALS || e.getCode() == KeyCode.ADD)) {
@@ -208,6 +240,11 @@ final class MindMapEditor extends NoteEditor {
 
     // ================================================================ ideas
 
+    /** Another centre for the map: its own tree, connected to the others only by connections. */
+    private void addCentralIdea() {
+        name(map.addRoot(), true);
+    }
+
     private void addChild(NoteData.MindNode parent) {
         if (parent.collapsed) map.toggleCollapsed(parent);
         name(map.addChild(parent), true);
@@ -225,7 +262,7 @@ final class MindMapEditor extends NoteEditor {
     private void name(NoteData.MindNode node, boolean isNew, boolean behind) {
         boolean root = node.parent < 0;
         Runnable discard = () -> {
-            if (isNew && !root && node.text.isEmpty()) {
+            if (isNew && (!root || map.canRemove(node)) && node.text.isEmpty()) {
                 if (behind) map.unwrap(node);
                 else map.removeBranch(node);
             }
@@ -303,8 +340,10 @@ final class MindMapEditor extends NoteEditor {
             labels.add("Remove its connections");
             actions.add(() -> map.removeCrossLinks(node));
         }
-        if (!root) {
-            labels.add("Delete branch");
+        labels.add("Add another central idea");
+        actions.add(this::addCentralIdea);
+        if (map.canRemove(node)) {
+            labels.add(root ? "Delete this central idea and its ideas" : "Delete branch");
             actions.add(() -> map.removeBranch(node));
         }
         Ui.dialog().title(node.text.isEmpty() ? "Idea" : node.text).items(labels, actions).show();

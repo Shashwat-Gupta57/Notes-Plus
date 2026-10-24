@@ -90,6 +90,7 @@ final class RichBody extends VBox {
     /** Lays out {@code content}; {@code noteDir} is where its pictures are (null for a new note). */
     void setContent(String content, Path noteDir) {
         dir = noteDir;
+        Diag.textReport("Note opened", content);
         getChildren().clear();
         StringBuilder text = new StringBuilder();
         boolean pending = false;
@@ -183,7 +184,11 @@ final class RichBody extends VBox {
         });
         area.widthProperty().addListener((o, a, b) -> grow(area));
         area.fontProperty().addListener((o, a, b) -> grow(area));
+        // The measure below can wrap a little differently from the area's own text (padding,
+        // CSS applied late), which cut the last lines off: the real text's height also counts.
+        area.skinProperty().addListener((o, a, b) -> Platform.runLater(() -> Ui.innerText(area, () -> grow(area))));
         area.addEventFilter(KeyEvent.KEY_PRESSED, e -> keys(area, e));
+        Ui.logicalArrows(area);
         Links.install(area);
         if (scroll != null) Ui.followCaret(area, scroll);
         return area;
@@ -199,6 +204,9 @@ final class RichBody extends VBox {
         String t = area.getText() == null || area.getText().isEmpty() ? "X" : area.getText();
         measure.setText(t.endsWith("\n") ? t + "X" : t);
         double h = Math.max(min, Math.ceil(measure.getLayoutBounds().getHeight()) + 6);
+        javafx.scene.text.Text inner = Ui.innerText(area, () -> grow(area));
+        if (inner != null) h = Math.max(h, Math.ceil(inner.getLayoutBounds().getHeight()) + 12);
+        if (Math.abs(h - area.getPrefHeight()) < 0.5) return;
         area.setMinHeight(h);
         area.setPrefHeight(h);
         area.setMaxHeight(h);
@@ -331,6 +339,35 @@ final class RichBody extends VBox {
                 });
             });
         });
+    }
+
+    /**
+     * Keeps a pasted or dropped picture in the note's folder under a new name, off the FX thread;
+     * {@code then} gets the name, or null when it couldn't be written.
+     */
+    static void savePicture(Path noteDir, File file, Image image, Consumer<String> then) {
+        String ext = file == null ? ".png" : extension(file.getName());
+        String name = "IMG_" + System.currentTimeMillis() + "_" + Integer.toHexString((int) (Math.random() * 0xFFFF)) + ext;
+        var buffered = image == null ? null : SwingFXUtils.fromFXImage(image, null);
+        NoteStore.load(s -> {
+            try {
+                Path target = noteDir.resolve(name);
+                if (file != null) Files.copy(file.toPath(), target, StandardCopyOption.REPLACE_EXISTING);
+                else ImageIO.write(buffered, "png", target.toFile());
+                return name;
+            } catch (Exception ex) {
+                System.getLogger("RichBody").log(System.Logger.Level.WARNING, "Could not keep the picture", ex);
+                return null;
+            }
+        }, then);
+    }
+
+    /** The clipboard's picture: an image file copied in Explorer, or an image. Null for neither. */
+    static Object clipboardPicture() {
+        Clipboard cb = Clipboard.getSystemClipboard();
+        File file = cb.hasFiles() ? cb.getFiles().stream().filter(RichBody::isPicture).findFirst().orElse(null) : null;
+        if (file != null) return file;
+        return cb.hasImage() ? cb.getImage() : null;
     }
 
     static boolean isPicture(File f) {

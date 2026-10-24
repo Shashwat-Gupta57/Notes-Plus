@@ -62,10 +62,11 @@ final class NoteData {
 
     /** Card tints, chosen to read well in light and dark. Index 0 is "no colour". */
     static final String[] COLORS = {
-            null, "note_yellow", "note_green", "note_blue", "note_purple", "note_pink", "note_gray"
+            null, "note_yellow", "note_green", "note_blue", "note_purple", "note_pink", "note_gray",
+            "note_orange", "note_red", "note_teal", "note_indigo", "note_brown", "note_lime"
     };
 
-    static final String[] COLOR_NAMES = {"None", "Yellow", "Green", "Blue", "Purple", "Pink", "Grey"};
+    static final String[] COLOR_NAMES = {"None", "Yellow", "Green", "Blue", "Purple", "Pink", "Grey", "Orange", "Red", "Teal", "Indigo", "Brown", "Lime"};
 
     /** The colour a note's card and editor are painted with. */
     static String tint(int color, String fallback) {
@@ -98,6 +99,16 @@ final class NoteData {
         TodoItem(String text, boolean done) {
             this.text = text;
             this.done = done;
+        }
+
+        /**
+         * A picture between the items: an item that is just {@code ![[IMG_….png]]}, the embed
+         * line text notes use, so older versions show it as a line. Its file name, or null.
+         */
+        String picture() {
+            if (text == null) return null;
+            java.util.regex.Matcher m = RichBody.EMBED.matcher(text.trim());
+            return m.matches() ? m.group(1) : null;
         }
     }
 

@@ -57,6 +57,8 @@ final class Account {
 
     static final class Profile {
         String username, displayName, email, photoUrl;
+        /** The photo others see, as {@link ChatMedia#loadAvatar} takes it: custom, else Google's. */
+        String photoJson;
     }
 
     // ================================================================== state
@@ -230,6 +232,8 @@ final class Account {
         }
         JSONObject photo = Firebase.getObject("profiles/" + uid + "/photo");
         if (photo != null && photo.has("url")) p.photoUrl = photo.optString("url");
+        p.photoJson = photo != null ? photo.toString()
+                : p.photoUrl != null && p.photoUrl.startsWith("https://") ? new JSONObject().put("url", p.photoUrl).toString() : null;
         return p;
     }
 

@@ -160,20 +160,24 @@ final class NoteCard extends VBox {
         addTitle("List");
         VBox list = new VBox();
         VBox.setMargin(list, new Insets(4, 0, 0, 0));
-        int done = 0;
-        for (NoteData.TodoItem item : items) if (item.done) done++;
+        int done = 0, tasks = 0;
+        for (NoteData.TodoItem item : items) {
+            if (item.picture() != null) continue;
+            tasks++;
+            if (item.done) done++;
+        }
         for (int i = 0; i < Math.min(LIST_PREVIEW, items.size()); i++) {
             NoteData.TodoItem item = items.get(i);
-            Label row = new Label((item.done ? "☑  " : "☐  ") + item.text);
+            Label row = new Label(item.picture() != null ? "🖼  Picture" : (item.done ? "☑  " : "☐  ") + item.text);
             row.getStyleClass().add("card-row");
             if (item.done) row.getStyleClass().add("done");
             row.setMaxWidth(Double.MAX_VALUE);
             list.getChildren().add(row);
         }
         inner.getChildren().add(list);
-        if (!items.isEmpty()) {
+        if (tasks > 0) {
             String more = items.size() > LIST_PREVIEW ? "  ·  +" + (items.size() - LIST_PREVIEW) + " more" : "";
-            meta(done == items.size() ? "All done" + more : done + " of " + items.size() + " done" + more);
+            meta(done == tasks ? "All done" + more : done + " of " + tasks + " done" + more);
         }
     }
 

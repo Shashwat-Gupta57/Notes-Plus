@@ -183,6 +183,11 @@ final class NoteSync {
                 drive = null;
             }
         }
+        try {
+            ShareLinks.refresh(uid); // Which notes have links: they are published again as they go up.
+        } catch (IOException e) {
+            LOG.log(System.Logger.Level.WARNING, "Links not checked this time", e);
+        }
         push(uid, drive);
         try {
             // Group notes' and received notes' files come from their links: no Drive needed for those.
@@ -208,7 +213,7 @@ final class NoteSync {
         long newest = since, waiting = Long.MAX_VALUE;
         if (changed instanceof JSONObject all) {
             for (String key : all.keySet()) {
-                Remote remote = Remote.of(key, all.optJSONObject(key));
+                Remote remote = Remote.mine(key, all.optJSONObject(key));
                 if (remote == null) continue;
                 if (!apply(uid, remote, null, null)) waiting = Math.min(waiting, remote.updatedAt);
                 newest = Math.max(newest, remote.updatedAt);
@@ -350,6 +355,7 @@ final class NoteSync {
             }
         }
         if (note.isDeleted() && note.getRev() == 0) {
+            ShareLinks.afterPush(uid, note); // A link made before its first sync goes too.
             store.purge(note.getId()); // Never reached the account: nothing to tell it.
             return;
         }
@@ -376,6 +382,7 @@ final class NoteSync {
             committed = Firebase.putIf(target, value, current.etag()) == null;
         }
         if (committed) {
+            if (groupId == null) ShareLinks.afterPush(uid, note); // Its link shows this version (or goes, deleted).
             if (note.isDeleted()) {
                 if (drive != null) trashAttachments(drive, note);
                 store.purge(note.getId());
@@ -392,7 +399,8 @@ final class NoteSync {
             }
             return;
         }
-        Remote remote = theirs == null ? null : Remote.of(note.getUuid(), theirs);
+        Remote remote = theirs == null ? null
+                : note.getGroupId() == null ? Remote.mine(note.getUuid(), theirs) : Remote.of(note.getUuid(), theirs);
         if (remote == null) return;
         if (note.isDeleted()) {
             // Deleted here, edited elsewhere: the edit wins, the note comes back.
@@ -458,6 +466,13 @@ final class NoteSync {
         m.put("color", note.getColor());
         m.put("pinned", note.isPinned());
         m.put("edited", note.getTimestamp());
+        // How it's filed is mine alone: never part of a group note.
+        if (note.getGroupId() == null) {
+            if (note.isArchived()) m.put("archived", true);
+            if (note.getFolder() != null && !note.getFolder().isEmpty()) {
+                m.put("folder", note.getFolder().length() > 100 ? note.getFolder().substring(0, 100) : note.getFolder());
+            }
+        }
         if (NoteData.SKETCH.equals(note.getType())) {
             String sketch = readSketch(note.getId());
             if (sketch != null) m.put("sketch", sketch);
@@ -762,10 +777,19 @@ final class NoteSync {
 
     /** One note as the database holds it. */
     static final class Remote {
-        String uuid, type, title, content, data, sketch, media;
+        String uuid, type, title, content, data, sketch, media, folder;
         long rev, updatedAt, edited;
         int color;
-        boolean pinned, deleted;
+        boolean pinned, deleted, archived;
+        /** One of my own notes (users/{uid}/notes): only these say how the note is filed. */
+        boolean mine;
+
+        /** One of my own notes. */
+        static Remote mine(String key, JSONObject s) {
+            Remote r = of(key, s);
+            if (r != null) r.mine = true;
+            return r;
+        }
 
         static Remote of(String key, JSONObject s) {
             if (key == null || s == null || !s.has("rev")) return null;
@@ -781,6 +805,8 @@ final class NoteSync {
             r.sketch = s.opt("sketch") instanceof String t ? t : null;
             r.color = s.optInt("color");
             r.pinned = s.optBoolean("pinned");
+            r.archived = s.optBoolean("archived");
+            r.folder = s.opt("folder") instanceof String f && !f.isEmpty() ? f : null;
             r.edited = s.optLong("edited");
             if (r.edited == 0) r.edited = r.updatedAt;
             JSONObject manifest = new JSONObject();
@@ -810,6 +836,10 @@ final class NoteSync {
             note.setData(data);
             note.setColor(color);
             note.setPinned(pinned);
+            if (mine) {
+                note.setArchived(archived);
+                note.setFolder(folder);
+            }
             note.setTimestamp(edited);
             note.setRev(rev);
             note.setMedia(media);
@@ -821,7 +851,8 @@ final class NoteSync {
     private static boolean sameContent(NoteEntity n, Remote r) {
         return Objects.equals(n.getTitle(), r.title) && Objects.equals(n.getContent(), r.content)
                 && Objects.equals(n.getData(), r.data) && n.getColor() == r.color
-                && n.isPinned() == r.pinned && n.getType().equals(r.type);
+                && n.isPinned() == r.pinned && n.getType().equals(r.type)
+                && (!r.mine || n.isArchived() == r.archived && Objects.equals(n.getFolder(), r.folder));
     }
 
     // ============================================================== sketches

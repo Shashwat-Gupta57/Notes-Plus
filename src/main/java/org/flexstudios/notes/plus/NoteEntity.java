@@ -16,6 +16,9 @@ import java.util.UUID;
  * {@code media}, {@code groupId}, {@code groupMembers}) mean exactly what they mean on the phone,
  * so account sync can be added without a schema change. Editors never write them; they save
  * through {@link NoteStore#saveContent}.
+ *
+ * {@code archived} and {@code folder} are how the note is filed: off the main grid, and under a
+ * folder name (null: none). Both sync with my own notes, never with a group or sent note's copy.
  */
 public class NoteEntity {
     private int id;
@@ -42,6 +45,8 @@ public class NoteEntity {
     private String sentMedia;
     /** Someone else's note sent to me: their @username. Read-only here; never pushed. */
     private String sharedFrom;
+    private boolean archived;
+    private String folder;
 
     public NoteEntity(String title, String content, long timestamp) {
         this.title = title;
@@ -87,6 +92,10 @@ public class NoteEntity {
     public void setSentMedia(String sentMedia) { this.sentMedia = sentMedia; }
     public String getSharedFrom() { return sharedFrom; }
     public void setSharedFrom(String sharedFrom) { this.sharedFrom = sharedFrom; }
+    public boolean isArchived() { return archived; }
+    public void setArchived(boolean archived) { this.archived = archived; }
+    public String getFolder() { return folder; }
+    public void setFolder(String folder) { this.folder = folder; }
 
     /** Someone else's note, sent to me. */
     boolean isReceived() { return sharedFrom != null; }
@@ -96,7 +105,7 @@ public class NoteEntity {
         return Objects.equals(title, o.title) && Objects.equals(content, o.content)
                 && Objects.equals(data, o.data) && timestamp == o.timestamp
                 && color == o.color && pinned == o.pinned && getType().equals(o.getType())
-                && Objects.equals(groupMembers, o.groupMembers);
+                && Objects.equals(groupMembers, o.groupMembers) && archived == o.archived && Objects.equals(folder, o.folder);
     }
 
     /** A detached copy, for handing to the writer thread. */
@@ -118,6 +127,8 @@ public class NoteEntity {
         c.sentTo = sentTo;
         c.sentMedia = sentMedia;
         c.sharedFrom = sharedFrom;
+        c.archived = archived;
+        c.folder = folder;
         return c;
     }
 }

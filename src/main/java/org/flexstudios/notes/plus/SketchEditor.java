@@ -139,6 +139,12 @@ final class SketchEditor extends NoteEditor {
         });
     }
 
+    /** Saving a sketch writes its files, so its twins compare the title and the edit count instead. */
+    @Override
+    protected String quickState() {
+        return title.getText().trim() + "\u0000" + revision + "\u0000" + (note == null ? "" : note.getColor() + "," + note.isPinned());
+    }
+
     @Override
     protected boolean collect(NoteEntity note) {
         note.setTitle(title.getText().trim());

@@ -67,7 +67,17 @@ final class NoteStore {
                     }
                 }
             }
-            s.execute("PRAGMA user_version = 2");
+            if (version < 3) {
+                // Archived notes, and notes in folders.
+                for (String column : new String[]{"archived INTEGER NOT NULL DEFAULT 0", "folder TEXT"}) {
+                    try {
+                        s.execute("ALTER TABLE notes ADD COLUMN " + column);
+                    } catch (SQLException exists) {
+                        // Added by an interrupted earlier start.
+                    }
+                }
+            }
+            s.execute("PRAGMA user_version = 3");
         }
     }
 
@@ -87,6 +97,11 @@ final class NoteStore {
     /** Runs {@code onChange} on the FX thread after every write. */
     void observe(Runnable onChange) {
         observers.add(onChange);
+    }
+
+    /** Stops telling {@code onChange} (its window closed). */
+    void unobserve(Runnable onChange) {
+        observers.remove(onChange);
     }
 
     private void changed() {
@@ -147,12 +162,13 @@ final class NoteStore {
 
     synchronized int insert(NoteEntity n) {
         String sql = "INSERT INTO notes (title, content, timestamp, type, data, color, pinned, uuid, account, rev, "
-                + "dirty, deleted, media, groupId, groupMembers, sentTo, sentMedia, sharedFrom) "
-                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + "dirty, deleted, media, groupId, groupMembers, sentTo, sentMedia, sharedFrom, archived, folder) "
+                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
         try (PreparedStatement p = db.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             bind(p, n.getTitle(), n.getContent(), n.getTimestamp(), n.getType(), n.getData(), n.getColor(),
                     n.isPinned(), n.getUuid(), n.getAccount(), n.getRev(), n.isDirty(), n.isDeleted(), n.getMedia(),
-                    n.getGroupId(), n.getGroupMembers(), n.getSentTo(), n.getSentMedia(), n.getSharedFrom());
+                    n.getGroupId(), n.getGroupMembers(), n.getSentTo(), n.getSentMedia(), n.getSharedFrom(),
+                    n.isArchived(), n.getFolder());
             p.executeUpdate();
             try (ResultSet keys = p.getGeneratedKeys()) {
                 int id = keys.next() ? keys.getInt(1) : 0;
@@ -179,6 +195,20 @@ final class NoteStore {
 
     synchronized void setColor(int id, int color) {
         update("UPDATE notes SET color = ?, dirty = 1 WHERE id = ?", color, id);
+    }
+
+    synchronized void setArchived(int id, boolean archived) {
+        update("UPDATE notes SET archived = ?, dirty = 1 WHERE id = ?", archived, id);
+    }
+
+    /** Into a folder; null takes it out of any. */
+    synchronized void setFolder(int id, String folder) {
+        update("UPDATE notes SET folder = ?, dirty = 1 WHERE id = ?", folder, id);
+    }
+
+    /** A folder renamed (or, with null, removed: its notes stay, in no folder). */
+    synchronized void renameFolder(String from, String to) {
+        update("UPDATE notes SET folder = ?, dirty = 1 WHERE folder = ? AND sharedFrom IS NULL", to, from);
     }
 
     /** Hidden at once; removed for good with {@link #forget} once Undo has expired. */
@@ -211,10 +241,10 @@ final class NoteStore {
     synchronized void update(NoteEntity n) {
         update("UPDATE notes SET title = ?, content = ?, timestamp = ?, type = ?, data = ?, color = ?, pinned = ?, "
                         + "uuid = ?, account = ?, rev = ?, dirty = ?, deleted = ?, media = ?, groupId = ?, groupMembers = ?, "
-                        + "sentTo = ?, sentMedia = ?, sharedFrom = ? WHERE id = ?", n.getTitle(), n.getContent(), n.getTimestamp(),
-                n.getType(), n.getData(), n.getColor(), n.isPinned(), n.getUuid(), n.getAccount(), n.getRev(), n.isDirty(),
-                n.isDeleted(), n.getMedia(), n.getGroupId(), n.getGroupMembers(), n.getSentTo(), n.getSentMedia(),
-                n.getSharedFrom(), n.getId());
+                        + "sentTo = ?, sentMedia = ?, sharedFrom = ?, archived = ?, folder = ? WHERE id = ?", n.getTitle(),
+                n.getContent(), n.getTimestamp(), n.getType(), n.getData(), n.getColor(), n.isPinned(), n.getUuid(),
+                n.getAccount(), n.getRev(), n.isDirty(), n.isDeleted(), n.getMedia(), n.getGroupId(), n.getGroupMembers(),
+                n.getSentTo(), n.getSentMedia(), n.getSharedFrom(), n.isArchived(), n.getFolder(), n.getId());
     }
 
     /** Received notes are someone else's: never pushed from here. */
@@ -355,6 +385,8 @@ final class NoteStore {
         n.setSentTo(r.getString("sentTo"));
         n.setSentMedia(r.getString("sentMedia"));
         n.setSharedFrom(r.getString("sharedFrom"));
+        n.setArchived(r.getInt("archived") != 0);
+        n.setFolder(r.getString("folder"));
         return n;
     }
 }

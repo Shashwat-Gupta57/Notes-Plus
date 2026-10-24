@@ -18,8 +18,8 @@ import java.util.function.Consumer;
 /**
  * One Notes+ at a time. The running app listens on a loopback port (written, with a random
  * token, to {@code instance.json} in its own data folder); a second start with a file (a text
- * file double-clicked in Explorer) hands the path over and ends, so the file opens in the
- * window that is already there.
+ * file double-clicked in Explorer) hands the path over and ends, so the file opens in the app
+ * that is already there. A second start with no file asks it for a new window.
  */
 final class Instance {
 
@@ -50,8 +50,8 @@ final class Instance {
         }
     }
 
-    /** Listens for files from later starts; {@code open} runs on the FX thread. */
-    static void listen(Consumer<Path> open) {
+    /** Listens for later starts; {@code open} (a file) and {@code another} (none) run on the FX thread. */
+    static void listen(Consumer<Path> open, Runnable another) {
         try {
             ServerSocket server = new ServerSocket(0, 10, InetAddress.getLoopbackAddress());
             byte[] raw = new byte[16];
@@ -66,10 +66,14 @@ final class Instance {
                         BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
                         if (!token.equals(in.readLine())) continue; // Not a Notes+ start.
                         String line;
+                        int files = 0;
                         while ((line = in.readLine()) != null) {
+                            if (line.isEmpty()) continue;
+                            files++;
                             Path p = Path.of(line);
                             if (TextEditorView.openable(p)) javafx.application.Platform.runLater(() -> open.accept(p));
                         }
+                        if (files == 0) javafx.application.Platform.runLater(another);
                         s.getOutputStream().write('K');
                     } catch (IOException ignored) {
                         // One bad start doesn't stop the listener.

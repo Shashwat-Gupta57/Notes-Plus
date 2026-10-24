@@ -148,6 +148,13 @@ final class Links {
         return null;
     }
 
+    /** The window now in front draws its underlines on its own overlay. */
+    static void useOverlay(Pane layer) {
+        if (overlay != null && overlay != layer) overlay.getChildren().clear();
+        overlay = layer;
+        overlay.setMouseTransparent(true);
+    }
+
     /** Tracks Ctrl for the whole window and owns the underline overlay. */
     static void attach(Scene scene, Pane layer) {
         overlay = layer;

@@ -170,8 +170,56 @@ final class MindMapCanvas extends Region {
         return model.nodes.isEmpty() ? null : model.nodes.get(0);
     }
 
+    /**
+     * The central ideas: a map can have several (a broad topic, several centres). Each is the
+     * top of its own tree and never anyone's idea; they meet only through connections.
+     */
+    List<NoteData.MindNode> roots() {
+        List<NoteData.MindNode> out = new ArrayList<>();
+        for (NoteData.MindNode n : model.nodes) if (n.parent < 0) out.add(n);
+        return out;
+    }
+
+    /** The central idea at the top of {@code n}'s tree. */
+    NoteData.MindNode rootOf(NoteData.MindNode n) {
+        NoteData.MindNode at = n;
+        for (int guard = 0; at != null && at.parent >= 0 && guard < 10_000; guard++) at = byId.get(at.parent);
+        return at == null ? root() : at;
+    }
+
+    /** A new central idea, below everything there is; its own tree starts with it. */
+    NoteData.MindNode addRoot() {
+        long id = 1;
+        double bottom = 0, x = 0;
+        boolean any = false;
+        for (NoteData.MindNode n : model.nodes) {
+            id = Math.max(id, n.id + 1);
+            bounds(n, 1, 0, 0);
+            bottom = any ? Math.max(bottom, rb) : rb;
+            any = true;
+        }
+        NoteData.MindNode first = root();
+        if (first != null) x = first.x;
+        NoteData.MindNode r = new NoteData.MindNode(id, -1, "", x, any ? bottom + 160 : 0);
+        model.nodes.add(r);
+        refresh();
+        select(r);
+        ensureVisible(r);
+        return r;
+    }
+
+    /** A central idea can go while another stays (its tree goes with it). */
+    boolean canRemove(NoteData.MindNode n) {
+        return n.parent >= 0 || roots().size() > 1;
+    }
+
     NoteData.MindNode find(long id) {
         return byId.get(id);
+    }
+
+    /** Shown (not inside a collapsed branch). */
+    boolean visible(NoteData.MindNode n) {
+        return !hidden.contains(n.id);
     }
 
     NoteData.MindNode selected() {
@@ -198,7 +246,7 @@ final class MindMapCanvas extends Region {
     NoteData.MindNode addChild(NoteData.MindNode parent) {
         long id = 1;
         for (NoteData.MindNode n : model.nodes) id = Math.max(id, n.id + 1);
-        NoteData.MindNode root = root();
+        NoteData.MindNode root = rootOf(parent);
         double side;
         if (parent.parent < 0) {
             int right = 0, left = 0;
@@ -281,7 +329,7 @@ final class MindMapCanvas extends Region {
     }
 
     void removeBranch(NoteData.MindNode node) {
-        if (node.parent < 0) return;
+        if (!canRemove(node)) return;
         Set<Long> doomed = new HashSet<>();
         doomed.add(node.id);
         boolean grew = true;
@@ -329,18 +377,24 @@ final class MindMapCanvas extends Region {
      * to their new places.
      */
     void tidy() {
-        NoteData.MindNode root = root();
-        if (root == null) return;
+        List<NoteData.MindNode> roots = roots();
+        if (roots.isEmpty()) return;
         Map<Long, double[]> target = new HashMap<>();
-        target.put(root.id, new double[]{0, 0});
-        List<NoteData.MindNode> right = new ArrayList<>(), left = new ArrayList<>();
-        int i = 0;
-        for (NoteData.MindNode n : model.nodes) {
-            if (n.parent == root.id) (i++ % 2 == 0 ? right : left).add(n);
+        double top = 0;
+        for (NoteData.MindNode root : roots) {
+            List<NoteData.MindNode> right = new ArrayList<>(), left = new ArrayList<>();
+            int i = 0;
+            for (NoteData.MindNode n : model.nodes) {
+                if (n.parent == root.id) (i++ % 2 == 0 ? right : left).add(n);
+            }
+            double height = Math.max(size(root)[1], Math.max(columnSpan(right), columnSpan(left)));
+            double cy = top + height / 2;
+            target.put(root.id, new double[]{0, cy});
+            double rootW = size(root)[0];
+            placeColumn(right, 1, 0, rootW, cy, target);
+            placeColumn(left, -1, 0, rootW, cy, target);
+            top += height + 120;
         }
-        double rootW = size(root)[0];
-        placeColumn(right, 1, 0, rootW, 0, target);
-        placeColumn(left, -1, 0, rootW, 0, target);
 
         Map<Long, double[]> start = new HashMap<>();
         for (NoteData.MindNode n : model.nodes) start.put(n.id, new double[]{n.x, n.y});
@@ -375,6 +429,12 @@ final class MindMapCanvas extends Region {
         }
     }
 
+    private double columnSpan(List<NoteData.MindNode> column) {
+        double total = 0;
+        for (NoteData.MindNode n : column) total += span(n);
+        return total;
+    }
+
     /** Vertical room an idea needs: its own height plus the usual gap, or its branch's. */
     private double span(NoteData.MindNode n) {
         double own = size(n)[1] + ROW - NODE_H;
@@ -395,11 +455,12 @@ final class MindMapCanvas extends Region {
     /** Explicit colours win and are inherited downwards; first-level ideas get a palette. */
     private void recolor() {
         colorOf.clear();
-        NoteData.MindNode root = root();
-        if (root == null) return;
+        Set<Long> centres = new HashSet<>();
+        for (NoteData.MindNode r : roots()) centres.add(r.id);
+        if (centres.isEmpty()) return;
         int i = 0;
         for (NoteData.MindNode n : model.nodes) {
-            if (n.parent == root.id) {
+            if (centres.contains(n.parent)) {
                 int index = n.color > 0 ? n.color - 1 : i % (PALETTE.length - 1);
                 colorOf.put(n.id, Theme.color(PALETTE[index]));
                 i++;
@@ -482,7 +543,7 @@ final class MindMapCanvas extends Region {
         return new double[]{minX, minY, maxX, maxY};
     }
 
-    private void ensureVisible(NoteData.MindNode n) {
+    void ensureVisible(NoteData.MindNode n) {
         bounds(n, scale, tx, ty);
         double margin = 32;
         if (rr > getWidth() - margin) tx -= rr - getWidth() + margin;
@@ -624,7 +685,7 @@ final class MindMapCanvas extends Region {
 
     /** Which side of the centre an idea sits on, so its fold badge points outward. */
     private double side(NoteData.MindNode n) {
-        NoteData.MindNode root = root();
+        NoteData.MindNode root = rootOf(n);
         double s = root == null ? 1 : Math.signum(n.x - root.x);
         return s == 0 ? 1 : s;
     }

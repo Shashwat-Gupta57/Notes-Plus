@@ -267,7 +267,7 @@ final class AudioNoteEditor extends NoteEditor {
             try {
                 problem = NoteSync.fetch(id, r.file) ? null : Account.drive() == null
                         ? "Connect Google Drive in your account to get recordings from your other devices"
-                        : "This recording hasn't been uploaded from its device yet";
+                        : "This recording hasn't been uploaded from its device yet. Made on the web? Open Notes+ there and connect Google Drive.";
             } catch (Exception e) {
                 problem = "Couldn't download this recording. Check your connection";
             }

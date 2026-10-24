@@ -62,6 +62,46 @@ final class Snapshot {
         return id;
     }
 
+    /**
+     * Add-only: takes in everything {@code older} describes that this one doesn't, as long as
+     * its bytes are stored. A backup from a computer holding fewer items then never shrinks the
+     * backup made by the others. The older one's main vault is this one's main vault.
+     */
+    void mergeFrom(Snapshot older, java.util.Set<String> stored) {
+        java.util.Set<String> vaultIds = new java.util.HashSet<>(), albumIds = new java.util.HashSet<>(),
+                files = new java.util.HashSet<>();
+        String main = null;
+        for (VaultRecord v : vaults) {
+            vaultIds.add(v.uuid);
+            if (v.isMain) main = v.uuid;
+        }
+        Map<String, String> sameVault = new HashMap<>();
+        for (VaultRecord v : older.vaults) {
+            if (v.uuid == null || vaultIds.contains(v.uuid)) continue;
+            if (v.isMain && main != null) {
+                sameVault.put(v.uuid, main);
+                continue;
+            }
+            vaults.add(v);
+            vaultIds.add(v.uuid);
+            if (v.isMain) main = v.uuid;
+        }
+        for (AlbumRecord a : albums) albumIds.add(a.uuid);
+        for (AlbumRecord a : older.albums) {
+            if (a.uuid == null || albumIds.contains(a.uuid)) continue;
+            if (sameVault.containsKey(a.vaultUuid)) a.vaultUuid = sameVault.get(a.vaultUuid);
+            albums.add(a);
+            albumIds.add(a.uuid);
+        }
+        for (MediaRecord m : media) files.add(m.fileName);
+        for (MediaRecord m : older.media) {
+            if (m.fileName == null || files.contains(m.fileName) || (stored != null && !stored.contains(m.fileName))) continue;
+            if (sameVault.containsKey(m.vaultUuid)) m.vaultUuid = sameVault.get(m.vaultUuid);
+            media.add(m);
+            files.add(m.fileName);
+        }
+    }
+
     // ================================================================ capture
 
     /** The vaults as they stand now. The vault must be open (lock values are needed). */

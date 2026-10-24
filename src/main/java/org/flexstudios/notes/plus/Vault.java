@@ -66,6 +66,7 @@ final class Vault {
             VaultCrypto.removeIncompleteWrites();
         });
         Capture.protect(!screenshotsAllowed());
+        CloudBackup.syncAfterUnlock(); // When this computer syncs its vaults at every start.
     }
 
     /** Back to the notes: the vault closes and its key leaves memory. */

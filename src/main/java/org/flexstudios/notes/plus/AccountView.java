@@ -101,12 +101,28 @@ final class AccountView extends Screen {
     private Node appSection() {
         Label updateStatus = Ui.label("You're on " + Updates.VERSION, 13, "secondary");
         Label lockTime = Ui.label(lockTimeLabel(NoteLock.timeoutMinutes()), 13, "secondary");
+        Label theme = Ui.label(themeLabel(), 13, "secondary");
         VBox app = card(
+                row(Icons.PALETTE, "tile_purple", "Theme", theme, chevron(), () -> chooseTheme(theme)),
                 row(Icons.LOCK, "tile_orange", "Locked notes", lockTime, chevron(), () -> chooseLockTime(lockTime)),
                 row(Icons.SAVE, "tile_green", "Check for updates", updateStatus, null, () -> checkForUpdate(updateStatus)),
                 row(Icons.INFO, "tile_gray", "About", Ui.label("Version " + Updates.VERSION, 13, "secondary"), null,
                         AccountView::showAbout));
         return new VBox(header("Notes+"), app);
+    }
+
+    private static String themeLabel() {
+        int i = java.util.Arrays.asList(Theme.MODES).indexOf(Theme.mode());
+        return Theme.MODE_NAMES[Math.max(0, i)];
+    }
+
+    /** The whole app's look: Windows' choice, light, dark, or high contrast. */
+    private static void chooseTheme(Label shown) {
+        int current = Math.max(0, java.util.Arrays.asList(Theme.MODES).indexOf(Theme.mode()));
+        Ui.dialog().title("Theme").singleChoice(Theme.MODE_NAMES, current, which -> {
+            Theme.setMode(Theme.MODES[which]);
+            shown.setText(themeLabel());
+        }).show();
     }
 
     private static final int[] LOCK_MINUTES = {0, 1, 5, 15, 30, 60, -1};
@@ -280,16 +296,21 @@ final class AccountView extends Screen {
                     ? (pr.username != null ? pr.username : pr.email) : pr.displayName);
             handle.setText(pr.username == null ? "" : "@" + pr.username);
             username.setText(pr.username == null ? "Choose one so people can find you" : "@" + pr.username);
-            if (pr.photoUrl != null && pr.photoUrl.startsWith("https://")) {
-                Image img = new Image(pr.photoUrl, 168, 168, true, true, true);
+            // A custom photo too (kept encrypted on Drive), not only Google's.
+            ChatMedia.loadAvatar(pr.photoJson, img -> {
+                if (img == null) return;
                 ImageView view = new ImageView(img);
                 view.setFitWidth(84);
                 view.setFitHeight(84);
                 view.setClip(new Circle(42, 42, 42));
-                img.progressProperty().addListener((o, a, b) -> {
-                    if (b.doubleValue() >= 1 && !img.isError()) avatar.getChildren().setAll(view);
+                Runnable show = () -> {
+                    if (!img.isError()) avatar.getChildren().setAll(view);
+                };
+                if (img.getProgress() >= 1) show.run();
+                else img.progressProperty().addListener((o, a, b) -> {
+                    if (b.doubleValue() >= 1) show.run();
                 });
-            }
+            });
         });
         return p;
     }

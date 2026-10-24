@@ -132,6 +132,12 @@ final class NoteEditorView extends NoteEditor {
         }
     }
 
+    /** Ctrl+F: the title, the words (or the items), in reading order. */
+    @Override
+    protected FindBar.Searcher searcher() {
+        return FindBar.inFields(() -> FindBar.fieldsUnder(column, f -> true), scroll);
+    }
+
     @Override
     protected boolean collect(NoteEntity note) {
         String t = title.getText().trim();
@@ -214,6 +220,19 @@ final class NoteEditorView extends NoteEditor {
 
         itemRows.getChildren().clear();
         for (NoteData.TodoItem item : items) itemRows.getChildren().add(new ItemRow(item));
+        itemRows.setOnDragOver(e -> {
+            if (!readOnly && e.getDragboard().hasFiles() && e.getDragboard().getFiles().stream().anyMatch(RichBody::isPicture)) {
+                e.acceptTransferModes(javafx.scene.input.TransferMode.COPY);
+            }
+            e.consume();
+        });
+        itemRows.setOnDragDropped(e -> {
+            if (e.getDragboard().hasFiles()) {
+                for (File f : e.getDragboard().getFiles()) if (RichBody.isPicture(f)) addPicture(items.size(), f);
+            }
+            e.setDropCompleted(true);
+            e.consume();
+        });
 
         HBox add = new HBox(Ui.icon(Icons.ADD, 24, "tile_green"), Ui.label("Add item", 17, "secondary"));
         add.getStyleClass().add("add-row");
@@ -233,6 +252,25 @@ final class NoteEditorView extends NoteEditor {
         focusItem(position, false);
     }
 
+    /**
+     * A picture between the items, at {@code position}: an image file or an image (pasted). It is
+     * kept in the note's folder and stored as an item of its own, {@code ![[name]]}.
+     */
+    private void addPicture(int position, Object picture) {
+        withFolder(dir -> RichBody.savePicture(dir, picture instanceof File f ? f : null,
+                picture instanceof javafx.scene.image.Image i ? i : null, name -> {
+                    if (name == null) {
+                        Ui.toast("Couldn't add that picture");
+                        return;
+                    }
+                    int at = Math.max(0, Math.min(position, items.size()));
+                    NoteData.TodoItem item = new NoteData.TodoItem("![[" + name + "]]", false);
+                    items.add(at, item);
+                    itemRows.getChildren().add(at, new ItemRow(item));
+                    updateProgress();
+                }));
+    }
+
     private void removeItemAt(int position) {
         if (position < 0 || position >= items.size()) return;
         items.remove(position);
@@ -242,6 +280,12 @@ final class NoteEditorView extends NoteEditor {
 
     private void focusItem(int position, boolean atEnd) {
         if (position < 0 || position >= itemRows.getChildren().size()) return;
+        if (items.get(position).picture() != null) {
+            // A picture has nothing to type in: the item past it.
+            int next = atEnd ? position - 1 : position + 1;
+            if (next != position && next >= 0 && next < items.size()) focusItem(next, atEnd);
+            return;
+        }
         javafx.scene.control.TextInputControl field = ((ItemRow) itemRows.getChildren().get(position)).text;
         Platform.runLater(() -> {
             field.requestFocus();
@@ -253,7 +297,7 @@ final class NoteEditorView extends NoteEditor {
     private void updateProgress() {
         int done = 0, total = 0;
         for (NoteData.TodoItem item : items) {
-            if (item.text.trim().isEmpty()) continue;
+            if (item.text.trim().isEmpty() || item.picture() != null) continue;
             total++;
             if (item.done) done++;
         }
@@ -278,6 +322,12 @@ final class NoteEditorView extends NoteEditor {
 
         ItemRow(NoteData.TodoItem item) {
             this.item = item;
+            String picture = item.picture();
+            if (picture != null) {
+                text = new TextField(); // Never shown: a picture has no words.
+                pictureRow(picture);
+                return;
+            }
             if (wrapItems) {
                 TextArea area = new TextArea();
                 area.setPrefRowCount(1);
@@ -319,7 +369,15 @@ final class NoteEditorView extends NoteEditor {
             });
             text.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
                 int index = itemRows.getChildren().indexOf(this);
-                if (e.getCode() == KeyCode.ENTER && e.isShortcutDown()) {
+                boolean paste = (e.isShortcutDown() && e.getCode() == KeyCode.V) || (e.isShiftDown() && e.getCode() == KeyCode.INSERT);
+                Object pasted = paste && !readOnly ? RichBody.clipboardPicture() : null;
+                if (pasted != null) {
+                    // A picture pasted into an item lands under it (or in its place, if it's empty).
+                    e.consume();
+                    boolean empty = text.getText().trim().isEmpty();
+                    if (empty && items.size() > 1) removeItemAt(index);
+                    addPicture(empty && items.size() >= 1 ? index : index + 1, pasted);
+                } else if (e.getCode() == KeyCode.ENTER && e.isShortcutDown()) {
                     e.consume();
                     setDone(!item.done);
                 } else if (e.getCode() == KeyCode.ENTER) {
@@ -349,6 +407,54 @@ final class NoteEditorView extends NoteEditor {
             styleDone();
         }
 
+        /** The row of a picture item: its handle, the picture (click to view it big), and ×. */
+        private void pictureRow(String name) {
+            setAlignment(Pos.CENTER_LEFT);
+            setPadding(new Insets(4, 16, 4, 4));
+            StackPane handle = new StackPane(Ui.icon(Icons.NOTE_LIST, 16, "divider"));
+            handle.getStyleClass().add("list-handle");
+            handle.setMinSize(32, 40);
+            Ui.tooltip(handle, "Drag to reorder");
+            dragToReorder(handle);
+            javafx.scene.image.ImageView view = new javafx.scene.image.ImageView();
+            view.setPreserveRatio(true);
+            view.setSmooth(true);
+            Rectangle clip = new Rectangle();
+            clip.setArcWidth(16);
+            clip.setArcHeight(16);
+            view.setClip(clip);
+            Path file = note != null && note.getId() > 0 ? NoteData.dir(note.getId()).resolve(name) : null;
+            if (file != null) {
+                Images.load(file, 2048, img -> {
+                    if (img == null) return;
+                    double w = Math.min(img.getWidth(), 520);
+                    view.setImage(img);
+                    view.setFitWidth(w);
+                    clip.setWidth(w);
+                    clip.setHeight(w * img.getHeight() / Math.max(1, img.getWidth()));
+                });
+                view.setStyle("-fx-cursor: hand;");
+                view.setOnMouseClicked(e -> {
+                    if (e.getButton() == MouseButton.PRIMARY) MediaViewer.open(file, false);
+                });
+            }
+            StackPane picture = new StackPane(view);
+            picture.setAlignment(Pos.CENTER_LEFT);
+            picture.setPadding(new Insets(4, 0, 4, 12));
+            HBox.setHgrow(picture, Priority.ALWAYS);
+            Button remove = Ui.iconButton(Icons.CLOSE, 32, 18, "text_secondary", "Remove picture", () -> {
+                int index = itemRows.getChildren().indexOf(this);
+                removeItemAt(index);
+                if (items.isEmpty()) addItemAt(0);
+            });
+            remove.visibleProperty().bind(hoverProperty());
+            if (readOnly) {
+                handle.setVisible(false);
+                remove.setVisible(false);
+            }
+            getChildren().addAll(handle, picture, remove);
+        }
+
         private void setDone(boolean done) {
             item.done = done;
             styleDone();
@@ -376,32 +482,84 @@ final class NoteEditorView extends NoteEditor {
         }
 
         /** Drags the row by its handle; the others make room as it passes their middle. */
+        /**
+         * Picks the row up by its handle: it follows the pointer freely, the others glide out of
+         * its way, and it settles where it's let go. The page scrolls when it's held near an edge.
+         */
         private void dragToReorder(Node handle) {
+            double[] grab = new double[2];
+            int[] slots = {-1, -1}; // from, to
+            java.util.Map<Node, javafx.animation.TranslateTransition> glides = new java.util.HashMap<>();
             handle.setOnMousePressed(e -> {
-                setOpacity(0.7);
+                if (readOnly) return;
+                grab[0] = e.getSceneY();
+                grab[1] = 0;
+                slots[0] = slots[1] = itemRows.getChildren().indexOf(this);
+                setViewOrder(-1);
+                setStyle("-fx-background-color: " + Theme.ref(background()) + "; -fx-background-radius: 12;"
+                        + " -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.28), 18, 0.2, 0, 4);");
+                setScaleX(1.015);
+                setScaleY(1.015);
                 e.consume();
             });
             handle.setOnMouseDragged(e -> {
-                double y = itemRows.sceneToLocal(e.getSceneX(), e.getSceneY()).getY();
-                int from = itemRows.getChildren().indexOf(this);
-                int to = from;
-                for (int i = 0; i < itemRows.getChildren().size(); i++) {
-                    Node row = itemRows.getChildren().get(i);
-                    double mid = row.getBoundsInParent().getMinY() + row.getBoundsInParent().getHeight() / 2;
-                    if (i < from && y < mid) {
-                        to = i;
-                        break;
+                if (slots[0] < 0) return;
+                // Near the top or bottom of the page: scroll, and the row stays under the pointer.
+                javafx.geometry.Bounds view = scroll.localToScene(scroll.getLayoutBounds());
+                double edge = 48, step = 0;
+                if (e.getSceneY() < view.getMinY() + edge) step = -1;
+                else if (e.getSceneY() > view.getMaxY() - edge) step = 1;
+                if (step != 0) {
+                    double content = scroll.getContent().getLayoutBounds().getHeight() - scroll.getViewportBounds().getHeight();
+                    if (content > 0) {
+                        double before = scroll.getVvalue();
+                        scroll.setVvalue(Math.max(0, Math.min(1, before + step * 14 / content)));
+                        grab[1] += (scroll.getVvalue() - before) * content;
                     }
-                    if (i > from && y > mid) to = i;
                 }
-                if (to != from) {
+                double dy = e.getSceneY() - grab[0] + grab[1];
+                setTranslateY(dy);
+                List<Node> rows = itemRows.getChildren();
+                double h = getHeight(), mid = getLayoutY() + h / 2 + dy;
+                int to = 0;
+                for (int i = 0; i < rows.size(); i++) {
+                    Node r = rows.get(i);
+                    if (r != this && r.getLayoutY() + r.getLayoutBounds().getHeight() / 2 < mid) to++;
+                }
+                slots[1] = to;
+                int from = slots[0];
+                for (int i = 0; i < rows.size(); i++) {
+                    Node r = rows.get(i);
+                    if (r == this) continue;
+                    double target = i > from && i <= to ? -h : i < from && i >= to ? h : 0;
+                    javafx.animation.TranslateTransition t = glides.get(r);
+                    if (t != null && t.getToY() == target) continue;
+                    if (t != null) t.stop();
+                    t = new javafx.animation.TranslateTransition(Duration.millis(140), r);
+                    t.setToY(target);
+                    t.setInterpolator(Interpolator.EASE_OUT);
+                    t.play();
+                    glides.put(r, t);
+                }
+            });
+            handle.setOnMouseReleased(e -> {
+                if (slots[0] < 0) return;
+                int from = slots[0], to = slots[1];
+                slots[0] = -1;
+                for (javafx.animation.TranslateTransition t : glides.values()) t.stop();
+                glides.clear();
+                for (Node r : itemRows.getChildren()) r.setTranslateY(0);
+                setViewOrder(0);
+                setStyle(null);
+                setScaleX(1);
+                setScaleY(1);
+                if (to != from && to >= 0) {
                     itemRows.getChildren().remove(this);
                     itemRows.getChildren().add(to, this);
                     items.remove(item);
                     items.add(to, item);
                 }
             });
-            handle.setOnMouseReleased(e -> setOpacity(1));
         }
     }
 

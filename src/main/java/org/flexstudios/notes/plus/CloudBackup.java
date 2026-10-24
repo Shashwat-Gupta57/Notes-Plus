@@ -288,6 +288,9 @@ final class CloudBackup {
                 JSONObject e = index.get(r.fileName);
                 if (r.sha256 == null && e != null && !e.isNull("sha256")) r.sha256 = e.optString("sha256", null);
             }
+            // Add-only: what the newest restore point holds stays, whatever this computer has.
+            Snapshot previous = newest(s);
+            if (previous != null) snapshot.mergeFrom(previous, index.keySet());
             writeEncrypted(s, snapshot.id + ".json", s.snapshots, snapshot.toJson());
 
             List<Summary> all = readSnapshotIndex(s);
@@ -311,6 +314,72 @@ final class CloudBackup {
             return new Backup.Result(snapshot.media.size(), stored);
         });
     }
+
+    /** The newest restore point, or null (none yet, or one this computer can't open). */
+    private static Snapshot newest(Store s) {
+        try {
+            Summary latest = null;
+            for (Summary x : readSnapshotIndex(s)) if (latest == null || x.createdAt > latest.createdAt) latest = x;
+            if (latest == null) return null;
+            JSONObject doc = readEncrypted(s, latest.id + ".json", s.snapshots);
+            return doc == null ? null : Snapshot.fromJson(doc);
+        } catch (Exception e) {
+            System.getLogger("CloudBackup").log(System.Logger.Level.WARNING, "Couldn't read the newest restore point", e);
+            return null;
+        }
+    }
+
+    /**
+     * Pull, then push, as git does: what the backup holds that this computer doesn't comes
+     * down and is added (nothing here removed or changed), then what's new here goes up.
+     * Afterwards both hold everything.
+     */
+    static Backup.Result pullThenPush(String password, Backup.Progress progress) throws Exception {
+        return exclusive(progress, () -> {
+            progress.update(0, 0, "Connecting to Google Drive");
+            Store s = new Store();
+            settleKey(s, password);
+            Summary latest = null;
+            for (Summary x : readSnapshotIndex(s)) if (latest == null || x.createdAt > latest.createdAt) latest = x;
+            if (latest != null) {
+                try {
+                    restore(latest.id, false, progress);
+                } catch (IOException partly) {
+                    // Some items didn't come down; the rest are in. The backup still goes ahead.
+                    if (partly.getMessage() == null || !partly.getMessage().contains("couldn't be restored")) throw partly;
+                    System.getLogger("CloudBackup").log(System.Logger.Level.WARNING, partly.getMessage());
+                }
+            }
+            return backup(password, progress);
+        });
+    }
+
+    /** At the first vault unlock after Notes+ starts, if switched on: a quiet pull, then push. */
+    static void syncAfterUnlock() {
+        if (syncedThisRun || !connected() || !"true".equals(Prefs.get(PREF_SYNC_ON_START))) return;
+        syncedThisRun = true;
+        Thread t = new Thread(() -> {
+            try {
+                pullThenPush(null, new Backup.Progress() {
+                    @Override
+                    public void update(long done, long total, String message) {
+                    }
+
+                    @Override
+                    public boolean stopped() {
+                        return false;
+                    }
+                });
+            } catch (Exception e) {
+                System.getLogger("CloudBackup").log(System.Logger.Level.WARNING, "Vault sync at start didn't finish", e);
+            }
+        }, "vault-sync-start");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    static final String PREF_SYNC_ON_START = "vault_sync_on_start";
+    private static volatile boolean syncedThisRun;
 
     // ================================================================ restore
 

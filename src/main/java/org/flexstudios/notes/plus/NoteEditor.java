@@ -64,16 +64,27 @@ abstract class NoteEditor extends Screen {
         Button more = Ui.iconButton(Icons.MORE, "text_primary", "More options", () -> {});
         more.setOnAction(e -> showMenu(more));
         toolbar.getChildren().setAll(
-                Ui.iconButton(Icons.ARROW_BACK, "text_primary", "Back (Esc)", NotesApp::back),
+                Ui.iconButton(Icons.ARROW_BACK, "text_primary", "Back (Esc)", () -> NotesApp.leave(this)),
                 Ui.spacer(),
                 lockButton,
                 pinButton,
                 Ui.iconButton(Icons.PALETTE, "text_secondary", "Colour", this::pickColor),
+                Ui.iconButton(Icons.OPEN_IN_NEW, "text_secondary", "Open in a new window", this::popOut),
                 more);
         toolbar.getStyleClass().add("toolbar");
         toolbar.setAlignment(Pos.CENTER_LEFT);
-        root.setTop(toolbar);
+        FindBar.Searcher searcher = searcher();
+        findBar = searcher == null ? null : new FindBar(searcher);
+        root.setTop(findBar == null ? toolbar : new javafx.scene.layout.VBox(toolbar, findBar));
         root.setCenter(body);
+        // The view's zoom follows every row as it is laid out (none of it is saved in the note).
+        Runnable zoom = () -> {
+            if (root.getCenter() != null) Zoom.apply(root.getCenter());
+        };
+        root.sceneProperty().addListener((o, was, is) -> {
+            if (was != null) was.removePostLayoutPulseListener(zoom);
+            if (is != null) is.addPostLayoutPulseListener(zoom);
+        });
 
         if (noteId <= 0) {
             note = new NoteEntity("", "", System.currentTimeMillis());
@@ -88,7 +99,7 @@ abstract class NoteEditor extends Screen {
         }
         NoteStore.load(s -> s.byId(noteId), loaded -> {
             if (loaded == null || loaded.isDeleted()) {
-                NotesApp.back();
+                NotesApp.leave(this);
                 return;
             }
             if (!loaded.isReceived() && NoteLock.isLocked(loaded.getData())) {
@@ -111,6 +122,7 @@ abstract class NoteEditor extends Screen {
         showLock();
         onNoteLoaded(note);
         if (!readOnly) markBaseline();
+        showing(true);
         if (readOnly) {
             lockForReading();
             javafx.scene.control.Label from = Ui.label("From @" + loaded.getSharedFrom() + "  ·  read only", 14, "secondary");
@@ -136,7 +148,7 @@ abstract class NoteEditor extends Screen {
                     unlockThenShow(loaded);
                 }), () -> {
             NoteSync.OPEN.remove(loaded.getId());
-            NotesApp.back();
+            NotesApp.leave(this);
         });
     }
 
@@ -148,7 +160,7 @@ abstract class NoteEditor extends Screen {
         } catch (Exception e) {
             Ui.toast("Couldn't open this note");
             NoteSync.OPEN.remove(loaded.getId());
-            NotesApp.back();
+            NotesApp.leave(this);
             return;
         }
         lock = k;
@@ -187,9 +199,11 @@ abstract class NoteEditor extends Screen {
     void onDestroy() {
         NoteEntity n = note;
         save(true);
-        if (n != null) NoteLock.left(n.getUuid());
+        // Still open in another window: it stays held back from sync, and keeps its key.
+        boolean last = showing(false);
+        if (n != null && last) NoteLock.left(n.getUuid());
         NoteStore.write(s -> {
-            if (n != null) NoteSync.OPEN.remove(n.getId());
+            if (n != null && last) NoteSync.OPEN.remove(n.getId());
             NoteSync.schedule();
             FileLinks.syncLater(); // Its linked file (if any) takes the edit.
         });
@@ -201,7 +215,59 @@ abstract class NoteEditor extends Screen {
             e.consume();
             save(false);
             Ui.toast("Saved");
+        } else if (e.isShortcutDown() && e.getCode() == KeyCode.F && findBar != null) {
+            e.consume();
+            findBar.open(selectedText());
+        } else if (e.getCode() == KeyCode.F3 && findBar != null) {
+            e.consume();
+            findBar.step(!e.isShiftDown());
+        } else if (e.isShortcutDown() && (e.getCode() == KeyCode.EQUALS || e.getCode() == KeyCode.PLUS || e.getCode() == KeyCode.ADD)) {
+            e.consume();
+            zoomBy(0.1);
+        } else if (e.isShortcutDown() && (e.getCode() == KeyCode.MINUS || e.getCode() == KeyCode.SUBTRACT)) {
+            e.consume();
+            zoomBy(-0.1);
+        } else if (e.isShortcutDown() && (e.getCode() == KeyCode.DIGIT0 || e.getCode() == KeyCode.NUMPAD0)) {
+            e.consume();
+            zoomBy(0);
         }
+    }
+
+    /** Escape closes the find row first. */
+    @Override
+    boolean onBack() {
+        if (findBar != null && findBar.isOpen()) {
+            findBar.close();
+            root.requestFocus();
+            return true;
+        }
+        return false;
+    }
+
+    private FindBar findBar;
+
+    /** What Ctrl+F searches in this note; null for none (a sketch). */
+    protected FindBar.Searcher searcher() {
+        return null;
+    }
+
+    /** The selected words, to start a search with. */
+    private String selectedText() {
+        if (root.getScene() != null && root.getScene().getFocusOwner() instanceof javafx.scene.control.TextInputControl t) {
+            return t.getSelectedText();
+        }
+        return null;
+    }
+
+    private void zoomBy(double by) {
+        double from = Zoom.level(), z = Zoom.step(by);
+        Zoom.apply(root.getCenter());
+        onZoom(from, z);
+        Ui.toast("Zoom " + Math.round(z * 100) + "%");
+    }
+
+    /** Editors that draw their own words (the mind map) scale them here. */
+    protected void onZoom(double from, double to) {
     }
 
     /**
@@ -262,14 +328,17 @@ abstract class NoteEditor extends Screen {
 
     private void delete(boolean thenFinish) {
         final NoteEntity live = note;
+        showing(false);
         note = null;
+        // The same note in other windows goes too.
+        for (NoteEditor twin : twins(live.getId())) NotesApp.leave(twin);
         NoteStore.write(s -> {
             if (live.getId() <= 0) return;
             NoteSync.OPEN.remove(live.getId());
             s.setDeleted(live.getId(), true);
             s.forget(live.getId());
         });
-        if (thenFinish) NotesApp.back();
+        if (thenFinish) NotesApp.leave(this);
     }
 
     /**
@@ -298,7 +367,7 @@ abstract class NoteEditor extends Screen {
             labels.add("Save a copy");
             actions.add(() -> SharingUi.saveCopy(received, true));
             labels.add("Remove");
-            actions.add(() -> SharingUi.confirmRemoveReceived(received, NotesApp::back));
+            actions.add(() -> SharingUi.confirmRemoveReceived(received, () -> NotesApp.leave(this)));
         } else {
             boolean signedIn = Account.uid() != null;
             if (lock != null) {
@@ -332,6 +401,14 @@ abstract class NoteEditor extends Screen {
             if (signedIn && lock == null && !NoteData.AUDIO.equals(note.getType()) && note.getSentTo() == null) {
                 labels.add(note.getGroupId() != null ? "People" : "Share with people");
                 actions.add(() -> afterSave(SharingUi::peopleSheet));
+            }
+            if (signedIn && lock == null && !NoteData.AUDIO.equals(note.getType())) {
+                NoteEntity shown = note;
+                labels.add(note.getGroupId() != null ? "Invite link…" : "Share link…");
+                actions.add(() -> {
+                    if (shown.getGroupId() != null) ShareLinks.inviteSheet(shown);
+                    else afterSave(ShareLinks::sheet);
+                });
             }
             Boolean wrap = wrapText();
             if (wrap != null) {
@@ -449,7 +526,7 @@ abstract class NoteEditor extends Screen {
                         + "the copies in your account and on your other devices. To store it unencrypted, use ⋮ → Decrypt.")
                 .positive("Lock now", () -> {
                     NoteEntity n = note;
-                    NotesApp.back();
+                    NotesApp.leave(this);
                     if (n != null) NoteLock.forget(n.getUuid());
                 })
                 .negative("Close", null).width(460).show();
@@ -461,8 +538,18 @@ abstract class NoteEditor extends Screen {
                 .message("Its text will be stored unencrypted: here, in your account and on your other devices"
                         + (linked != null ? ", and in its file " + linked.getFileName() : "") + ". "
                         + "Click the lock any time to encrypt it again with the same lock.")
-                .positive("Decrypt", this::removeLock)
+                .positive("Decrypt", this::askThenDecrypt)
                 .negative("Cancel", null).width(460).show();
+    }
+
+    /** Decrypting asks for the lock itself, even though the note is open: it's the lock's owner deciding. */
+    private void askThenDecrypt() {
+        NoteLock.Key k = lock;
+        if (k == null) return;
+        String word = NoteLock.typeWord(k.type);
+        askLock(k.type, "Decrypt this note", "Enter its " + word + " to decrypt it.", value ->
+                slow(() -> NoteLock.open(NoteLock.seal(k, "", ""), value), ok -> removeLock(),
+                        e -> Ui.toast("That isn't this note's " + word)), null);
     }
 
     /** Decrypts the note for good; its lock is remembered, so the lock button puts it back. */
@@ -513,6 +600,118 @@ abstract class NoteEditor extends Screen {
     protected void setWrapText(boolean wrap) {
     }
 
+    // ============================================================== windows
+
+    /**
+     * This note in a window of its own: saved here, left here, and opened again there. A new
+     * note needs something in it first, so there is a note to open.
+     */
+    private void popOut() {
+        if (note == null) return;
+        NoteEntity probe = note.copy();
+        if (note.getId() <= 0 && !collect(probe)) {
+            Ui.toast("Write something first");
+            return;
+        }
+        String noteType = type;
+        afterSave(id -> {
+            NotesApp.leave(this);
+            NotesApp.popOut(NoteData.editor(noteType, id));
+        });
+    }
+
+    /** The editors showing each note, by id: the same note open in several windows. FX thread. */
+    private static final java.util.Map<Integer, List<NoteEditor>> SHOWING = new java.util.HashMap<>();
+    private int shownId;
+    private javafx.animation.Timeline mirror;
+    /** {@link #quickState} as last saved here or taken from a twin. */
+    private String mirrorSeen;
+    private long quietUntil;
+
+    private static List<NoteEditor> twins(int id) {
+        return new java.util.ArrayList<>(SHOWING.getOrDefault(id, List.of()));
+    }
+
+    /**
+     * Joins or leaves the editors showing this note. While two or more show it, each sends its
+     * edits to the others as they are made (checked every 150 ms, saved on the way), so both
+     * windows always show the same note. Returns true when no editor is left showing it.
+     */
+    private boolean showing(boolean on) {
+        if (on && note != null && note.getId() > 0) shownId = note.getId();
+        if (shownId <= 0) return true;
+        List<NoteEditor> list = SHOWING.computeIfAbsent(shownId, k -> new java.util.ArrayList<>());
+        if (on && !list.contains(this)) list.add(this);
+        if (!on) list.remove(this);
+        if (list.isEmpty()) SHOWING.remove(shownId);
+        if (!on) watchTwins(false);
+        for (NoteEditor e : list) e.watchTwins(list.size() > 1);
+        return list.isEmpty();
+    }
+
+    private void watchTwins(boolean twinned) {
+        if (twinned && mirror == null && note != null) {
+            mirrorSeen = quickState();
+            mirror = new javafx.animation.Timeline(new javafx.animation.KeyFrame(javafx.util.Duration.millis(150), e -> mirrorTick()));
+            mirror.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            mirror.play();
+        } else if (!twinned && mirror != null) {
+            mirror.stop();
+            mirror = null;
+        }
+    }
+
+    /** Sends an edit made here to the twins, once it is saved (a sketch's files included). */
+    private void mirrorTick() {
+        if (note == null || readOnly) return;
+        String q = quickState();
+        if (q.equals(mirrorSeen)) return;
+        mirrorSeen = q;
+        if (System.currentTimeMillis() < quietUntil) return; // Still settling after taking a twin's edit.
+        save(false);
+        NoteEntity sent = note.copy();
+        int id = shownId;
+        NoteStore.load(s -> Boolean.TRUE, landed -> {
+            for (NoteEditor twin : twins(id)) if (twin != this) twin.takeFromTwin(sent);
+        });
+    }
+
+    /** A twin's edit, shown here in place, unless this window has edits of its own still to send. */
+    private void takeFromTwin(NoteEntity from) {
+        if (note == null || readOnly) return;
+        if (mirror != null && !quickState().equals(mirrorSeen)) return; // Mine go out on the next tick.
+        javafx.scene.control.ScrollPane page = root.getCenter() == null ? null
+                : (javafx.scene.control.ScrollPane) root.getCenter().lookup(".scroll-pane");
+        double at = page == null ? 0 : page.getVvalue();
+        note.setTitle(from.getTitle());
+        note.setContent(from.getContent());
+        note.setData(from.getData());
+        note.setColor(from.getColor());
+        note.setPinned(from.isPinned());
+        note.setTimestamp(from.getTimestamp());
+        savedState = state(note);
+        quietUntil = System.currentTimeMillis() + 600;
+        onNoteLoaded(note);
+        applyColor();
+        showPin();
+        markBaseline();
+        javafx.application.Platform.runLater(() -> {
+            if (page != null) page.setVvalue(at);
+            mirrorSeen = quickState();
+        });
+    }
+
+    /**
+     * What the editor shows, cheaply, to notice an edit between ticks. By default the state it
+     * would save; editors whose saving writes files (a sketch) say something lighter.
+     */
+    protected String quickState() {
+        if (note == null) return "";
+        NoteEntity probe = note.copy();
+        collect(probe);
+        return state(probe);
+    }
+
     /** Saves first and lets the write land, so what is shared is what's on screen. */
     private void afterSave(java.util.function.IntConsumer then) {
         save(false);
@@ -538,7 +737,7 @@ abstract class NoteEditor extends Screen {
 
     private void pickColor() {
         if (note == null) return;
-        HBox row = new HBox(8);
+        javafx.scene.layout.FlowPane row = new javafx.scene.layout.FlowPane(8, 8);
         Ui.Modal[] dialog = new Ui.Modal[1];
         for (int i = 0; i < NoteData.COLORS.length; i++) {
             int index = i;

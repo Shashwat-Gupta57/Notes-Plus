@@ -89,6 +89,7 @@ final class TextEditorView {
         // ---------------------------------------------------------------- page
         area.getStyleClass().add("editor-area");
         area.setWrapText(true);
+        Ui.logicalArrows(area);
         area.textProperty().addListener((o, a, b) -> {
             if (!loading) showDirty();
             updateStatus();
@@ -172,11 +173,11 @@ final class TextEditorView {
             find(!e.isShiftDown());
         } else if (e.getCode() == KeyCode.ESCAPE && findBar.isVisible()) {
             closeFind();
-        } else if (e.isShortcutDown() && (e.getCode() == KeyCode.EQUALS || e.getCode() == KeyCode.ADD)) {
+        } else if (e.isShortcutDown() && (e.getCode() == KeyCode.EQUALS || e.getCode() == KeyCode.PLUS || e.getCode() == KeyCode.ADD)) {
             zoom(0.1);
         } else if (e.isShortcutDown() && (e.getCode() == KeyCode.MINUS || e.getCode() == KeyCode.SUBTRACT)) {
             zoom(-0.1);
-        } else if (e.isShortcutDown() && e.getCode() == KeyCode.DIGIT0) {
+        } else if (e.isShortcutDown() && (e.getCode() == KeyCode.DIGIT0 || e.getCode() == KeyCode.NUMPAD0)) {
             zoom(1 - zoom);
         } else {
             return false;
@@ -237,6 +238,7 @@ final class TextEditorView {
             }
             file = path;
             form = t;
+            Diag.textReport("Editor opened " + path.getFileName(), text);
             setText(text);
             savedText = text;
             showFile();

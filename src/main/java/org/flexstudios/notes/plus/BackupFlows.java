@@ -266,6 +266,15 @@ final class BackupFlows {
         }, () -> askKey(password != null, key -> driveBackup(key, changed), () -> { }));
     }
 
+    /** Pull, then push: what the backup has comes here, then what's new here goes up. */
+    static void driveSync(String password, Runnable changed) {
+        run("Syncing with Google Drive", p -> CloudBackup.pullThenPush(password, p), r -> {
+            changed.run();
+            if (r == null) return;
+            Ui.toast("In sync · " + r.items() + (r.items() == 1 ? " item" : " items") + " on Drive");
+        }, () -> askKey(password != null, key -> driveSync(key, changed), () -> { }));
+    }
+
     /** Lists the restore points on Drive, then restores the one picked. */
     static void driveRestore(String password, Runnable after) {
         java.util.concurrent.atomic.AtomicReference<java.util.List<CloudBackup.Summary>> found = new java.util.concurrent.atomic.AtomicReference<>();

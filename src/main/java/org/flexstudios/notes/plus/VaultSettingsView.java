@@ -114,7 +114,16 @@ final class VaultSettingsView extends Screen {
             if (CloudBackup.connected()) {
                 long last = CloudBackup.lastBackup();
                 String email = CloudBackup.email();
+                boolean onStart = "true".equals(Prefs.get(CloudBackup.PREF_SYNC_ON_START));
                 column.getChildren().addAll(header("Google Drive"), card(
+                        row(Icons.CLOUD, "tile_teal", "Sync now", "Brings down what the backup has, then backs up what's new here",
+                                chevron(), () -> BackupFlows.driveSync(null, this::build)),
+                        row(Icons.TIMER, "tile_orange", "Sync when unlocked", onStart
+                                        ? "On: at the first unlock each time Notes+ starts" : "Off",
+                                chevron(), () -> {
+                                    Prefs.put(CloudBackup.PREF_SYNC_ON_START, String.valueOf(!onStart));
+                                    build();
+                                }),
                         row(Icons.CLOUD, "tile_blue", "Back up now", last == 0 ? "Not backed up from this computer yet"
                                         : "Last backup " + new java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale.getDefault())
                                         .format(new java.util.Date(last)),

@@ -70,7 +70,7 @@ final class GroupNotes {
         JSONObject update = new JSONObject()
                 .put("groupNotes/" + gid + "/owner", uid)
                 .put("groupNotes/" + gid + "/size", members.length())
-                .put("groupNotes/" + gid + "/note", NoteSync.toRemote(fresh));
+                .put("groupNotes/" + gid + "/note", personalOff(NoteSync.toRemote(fresh)));
         for (String m : members.keySet()) {
             update.put("groupNotes/" + gid + "/members/" + m, members.getString(m));
             update.put("groupIndex/" + m + "/" + gid, new JSONObject().put("at", Firebase.now()));
@@ -83,6 +83,13 @@ final class GroupNotes {
     }
 
     /** My other devices drop their own copy: the group one replaces it. */
+    /** A group note's copy without how I filed mine (archived, folder): that stays mine. */
+    private static JSONObject personalOff(JSONObject value) {
+        value.remove("archived");
+        value.remove("folder");
+        return value;
+    }
+
     private static void retirePersonal(String uid, NoteEntity note) {
         if (note.getRev() == 0) return; // Never reached my own notes online.
         String path = "users/" + uid + "/notes/" + note.getUuid();

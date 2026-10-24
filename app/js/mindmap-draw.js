@@ -64,17 +64,29 @@ export class MapView {
     return this.map.nodes.find(n => n.parent < 0) || this.map.nodes[0] || null;
   }
 
+  /** The central ideas: each the top of its own tree, never anyone's idea (connections only). */
+  roots() {
+    return this.map.nodes.filter(n => n.parent < 0);
+  }
+
+  /** The central idea at the top of `n`'s tree. */
+  rootOf(n) {
+    let at = n;
+    for (let guard = 0; at && at.parent >= 0 && guard < 10000; guard++) at = this.byId.get(at.parent);
+    return at || this.root();
+  }
+
   children(n) {
     return this.map.nodes.filter(k => k.parent === n.id);
   }
 
   recolor() {
     this.colorOf = new Map();
-    const root = this.root();
-    if (!root) return;
+    const centres = new Set(this.roots().map(r => r.id));
+    if (!centres.size) return;
     let i = 0;
     for (const n of this.map.nodes) {
-      if (n.parent === root.id) {
+      if (centres.has(n.parent)) {
         this.colorOf.set(n.id, n.color > 0 ? PALETTE[n.color - 1] : PALETTE[i % (PALETTE.length - 1)]);
         i++;
       }
@@ -154,7 +166,7 @@ export class MapView {
   }
 
   side(n) {
-    const root = this.root();
+    const root = this.rootOf(n);
     const s = root ? Math.sign(n.x - root.x) : 1;
     return s === 0 ? 1 : s;
   }
@@ -341,16 +353,22 @@ export class MapView {
 
   /** Target positions of a balanced tree: first-level ideas alternate right and left. */
   tidyTargets() {
-    const root = this.root();
     const target = new Map();
-    if (!root) return target;
-    target.set(root.id, [0, 0]);
-    const right = [], left = [];
-    let i = 0;
-    for (const n of this.map.nodes) if (n.parent === root.id) (i++ % 2 === 0 ? right : left).push(n);
-    const rootW = this.geometry(root).w;
-    this.placeColumn(right, 1, 0, rootW, 0, target);
-    this.placeColumn(left, -1, 0, rootW, 0, target);
+    let top = 0;
+    // Each centre's tree on its own, the trees stacked downwards.
+    for (const root of this.roots()) {
+      const right = [], left = [];
+      let i = 0;
+      for (const n of this.map.nodes) if (n.parent === root.id) (i++ % 2 === 0 ? right : left).push(n);
+      const sum = col => col.reduce((s, n) => s + this.span(n), 0);
+      const height = Math.max(this.geometry(root).h, sum(right), sum(left));
+      const cy = top + height / 2;
+      target.set(root.id, [0, cy]);
+      const rootW = this.geometry(root).w;
+      this.placeColumn(right, 1, 0, rootW, cy, target);
+      this.placeColumn(left, -1, 0, rootW, cy, target);
+      top += height + 120;
+    }
     return target;
   }
 

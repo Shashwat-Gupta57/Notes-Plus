@@ -264,13 +264,29 @@ export async function openEditor({ uuid, type }, implFor, go) {
   }
 
   function confirmDecrypt() {
-    confirm('Decrypt this note?', 'Its text will be stored unencrypted: here, in your account and on your other devices. Click the lock any time to encrypt it again with the same lock.', 'Decrypt', async () => {
+    confirm('Decrypt this note?', 'Its text will be stored unencrypted: here, in your account and on your other devices. Click the lock any time to encrypt it again with the same lock.', 'Decrypt', () => {
+      // It asks for the lock itself, even though the note is open: it's the lock's owner deciding.
+      const word = lock.typeWord(key.type);
+      askLock(key.type, 'Decrypt this note', `Enter its ${word} to decrypt it.`, async v => {
+        try {
+          await lock.open(await lock.seal(key, '', ''), v);
+        } catch {
+          toast(`That isn't this note's ${word}`);
+          return;
+        }
+        decrypt();
+      });
+    });
+  }
+
+  function decrypt() {
+    (async () => {
       key = null;
       saved = null;
       await (saving = saving.then(save));
       paintToolbar();
       toast('Decrypted. Click the lock to encrypt it again.');
-    });
+    })();
   }
 
   build();

@@ -1,6 +1,8 @@
 // The pieces every screen is built from, in the apps' look: icons, buttons, dialogs, menus,
 // toasts and the lock entry (PIN, password or pattern).
 
+import { COLORS } from './model.js';
+
 const P = {
   noteText: 'M14,2H6c-1.1,0 -1.99,0.9 -1.99,2L4,20c0,1.1 0.89,2 1.99,2H18c1.1,0 2,-0.9 2,-2V8l-6,-6zM16,18H8v-2h8v2zM16,14H8v-2h8v2zM13,9V3.5L18.5,9H13z',
   noteList: 'M3,13h2v-2H3v2zM3,17h2v-2H3v2zM3,9h2V7H3v2zM7,13h14v-2H7v2zM7,17h14v-2H7v2zM7,7v2h14V7H7z',
@@ -269,7 +271,7 @@ export function pickColor(current, onPick, names) {
   names.forEach((name, i) => {
     row.appendChild(h('button.swatch' + (i === current ? '.on' : ''), {
       type: 'button', title: name, 'aria-label': name,
-      style: { background: i === 0 ? 'var(--surface)' : `var(--note-${['', 'yellow', 'green', 'blue', 'purple', 'pink', 'gray'][i]})` },
+      style: { background: i === 0 ? 'var(--surface)' : `var(--${COLORS[i]})` },
       onClick: () => { d.close(); onPick(i); },
     }));
   });
@@ -340,7 +342,7 @@ export function patternPad(onDone, size = 240) {
 }
 
 /** One lock of a known `type`: a field (PIN/password) or a pattern pad. */
-function lockInput(type, onSubmit) {
+export function lockInput(type, onSubmit) {
   if (type === 'PATTERN') return { node: h('div.pattern-wrap', patternPad(onSubmit)), value: () => '' };
   const field = h('input.field.lock-field', {
     type: 'password',

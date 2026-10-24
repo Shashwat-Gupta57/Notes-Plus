@@ -8,6 +8,8 @@
 //    editor has changed nothing, it takes the newer version in place (takeNewer).
 //  • Deletes are tombstones ({deleted: true}), then the row goes.
 //  • Notes sent to me ("Shared with me") come from inbox/{uid} → sentNotes/{uuid}: read-only.
+//  • Group notes (shared with people, everyone edits) come from groupIndex/{uid} →
+//    groupNotes/{gid}/note, under the group's id; each edit tells the members' indexes.
 //  • Pictures and recordings go to the person's Drive when connected (drive.js).
 
 import * as links from './links.js';
@@ -132,6 +134,7 @@ export async function run() {
       }
       await pull(uid);
       try { await pullReceived(uid); } catch (e) { console.warn('Shared notes not fetched', e); }
+      try { await pullGroups(uid); } catch (e) { console.warn('Group notes not fetched', e); }
       if (drive.hasToken()) {
         try { await uploadFiles(uid); } catch (e) { console.warn('Drive upload', e); }
       }
@@ -240,6 +243,7 @@ async function push(uid) {
 }
 
 async function pushOne(uid, note, mayRetry) {
+  if (note.groupId) { await pushGroup(uid, note, mayRetry); return; }
   if (note.deleted && note.rev === 0) {
     await links.afterPush(uid, note); // A link made before its first sync goes too.
     await db.purgeNote(note.uuid, true);
@@ -328,6 +332,101 @@ async function pullReceived(uid) {
   }
 }
 
+// ---------------------------------------------------------------- groups
+
+/** Group notes I'm in, as the apps keep them: the note under the group's id. */
+async function pullGroups(uid) {
+  const { db: fdb, D } = account.firebase();
+  const index = await D.get(D.ref(fdb, `groupIndex/${uid}`));
+  const listed = new Set();
+  const gids = [];
+  index.forEach(c => { gids.push(c.key); });
+  for (const gid of gids) {
+    let g;
+    try {
+      g = (await D.get(D.ref(fdb, 'groupNotes/' + gid))).val();
+    } catch {
+      continue; // No longer a member: handled below, as not listed.
+    }
+    if (!g || !g.members || !g.members[uid]) continue;
+    listed.add(gid);
+    const members = JSON.stringify(g.members);
+    const r = remoteOf(gid, g.note, false);
+    let local = await db.getNote(gid);
+    if (r && !r.deleted) {
+      if (!local) {
+        local = copyInto(r, { uuid: gid, account: uid, sharedFrom: null, groupId: gid, groupMembers: members });
+        await db.putNote(local, true);
+      } else if (!local.dirty && !OPEN.has(gid) && r.rev > local.rev) {
+        copyInto(r, local);
+        Object.assign(local, { groupId: gid, groupMembers: members });
+        await db.putNote(local, true);
+        continue;
+      }
+    }
+    if (local && local.groupMembers !== members) {
+      local.groupMembers = members;
+      await db.putNote(local, true);
+    }
+  }
+  // Taken out of a group (or it ended): the note stays, as my own again.
+  for (const n of await db.allNotes()) {
+    if (n.groupId && n.account === uid && !listed.has(n.groupId) && !OPEN.has(n.uuid)) {
+      Object.assign(n, { groupId: null, groupMembers: null, rev: 0, dirty: true, media: null });
+      await db.putNote(n, true);
+    }
+  }
+}
+
+/** One group note up: on the rev it was based on; an edit here wins over a newer one there. */
+async function pushGroup(uid, note, mayRetry) {
+  const { db: fdb, D } = account.firebase();
+  const gid = note.groupId;
+  if (note.deleted) {
+    // Deleting a group note here means leaving it; the others keep it.
+    try {
+      const size = Number((await D.get(D.ref(fdb, `groupNotes/${gid}/size`))).val()) || 1;
+      await D.update(D.ref(fdb), {
+        [`groupNotes/${gid}/members/${uid}`]: null,
+        [`groupNotes/${gid}/size`]: Math.max(0, size - 1),
+        [`groupIndex/${uid}/${gid}`]: null,
+      });
+    } catch (e) {
+      console.warn('Leaving the group', e); // Already out of it.
+    }
+    await db.purgeNote(note.uuid, true);
+    return;
+  }
+  const value = toRemote(note);
+  delete value.archived; // How it's filed stays mine.
+  delete value.folder;
+  const expected = note.rev;
+  const result = await D.runTransaction(D.ref(fdb, `groupNotes/${gid}/note`), current => {
+    if (current !== null && (typeof current.rev !== 'number' || current.rev !== expected)) return undefined;
+    return value;
+  }, { applyLocally: false });
+  if (result.committed) {
+    const now = await db.getNote(note.uuid);
+    if (now) {
+      now.rev = expected + 1;
+      if (now.timestamp === note.timestamp && (now.content || '') === (note.content || '') && now.data === note.data) now.dirty = false;
+      await db.putNote(now, true);
+    }
+    // The members' phones and computers hear of it.
+    const update = {};
+    let members = {};
+    try { members = JSON.parse(note.groupMembers || '{}'); } catch { /* none */ }
+    for (const m of Object.keys(members)) update[`groupIndex/${m}/${gid}`] = { at: D.serverTimestamp() };
+    if (Object.keys(update).length) D.update(D.ref(fdb), update).catch(e => console.warn('Announce', e));
+    return;
+  }
+  const r = remoteOf(gid, result.snapshot.val(), false);
+  if (!r) return;
+  note.rev = r.rev;
+  await db.putNote(note, true);
+  if (mayRetry) await pushGroup(uid, note, false);
+}
+
 // ---------------------------------------------------------------- live
 
 /** Live while the app is open: changes from the phone and PC appear as they happen. */
@@ -364,9 +463,22 @@ async function sha256(blob) {
   return Array.from(new Uint8Array(d), x => x.toString(16).padStart(2, '0')).join('');
 }
 
+/** How many of my notes' files are only in this browser (waiting for Drive). */
+export async function waitingFiles() {
+  const uid = account.uid();
+  if (!uid) return 0;
+  let count = 0;
+  for (const n of await db.allNotes()) {
+    if (n.deleted || n.account !== uid || n.sharedFrom || n.groupId) continue;
+    for (const name of await db.filesOf(n.uuid)) if (!(n.media || {})[name] && uses(n, name)) count++;
+  }
+  return count;
+}
+
 async function uploadFiles(uid) {
   for (const n of await db.allNotes()) {
-    if (n.deleted || n.account !== uid || n.sharedFrom || OPEN.has(n.uuid)) continue;
+    // A group note's files travel encrypted, by link: the apps share them.
+    if (n.deleted || n.account !== uid || n.sharedFrom || n.groupId || OPEN.has(n.uuid)) continue;
     const media = { ...(n.media || {}) };
     let changed = false;
     for (const name of await db.filesOf(n.uuid)) {

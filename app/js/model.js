@@ -16,8 +16,9 @@ export const KINDS = [
 export const kind = type => KINDS.find(k => k.type === type) || KINDS[0];
 
 /** Card tints; index 0 is "no colour". */
-export const COLORS = [null, 'note-yellow', 'note-green', 'note-blue', 'note-purple', 'note-pink', 'note-gray'];
-export const COLOR_NAMES = ['None', 'Yellow', 'Green', 'Blue', 'Purple', 'Pink', 'Grey'];
+export const COLORS = [null, 'note-yellow', 'note-green', 'note-blue', 'note-purple', 'note-pink', 'note-gray',
+  'note-orange', 'note-red', 'note-teal', 'note-indigo', 'note-brown', 'note-lime'];
+export const COLOR_NAMES = ['None', 'Yellow', 'Green', 'Blue', 'Purple', 'Pink', 'Grey', 'Orange', 'Red', 'Teal', 'Indigo', 'Brown', 'Lime'];
 export const tint = (color, fallback) => (color > 0 && color < COLORS.length ? COLORS[color] : fallback);
 
 /** A note's identity everywhere: 32 lowercase hex characters, like the apps make. */

@@ -122,7 +122,7 @@ export function mindMapEditor(ctx) {
   }
 
   function addChildNode(parent) {
-    const root = view.root();
+    const root = view.rootOf(parent);
     let side;
     if (parent.parent < 0) {
       let right = 0, left = 0;
@@ -182,8 +182,28 @@ export function mindMapEditor(ctx) {
     changedStructure();
   }
 
+  /** A central idea can go while another stays (its tree goes with it). */
+  const canRemove = n => n.parent >= 0 || view.roots().length > 1;
+
+  /** Another centre, below everything there is: its own tree, connected to the others only by connections. */
+  function addRoot() {
+    let bottom = 0, any = false;
+    for (const n of map.nodes) {
+      const b = n.y + view.geometry(n).h / 2;
+      bottom = any ? Math.max(bottom, b) : b;
+      any = true;
+    }
+    const first = view.root();
+    const r = blank(nextId(), -1, first ? first.x : 0, any ? bottom + 160 : 0);
+    map.nodes.push(r);
+    view.refresh();
+    select(r);
+    ensureVisible(r);
+    name(r, true);
+  }
+
   function removeBranch(n) {
-    if (n.parent < 0) return;
+    if (!canRemove(n)) return;
     const doomed = new Set([n.id]);
     let grew = true;
     while (grew) {
@@ -209,7 +229,7 @@ export function mindMapEditor(ctx) {
       allowEmpty: !isNew,
       onOk: v => { n.text = v.trim(); changedStructure(); select(n); if (next) { const p = view.byId.get(n.parent); if (p) name(addChildNode(p), true); } },
       onCancel: () => {
-        if (!isNew || root || n.text) return;
+        if (!isNew || (root && !canRemove(n)) || n.text) return;
         if (behind) unwrapNode(n); else removeBranch(n);
       },
     });
@@ -276,7 +296,8 @@ export function mindMapEditor(ctx) {
       n.image && { text: 'Remove picture', onClick: () => { n.image = null; view.blocks.clear(); changedStructure(); } },
       { text: 'Connect to another idea…', onClick: () => { connectFrom = n; draw(); toast('Click the idea to connect to'); } },
       map.links.some(l => l[0] === n.id || l[1] === n.id) && { text: 'Remove its connections', onClick: () => { map.links = map.links.filter(l => l[0] !== n.id && l[1] !== n.id); changedStructure(); } },
-      !root && { text: 'Delete branch', danger: true, onClick: () => removeBranch(n) },
+      { text: 'Add another central idea', onClick: () => addRoot() },
+      canRemove(n) && { text: root ? 'Delete this central idea and its ideas' : 'Delete branch', danger: true, onClick: () => removeBranch(n) },
     ];
     menu(anchor, items);
   }
@@ -439,7 +460,7 @@ export function mindMapEditor(ctx) {
       if (e.key === 'Tab') { e.preventDefault(); addChild(s || view.root()); return true; }
       if (e.key === 'Enter' && s) { e.preventDefault(); const p = view.byId.get(s.parent); if (p) addChild(p); else name(s, false); return true; }
       if (e.key === 'F2' && s) { e.preventDefault(); name(s, false); return true; }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && s && s.parent >= 0) { e.preventDefault(); removeBranch(s); return true; }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && s && canRemove(s)) { e.preventDefault(); removeBranch(s); return true; }
       if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomAt(width / 2, height / 2, 1.2); return true; }
       if ((e.ctrlKey || e.metaKey) && e.key === '-') { e.preventDefault(); zoomAt(width / 2, height / 2, 1 / 1.2); return true; }
       if ((e.ctrlKey || e.metaKey) && e.key === '0') { e.preventDefault(); fit(true); return true; }

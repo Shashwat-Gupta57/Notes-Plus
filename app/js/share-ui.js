@@ -97,7 +97,8 @@ export async function joinScreen(token, go) {
       const r = await links.join(token, invite);
       done(r === 'full' ? 'This note already has 20 people, the most it can have.'
         : (r === 'already' ? 'You\'re already in this note. ' : 'You\'re in. ')
-          + 'Open Notes+ on your phone or computer to see it there: shared notes aren\'t on the web yet.');
+          + 'It\'s in your notes now, here and on your phone and computer.');
+      if (r !== 'full') sync.schedule(0);
     } catch (e) {
       button.disabled = false;
       toast(String(e.message || '').includes('username') ? e.message : 'Couldn\'t join right now. Try again in a moment.');

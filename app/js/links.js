@@ -24,7 +24,7 @@ export function newToken() {
 }
 
 /** Words and structure only: not someone else's, not a recording, not locked. */
-export const shareable = n => !n.sharedFrom && n.type !== AUDIO && !lock.isLocked(n.data);
+export const shareable = n => !n.sharedFrom && !n.groupId && n.type !== AUDIO && !lock.isLocked(n.data);
 
 /** Which of my notes have links (once per sync pass). */
 export async function refresh(uid) {

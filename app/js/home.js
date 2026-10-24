@@ -6,6 +6,7 @@ import * as lock from './lock.js';
 import * as sync from './sync.js';
 import * as account from './account.js';
 import * as links from './links.js';
+import * as drive from './drive.js';
 import { h, icon, iconButton, menu, snackbar, pickColor, dialog, prompt, choices, confirm, toast } from './ui.js';
 import { KINDS, kind, tint, COLOR_NAMES, PICTURE_LINE, plain, firstPicture, todos, mindMap, journal, recordings, relative, searchable, dayStart, isVideo, TEXT, LIST, MINDMAP, JOURNAL, SKETCH, AUDIO } from './model.js';
 import { drawPreview } from './mindmap-draw.js';
@@ -50,6 +51,15 @@ export function homeScreen(go) {
         iconButton('close', 'Clear', () => { search.value = ''; query = ''; render(); search.focus(); }));
     } else {
       accountBtn.replaceChildren(icon('person', 24, account.signedIn() ? 'var(--brand)' : 'currentColor'));
+      // Signed in: the account's photo in place of the icon (when it has one the web can show).
+      if (account.uid()) {
+        account.profile().then(p => {
+          if (!p.photoUrl || !/^https:\/\//.test(p.photoUrl)) return;
+          const img = h('img.account-photo', { alt: 'Account', referrerpolicy: 'no-referrer' });
+          img.onload = () => accountBtn.replaceChildren(img);
+          img.src = p.photoUrl;
+        }).catch(() => {});
+      }
       toolbar.replaceChildren(h('div.title-wrap', title, syncing), h('div.spacer'),
         iconButton('search', 'Search (Ctrl+F)', startSearch), accountBtn);
     }
@@ -156,6 +166,29 @@ export function homeScreen(go) {
     notes = (await db.allNotes()).filter(n => !n.deleted);
     buildChips();
     render();
+    showWaiting();
+  }
+
+  // Pictures and recordings made here reach the other devices through Drive. When some are
+  // waiting and Drive isn't connected this visit, say so (a click is needed to ask Google).
+  const banner = h('div.drive-banner');
+  banner.hidden = true;
+  async function showWaiting() {
+    const waiting = account.uid() && !drive.hasToken() ? await sync.waitingFiles() : 0;
+    banner.hidden = !waiting;
+    if (!waiting) return;
+    const what = waiting === 1 ? '1 picture or recording is' : `${waiting} pictures and recordings are`;
+    banner.replaceChildren(icon('cloud', 20, 'var(--secondary)'),
+      h('span', `${what} only in this browser. Connect Google Drive so they reach your other devices.`),
+      h('button.btn.filled.small', { type: 'button', onClick: async () => {
+        try {
+          await drive.connect(account.email());
+          banner.hidden = true;
+          sync.schedule(0);
+        } catch (e) {
+          if (String(e.message) !== 'cancelled') toast(e.message);
+        }
+      } }, drive.connectedEmail() ? 'Reconnect' : 'Connect'));
   }
 
   function shown() {
@@ -172,9 +205,18 @@ export function homeScreen(go) {
   }
 
   function render() {
-    const list = shown();
-    grid.replaceChildren(...list.map(card));
-    empty.hidden = list.length > 0;
+    let list = shown();
+    const tiles = [];
+    // All, not searching: a folder's notes are one tile (opening the folder), before the rest.
+    if (!filter && !query) {
+      const byFolder = new Map(allFolders(notes).map(f => [f, []]));
+      const loose = [];
+      for (const n of list) (n.folder && byFolder.has(n.folder) ? byFolder.get(n.folder) : loose).push(n);
+      list = loose;
+      for (const [f, inside] of byFolder) tiles.push(folderTile(f, inside));
+    }
+    grid.replaceChildren(...tiles, ...list.map(card));
+    empty.hidden = list.length + tiles.length > 0;
     empty.querySelector('p').textContent = query ? 'No notes match your search'
       : filter === SHARED ? 'Notes people send you appear here'
       : filter === ARCHIVED ? 'Nothing archived. Archive a note from its options to put it away here.'
@@ -249,7 +291,7 @@ export function homeScreen(go) {
 
     const when = relative(n.timestamp);
     inner.appendChild(h('div.card-foot', icon(k.icon, 16, `var(--${k.accent})`),
-      h('span', n.sharedFrom ? `@${n.sharedFrom}  ·  ${when}` : when), h('span.spacer'),
+      h('span', n.sharedFrom ? `@${n.sharedFrom}  ·  ${when}` : n.groupId ? `Shared · ${people(n)}  ·  ${when}` : when), h('span.spacer'),
       n.pinned ? icon('pin', 16, 'var(--brand)') : null));
     c.addEventListener('click', () => go('#/n/' + n.uuid));
     c.addEventListener('keydown', e => { if (e.key === 'Enter') go('#/n/' + n.uuid); });
@@ -260,6 +302,33 @@ export function homeScreen(go) {
     c.addEventListener('pointermove', () => { if (hold && hold !== 'fired') { clearTimeout(hold); hold = null; } });
     c.addEventListener('click', e => { if (hold === 'fired') { e.stopImmediatePropagation(); hold = null; } }, true);
     return c;
+  }
+
+  /**
+   * A folder on the All grid: its name and count, and its newest notes as small cards (one
+   * filling it, two halves, one tall beside two, or four, the last saying how many more).
+   */
+  function folderTile(name, inside) {
+    const shownNotes = inside.slice(0, 4);
+    const cells = h('div.folder-cells.n' + shownNotes.length, ...shownNotes.map((n, i) => {
+      const cell = h('div.folder-cell', card(n));
+      if (i === 3 && inside.length > 4) cell.appendChild(h('div.folder-more', '+' + (inside.length - 3)));
+      return cell;
+    }));
+    const tile = h('article.card.folder-tile', { tabindex: 0, title: 'Open the folder · right-click to rename or remove' },
+      h('div.card-inner',
+        h('div.folder-head', icon('folder', 22, 'var(--brand)'), h('h3.card-title', name),
+          h('span.card-meta', inside.length ? `${inside.length} note${inside.length === 1 ? '' : 's'}` : 'Empty')),
+        shownNotes.length ? cells : null));
+    tile.addEventListener('click', () => setFilter(FOLDER + name));
+    tile.addEventListener('keydown', e => { if (e.key === 'Enter') setFilter(FOLDER + name); });
+    tile.addEventListener('contextmenu', e => { e.preventDefault(); manageFolder(name); });
+    return tile;
+  }
+
+  /** How many are in a group note. */
+  function people(n) {
+    try { return Object.keys(JSON.parse(n.groupMembers || '{}')).length; } catch { return 0; }
   }
 
   function picture(uuid, name) {
@@ -299,6 +368,28 @@ export function homeScreen(go) {
     });
   }
 
+  // Press on the notes, sweep right to left and keep holding for two seconds: the same
+  // gesture as the apps. Nothing on screen hints at it.
+  const gridWrap = h('div.grid-wrap', grid, empty);
+  let sweep = null;
+  gridWrap.addEventListener('pointerdown', e => { sweep = { x: e.clientX, y: e.clientY, timer: null }; });
+  gridWrap.addEventListener('pointermove', e => {
+    if (!sweep || sweep.timer) return;
+    const dx = sweep.x - e.clientX, dy = Math.abs(sweep.y - e.clientY);
+    if (dx > 50 && dx > dy * 2) {
+      sweep.timer = setTimeout(() => {
+        sweep = null;
+        swept = Date.now(); // The release that follows isn't a click on a card.
+        import('./gallery.js').then(g => import('./main.js').then(m => m.present(close => g.galleryScreen(close))));
+      }, 2000);
+    }
+  });
+  let swept = 0;
+  gridWrap.addEventListener('click', e => { if (Date.now() - swept < 1500) { e.stopPropagation(); e.preventDefault(); } }, true);
+  const endSweep = () => { if (sweep && sweep.timer) clearTimeout(sweep.timer); sweep = null; };
+  gridWrap.addEventListener('pointerup', endSweep);
+  gridWrap.addEventListener('pointercancel', endSweep);
+
   const offDb = db.onChange(() => load());
   const offStatus = sync.onStatus(on => { syncing.hidden = !on; });
   const offAccount = account.observe(() => showToolbar());
@@ -306,7 +397,7 @@ export function homeScreen(go) {
   load();
 
   return {
-    el: h('div.home', toolbar, h('div.chips-scroll', chips), h('div.grid-wrap', grid, empty), fab),
+    el: h('div.home', toolbar, h('div.chips-scroll', chips), banner, gridWrap, fab),
     leave() { offDb(); offStatus(); offAccount(); },
     onKey(e) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') { e.preventDefault(); newSheet(); return true; }

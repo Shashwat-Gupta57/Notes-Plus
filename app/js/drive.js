@@ -10,9 +10,23 @@ const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 const FLAG = 'np_drive_email';
 
 let gis = null;
+// Google's answer lasts an hour. It is kept for that hour (this browser only), so a reload
+// doesn't silently stop uploads: before, files made after one just never left the browser.
+const TOKEN_KEY = 'np_drive_token';
 let token = null;
 let tokenExpires = 0;
+try {
+  const kept = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null');
+  if (kept && kept.token && kept.expires > Date.now()) { token = kept.token; tokenExpires = kept.expires; }
+} catch { /* none kept */ }
 const folders = new Map();
+
+function keepToken() {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, expires: tokenExpires }));
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch { /* private mode: this visit only */ }
+}
 
 function loadGis() {
   if (gis) return gis;
@@ -48,6 +62,7 @@ export async function connect(hint) {
   }
   token = answer.access_token;
   tokenExpires = Date.now() + (Number(answer.expires_in) || 3600) * 1000;
+  keepToken();
   localStorage.setItem(FLAG, hint || 'connected');
 }
 
@@ -55,6 +70,7 @@ export function disconnect() {
   if (token && window.google) window.google.accounts.oauth2.revoke(token, () => {});
   token = null;
   tokenExpires = 0;
+  keepToken();
   localStorage.removeItem(FLAG);
   folders.clear();
 }
@@ -64,6 +80,7 @@ async function call(url, init = {}) {
   const r = await fetch(url, { ...init, headers: { ...(init.headers || {}), Authorization: 'Bearer ' + token } });
   if (r.status === 401) {
     token = null;
+    keepToken();
     throw new Error('drive-token');
   }
   if (!r.ok) throw new Error('Drive: HTTP ' + r.status);

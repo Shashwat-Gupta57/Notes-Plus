@@ -26,14 +26,21 @@
   --note-purple: #EDE2FF;
   --note-pink: #FFE0EA;
   --note-gray: #E9E9EE;
+  --note-orange: #FFE3CC;
+  --note-red: #FFD9D6;
+  --note-teal: #D3F2EF;
+  --note-indigo: #DEDDFB;
+  --note-brown: #EBDDD2;
+  --note-lime: #EDF7C9;
   --scrim: rgba(0, 0, 0, 0.32);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 20px rgba(0, 0, 0, 0.06);
   --card-surface: var(--surface);
   color-scheme: light;
 }
 
+/* Dark: the system's choice unless a theme is picked (data-theme, from the Account screen). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #000000;
     --surface: #1C1C1E;
     --text: #FFFFFF;
@@ -48,11 +55,54 @@
     --note-purple: #33284A;
     --note-pink: #452A34;
     --note-gray: #2C2C30;
+    --note-orange: #43301F;
+    --note-red: #45231F;
+    --note-teal: #1D3836;
+    --note-indigo: #26264A;
+    --note-brown: #372B23;
+    --note-lime: #323A1C;
     --scrim: rgba(0, 0, 0, 0.6);
     --shadow: none;
     color-scheme: dark;
   }
 }
+
+:root[data-theme="dark"], :root[data-theme="contrast-dark"] {
+  --bg: #000000;
+  --surface: #1C1C1E;
+  --text: #FFFFFF;
+  --body: #E5E5EA;
+  --secondary: #98989F;
+  --divider: #38383A;
+  --placeholder: #2C2C2E;
+  --hover: rgba(255, 255, 255, 0.08);
+  --note-yellow: #3D3624;
+  --note-green: #22382A;
+  --note-blue: #1F2F45;
+  --note-purple: #33284A;
+  --note-pink: #452A34;
+  --note-gray: #2C2C30;
+  --note-orange: #43301F;
+  --note-red: #45231F;
+  --note-teal: #1D3836;
+  --note-indigo: #26264A;
+  --note-brown: #372B23;
+  --note-lime: #323A1C;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow: none;
+  color-scheme: dark;
+}
+
+/* High contrast: black and white, plain lines, no greys. */
+:root[data-theme="contrast-dark"] {
+  --bg: #000000; --surface: #000000; --text: #FFFFFF; --body: #FFFFFF; --secondary: #FFFFFF;
+  --divider: #FFFFFF; --placeholder: #1A1A1A; --hover: rgba(255, 255, 255, 0.18);
+}
+:root[data-theme="contrast-light"] {
+  --bg: #FFFFFF; --surface: #FFFFFF; --text: #000000; --body: #000000; --secondary: #000000;
+  --divider: #000000; --placeholder: #D0D0D0; --hover: rgba(0, 0, 0, 0.12);
+}
+:root[data-theme^="contrast"] .card, :root[data-theme^="contrast"] .settings-card { box-shadow: none; outline: 1px solid var(--divider); }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
@@ -403,3 +453,44 @@ input.item-text { white-space: nowrap; text-overflow: ellipsis; }
 .link-page { max-width: 560px; padding-top: 32px; }
 .link-message { font-size: 17px; line-height: 1.5; margin: 0 0 20px; }
 .btn.small { height: 36px; padding: 0 16px; font-size: 14px; }
+
+/* Files only in this browser: a word, and Connect. */
+.drive-banner { display: flex; align-items: center; gap: 12px; margin: 4px 16px 8px; padding: 10px 14px;
+  border-radius: 14px; background: var(--surface); color: var(--text); font-size: 14px; }
+.drive-banner span { flex: 1; }
+.drive-banner[hidden] { display: none; }
+
+.account-photo { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; display: block; }
+
+/* A folder on the All grid, its notes as small cards. */
+.folder-tile { cursor: pointer; }
+.folder-head { display: flex; align-items: center; gap: 8px; }
+.folder-head .card-title { flex: 1; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.folder-cells { display: grid; gap: 6px; height: 210px; margin-top: 10px; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.folder-cells.n1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.folder-cells.n2 { grid-template-rows: 1fr; }
+.folder-cells.n3 > :first-child { grid-row: span 2; }
+.folder-cell { position: relative; overflow: hidden; border-radius: 10px; pointer-events: none; background: var(--bg); }
+.folder-cell > .card { width: calc(100% / 0.55); transform: scale(0.55); transform-origin: 0 0; margin: 0; break-inside: auto; }
+.folder-more { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.45);
+  color: #fff; font-size: 22px; font-weight: 700; }
+
+/* The read-only gallery. */
+.gallery { min-height: 100vh; background: var(--bg); }
+.gallery-lock { max-width: 360px; margin: 12vh auto 0; padding: 0 16px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+.gallery-lock h2 { margin: 4px 0 0; font-size: 22px; }
+.gallery-lock p { margin: 0; color: var(--secondary); }
+.gallery-lock-input { width: 100%; display: flex; justify-content: center; }
+.gallery-lock-input .field { width: 100%; }
+.gallery-tabs { display: flex; gap: 8px; }
+.gallery-vaults { max-width: 640px; margin: 0 auto; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 3px; padding: 4px 12px 24px; }
+.gallery-tile { position: relative; aspect-ratio: 1; border: 0; padding: 0; background: var(--placeholder); overflow: hidden; cursor: pointer; border-radius: 4px; }
+.gallery-tile img, .gallery-tile video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.gallery-badge { position: absolute; right: 6px; bottom: 6px; z-index: 1; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); }
+.gallery-viewer { position: fixed; inset: 0; z-index: 50; background: #000; }
+.gallery-stage { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; }
+.gallery-stage img, .gallery-stage video { max-width: 100%; max-height: 100%; }
+.gallery-nav { position: absolute; top: 12px; border: 0; background: rgba(0, 0, 0, 0.4); border-radius: 50%; width: 44px; height: 44px; display: grid; place-items: center; cursor: pointer; }
+.gallery-nav.prev { left: 12px; }
+.gallery-nav.close { right: 12px; }

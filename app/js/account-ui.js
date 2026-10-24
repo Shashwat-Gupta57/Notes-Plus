@@ -6,9 +6,10 @@ import * as account from './account.js';
 import * as sync from './sync.js';
 import * as drive from './drive.js';
 import * as lock from './lock.js';
+import * as theme from './theme.js';
 import { h, icon, iconButton, toast, dialog, prompt, choices, button } from './ui.js';
 
-export const VERSION = '12.0';
+export const VERSION = '13.0';
 
 function row(ic, color, title, sub, onClick, end) {
   return h('button.row', { type: 'button', onClick, disabled: !onClick },
@@ -184,9 +185,11 @@ export function accountScreen(go) {
     return h('div',
       header('Notes+'),
       card(
+        row('palette', 'tile-purple', 'Theme', theme.NAMES[Math.max(0, theme.MODES.indexOf(theme.mode()))], () =>
+          choices('Theme', theme.MODES.map((m, i) => ({ text: (m === theme.mode() ? '✓  ' : '') + theme.NAMES[i], onClick: () => { theme.set(m); render(); } })))),
         row('info', 'tile-gray', 'About', `Notes+ on the web, version ${VERSION}`, () => dialog({
           title: 'Notes+',
-          message: `Version ${VERSION} on the web. Your notes stay in this browser; sign in to sync them with your phone and PC. Notes+ on the web has no vaults or chat: those live only in the apps.`,
+          message: `Version ${VERSION} on the web. Your notes stay in this browser; sign in to sync them with your phone and PC.`,
           buttons: [{ text: 'OK' }],
         })),
         row('download', 'tile-green', 'Get the apps', 'Android and Windows', () => { location.href = '../download.html'; })),

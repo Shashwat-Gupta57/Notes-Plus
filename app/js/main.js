@@ -28,6 +28,18 @@ let routing = Promise.resolve();
 const implFor = type => (type === MINDMAP ? mindMapEditor : type === SKETCH ? sketchEditor : type === AUDIO ? audioEditor
   : textEditors[type] || textEditors.TEXT);
 
+/** Shows `screen` in place of the current one, leaving the address as it is. */
+export function present(make) {
+  routing = routing.then(async () => {
+    if (current && current.leave) {
+      try { await current.leave(); } catch (e) { console.warn(e); }
+    }
+    current = make(() => route());
+    app.replaceChildren(current.el);
+    window.scrollTo(0, 0);
+  });
+}
+
 export function go(hash) {
   if (location.hash === hash) route();
   else location.hash = hash;

@@ -4,6 +4,8 @@
 
 import { h, icon, iconButton, toast, prompt, confirm } from './ui.js';
 import { recordings, recordingsJson, formatDuration, mediaName } from './model.js';
+import * as drive from './drive.js';
+import * as account from './account.js';
 
 const RATE = 22050;
 const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue('--' + name).trim();
@@ -178,6 +180,9 @@ export function audioEditor(ctx) {
     list.unshift({ file: name, label: 'Recording ' + (list.length + 1), duration, createdAt: Date.now(), wave });
     render();
     ctx.changed();
+    if (account.uid() && !drive.hasToken()) {
+      toast('Saved in this browser. Connect Google Drive (on the notes page) so it reaches your other devices.', 5000);
+    }
   }
 
   const recBtn = h('button.rec-btn', { type: 'button', title: 'Record', onClick: () => (recorder ? finish() : start()) }, icon('mic', 28, 'var(--on-brand)'));

@@ -239,11 +239,24 @@ public final class Updater {
     // ---------------------------------------------------------------- install
 
     public static boolean isReadyToInstall(Context context) {
-        String path = prefs(context).getString(KEY_READY, null);
+        SharedPreferences p = prefs(context);
+        String path = p.getString(KEY_READY, null);
+        File target = apkFile(context);
+        int expected = p.getInt(KEY_EXPECTED_CODE, 0);
+        if (expected > 0 && installedVersion(context) >= expected) {
+            // Already updated: delete leftover APK and clear update prefs to stop the loop.
+            if (path != null) {
+                File ready = new File(path);
+                if (ready.exists() && !ready.delete()) Log.w(TAG, "Could not delete installed update APK");
+            }
+            if (target.exists() && !target.delete()) Log.w(TAG, "Could not delete installed target APK");
+            p.edit().remove(KEY_READY).remove(KEY_EXPECTED_CODE).remove(KEY_EXPECTED_SHA).apply();
+            return false;
+        }
         if (path == null) return false;
         File apk = new File(path);
         if (apk.exists()) return true;
-        prefs(context).edit().remove(KEY_READY).apply();
+        p.edit().remove(KEY_READY).apply();
         return false;
     }
 

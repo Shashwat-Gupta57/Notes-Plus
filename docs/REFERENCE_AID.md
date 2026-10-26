@@ -45,3 +45,54 @@
   - `Delete` / `Backspace`: Delete branch.
 - **Note Checklist Undo/Redo**:
   - `NoteEditorView`: `Ctrl+Z` / `Ctrl+Y` undoes and redoes checklist item additions, deletions, and checkbox toggles.
+
+## 6. MindMap Node Pictures & Central Idea
+- **Node Pictures**:
+  - Desktop (`MindMapEditor.java`): "Add a picture…", "Change picture…", "View picture", "Remove picture".
+  - Android (`MindMapActivity.java`): `choosePicture(node)` via `ActivityResultContracts.OpenDocument`, "View picture" via full-screen `PhotoView` dialog with pinch-to-zoom/pan, and "Remove picture".
+  - Web (`mindmap-draw.js`): Geometry and render with capped corner radius `maxRadius = (root ? 24 : 18) * s` and `padX = Math.max(PAD_X, r + 8)` to prevent multiline text from overflowing rounded node boundaries.
+- **Add Central Idea**:
+  - Desktop: Bottom tools button & node menu `addCentralIdea()`.
+  - Android: Dedicated `btnAddCentral` mini FAB in the bottom tools row + node menu option `name(map.addRoot(), true)`.
+
+## 7. MediaViewer (Desktop)
+- **Controls & Gestures**:
+  - Mouse wheel zooms smoothly (1.0x to 8.0x) centered at mouse cursor.
+  - Mouse drag pans the zoomed image.
+  - Double-click toggles zoom (1.0x <-> 2.5x).
+  - Dedicated 'X' button or `Escape` key closes the viewer (does NOT vanish on arbitrary image clicks).
+  - Clicking empty letterbox area outside the image closes the viewer.
+- **Context Menu & Action Bar**:
+  - Right-click Context Menu: "Copy picture" (copies image & file to clipboard), "Save picture as…" (`FileChooser`), and "Reset zoom".
+  - Top-Right Action Bar: Quick access buttons for Zoom In, Reset Zoom (1:1), Copy Picture, and Save Picture As.
+- **High-Resolution Decoding**:
+  - `Images.java` decodes via `Files.newInputStream(file)` to bypass JavaFX's internal URL-based texture cache, ensuring full-resolution rendering without low-res blurry caching.
+
+## 8. In-App Updates & APK Cleanup (Android)
+- `Updater.java`:
+  - `isReadyToInstall()` verifies if `installedVersion(context) >= expectedCode`.
+  - If already on or newer than the target version, downloaded APKs are deleted immediately from cache and storage, and update preferences are wiped, eliminating endless update prompts.
+
+## 9. "Shared with me" Filter (Desktop, Android, Web)
+- **Inclusion Criteria**:
+  - Direct sent notes: `n.getSharedFrom() != null` (or `n.sharedFrom`).
+  - Shared group notes: `n.getGroupId() != null` (or `n.groupId`).
+  - Applied across Desktop (`MainView.java`), Android (`MainActivity.java`), and Web (`app/js/home.js`).
+
+## 10. Versioning & Release Feeds Across Platforms
+- **Desktop**:
+  - Defined in: `D:\User\Data\projects\Notes-Plus-Desktop\pom.xml` under `<version>14.0</version>`.
+  - Filtered at build-time into `src/main/resources/org/flexstudios/notes/plus/app.properties` as `version=${project.version}`.
+  - Read at runtime by `Updates.java` to display in settings and compare against update feed releases.
+- **Android**:
+  - Defined in: `D:\User\Data\projects\Notes-Plus\app\build.gradle.kts`:
+    - `versionCode = 16` (monotonically increasing integer)
+    - `versionName = "14.0"` (user-facing version string)
+  - Read at runtime by `Updater.java` via `packageManager.getPackageInfo()` / `PackageInfoCompat.getLongVersionCode()`.
+- **Global Release Feed (`version.json`)**:
+  - Location: `D:\User\Data\projects\Notes-Plus\version.json` (published on `master` branch on GitHub: `https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json`).
+  - Contains:
+    - Android: `versionCode`, `versionName`, `apkUrl`, `sha256`, `forced`, `changelog`.
+    - Desktop: `desktop.versionName`, `desktop.url` (or `installerUrl`), `desktop.sha256`, `desktop.size`, `desktop.changelog`.
+- **Web App**:
+  - Defined in: `D:\User\Data\projects\Website Temp\Notes-Plus\app\js\account-ui.js` as `export const VERSION = '14.0';`.

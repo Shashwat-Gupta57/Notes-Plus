@@ -32,6 +32,13 @@ import androidx.core.content.FileProvider;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import com.bumptech.glide.Glide;
+import com.github.chrisbanes.photoview.PhotoView;
+import android.app.Dialog;
+import java.io.InputStream;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
@@ -54,6 +61,14 @@ public class MindMapActivity extends NoteActivity {
 
     private MindMapView map;
     private EditText title;
+    private NoteData.MindNode targetPictureNode;
+
+    private final ActivityResultLauncher<String[]> pickPicture = registerForActivityResult(
+            new ActivityResultContracts.OpenDocument(), uri -> {
+                if (uri != null && targetPictureNode != null) {
+                    attachPicture(targetPictureNode, uri);
+                }
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,6 +105,7 @@ public class MindMapActivity extends NoteActivity {
         findViewById(R.id.btnCenter).setOnClickListener(v -> map.fit(true));
         findViewById(R.id.btnTidy).setOnClickListener(v -> map.tidy());
         findViewById(R.id.btnShareMap).setOnClickListener(v -> shareAsImage());
+        findViewById(R.id.btnAddCentral).setOnClickListener(v -> name(map.addRoot(), true));
 
         // Last: a new note is handed to onNoteLoaded immediately.
         setUpNote(findViewById(R.id.mindMapRoot), findViewById(R.id.toolbarMindMap));
@@ -99,7 +115,7 @@ public class MindMapActivity extends NoteActivity {
     protected void lockForReading() {
         super.lockForReading();
         map.locked = true;
-        for (int id : new int[]{R.id.btnAddIdea, R.id.btnTidy}) findViewById(id).setVisibility(View.GONE);
+        for (int id : new int[]{R.id.btnAddIdea, R.id.btnTidy, R.id.btnAddCentral}) findViewById(id).setVisibility(View.GONE);
     }
 
     @Override
@@ -196,6 +212,18 @@ public class MindMapActivity extends NoteActivity {
         actions.add(() -> editSub(node));
         labels.add("Colour");
         actions.add(() -> pickColor(node));
+        labels.add(node.image == null ? "Add a picture…" : "Change picture…");
+        actions.add(() -> choosePicture(node));
+        if (node.image != null) {
+            labels.add("View picture");
+            actions.add(() -> viewPicture(node));
+            labels.add("Remove picture");
+            actions.add(() -> {
+                node.image = null;
+                map.refresh();
+                save();
+            });
+        }
         if (map.hasChildren(node)) {
             labels.add(node.collapsed ? "Unfold branch" : "Fold branch");
             actions.add(() -> map.toggleCollapsed(node));
@@ -232,6 +260,59 @@ public class MindMapActivity extends NoteActivity {
                 .setTitle(node.text.isEmpty() ? "Idea" : node.text)
                 .setItems(labels.toArray(new String[0]), (d, which) -> actions.get(which).run())
                 .show();
+    }
+
+    private void choosePicture(NoteData.MindNode node) {
+        targetPictureNode = node;
+        pickPicture.launch(new String[]{"image/*"});
+    }
+
+    private void viewPicture(NoteData.MindNode node) {
+        if (node.image == null || note == null || note.getId() <= 0) return;
+        File file = new File(NoteData.dir(this, note.getId()), node.image);
+        if (!file.exists()) {
+            Toast.makeText(this, "Picture not found", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Dialog dialog = new Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        PhotoView view = new PhotoView(this);
+        Glide.with(this).load(file).into(view);
+        view.setOnViewTapListener((v, x, y) -> dialog.dismiss());
+        dialog.setContentView(view);
+        dialog.show();
+    }
+
+    private void attachPicture(NoteData.MindNode node, Uri uri) {
+        if (note == null || note.getId() <= 0) {
+            save();
+        }
+        AppDatabase.IO.execute(() -> {
+            try {
+                if (note.getId() <= 0) {
+                    Thread.sleep(150);
+                }
+                File dir = NoteData.dir(this, note.getId());
+                if (!dir.exists()) dir.mkdirs();
+                String ext = ".jpg";
+                String name = "IMG_" + System.currentTimeMillis() + "_" + node.id + ext;
+                File target = new File(dir, name);
+                try (InputStream in = getContentResolver().openInputStream(uri);
+                     FileOutputStream out = new FileOutputStream(target)) {
+                    byte[] buf = new byte[8192];
+                    int len;
+                    while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
+                }
+                runOnUiThread(() -> {
+                    node.image = name;
+                    map.setFolder(dir);
+                    map.select(node);
+                    map.refresh();
+                    save();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, "Couldn't add picture", Toast.LENGTH_SHORT).show());
+            }
+        });
     }
 
     /** Sub-text: more about an idea, shown smaller under it. Empty removes it. */

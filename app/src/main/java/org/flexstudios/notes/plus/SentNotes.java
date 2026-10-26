@@ -257,7 +257,7 @@ final class SentNotes {
                 NoteEntity n = new NoteEntity("", "", remote.edited);
                 n.setUuid(sid);
                 n.setAccount(uid);
-                remote.copyInto(n);
+                remote.copyInto(n, context);
                 n.setPinned(false);
                 n.setSharedFrom(from == null ? "someone" : from);
                 n.setId((int) dao.insert(n));
@@ -265,7 +265,7 @@ final class SentNotes {
             } else if (remote.rev > local.getRev() || !java.util.Objects.equals(from, local.getSharedFrom())) {
                 boolean pinned = local.isPinned();
                 int color = local.getColor();
-                remote.copyInto(local);
+                remote.copyInto(local, context);
                 local.setPinned(pinned); // Pin and colour are mine to choose, on this phone.
                 local.setColor(color);
                 if (from != null) local.setSharedFrom(from);

@@ -259,27 +259,49 @@ public class NotesApp extends Application {
     }
 
     /**
-     * Opens {@code url} in the default browser, from any thread. JavaFX's HostServices does
-     * nothing when called off the FX thread on Windows, so the desktop's own handler goes first.
+     * Opens {@code url} in the default browser, dispatched to the FX thread for HostServices
+     * and proper Windows shell integration.
      */
     static void openInBrowser(String url) {
-        try {
-            if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
-                java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
-                return;
+        javafx.application.Platform.runLater(() -> {
+            try {
+                if (app != null && app.getHostServices() != null) {
+                    app.getHostServices().showDocument(url);
+                    return;
+                }
+            } catch (Exception ignored) {
+                // Fallback below.
             }
-        } catch (Exception ignored) {
-            // Next way.
-        }
-        try {
-            if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
-                new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", url).start();
-                return;
+            try {
+                if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                    java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
+                    return;
+                }
+            } catch (Exception ignored) {
+                // Next way.
             }
-        } catch (Exception ignored) {
-            // Next way.
-        }
-        javafx.application.Platform.runLater(() -> app.getHostServices().showDocument(url));
+            try {
+                if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+                    new ProcessBuilder("cmd", "/c", "start", "", url).start();
+                    return;
+                }
+            } catch (Exception ignored) {
+                // Next way.
+            }
+            try {
+                if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac")) {
+                    new ProcessBuilder("open", url).start();
+                    return;
+                }
+            } catch (Exception ignored) {
+                // Next way.
+            }
+            try {
+                new ProcessBuilder("xdg-open", url).start();
+            } catch (Exception ignored) {
+                // Out of ways.
+            }
+        });
     }
 
     /** Puts {@code screen} on top of the current window, pausing the one below. */

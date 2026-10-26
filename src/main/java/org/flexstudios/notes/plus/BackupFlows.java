@@ -240,6 +240,7 @@ final class BackupFlows {
             String err = error;
             Platform.runLater(() -> {
                 Vault.busy(false);
+                GoogleAuth.setUrlListener(null);
                 waiting[0].dismiss();
                 if (err == null) {
                     Ui.toast("Google Drive connected");

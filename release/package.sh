@@ -42,7 +42,7 @@ echo "== App image"
   --input target/pkg \
   --main-jar "Notes-Plus-Desktop-$VERSION-all.jar" \
   --main-class org.flexstudios.notes.plus.Main \
-  --add-modules java.base,java.desktop,java.sql,java.net.http,java.logging,java.naming,java.xml,java.management,jdk.unsupported,jdk.crypto.ec,jdk.charsets,jdk.localedata,jdk.zipfs \
+  --add-modules java.base,java.desktop,java.sql,java.net.http,java.logging,java.naming,java.xml,java.management,jdk.unsupported,jdk.crypto.ec,jdk.charsets,jdk.localedata,jdk.zipfs,jdk.httpserver \
   --jlink-options "--strip-debug --no-man-pages --no-header-files --compress=zip-6" \
   --java-options "-Xmx1g -Dfile.encoding=UTF-8" \
   --add-launcher "Notes+ Setup=release/setup.properties" \

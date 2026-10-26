@@ -190,9 +190,10 @@ final class AccountView extends Screen {
             String error = null;
             try {
                 work.run();
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 System.getLogger("Account").log(System.Logger.Level.WARNING, "Account step failed", e);
-                error = Account.friendly(e);
+                error = e instanceof Exception ? Account.friendly((Exception) e)
+                        : (e.getMessage() != null && !e.getMessage().isEmpty() ? e.getMessage() : e.getClass().getSimpleName());
             }
             String result = error;
             Platform.runLater(() -> {
@@ -203,7 +204,7 @@ final class AccountView extends Screen {
     }
 
     interface Work {
-        void run() throws Exception;
+        void run() throws Throwable;
     }
 
     // ================================================================ panels
@@ -394,16 +395,13 @@ final class AccountView extends Screen {
         }
         Ui.Modal waiting = browserWait("Choose your Google account in the browser window that just opened, then come back here.", null);
         background(Account::signInWithGoogle, error -> {
+            GoogleAuth.setUrlListener(null);
             waiting.dismiss();
             NotesApp.stage().toFront();
             afterSignIn(error);
         });
     }
 
-    /**
-     * "Continue in your browser", with ways back in if the window didn't open or was closed:
-     * open it again, or copy the link to paste into any browser.
-     */
     /**
      * "Continue in your browser", with ways back if the window didn't open or was closed: open
      * it again, copy the link, or select it by hand from the field. Shared with the vault's
@@ -415,13 +413,29 @@ final class AccountView extends Screen {
         link.setPromptText("The sign-in link appears here");
         link.setVisible(false);
         link.setManaged(false);
+
+        java.util.function.Consumer<String> urlUpdater = url -> {
+            if (url != null && !url.isEmpty()) {
+                link.setText(url);
+                link.setVisible(true);
+                link.setManaged(true);
+            }
+        };
+        GoogleAuth.setUrlListener(urlUpdater);
+        String currentUrl = GoogleAuth.pendingUrl();
+        if (currentUrl != null && !currentUrl.isEmpty()) {
+            urlUpdater.accept(currentUrl);
+        }
+
         javafx.scene.control.Button again = Ui.textButton("Open browser again", () -> {
             String url = GoogleAuth.pendingUrl();
+            if (url == null && !link.getText().isEmpty()) url = link.getText();
             if (url != null) NotesApp.openInBrowser(url);
             else Ui.toast("Still preparing the link; try again in a moment");
         });
         javafx.scene.control.Button copy = Ui.textButton("Copy link", () -> {
             String url = GoogleAuth.pendingUrl();
+            if (url == null && !link.getText().isEmpty()) url = link.getText();
             if (url == null) {
                 Ui.toast("Still preparing the link; try again in a moment");
                 return;
@@ -455,6 +469,7 @@ final class AccountView extends Screen {
         javafx.scene.layout.VBox box = new javafx.scene.layout.VBox(6, actions, link);
         return Ui.dialog().title("Continue in your browser").message(message + " Nothing opened, or closed it by mistake?")
                 .content(box).negative("Cancel", () -> {
+                    GoogleAuth.setUrlListener(null);
                     GoogleAuth.cancel();
                     if (onCancel != null) onCancel.run();
                 }).width(460).show();
@@ -567,6 +582,7 @@ final class AccountView extends Screen {
         }
         Ui.Modal waiting = browserWait("Allow Notes+ to keep its files in your Google Drive, then come back here.", null);
         background(Account::connectDrive, error -> {
+            GoogleAuth.setUrlListener(null);
             waiting.dismiss();
             NotesApp.stage().toFront();
             if (error != null && !error.isEmpty()) Ui.toast(error);

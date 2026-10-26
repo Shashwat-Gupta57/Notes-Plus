@@ -159,7 +159,10 @@ public class Setup extends Application {
                 copyTree(self, copy, null);
                 relaunch(copy.resolve(SETUP_EXE), false);
                 return null;
-            }, r -> Platform.exit(), err -> show(message("Couldn't start Setup", err, false)));
+            }, r -> {
+                Platform.exit();
+                System.exit(0);
+            }, err -> show(message("Couldn't start Setup", err, false)));
             return;
         }
         if (self != null && !isAdmin()) {
@@ -199,10 +202,15 @@ public class Setup extends Application {
         show(busy("Asking Windows for permission…"));
         work(() -> relaunch(Path.of(ProcessHandle.current().info().command().orElseThrow()), true),
                 ok -> {
-                    if (Boolean.TRUE.equals(ok)) Platform.exit();
-                    else show(screen("Setup needs permission",
+                    if (Boolean.TRUE.equals(ok)) {
+                        Platform.exit();
+                        System.exit(0);
+                    } else show(screen("Setup needs permission",
                             "Notes+ installs into Program Files, which Windows guards. Choose Yes when Windows asks.",
-                            null, button("Try again", true, this::elevate), button("Exit", false, Platform::exit)));
+                            null, button("Try again", true, this::elevate), button("Exit", false, () -> {
+                                Platform.exit();
+                                System.exit(0);
+                            })));
                 }, err -> show(message("Couldn't ask for permission", err, false)));
     }
 
@@ -295,8 +303,15 @@ public class Setup extends Application {
             work(() -> {
                 Path dir = installDir();
                 Path fresh = dir.resolveSibling("Notes+.new"), old = dir.resolveSibling("Notes+.old");
-                deleteTree(fresh);
-                deleteTree(old);
+                try {
+                    deleteTree(fresh);
+                } catch (Exception ignored) {}
+                try {
+                    deleteTree(old);
+                } catch (Exception ignored) {}
+                if (Files.exists(old)) {
+                    old = dir.resolveSibling("Notes+.old-" + System.currentTimeMillis());
+                }
                 long total = size(source);
                 long[] done = {0};
                 copyTree(source, fresh, n -> {
@@ -307,9 +322,15 @@ public class Setup extends Application {
                 Files.writeString(fresh.resolve("version.txt"), version, StandardCharsets.UTF_8);
                 Platform.runLater(() -> status.setText("Finishing…"));
                 // Swap in one move each, so a failure never leaves half an app.
-                if (Files.exists(dir)) Files.move(dir, old);
-                Files.move(fresh, dir);
-                deleteTree(old);
+                if (Files.exists(dir)) moveWithRetry(dir, old);
+                moveWithRetry(fresh, dir);
+                try {
+                    deleteTree(old);
+                } catch (Exception e) {
+                    try {
+                        new ProcessBuilder("cmd", "/c", "ping -n 4 127.0.0.1 >nul & rmdir /s /q \"" + old + "\"").start();
+                    } catch (Exception ignored) {}
+                }
                 register(dir, version, total);
                 shortcut(desktopLink(), dir, desktop);
                 shortcut(startMenuLink(), dir, menu);
@@ -514,11 +535,38 @@ public class Setup extends Application {
     }
 
     private static List<ProcessHandle> runningApp() {
-        String exe = installDir().resolve(APP_EXE).toString().toLowerCase();
+        Path install = installDir();
+        String exeName = APP_EXE.toLowerCase(java.util.Locale.ROOT);
         long me = ProcessHandle.current().pid();
         return ProcessHandle.allProcesses()
-                .filter(p -> p.pid() != me && p.info().command().map(c -> c.toLowerCase().equals(exe)).orElse(false))
+                .filter(p -> p.pid() != me && p.info().command().map(c -> {
+                    try {
+                        Path cp = Path.of(c);
+                        return inside(cp, install) || cp.getFileName().toString().toLowerCase(java.util.Locale.ROOT).equals(exeName);
+                    } catch (Exception e) {
+                        return false;
+                    }
+                }).orElse(false))
                 .toList();
+    }
+
+    private static void moveWithRetry(Path source, Path target) throws IOException {
+        IOException last = null;
+        for (int i = 0; i < 15; i++) {
+            try {
+                Files.move(source, target);
+                return;
+            } catch (IOException e) {
+                last = e;
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted during file move", ie);
+                }
+            }
+        }
+        if (last != null) throw last;
     }
 
     // ======================================================= registration

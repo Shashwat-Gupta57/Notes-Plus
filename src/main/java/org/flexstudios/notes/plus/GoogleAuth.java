@@ -48,9 +48,18 @@ final class GoogleAuth {
     private static volatile CompletableFuture<Map<String, String>> waiting;
     /** The sign-in page being waited on, to open again or copy; null when nothing waits. */
     private static volatile String pendingUrl;
+    private static volatile java.util.function.Consumer<String> urlListener;
 
     static String pendingUrl() {
         return pendingUrl;
+    }
+
+    static void setUrlListener(java.util.function.Consumer<String> listener) {
+        urlListener = listener;
+        if (listener != null) {
+            String cur = pendingUrl;
+            if (cur != null) javafx.application.Platform.runLater(() -> listener.accept(cur));
+        }
     }
 
     /** The desktop OAuth client, or null if none has been set up. */
@@ -84,7 +93,7 @@ final class GoogleAuth {
         String challenge = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256(verifier));
         String state = random(16);
 
-        HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         CompletableFuture<Map<String, String>> answer = new CompletableFuture<>();
         // An older sign-in still waiting gives way, so its ending can't clear this one's link.
         CompletableFuture<Map<String, String>> older = waiting;
@@ -115,6 +124,11 @@ final class GoogleAuth {
             if (hint != null) url.append("&login_hint=").append(enc(hint));
             pendingUrl = url.toString();
             mine[0] = pendingUrl;
+            java.util.function.Consumer<String> l = urlListener;
+            if (l != null) {
+                String u = pendingUrl;
+                javafx.application.Platform.runLater(() -> l.accept(u));
+            }
             NotesApp.openInBrowser(pendingUrl);
             Map<String, String> q;
             try {
@@ -140,7 +154,11 @@ final class GoogleAuth {
                     claims.optString("name", null), claims.optString("picture", null));
         } finally {
             if (waiting == answer) waiting = null;
-            if (mine[0] != null && mine[0].equals(pendingUrl)) pendingUrl = null;
+            if (mine[0] != null && mine[0].equals(pendingUrl)) {
+                pendingUrl = null;
+                java.util.function.Consumer<String> l = urlListener;
+                if (l != null) javafx.application.Platform.runLater(() -> l.accept(null));
+            }
             server.stop(0);
         }
     }

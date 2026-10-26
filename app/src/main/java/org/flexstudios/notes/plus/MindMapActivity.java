@@ -936,10 +936,13 @@ public class MindMapActivity extends NoteActivity {
         private void bounds(NoteData.MindNode n, float s, float ox, float oy) {
             boolean isRoot = n.parent < 0;
             Block b = block(n);
-            float w = b.w + PAD_X_DP * 2 * density;
             float lineH = (isRoot ? ROOT_H_DP : NODE_H_DP) * density;
             // One line keeps the old height; more lines (wrapped, or a sub-text) grow the idea.
             float textH = Math.max(lineH, b.h + (isRoot ? 26 : 20) * density);
+            float maxRadius = (isRoot ? 24 : 18) * density;
+            float r = n.image != null ? 16 * density : Math.min(textH / 2, maxRadius);
+            float padX = Math.max(PAD_X_DP * density, r + 8 * density);
+            float w = b.w + padX * 2;
             float h = textH;
             picW = picH = 0;
             if (n.image != null) {
@@ -1130,7 +1133,8 @@ public class MindMapActivity extends NoteActivity {
                 bounds(n, s, ox, oy);
                 boolean isRoot = n.parent < 0;
                 Integer color = colorOf.get(n.id);
-                float radius = n.image != null ? Math.min(rect.height() / 2, 16 * density * s) : rect.height() / 2;
+                float maxRadius = (isRoot ? 24 : 18) * density * s;
+                float radius = n.image != null ? Math.min(rect.height() / 2, 16 * density * s) : Math.min(rect.height() / 2, maxRadius);
                 if (isRoot) {
                     fill.setColor(n.color > 0 ? ContextCompat.getColor(c, PALETTE[n.color - 1])
                             : ContextCompat.getColor(c, R.color.brand_yellow));

@@ -89,13 +89,16 @@ final class Account {
 
     static final class Profile {
         String username, displayName, email, photoUrl;
+        boolean syncFoldersArchive;
     }
+
+    private static Context app;
 
     /** Hooks sync to the app's lifecycle: leaving the app pushes what was finished. Once. */
     static synchronized void init(Context context) {
         if (initialised) return;
         initialised = true;
-        Context app = context.getApplicationContext();
+        app = context.getApplicationContext();
         ProcessLifecycleOwner.get().getLifecycle().addObserver(new DefaultLifecycleObserver() {
             @Override
             public void onStop(@NonNull LifecycleOwner owner) {
@@ -295,9 +298,27 @@ final class Account {
                 profile.username = s.child("username").getValue(String.class);
                 String name = s.child("displayName").getValue(String.class);
                 if (name != null) profile.displayName = name;
+                Boolean syncFA = s.child("syncFoldersArchive").getValue(Boolean.class);
+                profile.syncFoldersArchive = Boolean.TRUE.equals(syncFA);
+                if (app != null) {
+                    prefs(app).edit().putBoolean("sync_folders_archive", profile.syncFoldersArchive).apply();
+                }
             }
             then.accept(profile);
         });
+    }
+
+    static boolean isSyncFoldersArchive(Context context) {
+        return prefs(context).getBoolean("sync_folders_archive", false);
+    }
+
+    static void setSyncFoldersArchive(Context context, boolean on) {
+        prefs(context).edit().putBoolean("sync_folders_archive", on).apply();
+        String uid = uid();
+        if (uid != null) {
+            root().child("users").child(uid).child("profile").child("syncFoldersArchive").setValue(on);
+        }
+        NoteSync.schedule(context);
     }
 
     /** Lower-cases and checks the shape; null when it can never be a username. */

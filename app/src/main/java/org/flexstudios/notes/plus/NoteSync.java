@@ -375,7 +375,7 @@ final class NoteSync {
         if (local != null && !uid.equals(local.getAccount())) {
             // This phone's own copy of a note it once shared with the account: it keeps its
             // text, under a new identity, and the account's version comes in beside it.
-            if (sameContent(local, remote)) {
+            if (sameContent(context, local, remote)) {
                 local.setAccount(uid);
                 local.setRev(remote.rev);
                 local.setDirty(false);
@@ -403,7 +403,7 @@ final class NoteSync {
                 NoteEntity note = new NoteEntity("", "", remote.edited);
                 note.setUuid(remote.uuid);
                 note.setAccount(uid);
-                remote.copyInto(note);
+                remote.copyInto(note, context);
                 note.setGroupId(groupId);
                 note.setGroupMembers(members);
                 note.setId((int) dao.insert(note));
@@ -411,7 +411,7 @@ final class NoteSync {
                 return true;
             }
             case OVERWRITE:
-                remote.copyInto(local);
+                remote.copyInto(local, context);
                 if (groupId != null) local.setGroupMembers(members);
                 dao.update(local);
                 writeSketch(context, local.getId(), remote.sketch);
@@ -436,7 +436,7 @@ final class NoteSync {
         NoteDao dao = AppDatabase.getInstance(context).noteDao();
         NoteEntity local = dao.getNoteById(noteId);
         if (local == null || local.isDirty() || remote.rev <= local.getRev()) return null;
-        remote.copyInto(local);
+        remote.copyInto(local, context);
         dao.update(local);
         writeSketch(context, local.getId(), remote.sketch);
         return local;
@@ -521,14 +521,14 @@ final class NoteSync {
             if (remote.deleted) {
                 dao.purge(note.getId());
             } else {
-                remote.copyInto(note);
+                remote.copyInto(note, context);
                 note.setDeleted(false);
                 dao.update(note);
                 writeSketch(context, note.getId(), remote.sketch);
             }
             return;
         }
-        if (remote.deleted || sameContent(note, remote)) {
+        if (remote.deleted || sameContent(context, note, remote)) {
             // Deleted elsewhere but edited here: the edit wins. Same text: nothing to merge.
             note.setRev(remote.rev);
             if (!remote.deleted) {
@@ -569,8 +569,8 @@ final class NoteSync {
         m.put("color", note.getColor());
         m.put("pinned", note.isPinned());
         m.put("edited", note.getTimestamp());
-        // How it's filed is mine alone: never part of a group note.
-        if (note.getGroupId() == null) {
+        // How it's filed is mine alone: never part of a group note, and only shared across devices when opted in.
+        if (note.getGroupId() == null && Account.isSyncFoldersArchive(context)) {
             if (note.isArchived()) m.put("archived", true);
             if (note.getFolder() != null && !note.getFolder().isEmpty()) m.put("folder", clip(note.getFolder(), 100));
         }
@@ -1057,14 +1057,14 @@ final class NoteSync {
         }
 
         /** Replaces the local copy's content and marks it in step with this version. */
-        void copyInto(NoteEntity note) {
+        void copyInto(NoteEntity note, Context context) {
             note.setType(type);
             note.setTitle(title);
             note.setContent(content);
             note.setData(data);
             note.setColor(color);
             note.setPinned(pinned);
-            if (mine) {
+            if (mine && Account.isSyncFoldersArchive(context)) {
                 note.setArchived(archived);
                 note.setFolder(folder);
             }
@@ -1076,11 +1076,11 @@ final class NoteSync {
         }
     }
 
-    private static boolean sameContent(NoteEntity n, Remote r) {
+    private static boolean sameContent(Context context, NoteEntity n, Remote r) {
         return java.util.Objects.equals(n.getTitle(), r.title) && java.util.Objects.equals(n.getContent(), r.content)
                 && java.util.Objects.equals(n.getData(), r.data) && n.getColor() == r.color
                 && n.isPinned() == r.pinned && n.getType().equals(r.type)
-                && (!r.mine || n.isArchived() == r.archived && java.util.Objects.equals(n.getFolder(), r.folder));
+                && (!r.mine || !Account.isSyncFoldersArchive(context) || (n.isArchived() == r.archived && java.util.Objects.equals(n.getFolder(), r.folder)));
     }
 
     // ============================================================== sketches

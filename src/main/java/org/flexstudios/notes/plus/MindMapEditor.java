@@ -457,7 +457,10 @@ final class MindMapEditor extends NoteEditor {
     /** Renders the whole map and saves it as a PNG where the user chooses. */
     private void saveAsImage() {
         WritableImage image = map.renderAll();
-        if (image == null) return;
+        if (image == null) {
+            Ui.toast("Couldn't save the picture");
+            return;
+        }
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Save mind map as a picture");
         String name = title.getText().trim().isEmpty() ? "mind-map" : title.getText().trim().replaceAll("[\\\\/:*?\"<>|]", "_");

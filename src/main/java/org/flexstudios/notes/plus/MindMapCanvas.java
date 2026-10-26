@@ -553,21 +553,72 @@ final class MindMapCanvas extends Region {
         draw();
     }
 
-    /** The whole map as a picture, at twice its size on the theme's background. */
+    /** The whole map as a picture, scaled up on the theme's background. */
     WritableImage renderAll() {
         if (model.nodes.isEmpty()) return null;
         double[] b = contentBounds();
+        if (b[0] > b[2] || b[1] > b[3] || Double.isNaN(b[0]) || Double.isInfinite(b[0])) {
+            b = new double[]{-100, -50, 100, 50};
+        }
         double pad = 32;
-        double w = b[2] - b[0] + pad * 2, h = b[3] - b[1] + pad * 2;
-        double s = Math.min(2, 8192 / Math.max(w, h));
-        Canvas out = new Canvas(Math.max(1, Math.round(w * s)), Math.max(1, Math.round(h * s)));
+        double w = Math.max(10, b[2] - b[0] + pad * 2);
+        double h = Math.max(10, b[3] - b[1] + pad * 2);
+
+        // Target max dimension 3840 (4K resolution max) so that even on HiDPI displays
+        // the backing texture never exceeds GPU texture limits (8192px).
+        double maxDim = 3840;
+        double s = Math.min(2.0, maxDim / Math.max(w, h));
+        int outW = (int) Math.max(1, Math.min(maxDim, Math.round(w * s)));
+        int outH = (int) Math.max(1, Math.min(maxDim, Math.round(h * s)));
+
+        Canvas out = new Canvas(outW, outH);
         GraphicsContext g = out.getGraphicsContext2D();
         g.setFill(Theme.color("app_background"));
-        g.fillRect(0, 0, out.getWidth(), out.getHeight());
+        g.fillRect(0, 0, outW, outH);
         drawMap(g, s, (pad - b[0]) * s, (pad - b[1]) * s, false);
+
+        // Counter-scale by the screen's output DPI factor so the snapshot is taken 1:1
+        // in pixel space without being multiplied by HiDPI screen scaling (which would
+        // exceed texture dimensions and crash the driver).
+        double dpi = 1.0;
+        try {
+            if (NotesApp.stage() != null) {
+                dpi = Math.max(1.0, NotesApp.stage().getOutputScaleX());
+            } else {
+                dpi = Math.max(1.0, javafx.stage.Screen.getPrimary().getOutputScaleX());
+            }
+        } catch (Throwable ignored) {}
+
         SnapshotParameters params = new SnapshotParameters();
         params.setFill(Theme.color("app_background"));
-        return out.snapshot(params, null);
+        if (dpi > 1.0) {
+            params.setTransform(javafx.scene.transform.Transform.scale(1.0 / dpi, 1.0 / dpi));
+        }
+
+        WritableImage dest = new WritableImage(outW, outH);
+        try {
+            return out.snapshot(params, dest);
+        } catch (Throwable t) {
+            try {
+                // Fallback at standard 1x scale without DPI scaling if GPU is constrained
+                double s1 = Math.min(1.0, 2048.0 / Math.max(w, h));
+                int fw = (int) Math.max(1, Math.round(w * s1));
+                int fh = (int) Math.max(1, Math.round(h * s1));
+                Canvas fb = new Canvas(fw, fh);
+                GraphicsContext fbg = fb.getGraphicsContext2D();
+                fbg.setFill(Theme.color("app_background"));
+                fbg.fillRect(0, 0, fw, fh);
+                drawMap(fbg, s1, (pad - b[0]) * s1, (pad - b[1]) * s1, false);
+                SnapshotParameters p2 = new SnapshotParameters();
+                p2.setFill(Theme.color("app_background"));
+                if (dpi > 1.0) {
+                    p2.setTransform(javafx.scene.transform.Transform.scale(1.0 / dpi, 1.0 / dpi));
+                }
+                return fb.snapshot(p2, new WritableImage(fw, fh));
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
     }
 
     // ---------------------------------------------------------------- geometry
@@ -861,14 +912,7 @@ final class MindMapCanvas extends Region {
                 javafx.scene.image.Image img = picture(n.image);
                 double px = (rl + rr) / 2 - rpw / 2, py = rt + 8 * s;
                 if (img != null) {
-                    g.save();
-                    g.beginPath();
-                    g.moveTo(px, py);
-                    g.rect(px, py, rpw, rph);
-                    g.closePath();
-                    g.clip();
                     g.drawImage(img, px, py, rpw, rph);
-                    g.restore();
                 } else {
                     g.setFill(Theme.color("thumb_placeholder"));
                     g.fillRoundRect(px, py, rpw, rph, 10 * s, 10 * s);

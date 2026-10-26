@@ -492,16 +492,17 @@ final class SketchEditor extends NoteEditor {
                 bottom = top + minH;
             }
             double scale = Math.min(2, maxWidth / (right - left));
-            Canvas out = new Canvas(Math.max(1, Math.round((right - left) * scale)),
-                    Math.max(1, Math.round((bottom - top) * scale)));
+            int outW = (int) Math.max(1, Math.round((right - left) * scale));
+            int outH = (int) Math.max(1, Math.round((bottom - top) * scale));
+            Canvas out = new Canvas(outW, outH);
             GraphicsContext g = out.getGraphicsContext2D();
             g.setFill(PAPER);
-            g.fillRect(0, 0, out.getWidth(), out.getHeight());
+            g.fillRect(0, 0, outW, outH);
             g.translate(-left * scale, -top * scale);
             for (Stroke stroke : strokes) draw(g, stroke, scale);
             SnapshotParameters params = new SnapshotParameters();
             params.setFill(PAPER);
-            return out.snapshot(params, null);
+            return out.snapshot(params, new WritableImage(outW, outH));
         }
 
         String toJson() {

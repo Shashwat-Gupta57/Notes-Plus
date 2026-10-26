@@ -472,7 +472,7 @@ final class MainView extends Screen {
                 continue; // Put away: only under Archived.
             } else if (folder != null) {
                 if (!folder.equals(n.getFolder())) continue;
-            } else if (SHARED.equals(filterType) ? !n.isReceived() : filterType != null && !filterType.equals(n.getType())) {
+            } else if (SHARED.equals(filterType) ? !(n.isReceived() || n.getGroupId() != null) : filterType != null && !filterType.equals(n.getType())) {
                 continue;
             }
             if (!q.isEmpty()) {
@@ -535,7 +535,7 @@ final class MainView extends Screen {
 
         emptyState.setVisible(nodes.isEmpty());
         emptyText.setText(!q.isEmpty() ? "Nothing matches “" + query + "”"
-                : SHARED.equals(filterType) ? "Nothing shared with you yet. When someone sends you a note, it shows up here."
+                : SHARED.equals(filterType) ? "Nothing shared with you yet. When someone shares or sends you a note, it shows up here."
                 : ARCHIVED.equals(filterType) ? "Nothing archived. Archive a note from its options (right-click) to put it away here."
                 : folder != null ? "Nothing in “" + folder + "” yet. Move notes here from their options (right-click)."
                 : filterType != null ? "No " + NoteData.kind(filterType).plural().toLowerCase(Locale.getDefault()) + " yet"

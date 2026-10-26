@@ -66,8 +66,8 @@ final class Images {
             if (hit != null) return hit;
         }
         Image image;
-        try {
-            image = new Image(file.toUri().toString(), maxSize, maxSize, true, true, false);
+        try (InputStream raw = Files.newInputStream(file)) {
+            image = new Image(raw, maxSize, maxSize, true, true);
             if (image.isError()) return null;
             image = upright(image, orientation(file));
         } catch (Exception e) {

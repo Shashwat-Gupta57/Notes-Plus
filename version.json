@@ -1,12 +1,12 @@
 {
-  "versionCode": 16,
-  "versionName": "14.0",
+  "versionCode": 27,
+  "versionName": "15.1",
   "forced": false,
-  "changelog": "Notes+ 14: full-screen photo viewer and add central idea in mind maps, zoom and context menu in desktop media viewer, shared with me includes group notes, adaptive Material 3 dialogs, and updater fixes.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-14.0.apk",
+  "changelog": "Notes+ 15.1: talken-admin analytics dashboard with secure hashed auth, privacy-preserving metrics (DAU, MAU, visits, downloads funnel), duplicate note option, list change auto-save fix, smooth animations, and automatic bullet & serial lists.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.1.apk",
   "sha256": "ba7b6c924966777c8459a1c7fb2b1792c397ba984d7e80541481c9e8731ece01",
   "desktop": {
-    "versionName": "14.0",
+    "versionName": "15.1",
     "url": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v13.0/Notes-Plus-Setup-13.0.exe",
     "sha256": "6482246466335f4035b887cd6d41fc5490a402a5591b51d014e29b684218efea",
     "size": "76 MB",

@@ -343,7 +343,12 @@ final class NoteSync {
             }
         }
         for (NoteEntity n : dao.groupNotes(uid)) {
-            if (!listed.contains(n.getGroupId()) && !OPEN.contains(n.getId())) dao.leaveGroup(n.getId());
+            if (!listed.contains(n.getGroupId())) {
+                if (OPEN.contains(n.getId())) {
+                    NoteActivity.forceCloseIfOpen(n.getId(), "Access to this shared note was withdrawn");
+                }
+                dao.purge(n.getId());
+            }
         }
     }
 
@@ -358,6 +363,24 @@ final class NoteSync {
         if (dirty) return SKIP; // The push sees the newer rev and resolves it as a conflict.
         if (remoteRev <= localRev) return SKIP;
         return remoteDeleted ? REMOVE : OVERWRITE;
+    }
+
+    private static void saveConflictedCopy(Context context, String uid, Remote remote, NoteEntity local) {
+        NoteDao dao = AppDatabase.getInstance(context).noteDao();
+        String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(new java.util.Date());
+        NoteEntity copy = new NoteEntity(local.getTitle() + " (Conflicted copy " + timestamp + ")", "", System.currentTimeMillis());
+        copy.setUuid(newUuid());
+        copy.setAccount(uid);
+        remote.copyInto(copy, context);
+        copy.setRev(1);
+        copy.setDirty(true);
+        long copyId = dao.insert(copy);
+        copy.setId((int) copyId);
+        writeSketch(context, (int) copyId, remote.sketch);
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                android.widget.Toast.makeText(context.getApplicationContext(),
+                        "Conflict detected: a conflicted copy was saved for " + local.getTitle(),
+                        android.widget.Toast.LENGTH_LONG).show());
     }
 
     /** Applies one pulled note. False when it had to wait because the note is open. */
@@ -391,12 +414,14 @@ final class NoteSync {
                 local != null && local.isDirty(), local == null ? 0 : local.getRev(), remote.rev, remote.deleted);
         switch (action) {
             case WAIT:
-                // Open here: if this device hasn't changed it, the editor takes the newer version
-                // in place (see takeNewer); if it has, the edit replaces this one on leaving.
-                if (!local.isDirty() && remote.rev > local.getRev()) {
-                    NEWER.put(local.getId(), remote);
-                    Runnable watcher = WATCHERS.get(local.getId());
-                    if (watcher != null) new android.os.Handler(android.os.Looper.getMainLooper()).post(watcher);
+                if (remote.rev > local.getRev()) {
+                    if (!local.isDirty()) {
+                        NEWER.put(local.getId(), remote);
+                        Runnable watcher = WATCHERS.get(local.getId());
+                        if (watcher != null) new android.os.Handler(android.os.Looper.getMainLooper()).post(watcher);
+                    } else {
+                        saveConflictedCopy(context, uid, remote, local);
+                    }
                 }
                 return false;
             case INSERT: {
@@ -417,6 +442,9 @@ final class NoteSync {
                 writeSketch(context, local.getId(), remote.sketch);
                 return true;
             case REMOVE:
+                if (OPEN.contains(local.getId())) {
+                    NoteActivity.forceCloseIfOpen(local.getId(), "This note was deleted or unshared");
+                }
                 NoteData.deleteFiles(context, local.getId());
                 dao.purge(local.getId());
                 return true;

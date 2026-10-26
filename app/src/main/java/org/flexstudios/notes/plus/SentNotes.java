@@ -250,7 +250,12 @@ final class SentNotes {
             NoteEntity local = dao.getByUuid(sid);
             if (local != null && !local.isReceived()) continue; // My own note: never replaced by a copy.
             if (remote.deleted) {
-                if (local != null) remove(context, local);
+                if (local != null) {
+                    if (NoteSync.OPEN.contains(local.getId())) {
+                        NoteActivity.forceCloseIfOpen(local.getId(), "Access to this shared note was withdrawn");
+                    }
+                    remove(context, local);
+                }
                 continue;
             }
             if (local == null) {
@@ -274,7 +279,12 @@ final class SentNotes {
             }
         }
         for (NoteEntity n : dao.receivedNotes(uid)) {
-            if (!listed.contains(n.getUuid()) && !NoteSync.OPEN.contains(n.getId())) remove(context, n);
+            if (!listed.contains(n.getUuid())) {
+                if (NoteSync.OPEN.contains(n.getId())) {
+                    NoteActivity.forceCloseIfOpen(n.getId(), "Access to this shared note was withdrawn");
+                }
+                remove(context, n);
+            }
         }
         refreshMine(context, uid);
     }

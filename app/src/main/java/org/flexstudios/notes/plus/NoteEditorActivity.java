@@ -96,6 +96,74 @@ public class NoteEditorActivity extends NoteActivity {
     protected void onNoteLoaded(NoteEntity note) {
         type = note.getType();
         title.setText(note.getTitle());
+        title.addTextChangedListener(simpleWatcher(this::markDirty));
+        body.addTextChangedListener(simpleWatcher(this::markDirty));
+        body.addTextChangedListener(new android.text.TextWatcher() {
+            private boolean editing = false;
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+                if (editing || s == null) return;
+                int sel = body.getSelectionStart();
+                if (sel <= 0) return;
+                String text = s.toString();
+                int lineStart = text.lastIndexOf('\n', sel - 2) + 1;
+                if (sel >= 2 && text.charAt(sel - 1) == ' ') {
+                    String prefix = text.substring(lineStart, sel);
+                    if ("* ".equals(prefix) || "- ".equals(prefix)) {
+                        editing = true;
+                        s.replace(lineStart, sel, "• ");
+                        editing = false;
+                        return;
+                    }
+                    if (prefix.matches("^\\d+\\s$")) {
+                        editing = true;
+                        String num = prefix.trim();
+                        s.replace(lineStart, sel, num + ". ");
+                        editing = false;
+                        return;
+                    }
+                }
+                if (sel >= 1 && text.charAt(sel - 1) == '\n') {
+                    int prevLineStart = text.lastIndexOf('\n', sel - 2);
+                    prevLineStart = prevLineStart < 0 ? 0 : prevLineStart + 1;
+                    String prevLine = text.substring(prevLineStart, sel - 1);
+                    if (prevLine.matches("^(\\s*)(?:•|[*–-])\\s*$")) {
+                        editing = true;
+                        s.delete(prevLineStart, sel);
+                        editing = false;
+                        return;
+                    }
+                    java.util.regex.Matcher bm = java.util.regex.Pattern.compile("^(\\s*)(?:•|[*–-])\\s+(.+)").matcher(prevLine);
+                    if (bm.matches()) {
+                        editing = true;
+                        String indent = bm.group(1);
+                        s.insert(sel, indent + "• ");
+                        editing = false;
+                        return;
+                    }
+                    if (prevLine.matches("^(\\s*)(\\d+)[.)]\\s*$")) {
+                        editing = true;
+                        s.delete(prevLineStart, sel);
+                        editing = false;
+                        return;
+                    }
+                    java.util.regex.Matcher nm = java.util.regex.Pattern.compile("^(\\s*)(\\d+)([.)])\\s+(.+)").matcher(prevLine);
+                    if (nm.matches()) {
+                        editing = true;
+                        String indent = nm.group(1);
+                        long nextNum = Long.parseLong(nm.group(2)) + 1;
+                        String sep = nm.group(3) + " ";
+                        s.insert(sel, indent + nextNum + sep);
+                        editing = false;
+                        return;
+                    }
+                }
+            }
+        });
         if (NoteData.LIST.equals(type)) setUpList(note);
         else body.setText(note.getContent());
         if (NoteData.JOURNAL.equals(type)) setUpJournal(note);
@@ -132,18 +200,24 @@ public class NoteEditorActivity extends NoteActivity {
         return !words.isEmpty() || !t.isEmpty();
     }
 
+    @Override
+    protected void updateStatusText() {
+        updateFooter();
+    }
+
     private void updateFooter() {
         if (note == null) return;
         String edited = note.getId() > 0
                 ? "Edited " + new SimpleDateFormat("d MMM, HH:mm", Locale.getDefault()).format(new Date(note.getTimestamp()))
                 : "New " + NoteData.kind(type).label.toLowerCase(Locale.getDefault());
+        String statusText = syncStatus != null && !syncStatus.isEmpty() ? "  ·  " + syncStatus : "";
         if (NoteData.LIST.equals(type)) {
-            footer.setText(edited);
+            footer.setText(edited + statusText);
             return;
         }
         String text = body.getText().toString().trim();
         int words = text.isEmpty() ? 0 : text.split("\\s+").length;
-        footer.setText(edited + "  ·  " + words + (words == 1 ? " word" : " words"));
+        footer.setText(edited + "  ·  " + words + (words == 1 ? " word" : " words") + statusText);
     }
 
     // ===================================================================== list
@@ -192,6 +266,7 @@ public class NoteEditorActivity extends NoteActivity {
                 int a = from.getBindingAdapterPosition(), b = to.getBindingAdapterPosition();
                 Collections.swap(items, a, b);
                 listAdapter.notifyItemMoved(a, b);
+                markDirty();
                 return true;
             }
 
@@ -202,6 +277,7 @@ public class NoteEditorActivity extends NoteActivity {
                 items.remove(pos);
                 listAdapter.notifyItemRemoved(pos);
                 updateProgress();
+                markDirty();
             }
 
             @Override
@@ -233,6 +309,7 @@ public class NoteEditorActivity extends NoteActivity {
         listAdapter.focusPosition = position;
         listAdapter.notifyItemInserted(position);
         updateProgress();
+        markDirty();
     }
 
     private void updateProgress() {
@@ -322,12 +399,14 @@ public class NoteEditorActivity extends NoteActivity {
                     if (bound == null || bound.picture() != null) return;
                     bound.text = text.getText().toString();
                     updateProgress();
+                    markDirty();
                 }));
                 check.setOnCheckedChangeListener((b, checked) -> {
                     if (bound == null) return;
                     bound.done = checked;
                     styleDone(checked);
                     updateProgress();
+                    markDirty();
                     if (checked) b.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
                 });
                 text.setOnEditorActionListener((tv, action, event) -> {

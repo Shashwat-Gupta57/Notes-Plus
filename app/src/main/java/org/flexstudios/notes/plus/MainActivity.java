@@ -324,6 +324,8 @@ public class MainActivity extends AppCompatActivity {
         actions.add(() -> NoteFolders.move(this, note, NoteFolders.all(this, allNotes)));
         labels.add(note.isArchived() ? "Unarchive" : "Archive");
         actions.add(() -> NoteFolders.setArchived(this, note, !note.isArchived()));
+        labels.add("Duplicate");
+        actions.add(() -> duplicateNote(note));
         if (note.isReceived()) {
             // Someone else's note: mine to pin, colour, file, copy or put away, not to change.
             labels.add("Save a copy");
@@ -353,6 +355,45 @@ public class MainActivity extends AppCompatActivity {
                 .setTitle(title)
                 .setItems(labels.toArray(new String[0]), (d, which) -> actions.get(which).run())
                 .show();
+    }
+
+    private void duplicateNote(NoteEntity note) {
+        executor.execute(() -> {
+            String title = (note.getTitle() == null || note.getTitle().isEmpty())
+                    ? NoteData.kind(note.getType()).label + " (Copy)"
+                    : note.getTitle() + " (Copy)";
+            NoteEntity copy = new NoteEntity(title, note.getContent(), System.currentTimeMillis());
+            copy.setType(note.getType());
+            copy.setData(note.getData());
+            copy.setColor(note.getColor());
+            copy.setPinned(false);
+            copy.setFolder(note.getFolder());
+            copy.setAccount(Account.uid());
+            copy.setRev(0);
+            copy.setDirty(true);
+            long newId = database.noteDao().insert(copy);
+            copy.setId((int) newId);
+            java.io.File srcDir = NoteData.dir(this, note.getId());
+            java.io.File dstDir = NoteData.dir(this, (int) newId);
+            if (srcDir.exists() && srcDir.isDirectory()) {
+                dstDir.mkdirs();
+                java.io.File[] files = srcDir.listFiles();
+                if (files != null) {
+                    for (java.io.File f : files) {
+                        try (java.io.InputStream in = new java.io.FileInputStream(f);
+                             java.io.OutputStream out = new java.io.FileOutputStream(new java.io.File(dstDir, f.getName()))) {
+                            byte[] buf = new byte[8192];
+                            int len;
+                            while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+            runOnUiThread(() -> {
+                android.widget.Toast.makeText(this, "Note duplicated", android.widget.Toast.LENGTH_SHORT).show();
+                NoteSync.schedule(this);
+            });
+        });
     }
 
     private void pickColor(NoteEntity note) {

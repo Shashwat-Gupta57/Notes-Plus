@@ -81,13 +81,13 @@
 
 ## 10. Versioning & Release Feeds Across Platforms
 - **Desktop**:
-  - Defined in: `D:\User\Data\projects\Notes-Plus-Desktop\pom.xml` under `<version>14.0</version>`.
+  - Defined in: `D:\User\Data\projects\Notes-Plus-Desktop\pom.xml` under `<version>15.0</version>`.
   - Filtered at build-time into `src/main/resources/org/flexstudios/notes/plus/app.properties` as `version=${project.version}`.
   - Read at runtime by `Updates.java` to display in settings and compare against update feed releases.
 - **Android**:
   - Defined in: `D:\User\Data\projects\Notes-Plus\app\build.gradle.kts`:
-    - `versionCode = 16` (monotonically increasing integer)
-    - `versionName = "14.0"` (user-facing version string)
+    - `versionCode = 26` (monotonically increasing integer)
+    - `versionName = "15.0"` (user-facing version string)
   - Read at runtime by `Updater.java` via `packageManager.getPackageInfo()` / `PackageInfoCompat.getLongVersionCode()`.
 - **Global Release Feed (`version.json`)**:
   - Location: `D:\User\Data\projects\Notes-Plus\version.json` (published on `master` branch on GitHub: `https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json`).
@@ -95,4 +95,136 @@
     - Android: `versionCode`, `versionName`, `apkUrl`, `sha256`, `forced`, `changelog`.
     - Desktop: `desktop.versionName`, `desktop.url` (or `installerUrl`), `desktop.sha256`, `desktop.size`, `desktop.changelog`.
 - **Web App**:
-  - Defined in: `D:\User\Data\projects\Website Temp\Notes-Plus\app\js\account-ui.js` as `export const VERSION = '14.0';`.
+  - Defined in: `D:\User\Data\projects\Website Temp\Notes-Plus\app\js\account-ui.js` as `export const VERSION = '15.0';`.
+
+
+---
+
+## 11. Inactivity Auto-Save, Conflict Resolution & Share Revocation (v14.0)
+
+### 11.1 Auto-Save on 10s Inactivity
+- Rather than waiting for editor exit, notes automatically save after 10 seconds of inactivity when dirty (`isModified()`).
+- Desktop: `NoteEditor.java` uses a `PauseTransition(Duration.seconds(10))`.
+- Android: `NoteActivity.java` uses `Handler(Looper.getMainLooper()).postDelayed(autoSaveRunnable, 10_000)`.
+- Web: `editor.js` uses `clearTimeout(timer); timer = setTimeout(..., 10000)`.
+
+### 11.2 Realtime Conflict Detection & Conflicted Copies
+- When a remote note update arrives from Firebase RTDB while the note is currently open:
+  - **Clean / Unmodified**: Reloads or notifies watcher seamlessly with remote changes in place.
+  - **Dirty / Modified**: Detects conflict. Creates and saves a new conflicted copy note titled `"[Original Title] (Conflicted copy [YYYY-MM-dd HH:mm])"` with dirty sync flag and revision 1 to prevent data loss. Surfaces an in-app toast/notification to inform the user.
+- Desktop: `NoteSync.java` -> `saveConflictedCopy(...)` + `NotesApp.notify(...)`.
+- Android: `NoteSync.java` -> `saveConflictedCopy(...)` + `Toast.makeText(...)`.
+- Web: `sync.js` -> `saveConflictedCopy(...)` + `toast(...)`.
+
+### 11.3 Share Access Revocation & Force-Close
+- When share access is withdrawn (unshared by owner, removed from group members, or deleted):
+  - The local note is removed / purged from the recipient's database.
+  - If the note is currently open in an active editor, the editor is immediately force-closed and a notification is displayed (`"Access to this shared note was withdrawn"`).
+- Desktop: `NotesApp.forceCloseNote(noteId, reason)` -> closes stage/tab.
+- Android: `NoteActivity.forceCloseIfOpen(noteId, reason)` -> finishes activity on main looper.
+- Web: `sync.forceClose(uuid, reason)` -> redirects hash to `#/` and shows toast.
+
+### 11.4 Saved / Synced Status in Bottom Nav / Footer
+- Located next to the `Edited [date] · [words]` indicator in the editor footer.
+- States: `Unsaved changes`, `Saving…`, `Saved`, `Syncing…`, `Synced`.
+
+
+---
+
+## 12. Note Animations & Smart List Continuation (v14.8)
+
+### 12.1 Smooth Enter & Exit Animations
+- **Desktop**: `NotesApp.java` features parallel fade + slide transitions for `enter(view)` (`FadeTransition` + `TranslateTransition(24 -> 0)`) and `exit(view)` (`FadeTransition` + `TranslateTransition(0 -> 20)`).
+- **Android**: `NoteActivity.java` hooks `overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)` on start and `finish()`.
+- **Web**: `app.css` defines keyframe animations `editorEnter` (180ms ease) and `editorLeave` (150ms ease). `editor.js` applies class `leaving` before transitioning route.
+
+### 12.2 Automatic Bullet Points & Numbered Lists
+- **Auto Bullet**: Typing `* ` or `- ` at the start of a line automatically converts to bullet `• `.
+- **Auto Numbering**: Typing `1 ` at the start of a line automatically formats to `1. `.
+- **Newline Auto-Continuation**:
+  - Pressing `Enter` on a bullet item (`• item`) automatically inserts `\n• ` on the next line.
+  - Pressing `Enter` on a numbered item (`1. item`) automatically increments and inserts the next number (`\n2. `).
+  - Pressing `Enter` on an empty bullet or empty numbered prefix cleans up the prefix and exits the list back to standard text.
+- Implemented in:
+  - Desktop: `RichBody.java` (`keys` handler)
+  - Android: `NoteEditorActivity.java` (`TextWatcher`)
+  - Web: `app/js/ed-text.js` (`keydown` on `textarea.para`)
+
+
+---
+
+## 13. Duplicate Note Bug Root-Cause & Fix Guide (Documented for Reference)
+
+### 13.1 Observed Bug
+- An existing note (e.g. shared or sent) shows only 1 copy initially.
+- The moment a local edit is performed, two copies appear side-by-side (e.g., one with original folder/tags and one with shared/sent status).
+
+### 13.2 Root-Cause in `NoteSync.java`
+- Location: `NoteSync.apply(uid, remote, groupId, members)`
+  - Desktop: `org.flexstudios.notes.plus.NoteSync.java` around line 296
+  - Android: `org.flexstudios.notes.plus.NoteSync.java` around line 375
+  - Web: `app/js/sync.js` around line 188
+- The culprit block:
+```java
+if (local != null && !uid.equals(local.getAccount())) {
+    if (sameContent(local, remote)) {
+        local.setAccount(uid);
+        local.setRev(remote.rev);
+        local.setDirty(false);
+        local.setMedia(remote.media);
+        store.update(local);
+        return true;
+    }
+    local.setUuid(newUuid()); // <-- Renames local note's UUID!
+    store.update(local);
+    local = null;             // <-- Causes decide() to treat remote note as new!
+}
+```
+- **Why it duplicates upon editing**:
+  1. Before local edit: `sameContent(local, remote)` evaluates to `true`, keeping the single copy and setting the account.
+  2. After local edit: `sameContent(local, remote)` evaluates to `false` because the content changed locally.
+  3. Instead of updating the local note or checking revisions, it assigns a brand new UUID to the local note and sets `local = null`.
+  4. The sync engine then pulls the remote copy, sees `local == null`, and calls `case INSERT`, creating a duplicate note beside the newly-renamed local note!
+
+### 13.3 Immediate Resolution Guide (When Ready to Apply)
+- When applying the fix, replace the identity-splitting block in `NoteSync.java` (Desktop/Android) and `sync.js` (Web):
+```java
+if (local != null && !uid.equals(local.getAccount())) {
+    local.setAccount(uid);
+    if (sameContent(local, remote)) {
+        local.setRev(remote.rev);
+        local.setDirty(false);
+        local.setMedia(remote.media);
+        store.update(local);
+        return true;
+    }
+    // Retain existing UUID; do not call local.setUuid(newUuid()) or nullify local.
+    store.update(local);
+}
+```
+- This ensures the note retains its stable UUID, and any conflicts are safely handled by the normal revision check (`decide()`), preventing duplicate notes.
+
+---
+
+## 14. Talken Admin Panel & Telemetry System (v15.1)
+
+### 14.1 Location & Routing
+- Web Dashboard URL: `https://notes.talken.in/talken-admin` or `#/talken-admin`
+- Files: `talken-admin/index.html`, `talken-admin.html`, and `js/telemetry.js`
+
+### 14.2 Zero-PII Security & Salted Hash Authentication
+- **Credential Storage**: Administrator credentials are NEVER stored in plain text in client code, bundles, or git commits.
+- **Salt & Digest**:
+  - Salt: `talken_admin_sec_99342`
+  - Target Digest: `0250115e1ab04d61cd0a1eb2821f0dbd59d1ea00f023436748b15f7f9bf1560c`
+  - Authentication: Evaluated at runtime using Web Crypto API (`crypto.subtle.digest('SHA-256')`).
+  - Session state is kept securely in `sessionStorage`.
+- **Zero-PII Guarantee**:
+  - The admin dashboard only accesses aggregated telemetry paths (`stats/web`, `stats/activeUsers/{date}`) and shallow user counts (`/users.json?shallow=true`).
+  - It NEVER reads, queries, or exposes individual note contents, titles, or user vaults.
+
+### 14.3 Metrics & Telemetry Trackers
+- **DAU / MAU**: Daily active users logged anonymously with truncated IDs (`u_XXXXXXXX`) on sync heartbeat.
+- **Web Visits**: Tracked daily via `stats/web/visits/{date}` without cookies or tracking IDs.
+- **Download Funnel**: Tracked on direct APK and Windows installer clicks via `stats/web/downloads/{platform}/{date}`.
+

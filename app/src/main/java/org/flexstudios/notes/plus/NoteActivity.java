@@ -37,8 +37,56 @@ abstract class NoteActivity extends AppCompatActivity {
     private boolean createdHere;
     private String savedState;
     private View root;
+    protected String syncStatus = "Saved";
+    private final android.os.Handler inactivityHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable autoSaveRunnable = () -> {
+        if (!readOnly && note != null && isModified()) {
+            syncStatus = "Saving…";
+            updateStatusText();
+            save();
+            syncStatus = "Saved";
+            updateStatusText();
+            android.content.Context app = getApplicationContext();
+            AppDatabase.IO.execute(() -> NoteSync.schedule(app));
+        }
+    };
+    private static final java.util.List<NoteActivity> ACTIVE_EDITORS = new java.util.concurrent.CopyOnWriteArrayList<>();
     /** The key of a locked note while it is open: the editor holds the text, the database only its envelope. */
     private NoteLock.Key lock;
+
+    protected void markDirty() {
+        if (readOnly) return;
+        syncStatus = "Unsaved changes";
+        updateStatusText();
+        inactivityHandler.removeCallbacks(autoSaveRunnable);
+        inactivityHandler.postDelayed(autoSaveRunnable, 10_000);
+    }
+
+    protected boolean isModified() {
+        if (note == null || readOnly) return false;
+        NoteEntity probe = copy(note);
+        collect(probe);
+        return !state(probe).equals(savedState);
+    }
+
+    protected void updateStatusText() {}
+
+    public static void forceCloseIfOpen(int noteId, String reason) {
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            for (NoteActivity a : ACTIVE_EDITORS) {
+                if (a.note != null && a.note.getId() == noteId) {
+                    a.readOnly = true;
+                    a.inactivityHandler.removeCallbacks(a.autoSaveRunnable);
+                    a.note = null;
+                    NoteSync.OPEN.remove(noteId);
+                    a.finish();
+                    if (reason != null) {
+                        android.widget.Toast.makeText(a.getApplicationContext(), reason, android.widget.Toast.LENGTH_LONG).show();
+                    }
+                }
+            }
+        });
+    }
 
     /** Fill the editor from the note. Main thread. */
     protected abstract void onNoteLoaded(NoteEntity note);
@@ -51,6 +99,7 @@ abstract class NoteActivity extends AppCompatActivity {
      * passed to {@link #onNoteLoaded} synchronously, so every view it touches must exist.
      */
     protected void setUpNote(View rootView, Toolbar toolbar) {
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
         root = rootView;
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
@@ -194,6 +243,24 @@ abstract class NoteActivity extends AppCompatActivity {
             File dir = NoteData.dir(this, live.getId());
             runOnUiThread(() -> then.accept(dir));
         });
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        ACTIVE_EDITORS.add(this);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        ACTIVE_EDITORS.remove(this);
+    }
+
+    @Override
+    public void finish() {
+        super.finish();
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
     }
 
     @Override

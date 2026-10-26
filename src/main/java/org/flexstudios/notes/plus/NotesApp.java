@@ -343,6 +343,37 @@ public class NotesApp extends Application {
         }
     }
 
+    /** Closes an open note immediately across any window if its access was withdrawn or it was deleted remotely. */
+    static void forceCloseNote(int noteId, String reason) {
+        javafx.application.Platform.runLater(() -> {
+            for (Win w : new java.util.ArrayList<>(WINDOWS)) {
+                for (Screen s : new java.util.ArrayList<>(w.stack)) {
+                    if (s instanceof NoteEditor ed && ed.note != null && ed.note.getId() == noteId) {
+                        ed.forceClose();
+                        if (w.stack.size() <= 1 && w.home() == null) {
+                            w.stage.close();
+                        } else {
+                            leave(ed);
+                        }
+                        if (reason != null) Ui.toast(reason);
+                    }
+                }
+            }
+        });
+    }
+
+    /** Returns the open editor for this note id if any, else null. */
+    static NoteEditor findOpenEditor(int noteId) {
+        for (Win w : WINDOWS) {
+            for (Screen s : w.stack) {
+                if (s instanceof NoteEditor ed && ed.note != null && ed.note.getId() == noteId) {
+                    return ed;
+                }
+            }
+        }
+        return null;
+    }
+
     private static void back(Win w) {
         if (w == null || w.top() == null) return;
         if (w.stack.size() <= 1) {

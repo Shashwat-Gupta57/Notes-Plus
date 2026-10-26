@@ -72,7 +72,7 @@ final class MindMapEditor extends NoteEditor {
         };
         map.addEventFilter(KeyEvent.KEY_PRESSED, this::mapKeys);
 
-        Label hint = Ui.label("Double-click to rename · right-click for more · drag to move · Tab adds an idea · paste a picture into an idea",
+        Label hint = Ui.label("Tab child  ·  Enter sibling  ·  Shift+Enter subtext  ·  Space fold  ·  Ctrl+Z undo  ·  Ctrl+K connect  ·  Double-click rename",
                 12, "secondary");
         hint.setOpacity(0.6);
         hint.setMouseTransparent(true);
@@ -120,6 +120,7 @@ final class MindMapEditor extends NoteEditor {
     @Override
     protected void onNoteLoaded(NoteEntity note) {
         title.setText(note.getTitle());
+        title.textProperty().addListener((o, a, b) -> markDirty());
         NoteData.MindMap loaded = NoteData.mindMap(note.getData());
         if (loaded.nodes.isEmpty()) loaded.nodes.add(new NoteData.MindNode(1, -1, "", 0, 0));
         map.setMap(loaded);
@@ -198,6 +199,7 @@ final class MindMapEditor extends NoteEditor {
         undoStack.push(snapshot);
         if (undoStack.size() > 60) undoStack.removeLast();
         redoStack.clear();
+        markDirty();
     }
 
     @Override

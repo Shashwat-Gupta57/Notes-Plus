@@ -29,6 +29,8 @@ abstract class NoteEditor extends Screen {
     private final int noteId;
     private boolean createdHere;
     private String savedState;
+    protected final javafx.beans.property.StringProperty syncStatus = new javafx.beans.property.SimpleStringProperty("Saved");
+    private final javafx.animation.PauseTransition inactivityTimer = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(10));
 
     protected final BorderPane root = new BorderPane();
     private final HBox toolbar = new HBox();
@@ -39,6 +41,40 @@ abstract class NoteEditor extends Screen {
     NoteEditor(String type, int noteId) {
         this.type = type;
         this.noteId = noteId;
+    }
+
+    void markDirty() {
+        if (readOnly) return;
+        syncStatus.set("Unsaved changes");
+        inactivityTimer.playFromStart();
+    }
+
+    boolean isModified() {
+        if (note == null || readOnly) return false;
+        collect(note);
+        return !state(note).equals(savedState);
+    }
+
+    void reloadFromRemote(NoteSync.Remote remote) {
+        if (note == null || readOnly) return;
+        remote.copyInto(note);
+        savedState = state(note);
+        javafx.application.Platform.runLater(() -> {
+            onNoteLoaded(note);
+            syncStatus.set("Synced");
+        });
+    }
+
+    void forceClose() {
+        readOnly = true;
+        inactivityTimer.stop();
+        NoteEntity n = note;
+        note = null;
+        if (n != null) {
+            showing(false);
+            NoteLock.left(n.getUuid());
+            NoteSync.OPEN.remove(n.getId());
+        }
     }
 
     /** Fill the editor from the note. FX thread. */
@@ -77,6 +113,19 @@ abstract class NoteEditor extends Screen {
         findBar = searcher == null ? null : new FindBar(searcher);
         root.setTop(findBar == null ? toolbar : new javafx.scene.layout.VBox(toolbar, findBar));
         root.setCenter(body);
+        inactivityTimer.setOnFinished(e -> {
+            if (!readOnly && note != null && isModified()) {
+                syncStatus.set("Saving…");
+                save(false);
+                syncStatus.set("Saved");
+                NoteSync.schedule();
+            }
+        });
+        NoteSync.SYNCING.addListener((o, was, is) -> {
+            if (was && !is && "Saved".equals(syncStatus.get())) {
+                syncStatus.set("Synced");
+            }
+        });
         // The view's zoom follows every row as it is laid out (none of it is saved in the note).
         Runnable zoom = () -> {
             if (root.getCenter() != null) Zoom.apply(root.getCenter());
@@ -311,6 +360,7 @@ abstract class NoteEditor extends Screen {
         String state = state(note);
         if (state.equals(savedState)) return;
         savedState = state;
+        if (!leaving) syncStatus.set("Saving…");
         note.setTimestamp(System.currentTimeMillis());
         final NoteEntity snapshot = note.copy();
         final NoteEntity live = note;
@@ -332,6 +382,7 @@ abstract class NoteEditor extends Screen {
                 s.saveContent(live.getId(), snapshot.getTitle(), snapshot.getContent(), snapshot.getData(),
                         snapshot.getColor(), snapshot.isPinned(), snapshot.getTimestamp());
             }
+            if (!leaving) javafx.application.Platform.runLater(() -> syncStatus.set("Saved"));
         });
     }
 

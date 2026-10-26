@@ -105,6 +105,7 @@ final class NoteEditorView extends NoteEditor {
 
         javafx.scene.layout.BorderPane content = new javafx.scene.layout.BorderPane(scroll);
         content.setBottom(footer);
+        syncStatus.addListener((o, a, b) -> updateFooter());
         setUpNote(content);
     }
 
@@ -113,6 +114,8 @@ final class NoteEditorView extends NoteEditor {
         column.getChildren().clear();
         if (NoteData.JOURNAL.equals(type)) column.getChildren().add(journalHeader(note));
         title.setText(note.getTitle());
+        title.textProperty().addListener((o, a, b) -> { markDirty(); updateFooter(); });
+        body.setOnChange(() -> { markDirty(); updateFooter(); });
         title.setPromptText(NoteData.JOURNAL.equals(type) ? "Give the day a title"
                 : NoteData.LIST.equals(type) ? "List name" : "Title");
         column.getChildren().add(padded(title, new Insets(12, 20, 8, 20)));
@@ -168,13 +171,15 @@ final class NoteEditorView extends NoteEditor {
         String edited = note.getId() > 0
                 ? "Edited " + new SimpleDateFormat("d MMM, HH:mm", Locale.getDefault()).format(new Date(note.getTimestamp()))
                 : "New " + NoteData.kind(type).label().toLowerCase(Locale.getDefault());
+        String status = syncStatus.get();
+        String statusText = status != null && !status.isEmpty() ? "  ·  " + status : "";
         if (NoteData.LIST.equals(type)) {
-            footer.setText(edited);
+            footer.setText(edited + statusText);
             return;
         }
         String text = body.words();
         int words = text.isEmpty() ? 0 : text.split("\\s+").length;
-        footer.setText(edited + "  ·  " + words + (words == 1 ? " word" : " words"));
+        footer.setText(edited + "  ·  " + words + (words == 1 ? " word" : " words") + statusText);
     }
 
     private static Node padded(Node node, Insets insets) {
@@ -254,6 +259,8 @@ final class NoteEditorView extends NoteEditor {
         listUndo.push(json);
         if (listUndo.size() > 50) listUndo.removeLast();
         listRedo.clear();
+        markDirty();
+        updateFooter();
     }
 
     @Override

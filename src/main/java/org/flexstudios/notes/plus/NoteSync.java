@@ -75,6 +75,7 @@ final class NoteSync {
     private static volatile boolean running;
     private static int failures;
     private static final List<Runnable> OBSERVERS = new java.util.concurrent.CopyOnWriteArrayList<>();
+    static final javafx.beans.property.BooleanProperty SYNCING = new javafx.beans.property.SimpleBooleanProperty(false);
 
     static String newUuid() {
         return UUID.randomUUID().toString().replace("-", "");
@@ -104,7 +105,10 @@ final class NoteSync {
     private static void job() {
         QUEUED.set(false);
         running = true;
-        Platform.runLater(() -> OBSERVERS.forEach(Runnable::run));
+        Platform.runLater(() -> {
+            SYNCING.set(true);
+            OBSERVERS.forEach(Runnable::run);
+        });
         try {
             run();
             failures = 0;
@@ -114,7 +118,10 @@ final class NoteSync {
             if (++failures <= 5) schedule(15_000L * failures);
         } finally {
             running = false;
-            Platform.runLater(() -> OBSERVERS.forEach(Runnable::run));
+            Platform.runLater(() -> {
+                SYNCING.set(false);
+                OBSERVERS.forEach(Runnable::run);
+            });
         }
     }
 
@@ -253,7 +260,13 @@ final class NoteSync {
             }
         }
         for (NoteEntity n : store.groupNotes(uid)) {
-            if (!listed.contains(n.getGroupId()) && !OPEN.contains(n.getId())) store.leaveGroup(n.getId());
+            if (!listed.contains(n.getGroupId())) {
+                if (OPEN.contains(n.getId())) {
+                    NotesApp.forceCloseNote(n.getId(), "Access to this shared note was withdrawn");
+                }
+                store.purge(n.getId());
+                NoteData.deleteFiles(n.getId());
+            }
         }
     }
 
@@ -299,6 +312,28 @@ final class NoteSync {
                 local != null && local.isDirty(), local == null ? 0 : local.getRev(), remote.rev, remote.deleted);
         switch (action) {
             case WAIT:
+                if (remote.deleted) {
+                    NotesApp.forceCloseNote(local.getId(), "This note was deleted on another device");
+                    NoteData.deleteFiles(local.getId());
+                    FileLinks.trash(local.getUuid());
+                    store.purge(local.getId());
+                    return true;
+                }
+                if (remote.rev > local.getRev() && !sameContent(local, remote)) {
+                    NoteEditor ed = NotesApp.findOpenEditor(local.getId());
+                    boolean modified = ed != null && ed.isModified();
+                    if (!modified) {
+                        remote.copyInto(local);
+                        if (groupId != null) local.setGroupMembers(members);
+                        store.update(local);
+                        writeSketch(local.getId(), remote.sketch);
+                        if (ed != null) ed.reloadFromRemote(remote);
+                        return true;
+                    } else {
+                        saveConflictedCopy(store, uid, local, remote, members);
+                        return false;
+                    }
+                }
                 return false;
             case INSERT: {
                 NoteEntity note = new NoteEntity("", "", remote.edited);
@@ -318,6 +353,9 @@ final class NoteSync {
                 writeSketch(local.getId(), remote.sketch);
                 return true;
             case REMOVE:
+                if (OPEN.contains(local.getId())) {
+                    NotesApp.forceCloseNote(local.getId(), "This note was deleted on another device");
+                }
                 NoteData.deleteFiles(local.getId());
                 FileLinks.trash(local.getUuid()); // Deleted on another device: its file here goes too.
                 store.purge(local.getId());
@@ -325,6 +363,24 @@ final class NoteSync {
             default:
                 return true;
         }
+    }
+
+    private static void saveConflictedCopy(NoteStore store, String uid, NoteEntity local, Remote remote, String members) {
+        NoteEntity conflict = new NoteEntity("", "", remote.edited);
+        conflict.setUuid(newUuid());
+        conflict.setAccount(uid);
+        remote.copyInto(conflict);
+        String stamp = new java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale.getDefault())
+                .format(new java.util.Date(remote.edited > 0 ? remote.edited : System.currentTimeMillis()));
+        String base = remote.title == null || remote.title.isEmpty() ? "Untitled" : remote.title;
+        conflict.setTitle(base + " (Conflicted copy " + stamp + ")");
+        conflict.setGroupId(local.getGroupId());
+        conflict.setGroupMembers(members != null ? members : local.getGroupMembers());
+        int id = store.insert(conflict);
+        writeSketch(id, remote.sketch);
+        Platform.runLater(() -> {
+            Ui.snackbar("Sync conflict detected: saved conflicting copy so no changes are lost", Ui.LONG, null, null, null);
+        });
     }
 
     // ================================================================ push

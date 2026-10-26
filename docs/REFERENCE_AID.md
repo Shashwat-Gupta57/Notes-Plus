@@ -81,13 +81,13 @@
 
 ## 10. Versioning & Release Feeds Across Platforms
 - **Desktop**:
-  - Defined in: `D:\User\Data\projects\Notes-Plus-Desktop\pom.xml` under `<version>14.0</version>`.
+  - Defined in: `D:\User\Data\projects\Notes-Plus-Desktop\pom.xml` under `<version>14.6</version>`.
   - Filtered at build-time into `src/main/resources/org/flexstudios/notes/plus/app.properties` as `version=${project.version}`.
   - Read at runtime by `Updates.java` to display in settings and compare against update feed releases.
 - **Android**:
   - Defined in: `D:\User\Data\projects\Notes-Plus\app\build.gradle.kts`:
-    - `versionCode = 16` (monotonically increasing integer)
-    - `versionName = "14.0"` (user-facing version string)
+    - `versionCode = 22` (monotonically increasing integer)
+    - `versionName = "14.6"` (user-facing version string)
   - Read at runtime by `Updater.java` via `packageManager.getPackageInfo()` / `PackageInfoCompat.getLongVersionCode()`.
 - **Global Release Feed (`version.json`)**:
   - Location: `D:\User\Data\projects\Notes-Plus\version.json` (published on `master` branch on GitHub: `https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json`).
@@ -95,4 +95,35 @@
     - Android: `versionCode`, `versionName`, `apkUrl`, `sha256`, `forced`, `changelog`.
     - Desktop: `desktop.versionName`, `desktop.url` (or `installerUrl`), `desktop.sha256`, `desktop.size`, `desktop.changelog`.
 - **Web App**:
-  - Defined in: `D:\User\Data\projects\Website Temp\Notes-Plus\app\js\account-ui.js` as `export const VERSION = '14.0';`.
+  - Defined in: `D:\User\Data\projects\Website Temp\Notes-Plus\app\js\account-ui.js` as `export const VERSION = '14.6';`.
+
+
+---
+
+## 11. Inactivity Auto-Save, Conflict Resolution & Share Revocation (v14.0)
+
+### 11.1 Auto-Save on 10s Inactivity
+- Rather than waiting for editor exit, notes automatically save after 10 seconds of inactivity when dirty (`isModified()`).
+- Desktop: `NoteEditor.java` uses a `PauseTransition(Duration.seconds(10))`.
+- Android: `NoteActivity.java` uses `Handler(Looper.getMainLooper()).postDelayed(autoSaveRunnable, 10_000)`.
+- Web: `editor.js` uses `clearTimeout(timer); timer = setTimeout(..., 10000)`.
+
+### 11.2 Realtime Conflict Detection & Conflicted Copies
+- When a remote note update arrives from Firebase RTDB while the note is currently open:
+  - **Clean / Unmodified**: Reloads or notifies watcher seamlessly with remote changes in place.
+  - **Dirty / Modified**: Detects conflict. Creates and saves a new conflicted copy note titled `"[Original Title] (Conflicted copy [YYYY-MM-dd HH:mm])"` with dirty sync flag and revision 1 to prevent data loss. Surfaces an in-app toast/notification to inform the user.
+- Desktop: `NoteSync.java` -> `saveConflictedCopy(...)` + `NotesApp.notify(...)`.
+- Android: `NoteSync.java` -> `saveConflictedCopy(...)` + `Toast.makeText(...)`.
+- Web: `sync.js` -> `saveConflictedCopy(...)` + `toast(...)`.
+
+### 11.3 Share Access Revocation & Force-Close
+- When share access is withdrawn (unshared by owner, removed from group members, or deleted):
+  - The local note is removed / purged from the recipient's database.
+  - If the note is currently open in an active editor, the editor is immediately force-closed and a notification is displayed (`"Access to this shared note was withdrawn"`).
+- Desktop: `NotesApp.forceCloseNote(noteId, reason)` -> closes stage/tab.
+- Android: `NoteActivity.forceCloseIfOpen(noteId, reason)` -> finishes activity on main looper.
+- Web: `sync.forceClose(uuid, reason)` -> redirects hash to `#/` and shows toast.
+
+### 11.4 Saved / Synced Status in Bottom Nav / Footer
+- Located next to the `Edited [date] · [words]` indicator in the editor footer.
+- States: `Unsaved changes`, `Saving…`, `Saved`, `Syncing…`, `Synced`.

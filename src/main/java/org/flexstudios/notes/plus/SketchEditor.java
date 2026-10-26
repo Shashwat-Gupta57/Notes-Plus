@@ -69,6 +69,7 @@ final class SketchEditor extends NoteEditor {
             revision++;
             if (folder == null) withFolder(dir -> folder = dir);
             refreshHistory();
+            markDirty();
         };
         penButton = Ui.iconButton(Icons.NOTE_SKETCH, 44, 24, "text_secondary", "Pen (P)", () -> setTool(DrawingCanvas.PEN));
         markerButton = Ui.iconButton(Icons.BRUSH, 44, 24, "text_secondary", "Marker (M)", () -> setTool(DrawingCanvas.MARKER));
@@ -114,6 +115,7 @@ final class SketchEditor extends NoteEditor {
     @Override
     protected void onNoteLoaded(NoteEntity note) {
         title.setText(note.getTitle());
+        title.textProperty().addListener((o, a, b) -> markDirty());
         if (note.getId() <= 0) {
             canvas.requestFocus();
             return;

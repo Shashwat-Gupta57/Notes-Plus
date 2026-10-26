@@ -250,7 +250,12 @@ final class SentNotes {
             }
         }
         for (NoteEntity n : store.receivedNotes(uid)) {
-            if (!listed.contains(n.getUuid()) && !NoteSync.OPEN.contains(n.getId())) remove(n);
+            if (!listed.contains(n.getUuid())) {
+                if (NoteSync.OPEN.contains(n.getId())) {
+                    NotesApp.forceCloseNote(n.getId(), "Access to this note was withdrawn");
+                }
+                remove(n);
+            }
         }
         refreshMine(uid);
     }

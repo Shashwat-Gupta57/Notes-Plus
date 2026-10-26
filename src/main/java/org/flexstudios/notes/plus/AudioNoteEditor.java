@@ -69,6 +69,7 @@ final class AudioNoteEditor extends NoteEditor {
         title.getStyleClass().addAll("bare", "bold");
         title.setStyle("-fx-font-size: 24px;");
         Links.install(title);
+        title.textProperty().addListener((o, a, b) -> markDirty());
         title.setPromptText("Audio note title");
         sampler.setCycleCount(Timeline.INDEFINITE);
 

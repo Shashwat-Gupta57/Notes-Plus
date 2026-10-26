@@ -63,6 +63,9 @@ function route() {
       screen = await sharedNoteScreen(m[1], implFor, go);
     } else if ((m = /^#\/j\/([A-Za-z0-9_-]+)$/.exec(hash))) {
       screen = await joinScreen(m[1], go);
+    } else if (hash === '#/talken-admin') {
+      location.href = '../talken-admin/';
+      return;
     } else if (hash === '#/account') {
       screen = accountScreen(go);
     } else {

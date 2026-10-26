@@ -148,6 +148,12 @@ export async function run() {
         try { await downloadFiles(uid); } catch (e) { console.warn('Drive download', e); }
       }
       localStorage.setItem('np_last_sync_' + uid, String(Date.now()));
+      try {
+        const today = new Date().toISOString().slice(0, 10);
+        const userAnonKey = 'u_' + uid.slice(0, 8);
+        const { db: fdb, D } = account.firebase();
+        D.set(D.ref(fdb, `stats/activeUsers/${today}/${userAnonKey}`), true).catch(() => {});
+      } catch (_) {}
       lastError = null;
     } catch (e) {
       lastError = e;

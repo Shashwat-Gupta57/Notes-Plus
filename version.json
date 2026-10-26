@@ -2,16 +2,16 @@
   "versionCode": 27,
   "versionName": "15.1",
   "forced": false,
-  "changelog": "Notes+ 15.1: talken-admin analytics dashboard with secure hashed auth, privacy-preserving metrics (DAU, MAU, visits, downloads funnel), duplicate note option, list change auto-save fix, smooth animations, and automatic bullet & serial lists.",
+  "changelog": "Notes+ 15.1: One-click note duplication, real-time sync with conflict detection, instant list auto-save, mind map picture zoom, markdown bullet lists, and Notes+ analytics.",
   "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.1.apk",
-  "sha256": "ba7b6c924966777c8459a1c7fb2b1792c397ba984d7e80541481c9e8731ece01",
+  "sha256": "0b83d6daace5adee35a135c2bf36aac268eb922c6006b461eefbd852a9cef7ba",
   "desktop": {
     "versionName": "15.1",
-    "url": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v13.0/Notes-Plus-Setup-13.0.exe",
-    "sha256": "6482246466335f4035b887cd6d41fc5490a402a5591b51d014e29b684218efea",
+    "url": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v15.1/Notes-Plus-Setup-15.1.exe",
+    "sha256": "9be2684792685305022a8e0363d803a3782f8f2c45d9413e9310ecef7121fbc9",
     "size": "76 MB",
-    "zip": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v13.0/Notes-Plus-Windows-13.0.zip",
-    "zipSha256": "5d6f3af59044d17a56ea548d5eee3bb2550bd6f0e38c5166b6fd426b44e7584a",
-    "changelog": "Notes+ for Windows 13: many windows, Ctrl+F and zoom in notes, folders and an archive, share links, themes, and vault backups that only ever add."
+    "zip": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v15.1/Notes-Plus-Windows-15.1.zip",
+    "zipSha256": "b6ae576ecb93c693578012fa11acb706cde601745b158742bc72bf3f06d36d03",
+    "changelog": "Notes+ 15.1 for Windows: note duplication, checklist auto-save, mind map picture zoom, markdown lists, and smooth animations."
   }
 }

@@ -64,6 +64,11 @@ final class MindMapEditor extends NoteEditor {
             public void onConnected() {
                 Ui.snackbar("Connected", Ui.SHORT);
             }
+
+            @Override
+            public void onStateChanging() {
+                pushUndo();
+            }
         };
         map.addEventFilter(KeyEvent.KEY_PRESSED, this::mapKeys);
 
@@ -183,11 +188,107 @@ final class MindMapEditor extends NoteEditor {
         hint.setText("Drag to look around · scroll to zoom · Ctrl+click opens links");
     }
 
+    private final java.util.ArrayDeque<String> undoStack = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<String> redoStack = new java.util.ArrayDeque<>();
+
+    private void pushUndo() {
+        if (readOnly) return;
+        String snapshot = NoteData.mindMapJson(map.model);
+        if (!undoStack.isEmpty() && undoStack.peek().equals(snapshot)) return;
+        undoStack.push(snapshot);
+        if (undoStack.size() > 60) undoStack.removeLast();
+        redoStack.clear();
+    }
+
+    @Override
+    protected void undo() {
+        if (readOnly || undoStack.isEmpty()) {
+            Ui.toast("Nothing to undo");
+            return;
+        }
+        String current = NoteData.mindMapJson(map.model);
+        redoStack.push(current);
+        String prev = undoStack.pop();
+        NoteData.MindMap restored = NoteData.mindMap(prev);
+        map.setMap(restored);
+        map.refresh();
+        Ui.toast("Undone");
+    }
+
+    @Override
+    protected void redo() {
+        if (readOnly || redoStack.isEmpty()) {
+            Ui.toast("Nothing to redo");
+            return;
+        }
+        String current = NoteData.mindMapJson(map.model);
+        undoStack.push(current);
+        String next = redoStack.pop();
+        NoteData.MindMap restored = NoteData.mindMap(next);
+        map.setMap(restored);
+        map.refresh();
+        Ui.toast("Redone");
+    }
+
+    private void copyNode(NoteData.MindNode node) {
+        javafx.scene.input.ClipboardContent cc = new javafx.scene.input.ClipboardContent();
+        boolean hasContent = false;
+        if (node.image != null) {
+            try {
+                java.nio.file.Path imgPath = NoteData.dir(note.getId()).resolve(node.image);
+                if (java.nio.file.Files.exists(imgPath)) {
+                    cc.putFiles(List.of(imgPath.toFile()));
+                    try {
+                        Image fxImg = new Image(imgPath.toUri().toString());
+                        if (!fxImg.isError()) cc.putImage(fxImg);
+                    } catch (Exception ignored) {}
+                    hasContent = true;
+                }
+            } catch (Exception ignored) {}
+        }
+        if (!node.text.isEmpty() || !node.sub.isEmpty()) {
+            String str = node.text + (node.sub.isEmpty() ? "" : "\n" + node.sub);
+            cc.putString(str);
+            hasContent = true;
+        }
+        if (hasContent) {
+            Clipboard.getSystemClipboard().setContent(cc);
+            Ui.toast(node.image != null ? "Picture and idea copied" : "Idea copied");
+        }
+    }
+
     /** Tab: a child of the selection. Enter: a sibling. F2: rename. Delete: the branch. */
     private void mapKeys(KeyEvent e) {
         if (readOnly) return;
         NoteData.MindNode selected = map.selected();
-        if (e.isShortcutDown() && e.getCode() == KeyCode.V) {
+        if (e.isShortcutDown() && e.getCode() == KeyCode.Z) {
+            e.consume();
+            if (e.isShiftDown()) redo();
+            else undo();
+            return;
+        } else if (e.isShortcutDown() && e.getCode() == KeyCode.Y) {
+            e.consume();
+            redo();
+            return;
+        } else if (e.isShortcutDown() && e.getCode() == KeyCode.C && selected != null) {
+            e.consume();
+            copyNode(selected);
+            return;
+        } else if (selected != null && ((e.getCode() == KeyCode.ENTER && (e.isShiftDown() || e.isAltDown()))
+                || (e.isShortcutDown() && e.isShiftDown() && e.getCode() == KeyCode.S))) {
+            e.consume();
+            editSub(selected);
+            return;
+        } else if (selected != null && e.isShortcutDown() && e.getCode() == KeyCode.K) {
+            e.consume();
+            map.startConnecting(selected);
+            Ui.snackbar("Click the idea to connect to", Ui.LONG, "Cancel", () -> map.startConnecting(null), null);
+            return;
+        } else if (selected != null && e.getCode() == KeyCode.SPACE && map.hasChildren(selected)) {
+            e.consume();
+            map.toggleCollapsed(selected);
+            return;
+        } else if (e.isShortcutDown() && e.getCode() == KeyCode.V) {
             Clipboard cb = Clipboard.getSystemClipboard();
             File file = cb.hasFiles() ? cb.getFiles().stream().filter(RichBody::isPicture).findFirst().orElse(null) : null;
             Image image = file == null && cb.hasImage() ? cb.getImage() : null;
@@ -242,10 +343,12 @@ final class MindMapEditor extends NoteEditor {
 
     /** Another centre for the map: its own tree, connected to the others only by connections. */
     private void addCentralIdea() {
+        pushUndo();
         name(map.addRoot(), true);
     }
 
     private void addChild(NoteData.MindNode parent) {
+        pushUndo();
         if (parent.collapsed) map.toggleCollapsed(parent);
         name(map.addChild(parent), true);
     }
@@ -269,6 +372,7 @@ final class MindMapEditor extends NoteEditor {
             map.requestFocus();
         };
         Consumer<String> apply = text -> {
+            if (!text.equals(node.text)) pushUndo();
             node.text = text;
             map.select(node);
             map.refresh();
@@ -313,6 +417,7 @@ final class MindMapEditor extends NoteEditor {
             actions.add(() -> openLinkedNote(node));
             labels.add("Remove note link");
             actions.add(() -> {
+                pushUndo();
                 node.setLink(null);
                 map.draw();
             });
@@ -327,6 +432,7 @@ final class MindMapEditor extends NoteEditor {
             actions.add(() -> MediaViewer.open(NoteData.dir(note.getId()).resolve(node.image), false));
             labels.add("Remove picture");
             actions.add(() -> {
+                pushUndo();
                 node.image = null;
                 map.refresh();
             });
@@ -357,7 +463,9 @@ final class MindMapEditor extends NoteEditor {
         area.setPrefRowCount(4);
         Ui.dialog().title("Sub-text").content(area).width(420)
                 .positive("Done", () -> {
-                    node.sub = area.getText().trim();
+                    String sub = area.getText().trim();
+                    if (!sub.equals(node.sub)) pushUndo();
+                    node.sub = sub;
                     map.select(node);
                     map.refresh();
                     map.requestFocus();
@@ -373,6 +481,7 @@ final class MindMapEditor extends NoteEditor {
         names[0] = node.parent < 0 ? "Yellow (default)" : "Same as its branch";
         System.arraycopy(colorNames, 0, names, 1, colorNames.length);
         Ui.dialog().title("Colour").singleChoice(names, node.color, which -> {
+            if (which != node.color) pushUndo();
             node.color = which;
             map.refresh();
         }).show();
@@ -407,6 +516,7 @@ final class MindMapEditor extends NoteEditor {
                 Ui.toast("Couldn't add that picture");
                 return;
             }
+            pushUndo();
             map.setFolder(saved);
             node.image = name;
             map.select(node);
@@ -429,6 +539,7 @@ final class MindMapEditor extends NoteEditor {
                 String t = n.getTitle() == null || n.getTitle().isEmpty() ? "Untitled" : n.getTitle();
                 labels.add(NoteData.kind(n.getType()).label() + "  ·  " + t);
                 actions.add(() -> {
+                    pushUndo();
                     node.setLink(n);
                     map.draw();
                 });

@@ -47,6 +47,8 @@ final class MindMapCanvas extends Region {
         void onOpenLink(NoteData.MindNode node);
 
         void onConnected();
+
+        default void onStateChanging() {}
     }
 
     static final String[] PALETTE = {"tile_blue", "tile_green", "tile_orange", "tile_purple", "tile_red",
@@ -69,6 +71,7 @@ final class MindMapCanvas extends Region {
     private NoteData.MindNode dragging;
     private double lastX, lastY, downX, downY;
     private boolean moved;
+    private boolean dragRecorded;
     private boolean fitted;
 
     /** Scratch rectangle of the last {@link #bounds} call: left, top, right, bottom... */
@@ -301,6 +304,7 @@ final class MindMapCanvas extends Region {
     /** Undoes {@link #insertBehind}: the idea goes, its children rejoin its parent and step back. */
     void unwrap(NoteData.MindNode mid) {
         if (mid.parent < 0) return;
+        if (listener != null) listener.onStateChanging();
         double side = side(mid);
         for (NoteData.MindNode k : new ArrayList<>(model.nodes)) {
             if (k.parent != mid.id) continue;
@@ -330,6 +334,7 @@ final class MindMapCanvas extends Region {
 
     void removeBranch(NoteData.MindNode node) {
         if (!canRemove(node)) return;
+        if (listener != null) listener.onStateChanging();
         Set<Long> doomed = new HashSet<>();
         doomed.add(node.id);
         boolean grew = true;
@@ -357,6 +362,7 @@ final class MindMapCanvas extends Region {
         for (long[] l : model.links) {
             if ((l[0] == a.id && l[1] == b.id) || (l[0] == b.id && l[1] == a.id)) return;
         }
+        if (listener != null) listener.onStateChanging();
         model.links.add(new long[]{a.id, b.id});
         if (listener != null) listener.onConnected();
     }
@@ -367,6 +373,7 @@ final class MindMapCanvas extends Region {
     }
 
     void removeCrossLinks(NoteData.MindNode node) {
+        if (listener != null) listener.onStateChanging();
         model.links.removeIf(l -> l[0] == node.id || l[1] == node.id);
         draw();
     }
@@ -377,6 +384,7 @@ final class MindMapCanvas extends Region {
      * to their new places.
      */
     void tidy() {
+        if (listener != null) listener.onStateChanging();
         List<NoteData.MindNode> roots = roots();
         if (roots.isEmpty()) return;
         Map<Long, double[]> target = new HashMap<>();
@@ -636,10 +644,13 @@ final class MindMapCanvas extends Region {
     private void bounds(NoteData.MindNode n, double s, double ox, double oy) {
         boolean isRoot = n.parent < 0;
         Block b = block(n);
-        double w = b.w + PAD_X * 2;
         double line = isRoot ? ROOT_H : NODE_H;
         // One line keeps the old height; more lines (wrapped, or a sub-text) grow the idea.
         double textH = Math.max(line, b.h + (isRoot ? 26 : 20));
+        double maxRadius = isRoot ? 24 : 18;
+        double r = n.image != null ? 16 : Math.min(textH / 2, maxRadius);
+        double padX = Math.max(PAD_X, r + 8);
+        double w = b.w + padX * 2;
         double h = textH;
         rpw = rph = 0;
         if (n.image != null) {
@@ -865,7 +876,9 @@ final class MindMapCanvas extends Region {
             bounds(n, s, ox, oy);
             boolean isRoot = n.parent < 0;
             Color color = colorOf.getOrDefault(n.id, muted);
-            double w = rr - rl, h = rb - rt, radius = n.image != null ? Math.min(h / 2, 16 * s) : h / 2;
+            double w = rr - rl, h = rb - rt;
+            double maxRadius = isRoot ? 24 : 18;
+            double radius = n.image != null ? Math.min(h / 2, 16 * s) : Math.min(h / 2, maxRadius * s);
             if (isRoot) {
                 g.setFill(n.color > 0 ? Theme.color(PALETTE[n.color - 1]) : Theme.color("brand_yellow"));
                 g.fillRoundRect(rl, rt, w, h, radius * 2, radius * 2);
@@ -972,12 +985,17 @@ final class MindMapCanvas extends Region {
         lastX = downX = e.getX();
         lastY = downY = e.getY();
         moved = false;
+        dragRecorded = false;
     }
 
     private void dragged(MouseEvent e) {
         if (e.getButton() != MouseButton.PRIMARY) return;
         if (!moved && Math.hypot(e.getX() - downX, e.getY() - downY) < 4) return;
         moved = true;
+        if (!dragRecorded && dragging != null) {
+            dragRecorded = true;
+            if (listener != null) listener.onStateChanging();
+        }
         double dx = e.getX() - lastX, dy = e.getY() - lastY;
         lastX = e.getX();
         lastY = e.getY();

@@ -211,7 +211,20 @@ abstract class NoteEditor extends Screen {
 
     @Override
     void onKey(KeyEvent e) {
-        if (e.isShortcutDown() && e.getCode() == KeyCode.S) {
+        if (e.isShortcutDown() && e.getCode() == KeyCode.Z) {
+            if (!(root.getScene() != null && root.getScene().getFocusOwner() instanceof javafx.scene.control.TextInputControl)) {
+                e.consume();
+                if (e.isShiftDown()) redo();
+                else undo();
+                return;
+            }
+        } else if (e.isShortcutDown() && e.getCode() == KeyCode.Y) {
+            if (!(root.getScene() != null && root.getScene().getFocusOwner() instanceof javafx.scene.control.TextInputControl)) {
+                e.consume();
+                redo();
+                return;
+            }
+        } else if (e.isShortcutDown() && e.getCode() == KeyCode.S) {
             e.consume();
             save(false);
             Ui.toast("Saved");
@@ -232,6 +245,10 @@ abstract class NoteEditor extends Screen {
             zoomBy(0);
         }
     }
+
+    protected void undo() {}
+
+    protected void redo() {}
 
     /** Escape closes the find row first. */
     @Override

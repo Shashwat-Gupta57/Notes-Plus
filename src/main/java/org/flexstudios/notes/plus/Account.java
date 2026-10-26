@@ -57,6 +57,7 @@ final class Account {
 
     static final class Profile {
         String username, displayName, email, photoUrl;
+        boolean syncFoldersArchive;
         /** The photo others see, as {@link ChatMedia#loadAvatar} takes it: custom, else Google's. */
         String photoJson;
     }
@@ -229,6 +230,8 @@ final class Account {
         if (s != null) {
             p.username = s.optString("username", null);
             if (s.has("displayName")) p.displayName = s.optString("displayName");
+            p.syncFoldersArchive = s.optBoolean("syncFoldersArchive", false);
+            Prefs.put("sync_folders_archive", String.valueOf(p.syncFoldersArchive));
         }
         JSONObject photo = Firebase.getObject("profiles/" + uid + "/photo");
         if (photo != null && photo.has("url")) p.photoUrl = photo.optString("url");
@@ -282,6 +285,19 @@ final class Account {
 
     static String driveEmail() {
         return Prefs.secret(DRIVE_EMAIL);
+    }
+
+    static void setSyncFoldersArchive(boolean on) throws IOException {
+        Prefs.put("sync_folders_archive", String.valueOf(on));
+        String uid = uid();
+        if (uid != null) {
+            Firebase.put("users/" + uid + "/profile/syncFoldersArchive", on);
+        }
+        NoteStore.write(s -> NoteSync.schedule());
+    }
+
+    static boolean isSyncFoldersArchive() {
+        return Boolean.parseBoolean(Prefs.get("sync_folders_archive"));
     }
 
     static void disconnectDrive() {

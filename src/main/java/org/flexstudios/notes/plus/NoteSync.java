@@ -466,8 +466,8 @@ final class NoteSync {
         m.put("color", note.getColor());
         m.put("pinned", note.isPinned());
         m.put("edited", note.getTimestamp());
-        // How it's filed is mine alone: never part of a group note.
-        if (note.getGroupId() == null) {
+        // How it's filed is mine alone: never part of a group note, and only shared across devices when opted in.
+        if (note.getGroupId() == null && Account.isSyncFoldersArchive()) {
             if (note.isArchived()) m.put("archived", true);
             if (note.getFolder() != null && !note.getFolder().isEmpty()) {
                 m.put("folder", note.getFolder().length() > 100 ? note.getFolder().substring(0, 100) : note.getFolder());
@@ -836,7 +836,7 @@ final class NoteSync {
             note.setData(data);
             note.setColor(color);
             note.setPinned(pinned);
-            if (mine) {
+            if (mine && Account.isSyncFoldersArchive()) {
                 note.setArchived(archived);
                 note.setFolder(folder);
             }
@@ -852,7 +852,7 @@ final class NoteSync {
         return Objects.equals(n.getTitle(), r.title) && Objects.equals(n.getContent(), r.content)
                 && Objects.equals(n.getData(), r.data) && n.getColor() == r.color
                 && n.isPinned() == r.pinned && n.getType().equals(r.type)
-                && (!r.mine || n.isArchived() == r.archived && Objects.equals(n.getFolder(), r.folder));
+                && (!r.mine || !Account.isSyncFoldersArchive() || (n.isArchived() == r.archived && Objects.equals(n.getFolder(), r.folder)));
     }
 
     // ============================================================== sketches

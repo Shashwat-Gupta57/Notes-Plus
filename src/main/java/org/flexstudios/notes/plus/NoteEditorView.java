@@ -244,7 +244,50 @@ final class NoteEditorView extends NoteEditor {
         return new VBox(track, listProgress, itemRows, add);
     }
 
+    private final java.util.ArrayDeque<String> listUndo = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<String> listRedo = new java.util.ArrayDeque<>();
+
+    private void pushListUndo() {
+        if (!NoteData.LIST.equals(type) || readOnly) return;
+        String json = NoteData.todosJson(items);
+        if (!listUndo.isEmpty() && listUndo.peek().equals(json)) return;
+        listUndo.push(json);
+        if (listUndo.size() > 50) listUndo.removeLast();
+        listRedo.clear();
+    }
+
+    @Override
+    protected void undo() {
+        if (NoteData.LIST.equals(type) && !listUndo.isEmpty()) {
+            String cur = NoteData.todosJson(items);
+            listRedo.push(cur);
+            String prev = listUndo.pop();
+            items.clear();
+            items.addAll(NoteData.todos(prev));
+            itemRows.getChildren().clear();
+            for (NoteData.TodoItem item : items) itemRows.getChildren().add(new ItemRow(item));
+            updateProgress();
+            Ui.toast("Undone");
+        }
+    }
+
+    @Override
+    protected void redo() {
+        if (NoteData.LIST.equals(type) && !listRedo.isEmpty()) {
+            String cur = NoteData.todosJson(items);
+            listUndo.push(cur);
+            String next = listRedo.pop();
+            items.clear();
+            items.addAll(NoteData.todos(next));
+            itemRows.getChildren().clear();
+            for (NoteData.TodoItem item : items) itemRows.getChildren().add(new ItemRow(item));
+            updateProgress();
+            Ui.toast("Redone");
+        }
+    }
+
     private void addItemAt(int position) {
+        pushListUndo();
         NoteData.TodoItem item = new NoteData.TodoItem("", false);
         items.add(position, item);
         itemRows.getChildren().add(position, new ItemRow(item));
@@ -257,6 +300,7 @@ final class NoteEditorView extends NoteEditor {
      * kept in the note's folder and stored as an item of its own, {@code ![[name]]}.
      */
     private void addPicture(int position, Object picture) {
+        pushListUndo();
         withFolder(dir -> RichBody.savePicture(dir, picture instanceof File f ? f : null,
                 picture instanceof javafx.scene.image.Image i ? i : null, name -> {
                     if (name == null) {
@@ -273,6 +317,7 @@ final class NoteEditorView extends NoteEditor {
 
     private void removeItemAt(int position) {
         if (position < 0 || position >= items.size()) return;
+        pushListUndo();
         items.remove(position);
         itemRows.getChildren().remove(position);
         updateProgress();
@@ -353,7 +398,10 @@ final class NoteEditorView extends NoteEditor {
             target.setMinSize(44, 44);
             target.setStyle("-fx-cursor: hand;");
             target.setOnMouseClicked(e -> {
-                if (!readOnly) setDone(!item.done);
+                if (!readOnly) {
+                    pushListUndo();
+                    setDone(!item.done);
+                }
             });
 
             text.getStyleClass().addAll("bare");
@@ -379,6 +427,7 @@ final class NoteEditorView extends NoteEditor {
                     addPicture(empty && items.size() >= 1 ? index : index + 1, pasted);
                 } else if (e.getCode() == KeyCode.ENTER && e.isShortcutDown()) {
                     e.consume();
+                    pushListUndo();
                     setDone(!item.done);
                 } else if (e.getCode() == KeyCode.ENTER) {
                     e.consume();

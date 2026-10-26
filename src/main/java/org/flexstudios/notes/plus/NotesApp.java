@@ -130,7 +130,7 @@ public class NotesApp extends Application {
 
         private void onKey(KeyEvent e) {
             if (Ui.hasModal()) {
-                if (Ui.isBack(e)) {
+                if (Ui.isBack(e) || (e.isShortcutDown() && e.getCode() == KeyCode.W)) {
                     Ui.dismissTop();
                     e.consume();
                 }
@@ -142,6 +142,14 @@ public class NotesApp extends Application {
                 e.consume();
                 newWindow();
                 return;
+            }
+            // Ctrl+W: closes an open note/editor or screen, or its window if pop-out.
+            if (e.isShortcutDown() && e.getCode() == KeyCode.W) {
+                if (top instanceof NoteEditor || top instanceof ViewerView || stack.size() > 1 || home() == null) {
+                    e.consume();
+                    back(this);
+                    return;
+                }
             }
             // A note in a window of its own closes the window when it is left.
             if (Ui.isBack(e) && (stack.size() > 1 || home() == null)) {

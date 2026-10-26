@@ -272,7 +272,11 @@ final class AccountView extends Screen {
                     NoteSync.schedule();
                     Ui.toast("Syncing…");
                 }),
-                row(Icons.PHOTO, "tile_green", "Photos and recordings", driveStatus, chevron(), this::driveOptions));
+                row(Icons.PHOTO, "tile_green", "Photos and recordings", driveStatus, chevron(), this::driveOptions),
+                row(Icons.SAVE, "tile_purple", "Folders and archive",
+                        Ui.label(Account.isSyncFoldersArchive() ? "Sync across devices" : "Stored on this device only", 13, "secondary"),
+                        VaultSettingsView.toggle(Account.isSyncFoldersArchive(), on -> background(() -> Account.setSyncFoldersArchive(on), err -> refresh())),
+                        null));
         Label deleteTitle = Ui.label("Delete account", 16);
         deleteTitle.setStyle(deleteTitle.getStyle() + "-fx-text-fill: " + Theme.ref("destructive") + ";");
         VBox profileCard = card(

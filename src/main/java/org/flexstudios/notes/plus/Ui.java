@@ -315,8 +315,13 @@ final class Ui {
         Modal show() {
             VBox card = new VBox();
             card.getStyleClass().add("dialog");
+            int textLen = (neutral != null ? neutral.length() : 0)
+                    + (negative != null ? negative.length() : 0)
+                    + (positive != null ? positive.length() : 0);
+            boolean stackButtons = textLen > 36 || (neutral != null && (neutral.length() > 14 || (positive != null && positive.length() > 14)));
+            double targetWidth = stackButtons ? Math.max(width, 420) : width;
             card.setMinWidth(280);
-            card.setPrefWidth(width);
+            card.setPrefWidth(targetWidth);
             card.setMaxWidth(Region.USE_PREF_SIZE);
             card.setMaxHeight(Region.USE_PREF_SIZE);
             boolean list = items != null || choices != null;
@@ -380,23 +385,21 @@ final class Ui {
             }
 
             if (buttons) {
-                HBox bar = new HBox(8);
-                bar.setAlignment(Pos.CENTER_RIGHT);
-                bar.setPadding(new Insets(list ? 8 : 24, 18, 18, 18));
-                if (neutral != null) {
-                    bar.getChildren().addAll(textButton(neutral, () -> {
-                        self[0].dismiss();
-                        if (onNeutral != null) onNeutral.run();
-                    }), spacer());
-                }
-                if (negative != null) {
-                    bar.getChildren().add(textButton(negative, () -> {
-                        self[0].dismiss();
-                        if (onNegative != null) onNegative.run();
-                    }));
-                }
+                Button btnNeutral = neutral != null ? textButton(neutral, () -> {
+                    self[0].dismiss();
+                    if (onNeutral != null) onNeutral.run();
+                }) : null;
+                if (btnNeutral != null) btnNeutral.setMinWidth(Region.USE_PREF_SIZE);
+
+                Button btnNegative = negative != null ? textButton(negative, () -> {
+                    self[0].dismiss();
+                    if (onNegative != null) onNegative.run();
+                }) : null;
+                if (btnNegative != null) btnNegative.setMinWidth(Region.USE_PREF_SIZE);
+
+                Button btnPositive = null;
                 if (positive != null) {
-                    Button ok = textButton(positive, () -> {
+                    btnPositive = textButton(positive, () -> {
                         if (keepOpen != null) {
                             keepOpen.run();
                             return;
@@ -404,11 +407,31 @@ final class Ui {
                         self[0].dismiss();
                         if (onPositive != null) onPositive.run();
                     });
-                    if (positiveDisabled != null) ok.disableProperty().bind(positiveDisabled);
-                    ok.setDefaultButton(content == null);
-                    bar.getChildren().add(ok);
+                    btnPositive.setMinWidth(Region.USE_PREF_SIZE);
+                    if (positiveDisabled != null) btnPositive.disableProperty().bind(positiveDisabled);
+                    btnPositive.setDefaultButton(content == null);
                 }
-                card.getChildren().add(bar);
+
+                if (stackButtons) {
+                    // Material Design 3 stacked buttons: confirming on top, dismissive next, neutral at bottom.
+                    VBox bar = new VBox(6);
+                    bar.setAlignment(Pos.CENTER_RIGHT);
+                    bar.setPadding(new Insets(list ? 8 : 16, 18, 18, 18));
+                    if (btnPositive != null) bar.getChildren().add(btnPositive);
+                    if (btnNegative != null) bar.getChildren().add(btnNegative);
+                    if (btnNeutral != null) bar.getChildren().add(btnNeutral);
+                    card.getChildren().add(bar);
+                } else {
+                    HBox bar = new HBox(8);
+                    bar.setAlignment(Pos.CENTER_RIGHT);
+                    bar.setPadding(new Insets(list ? 8 : 24, 18, 18, 18));
+                    if (btnNeutral != null) {
+                        bar.getChildren().addAll(btnNeutral, spacer());
+                    }
+                    if (btnNegative != null) bar.getChildren().add(btnNegative);
+                    if (btnPositive != null) bar.getChildren().add(btnPositive);
+                    card.getChildren().add(bar);
+                }
             } else {
                 card.getChildren().add(gap(list ? 12 : 24));
             }

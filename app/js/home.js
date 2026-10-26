@@ -197,7 +197,7 @@ export function homeScreen(go) {
     else {
       list = list.filter(n => !n.archived); // Put away: only under Archived.
       if (filter && filter.startsWith(FOLDER)) list = list.filter(n => n.folder === filter.slice(FOLDER.length));
-      else if (filter === SHARED) list = list.filter(n => n.sharedFrom);
+      else if (filter === SHARED) list = list.filter(n => n.sharedFrom || n.groupId);
       else if (filter) list = list.filter(n => n.type === filter);
     }
     if (query) list = list.filter(n => searchable(n).includes(query));
@@ -218,7 +218,7 @@ export function homeScreen(go) {
     grid.replaceChildren(...tiles, ...list.map(card));
     empty.hidden = list.length + tiles.length > 0;
     empty.querySelector('p').textContent = query ? 'No notes match your search'
-      : filter === SHARED ? 'Notes people send you appear here'
+      : filter === SHARED ? 'Notes people share or send to you appear here'
       : filter === ARCHIVED ? 'Nothing archived. Archive a note from its options to put it away here.'
       : filter && filter.startsWith(FOLDER) ? `Nothing in “${filter.slice(FOLDER.length)}” yet. Move notes here from their options.`
       : filter ? `No ${kind(filter).plural.toLowerCase()} yet` : 'No notes yet. Tap New to write one.';

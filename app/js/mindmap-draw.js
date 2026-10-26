@@ -149,9 +149,12 @@ export class MapView {
   geometry(n) {
     const root = n.parent < 0;
     const b = this.block(n);
-    let w = b.w + PAD_X * 2;
     const line = root ? ROOT_H : NODE_H;
     const textH = Math.max(line, b.h + (root ? 26 : 20));
+    const maxRadius = root ? 24 : 18;
+    const r = n.image ? 16 : Math.min(textH / 2, maxRadius);
+    const padX = Math.max(PAD_X, r + 8);
+    let w = b.w + padX * 2;
     let h = textH, picW = 0, picH = 0;
     if (n.image) {
       const img = this.pictures.get(n.image);
@@ -269,7 +272,8 @@ export class MapView {
       if (this.hidden.has(n.id)) continue;
       const geo = this.geometry(n), b = geo.block, root = n.parent < 0;
       const w = geo.w * s, h = geo.h * s, l = X(n.x) - w / 2, t = Y(n.y) - h / 2;
-      const radius = n.image ? Math.min(h / 2, 16 * s) : h / 2;
+      const maxRadius = (root ? 24 : 18) * s;
+      const radius = n.image ? Math.min(h / 2, 16 * s) : Math.min(h / 2, maxRadius);
       const color = css(this.colorOf.get(n.id) || 'secondary');
       g.beginPath();
       roundRect(g, l, t, w, h, radius);

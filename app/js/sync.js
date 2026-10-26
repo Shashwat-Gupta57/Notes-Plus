@@ -71,7 +71,7 @@ function copyInto(r, note) {
     type: r.type, title: r.title, content: r.content, data: r.data, color: r.color, pinned: r.pinned,
     timestamp: r.edited, rev: r.rev, media: r.media, sketch: r.sketch, dirty: false, deleted: false,
   });
-  if (r.mine) Object.assign(note, { archived: r.archived, folder: r.folder });
+  if (r.mine && account.isSyncFoldersArchive()) Object.assign(note, { archived: r.archived, folder: r.folder });
   return note;
 }
 
@@ -88,9 +88,11 @@ function toRemote(note) {
     type: note.type, title: note.title || '', content: note.content || '', color: note.color || 0,
     pinned: !!note.pinned, edited: note.timestamp,
   });
-  // How it's filed is mine alone.
-  if (note.archived) m.archived = true;
-  if (note.folder) m.folder = String(note.folder).slice(0, 100);
+  // How it's filed is mine alone, shared across devices when opted in.
+  if (account.isSyncFoldersArchive()) {
+    if (note.archived) m.archived = true;
+    if (note.folder) m.folder = String(note.folder).slice(0, 100);
+  }
   if (note.data !== null && note.data !== undefined) m.data = note.data;
   if (note.type === SKETCH && note.sketch) m.sketch = note.sketch;
   const media = {};
@@ -109,7 +111,7 @@ function toRemote(note) {
 
 const sameContent = (n, r) => n.type === r.type && (n.title || '') === r.title && (n.content || '') === r.content
   && (n.data || null) === r.data && (n.color || 0) === r.color && !!n.pinned === r.pinned
-  && (!r.mine || !!n.archived === r.archived && (n.folder || null) === r.folder);
+  && (!r.mine || !account.isSyncFoldersArchive() || (!!n.archived === r.archived && (n.folder || null) === r.folder));
 
 // ------------------------------------------------------------------ the pass
 

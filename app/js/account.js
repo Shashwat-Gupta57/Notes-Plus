@@ -148,7 +148,7 @@ export async function signOut() {
 
 export async function profile() {
   const id = uid();
-  const p = { email: email(), displayName: name(), photoUrl: photo(), username: null };
+  const p = { email: email(), displayName: name(), photoUrl: photo(), username: null, syncFoldersArchive: isSyncFoldersArchive() };
   if (!id) return p;
   const { db, D } = fb;
   const s = await D.get(D.ref(db, `users/${id}/profile`));
@@ -156,10 +156,25 @@ export async function profile() {
     const v = s.val();
     p.username = v.username || null;
     if (v.displayName) p.displayName = v.displayName;
+    p.syncFoldersArchive = v.syncFoldersArchive === true;
+    localStorage.setItem('sync_folders_archive', p.syncFoldersArchive ? '1' : '0');
   }
   const ph = await D.get(D.ref(db, `profiles/${id}/photo`));
   if (ph.exists() && ph.val().url) p.photoUrl = ph.val().url;
   return p;
+}
+
+export function isSyncFoldersArchive() {
+  return localStorage.getItem('sync_folders_archive') === '1';
+}
+
+export async function setSyncFoldersArchive(on) {
+  localStorage.setItem('sync_folders_archive', on ? '1' : '0');
+  const id = uid();
+  if (id) {
+    const { db, D } = fb;
+    await D.update(D.ref(db, `users/${id}/profile`), { syncFoldersArchive: !!on });
+  }
 }
 
 export function normaliseUsername(raw) {

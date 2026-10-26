@@ -229,6 +229,52 @@ final class RichBody extends VBox {
                 && index + 1 < getChildren().size() && getChildren().get(index + 1) instanceof Picture p) {
             e.consume();
             remove(p);
+        } else if (e.getCode() == KeyCode.SPACE && area.getSelection().getLength() == 0) {
+            int caret = area.getCaretPosition();
+            String full = area.getText();
+            int lineStart = full.lastIndexOf('\n', caret - 1) + 1;
+            String curLine = full.substring(lineStart, caret);
+            if ("*".equals(curLine) || "-".equals(curLine)) {
+                e.consume();
+                area.replaceText(lineStart, caret, "• ");
+                return;
+            }
+            if (curLine.matches("^\\d+$")) {
+                e.consume();
+                area.replaceText(lineStart, caret, curLine + ". ");
+                return;
+            }
+        } else if (e.getCode() == KeyCode.ENTER && !e.isShiftDown() && area.getSelection().getLength() == 0) {
+            int caret = area.getCaretPosition();
+            String full = area.getText();
+            int lineStart = full.lastIndexOf('\n', caret - 1) + 1;
+            String curLine = full.substring(lineStart, caret);
+            if (curLine.matches("^(\\s*)(?:•|[*–-])\\s*$")) {
+                e.consume();
+                area.deleteText(lineStart, caret);
+                return;
+            }
+            Matcher bulletMatcher = Pattern.compile("^(\\s*)(?:•|[*–-])\\s+(.+)").matcher(curLine);
+            if (bulletMatcher.matches()) {
+                e.consume();
+                String indent = bulletMatcher.group(1);
+                area.insertText(caret, "\n" + indent + "• ");
+                return;
+            }
+            if (curLine.matches("^(\\s*)(\\d+)[.)]\\s*$")) {
+                e.consume();
+                area.deleteText(lineStart, caret);
+                return;
+            }
+            Matcher numMatcher = Pattern.compile("^(\\s*)(\\d+)([.)])\\s+(.+)").matcher(curLine);
+            if (numMatcher.matches()) {
+                e.consume();
+                String indent = numMatcher.group(1);
+                long nextNum = Long.parseLong(numMatcher.group(2)) + 1;
+                String sep = numMatcher.group(3) + " ";
+                area.insertText(caret, "\n" + indent + nextNum + sep);
+                return;
+            }
         } else if (e.getCode() == KeyCode.UP && !area.getText(0, area.getCaretPosition()).contains("\n") && index > 1) {
             e.consume();
             TextArea prev = (TextArea) getChildren().get(index - 2);

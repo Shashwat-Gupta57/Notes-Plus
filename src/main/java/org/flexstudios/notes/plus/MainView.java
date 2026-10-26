@@ -632,6 +632,8 @@ final class MainView extends Screen {
         actions.add(() -> NoteFolders.move(note, NoteFolders.all(allNotes)));
         labels.add(note.isArchived() ? "Unarchive" : "Archive");
         actions.add(() -> NoteFolders.setArchived(note, !note.isArchived()));
+        labels.add("Duplicate");
+        actions.add(() -> duplicateNote(note));
         if (note.isReceived()) {
             // Someone else's note: mine to pin, colour, copy or put away, not to change.
             labels.add("Save a copy");
@@ -660,6 +662,41 @@ final class MainView extends Screen {
             actions.add(() -> deleteWithUndo(note));
         }
         Ui.dialog().title(name).items(labels, actions).show();
+    }
+
+    private void duplicateNote(NoteEntity note) {
+        NoteStore.load(s -> {
+            String title = note.getTitle().isEmpty()
+                    ? NoteData.kind(note.getType()).label() + " (Copy)"
+                    : note.getTitle() + " (Copy)";
+            NoteEntity copy = new NoteEntity(title, note.getContent(), System.currentTimeMillis());
+            copy.setType(note.getType());
+            copy.setData(note.getData());
+            copy.setColor(note.getColor());
+            copy.setPinned(false);
+            copy.setFolder(note.getFolder());
+            copy.setAccount(Account.uid());
+            copy.setRev(0);
+            copy.setDirty(true);
+            int newId = s.insert(copy);
+            copy.setId(newId);
+            try {
+                java.nio.file.Path srcDir = NoteData.dir(note.getId());
+                java.nio.file.Path dstDir = NoteData.dir(newId);
+                if (java.nio.file.Files.exists(srcDir)) {
+                    java.nio.file.Files.createDirectories(dstDir);
+                    try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.list(srcDir)) {
+                        for (java.nio.file.Path p : stream.toList()) {
+                            java.nio.file.Files.copy(p, dstDir.resolve(p.getFileName()), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+            return newId;
+        }, newId -> {
+            Ui.toast("Note duplicated");
+            NoteSync.schedule();
+        });
     }
 
     private void pickColor(NoteEntity note) {

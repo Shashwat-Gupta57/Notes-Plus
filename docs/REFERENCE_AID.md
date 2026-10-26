@@ -81,13 +81,13 @@
 
 ## 10. Versioning & Release Feeds Across Platforms
 - **Desktop**:
-  - Defined in: `D:\User\Data\projects\Notes-Plus-Desktop\pom.xml` under `<version>14.6</version>`.
+  - Defined in: `D:\User\Data\projects\Notes-Plus-Desktop\pom.xml` under `<version>15.0</version>`.
   - Filtered at build-time into `src/main/resources/org/flexstudios/notes/plus/app.properties` as `version=${project.version}`.
   - Read at runtime by `Updates.java` to display in settings and compare against update feed releases.
 - **Android**:
   - Defined in: `D:\User\Data\projects\Notes-Plus\app\build.gradle.kts`:
-    - `versionCode = 22` (monotonically increasing integer)
-    - `versionName = "14.6"` (user-facing version string)
+    - `versionCode = 26` (monotonically increasing integer)
+    - `versionName = "15.0"` (user-facing version string)
   - Read at runtime by `Updater.java` via `packageManager.getPackageInfo()` / `PackageInfoCompat.getLongVersionCode()`.
 - **Global Release Feed (`version.json`)**:
   - Location: `D:\User\Data\projects\Notes-Plus\version.json` (published on `master` branch on GitHub: `https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json`).
@@ -95,7 +95,7 @@
     - Android: `versionCode`, `versionName`, `apkUrl`, `sha256`, `forced`, `changelog`.
     - Desktop: `desktop.versionName`, `desktop.url` (or `installerUrl`), `desktop.sha256`, `desktop.size`, `desktop.changelog`.
 - **Web App**:
-  - Defined in: `D:\User\Data\projects\Website Temp\Notes-Plus\app\js\account-ui.js` as `export const VERSION = '14.6';`.
+  - Defined in: `D:\User\Data\projects\Website Temp\Notes-Plus\app\js\account-ui.js` as `export const VERSION = '15.0';`.
 
 
 ---
@@ -127,3 +127,79 @@
 ### 11.4 Saved / Synced Status in Bottom Nav / Footer
 - Located next to the `Edited [date] · [words]` indicator in the editor footer.
 - States: `Unsaved changes`, `Saving…`, `Saved`, `Syncing…`, `Synced`.
+
+
+---
+
+## 12. Note Animations & Smart List Continuation (v14.8)
+
+### 12.1 Smooth Enter & Exit Animations
+- **Desktop**: `NotesApp.java` features parallel fade + slide transitions for `enter(view)` (`FadeTransition` + `TranslateTransition(24 -> 0)`) and `exit(view)` (`FadeTransition` + `TranslateTransition(0 -> 20)`).
+- **Android**: `NoteActivity.java` hooks `overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)` on start and `finish()`.
+- **Web**: `app.css` defines keyframe animations `editorEnter` (180ms ease) and `editorLeave` (150ms ease). `editor.js` applies class `leaving` before transitioning route.
+
+### 12.2 Automatic Bullet Points & Numbered Lists
+- **Auto Bullet**: Typing `* ` or `- ` at the start of a line automatically converts to bullet `• `.
+- **Auto Numbering**: Typing `1 ` at the start of a line automatically formats to `1. `.
+- **Newline Auto-Continuation**:
+  - Pressing `Enter` on a bullet item (`• item`) automatically inserts `\n• ` on the next line.
+  - Pressing `Enter` on a numbered item (`1. item`) automatically increments and inserts the next number (`\n2. `).
+  - Pressing `Enter` on an empty bullet or empty numbered prefix cleans up the prefix and exits the list back to standard text.
+- Implemented in:
+  - Desktop: `RichBody.java` (`keys` handler)
+  - Android: `NoteEditorActivity.java` (`TextWatcher`)
+  - Web: `app/js/ed-text.js` (`keydown` on `textarea.para`)
+
+
+---
+
+## 13. Duplicate Note Bug Root-Cause & Fix Guide (Documented for Reference)
+
+### 13.1 Observed Bug
+- An existing note (e.g. shared or sent) shows only 1 copy initially.
+- The moment a local edit is performed, two copies appear side-by-side (e.g., one with original folder/tags and one with shared/sent status).
+
+### 13.2 Root-Cause in `NoteSync.java`
+- Location: `NoteSync.apply(uid, remote, groupId, members)`
+  - Desktop: `org.flexstudios.notes.plus.NoteSync.java` around line 296
+  - Android: `org.flexstudios.notes.plus.NoteSync.java` around line 375
+  - Web: `app/js/sync.js` around line 188
+- The culprit block:
+```java
+if (local != null && !uid.equals(local.getAccount())) {
+    if (sameContent(local, remote)) {
+        local.setAccount(uid);
+        local.setRev(remote.rev);
+        local.setDirty(false);
+        local.setMedia(remote.media);
+        store.update(local);
+        return true;
+    }
+    local.setUuid(newUuid()); // <-- Renames local note's UUID!
+    store.update(local);
+    local = null;             // <-- Causes decide() to treat remote note as new!
+}
+```
+- **Why it duplicates upon editing**:
+  1. Before local edit: `sameContent(local, remote)` evaluates to `true`, keeping the single copy and setting the account.
+  2. After local edit: `sameContent(local, remote)` evaluates to `false` because the content changed locally.
+  3. Instead of updating the local note or checking revisions, it assigns a brand new UUID to the local note and sets `local = null`.
+  4. The sync engine then pulls the remote copy, sees `local == null`, and calls `case INSERT`, creating a duplicate note beside the newly-renamed local note!
+
+### 13.3 Immediate Resolution Guide (When Ready to Apply)
+- When applying the fix, replace the identity-splitting block in `NoteSync.java` (Desktop/Android) and `sync.js` (Web):
+```java
+if (local != null && !uid.equals(local.getAccount())) {
+    local.setAccount(uid);
+    if (sameContent(local, remote)) {
+        local.setRev(remote.rev);
+        local.setDirty(false);
+        local.setMedia(remote.media);
+        store.update(local);
+        return true;
+    }
+    // Retain existing UUID; do not call local.setUuid(newUuid()) or nullify local.
+    store.update(local);
+}
+```
+- This ensures the note retains its stable UUID, and any conflicts are safely handled by the normal revision check (`decide()`), preventing duplicate notes.

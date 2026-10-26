@@ -385,11 +385,27 @@ public class NotesApp extends Application {
         if (top.onBack()) return;
         w.stack.pop();
         top.onPause();
-        top.onDestroy();
         Ui.closeSnack(false);
         Screen below = w.stack.peek();
-        w.screens.getChildren().setAll(below.view());
-        below.onResume();
+        Node topView = top.view();
+        Node belowView = below.view();
+        w.screens.getChildren().setAll(belowView, topView);
+        exit(topView, () -> {
+            top.onDestroy();
+            w.screens.getChildren().setAll(belowView);
+            below.onResume();
+        });
+    }
+
+    /** Exit transition: a smooth fade and slide down. */
+    private static void exit(Node view, Runnable onFinished) {
+        FadeTransition fade = new FadeTransition(Duration.millis(160), view);
+        fade.setToValue(0);
+        TranslateTransition slide = new TranslateTransition(Duration.millis(180), view);
+        slide.setToY(20);
+        ParallelTransition anim = new ParallelTransition(fade, slide);
+        anim.setOnFinished(e -> onFinished.run());
+        anim.play();
     }
 
     /**

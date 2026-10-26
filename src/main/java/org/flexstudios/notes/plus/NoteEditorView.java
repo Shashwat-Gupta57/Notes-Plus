@@ -421,6 +421,7 @@ final class NoteEditorView extends NoteEditor {
             text.textProperty().addListener((o, a, b) -> {
                 item.text = b;
                 updateProgress();
+                markDirty();
             });
             text.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
                 int index = itemRows.getChildren().indexOf(this);
@@ -515,6 +516,7 @@ final class NoteEditorView extends NoteEditor {
             item.done = done;
             styleDone();
             updateProgress();
+            markDirty();
             if (done) {
                 ScaleTransition pop = new ScaleTransition(Duration.millis(90), box);
                 pop.setToX(1.2);
@@ -614,6 +616,7 @@ final class NoteEditorView extends NoteEditor {
                     itemRows.getChildren().add(to, this);
                     items.remove(item);
                     items.add(to, item);
+                    markDirty();
                 }
             });
         }

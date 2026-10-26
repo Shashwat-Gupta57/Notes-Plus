@@ -8,7 +8,7 @@ import * as account from './account.js';
 import * as links from './links.js';
 import * as drive from './drive.js';
 import { h, icon, iconButton, menu, snackbar, pickColor, dialog, prompt, choices, confirm, toast } from './ui.js';
-import { KINDS, kind, tint, COLOR_NAMES, PICTURE_LINE, plain, firstPicture, todos, mindMap, journal, recordings, relative, searchable, dayStart, isVideo, TEXT, LIST, MINDMAP, JOURNAL, SKETCH, AUDIO } from './model.js';
+import { newNote, KINDS, kind, tint, COLOR_NAMES, PICTURE_LINE, plain, firstPicture, todos, mindMap, journal, recordings, relative, searchable, dayStart, isVideo, TEXT, LIST, MINDMAP, JOURNAL, SKETCH, AUDIO } from './model.js';
 import { drawPreview } from './mindmap-draw.js';
 import { drawSketchPreview } from './ed-sketch.js';
 
@@ -344,6 +344,7 @@ export function homeScreen(go) {
       { text: 'Move to folder…', onClick: () => moveToFolder(n) },
       account.uid() && links.shareable(n) ? { text: 'Share link…', onClick: () => links.sheet(n) } : null,
       { text: n.archived ? 'Unarchive' : 'Archive', onClick: () => { update(n, x => { x.archived = !n.archived; }); toast(n.archived ? 'Back with your notes' : 'Archived. It\'s under the Archived filter.'); } },
+      { text: 'Duplicate', onClick: () => duplicateNote(n) },
       n.sharedFrom ? null : { text: 'Delete', danger: true, onClick: () => deleteWithUndo(n) },
     ]);
   }
@@ -354,6 +355,26 @@ export function homeScreen(go) {
     change(x);
     if (!x.sharedFrom) x.dirty = true;
     await db.putNote(x);
+    sync.schedule();
+  }
+
+  async function duplicateNote(n) {
+    const copy = {
+      ...newNote(n.type),
+      title: n.title ? n.title + ' (Copy)' : 'Untitled (Copy)',
+      content: n.content,
+      data: n.data,
+      sketch: n.sketch,
+      color: n.color,
+      folder: n.folder,
+      account: account.uid(),
+    };
+    for (const name of await db.filesOf(n.uuid)) {
+      const b = await db.getFile(n.uuid, name);
+      if (b) await db.putFile(copy.uuid, name, b);
+    }
+    await db.putNote(copy);
+    toast('Note duplicated');
     sync.schedule();
   }
 

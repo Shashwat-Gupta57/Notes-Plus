@@ -50,6 +50,65 @@ function richBody(ctx, content, placeholder) {
         if (prev && prev.kind === 'pic') {
           e.preventDefault();
           removeBlock(prev);
+          return;
+        }
+      }
+      if (ctx.readOnly) return;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      if (start !== end) return;
+      const val = ta.value;
+      const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+      const curLine = val.slice(lineStart, start);
+
+      if (e.key === ' ') {
+        if (curLine === '*' || curLine === '-') {
+          e.preventDefault();
+          ta.setRangeText('• ', lineStart, start, 'end');
+          ctx.changed();
+          return;
+        }
+        const numMatch = /^(\d+)$/.exec(curLine);
+        if (numMatch) {
+          e.preventDefault();
+          ta.setRangeText(numMatch[1] + '. ', lineStart, start, 'end');
+          ctx.changed();
+          return;
+        }
+      }
+
+      if (e.key === 'Enter' && !e.shiftKey) {
+        const bulletEmpty = /^(\s*)(?:•|[*–-])\s*$/.exec(curLine);
+        if (bulletEmpty) {
+          e.preventDefault();
+          ta.setRangeText('', lineStart, start, 'end');
+          ctx.changed();
+          return;
+        }
+        const bulletWithText = /^(\s*)(?:•|[*–-])\s+(.+)$/.exec(curLine);
+        if (bulletWithText) {
+          e.preventDefault();
+          const indent = bulletWithText[1];
+          ta.setRangeText('\n' + indent + '• ', start, start, 'end');
+          ctx.changed();
+          return;
+        }
+        const numEmpty = /^(\s*)(\d+)[.)]\s*$/.exec(curLine);
+        if (numEmpty) {
+          e.preventDefault();
+          ta.setRangeText('', lineStart, start, 'end');
+          ctx.changed();
+          return;
+        }
+        const numWithText = /^(\s*)(\d+)([.)])\s+(.+)$/.exec(curLine);
+        if (numWithText) {
+          e.preventDefault();
+          const indent = numWithText[1];
+          const nextNum = parseInt(numWithText[2], 10) + 1;
+          const sep = numWithText[3] + ' ';
+          ta.setRangeText('\n' + indent + nextNum + sep, start, start, 'end');
+          ctx.changed();
+          return;
         }
       }
     });

@@ -160,6 +160,11 @@ export async function openEditor({ uuid, type }, implFor, go) {
   }
   sync.WATCHERS.set(note.uuid, takeNewerIfUnchanged);
 
+  function exitToHome() {
+    root.classList.add('leaving');
+    setTimeout(() => go('#/'), 140);
+  }
+
   // ------------------------------------------------------------- toolbar
   const lockBtn = iconButton('lock', 'Lock this note', () => lockClicked());
   const pinBtn = iconButton('pin', 'Pin', () => {
@@ -175,7 +180,7 @@ export async function openEditor({ uuid, type }, implFor, go) {
   const moreBtn = iconButton('more', 'More', () => showMore());
   const from = readOnly ? h('span.editor-from', `From @${note.sharedFrom} · read only`) : null;
   const toolbar = h('div.toolbar.editor-toolbar',
-    iconButton('back', 'Back (Esc)', () => go('#/')), from, h('div.spacer'), lockBtn, pinBtn, colorBtn, moreBtn);
+    iconButton('back', 'Back (Esc)', () => exitToHome()), from, h('div.spacer'), lockBtn, pinBtn, colorBtn, moreBtn);
   root.append(toolbar, body);
 
   function paintToolbar() {
@@ -336,6 +341,11 @@ export async function openEditor({ uuid, type }, implFor, go) {
     },
     flush() { clearTimeout(timer); return (saving = saving.then(save)); },
     onKey(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        exitToHome();
+        return true;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         ctx.save().then(() => toast('Saved'));

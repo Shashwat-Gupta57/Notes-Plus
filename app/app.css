@@ -298,7 +298,23 @@ textarea.field { resize: vertical; min-height: 96px; }
 .pattern { touch-action: none; cursor: pointer; }
 
 /* ------------------------------------------------------------------- editor */
-.editor { min-height: 100vh; background: var(--editor-bg, var(--bg)); }
+.editor {
+  min-height: 100vh;
+  background: var(--editor-bg, var(--bg));
+  animation: editorEnter 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes editorEnter {
+  from { opacity: 0; transform: translateY(18px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.editor.leaving {
+  animation: editorLeave 150ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
+}
+@keyframes editorLeave {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(14px) scale(0.99); }
+}
 .editor .toolbar { background: color-mix(in srgb, var(--editor-bg, var(--bg)) 88%, transparent); }
 .editor-from { color: var(--secondary); font-size: 14px; margin-left: 4px; }
 .page { max-width: 780px; margin: 0 auto; padding: 4px 20px 120px; display: flex; flex-direction: column; }

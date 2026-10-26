@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Talken Admin - Notes+ Intelligence</title>
+  <title>Notes+ Analytics Dashboard</title>
   <meta name="theme-color" content="#0d0914">
-  <link rel="icon" type="image/png" href="../res/icon.png">
+  <link rel="icon" type="image/png" href="/res/notes_icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -46,12 +46,12 @@
     }
     .auth-card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 20px; width: 100%; max-width: 420px; padding: 36px 30px;
+      border-radius: 20px; width: 100%; max-width: 440px; padding: 36px 30px;
       box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6); text-align: center;
     }
-    .auth-logo { width: 56px; height: 56px; margin: 0 auto 16px; display: block; border-radius: 14px; }
-    .auth-card h1 { font-size: 24px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.5px; }
-    .auth-card p { color: var(--text-sec); font-size: 14px; margin-bottom: 24px; }
+    .auth-logo { width: 56px; height: 56px; margin: 0 auto 16px; display: block; border-radius: 14px; object-fit: contain; }
+    .auth-card h1 { font-size: 23px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.5px; }
+    .auth-card p { color: var(--text-sec); font-size: 13.5px; margin-bottom: 24px; }
     .auth-form { display: flex; flex-direction: column; gap: 14px; text-align: left; }
     .field-group label { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-sec); margin-bottom: 6px; }
     .input-wrap {
@@ -80,7 +80,7 @@
       position: sticky; top: 0; z-index: 100;
     }
     .brand-cluster { display: flex; align-items: center; gap: 12px; }
-    .brand-cluster img { width: 34px; height: 34px; border-radius: 9px; }
+    .brand-cluster img { width: 34px; height: 34px; border-radius: 9px; object-fit: contain; }
     .brand-cluster .title { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
     .brand-cluster .badge {
       font-size: 11px; font-weight: 700; text-transform: uppercase; background: rgba(245, 158, 11, 0.15);
@@ -100,111 +100,137 @@
     .btn-ghost:hover { background: var(--surface-hover); color: #fff; }
 
     .main-wrap { max-width: 1300px; margin: 0 auto; padding: 28px 24px 60px; }
+    .notice-box {
+      border-radius: var(--radius); padding: 14px 20px; margin-bottom: 20px;
+      display: flex; align-items: center; gap: 14px; font-size: 13.5px;
+    }
     .privacy-notice {
       background: linear-gradient(90deg, rgba(20, 184, 166, 0.1), rgba(168, 85, 247, 0.08));
-      border: 1px solid rgba(20, 184, 166, 0.25); border-radius: var(--radius); padding: 14px 20px;
-      margin-bottom: 24px; display: flex; align-items: center; gap: 14px; font-size: 13.5px; color: #cbd5e1;
+      border: 1px solid rgba(20, 184, 166, 0.25); color: #cbd5e1;
     }
-    .privacy-notice svg { flex-shrink: 0; color: var(--teal); }
+    .rules-alert {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.3); color: #fde68a; display: none;
+    }
 
     /* KPI Grid */
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px; margin-bottom: 24px;
+    }
     .kpi-card {
-      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 20px; position: relative; overflow: hidden; transition: transform 0.2s, border-color 0.2s;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px; position: relative; overflow: hidden;
     }
-    .kpi-card:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.16); }
-    .kpi-card .kpi-label { font-size: 12.5px; font-weight: 600; color: var(--text-sec); margin-bottom: 6px; }
-    .kpi-card .kpi-value { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; font-family: 'JetBrains Mono', monospace; }
-    .kpi-card .kpi-sub { font-size: 12px; color: var(--teal); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
     .kpi-accent { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .kpi-label { font-size: 12.5px; font-weight: 600; color: var(--text-sec); margin-bottom: 8px; }
+    .kpi-value { font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px; }
+    .kpi-sub { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
 
-    /* Charts Section */
-    .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 28px; }
-    @media (max-width: 960px) { .charts-grid { grid-template-columns: 1fr; } }
-    .card {
-      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 24px; display: flex; flex-direction: column;
+    /* Visual Grid */
+    .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 24px; }
+    .split-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+    @media (max-width: 960px) {
+      .charts-grid, .split-grid { grid-template-columns: 1fr; }
     }
-    .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
-    .card-head h2 { font-size: 17px; font-weight: 700; }
-    .pill-tabs { display: flex; background: var(--surface-card); padding: 3px; border-radius: 8px; gap: 4px; }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 22px;
+    }
+    .card-head {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px;
+    }
+    .card-head h2 { font-size: 15.5px; font-weight: 700; letter-spacing: -0.2px; }
+    .pill-tabs { display: flex; background: var(--surface-card); border-radius: 8px; padding: 2px; }
     .pill-tab {
-      background: transparent; border: none; color: var(--text-sec); font-size: 12px; font-weight: 600;
-      padding: 5px 10px; border-radius: 6px; cursor: pointer; transition: all 0.15s;
+      background: transparent; border: none; color: var(--text-sec); font-size: 12px;
+      font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer;
     }
     .pill-tab.active { background: var(--surface-hover); color: #fff; }
 
-    .canvas-wrap { position: relative; width: 100%; height: 260px; }
-    canvas { width: 100% !important; height: 100% !important; }
+    .canvas-wrap { position: relative; width: 100%; height: 240px; }
+    .chart-empty-msg {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; pointer-events: none;
+      color: var(--text-sec); font-size: 13px; text-align: center; padding: 20px;
+    }
 
-    /* Funnel & Breakdown */
-    .split-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
-    @media (max-width: 800px) { .split-grid { grid-template-columns: 1fr; } }
-    .funnel-stage { margin-bottom: 14px; }
-    .funnel-meta { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
-    .funnel-bar { height: 10px; background: var(--surface-card); border-radius: 5px; overflow: hidden; }
-    .funnel-fill { height: 100%; border-radius: 5px; transition: width 0.6s ease; }
-
-    .pie-legend { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+    /* Pie / Donut Legend */
+    .pie-legend { display: flex; flex-direction: column; gap: 9px; margin-top: 14px; }
     .legend-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
     .legend-tag { display: flex; align-items: center; gap: 8px; color: var(--text-sec); }
     .legend-color { width: 10px; height: 10px; border-radius: 3px; }
 
-    /* Event stream table */
+    /* Funnel Bars */
+    .funnel-stage { margin-bottom: 14px; }
+    .funnel-meta { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+    .funnel-meta span:first-child { color: var(--text-sec); font-weight: 500; }
+    .funnel-meta span:last-child { font-weight: 700; }
+    .funnel-bar { width: 100%; height: 10px; background: var(--surface-card); border-radius: 5px; overflow: hidden; }
+    .funnel-fill { height: 100%; border-radius: 5px; transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
+
+    /* Telemetry Table */
     .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 13.5px; text-align: left; }
-    th { color: var(--text-muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 14px; border-bottom: 1px solid var(--border); font-weight: 700; }
-    td { padding: 12px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); color: #cbd5e1; }
-    tr:hover td { background: rgba(255, 255, 255, 0.02); }
-    .tag { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; }
-    .tag-visit { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-    .tag-dl { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
-    .tag-sync { background: rgba(20, 184, 166, 0.15); color: #2dd4bf; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+    th {
+      color: var(--text-sec); font-size: 11.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; padding: 10px 14px; border-bottom: 1px solid var(--border);
+    }
+    td { padding: 12px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+    tr:last-child td { border-bottom: none; }
+    .tag {
+      display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px;
+      border-radius: 6px; text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .tag-visit { background: rgba(59, 130, 246, 0.15); color: var(--blue); }
+    .tag-dl { background: rgba(245, 158, 11, 0.15); color: var(--gold); }
+    .tag-sync { background: rgba(20, 184, 166, 0.15); color: var(--teal); }
   </style>
 </head>
 <body>
 
-  <!-- Auth Gate -->
-  <div id="authOverlay" class="auth-overlay">
+  <!-- Authentication Overlay -->
+  <div class="auth-overlay" id="authOverlay">
     <div class="auth-card">
-      <img src="../res/icon.png" class="auth-logo" alt="Notes+">
-      <h1>Talken Admin</h1>
-      <p>Secure Intelligence & Analytics Portal</p>
-      <form id="authForm" class="auth-form" onsubmit="event.preventDefault(); handleLogin();">
+      <img src="/res/notes_icon.png" onerror="this.onerror=null; this.src='../res/notes_icon.png'; if(!this.src) this.src='res/notes_icon.png';" class="auth-logo" alt="Notes+">
+      <h1>Notes+ Analytics</h1>
+      <p>Real-time telemetry & privacy-preserving performance intelligence</p>
+      
+      <form class="auth-form" onsubmit="event.preventDefault(); handleLogin();">
         <div class="field-group">
-          <label>Admin ID</label>
+          <label>Admin User ID</label>
           <div class="input-wrap">
-            <input type="text" id="adminUser" placeholder="Enter admin user ID" autocomplete="username" required>
+            <input type="text" id="adminUser" placeholder="Enter admin user ID" autocomplete="username" required autofocus>
           </div>
         </div>
         <div class="field-group">
-          <label>Password</label>
+          <label>Admin Password</label>
           <div class="input-wrap">
             <input type="password" id="adminPass" placeholder="Enter password" autocomplete="current-password" required>
           </div>
         </div>
         <button type="submit" class="btn-login">Unlock Dashboard</button>
-        <div id="authError" class="auth-error">Invalid admin credentials.</div>
+        <div class="auth-error" id="authError">Invalid administrator credentials.</div>
       </form>
     </div>
   </div>
 
-  <!-- Dashboard Container -->
+  <!-- Main Analytics App -->
   <div id="dashboardApp" style="display: none;">
     <header class="app-header">
       <div class="brand-cluster">
-        <img src="../res/icon.png" alt="Notes+">
-        <span class="title">Talken Intelligence</span>
-        <span class="badge">Notes+ v15.1</span>
+        <img src="/res/notes_icon.png" onerror="this.onerror=null; this.src='../res/notes_icon.png'; if(!this.src) this.src='res/notes_icon.png';" alt="Notes+">
+        <div class="title">Notes+ Analytics</div>
+        <span class="badge">Live Telemetry</span>
       </div>
       <div class="header-actions">
         <div class="status-pill">
           <span class="status-dot"></span>
-          <span>Live Metrics Active</span>
+          <span>Engine Active</span>
         </div>
         <button class="btn-ghost" onclick="refreshData()">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
           Refresh
         </button>
         <button class="btn-ghost" onclick="handleLogout()">Sign Out</button>
@@ -212,49 +238,58 @@
     </header>
 
     <main class="main-wrap">
-      <div class="privacy-notice">
-        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+      <!-- Rules Notice Banner (shown if rules deny read) -->
+      <div class="notice-box rules-alert" id="rulesAlert">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <div>
-          <strong>Privacy Architecture Verified:</strong> No private note content, titles, vaults, or user files are ever monitored or stored in telemetry. All stats below represent zero-PII aggregate counters.
+          <strong>Firebase Rules Setup:</strong> Realtime Database path <code>/stats</code> currently denies unauthenticated reads. Add <code>"stats": { ".read": true, ".write": true }</code> to your Firebase Console rules to enable global multi-device telemetry. Showing local session events below.
         </div>
       </div>
 
-      <!-- KPI Metrics -->
+      <!-- Privacy Guarantee Notice -->
+      <div class="notice-box privacy-notice">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+        <div>
+          <strong>Strict Zero-PII Privacy Architecture:</strong> Telemetry collection started with v15.1. No user note contents, titles, or private vaults are ever queried or logged. All metrics represent 100% real aggregate counters.
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
       <section class="kpi-grid">
         <div class="kpi-card">
-          <div class="kpi-accent" style="background: var(--gold);"></div>
-          <div class="kpi-label">Total Accounts</div>
-          <div class="kpi-value" id="kpiAccounts">--</div>
-          <div class="kpi-sub">↑ Verified sync accounts</div>
+          <div class="kpi-accent" style="background: var(--blue);"></div>
+          <div class="kpi-label">Total Sync Accounts</div>
+          <div class="kpi-value" id="kpiAccounts">0</div>
+          <div class="kpi-sub">Verified accounts</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-accent" style="background: var(--teal);"></div>
           <div class="kpi-label">Daily Active (DAU)</div>
-          <div class="kpi-value" id="kpiDau">--</div>
-          <div class="kpi-sub">Today's active sessions</div>
+          <div class="kpi-value" id="kpiDau">0</div>
+          <div class="kpi-sub">Today's active sync sessions</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-accent" style="background: var(--purple);"></div>
           <div class="kpi-label">Monthly Active (MAU)</div>
-          <div class="kpi-value" id="kpiMau">--</div>
-          <div class="kpi-sub">30-day active pool</div>
+          <div class="kpi-value" id="kpiMau">0</div>
+          <div class="kpi-sub">Unique active devices (30D)</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-accent" style="background: var(--blue);"></div>
+          <div class="kpi-accent" style="background: var(--teal);"></div>
           <div class="kpi-label">Today Web Visits</div>
-          <div class="kpi-value" id="kpiVisits">--</div>
+          <div class="kpi-value" id="kpiVisits">0</div>
           <div class="kpi-sub">notes.talken.in traffic</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-accent" style="background: var(--rose);"></div>
+          <div class="kpi-accent" style="background: var(--gold);"></div>
           <div class="kpi-label">Today App Downloads</div>
-          <div class="kpi-value" id="kpiDownloads">--</div>
+          <div class="kpi-value" id="kpiDownloads">0</div>
           <div class="kpi-sub">APK & Windows Setup</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-accent" style="background: var(--gold-light);"></div>
           <div class="kpi-label">Download Conversion</div>
-          <div class="kpi-value" id="kpiConversion">--%</div>
+          <div class="kpi-value" id="kpiConversion">0%</div>
           <div class="kpi-sub">Web visits to downloads</div>
         </div>
       </section>
@@ -272,6 +307,10 @@
           </div>
           <div class="canvas-wrap">
             <canvas id="trendChart"></canvas>
+            <div id="trendEmptyNotice" class="chart-empty-msg" style="display: none;">
+              <span style="font-weight: 600; margin-bottom: 3px;">Telemetry collection active (v15.1)</span>
+              <span style="font-size: 12px; color: var(--text-muted);">Historical data will accumulate daily as visits and syncs occur.</span>
+            </div>
           </div>
         </div>
 
@@ -283,9 +322,9 @@
             <canvas id="platformChart"></canvas>
           </div>
           <div class="pie-legend">
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #14b8a6;"></span>Android App</span><span id="shareAndroid">48%</span></div>
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #3b82f6;"></span>Windows Desktop</span><span id="shareWindows">34%</span></div>
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #a855f7;"></span>Web Platform</span><span id="shareWeb">18%</span></div>
+            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #14b8a6;"></span>Android App</span><span id="shareAndroid">0%</span></div>
+            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #3b82f6;"></span>Windows Desktop</span><span id="shareWindows">0%</span></div>
+            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #a855f7;"></span>Web Platform</span><span id="shareWeb">0%</span></div>
           </div>
         </div>
       </section>
@@ -297,20 +336,20 @@
             <h2>Acquisition Funnel</h2>
           </div>
           <div class="funnel-stage">
-            <div class="funnel-meta"><span>1. Website Visitors</span><span id="fVisits">100%</span></div>
-            <div class="funnel-bar"><div id="barVisits" class="funnel-fill" style="width: 100%; background: var(--blue);"></div></div>
+            <div class="funnel-meta"><span>1. Website Visitors</span><span id="fVisits">0</span></div>
+            <div class="funnel-bar"><div id="barVisits" class="funnel-fill" style="width: 0%; background: var(--blue);"></div></div>
           </div>
           <div class="funnel-stage">
-            <div class="funnel-meta"><span>2. Download Page Viewed</span><span id="fPage">44%</span></div>
-            <div class="funnel-bar"><div id="barPage" class="funnel-fill" style="width: 44%; background: var(--teal);"></div></div>
+            <div class="funnel-meta"><span>2. Download Page Viewed</span><span id="fPage">0</span></div>
+            <div class="funnel-bar"><div id="barPage" class="funnel-fill" style="width: 0%; background: var(--teal);"></div></div>
           </div>
           <div class="funnel-stage">
-            <div class="funnel-meta"><span>3. Android APK Downloads</span><span id="fApk">21%</span></div>
-            <div class="funnel-bar"><div id="barApk" class="funnel-fill" style="width: 21%; background: var(--gold);"></div></div>
+            <div class="funnel-meta"><span>3. Android APK Downloads</span><span id="fApk">0</span></div>
+            <div class="funnel-bar"><div id="barApk" class="funnel-fill" style="width: 0%; background: var(--gold);"></div></div>
           </div>
           <div class="funnel-stage">
-            <div class="funnel-meta"><span>4. Windows Installer Downloads</span><span id="fExe">16%</span></div>
-            <div class="funnel-bar"><div id="barExe" class="funnel-fill" style="width: 16%; background: var(--purple);"></div></div>
+            <div class="funnel-meta"><span>4. Windows Installer Downloads</span><span id="fExe">0</span></div>
+            <div class="funnel-bar"><div id="barExe" class="funnel-fill" style="width: 0%; background: var(--purple);"></div></div>
           </div>
         </div>
 
@@ -320,12 +359,16 @@
           </div>
           <div class="canvas-wrap" style="height: 180px;">
             <canvas id="typesChart"></canvas>
+            <div id="typesEmptyNotice" class="chart-empty-msg">
+              <span style="font-weight: 600; margin-bottom: 3px;">Zero-PII Privacy Protection</span>
+              <span style="font-size: 11.5px; color: var(--text-muted);">User note contents are never accessed or inspected.</span>
+            </div>
           </div>
           <div class="pie-legend">
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #f59e0b;"></span>Text Notes</span><span id="typeText">42%</span></div>
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #14b8a6;"></span>Lists & Checklists</span><span id="typeList">26%</span></div>
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #3b82f6;"></span>Mind Maps</span><span id="typeMindMap">18%</span></div>
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #a855f7;"></span>Journals & Media</span><span id="typeJournal">14%</span></div>
+            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #f59e0b;"></span>Text Notes</span><span id="typeText">--</span></div>
+            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #14b8a6;"></span>Lists & Checklists</span><span id="typeList">--</span></div>
+            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #3b82f6;"></span>Mind Maps</span><span id="typeMindMap">--</span></div>
+            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #a855f7;"></span>Journals & Media</span><span id="typeJournal">--</span></div>
           </div>
         </div>
       </section>
@@ -348,7 +391,7 @@
               </tr>
             </thead>
             <tbody id="telemetryStream">
-              <!-- Populated dynamically -->
+              <!-- Populated dynamically with 100% real events -->
             </tbody>
           </table>
         </div>
@@ -358,7 +401,6 @@
 
   <script>
     // Salted SHA-256 Verification
-    // The credentials themselves are never stored in plain text anywhere in source or bundles.
     const AUTH_SALT = 'talken_admin_sec_99342';
     const TARGET_HASH = '0250115e1ab04d61cd0a1eb2821f0dbd59d1ea00f023436748b15f7f9bf1560c';
     const SESSION_TOKEN_KEY = 'talken_admin_auth_v1';
@@ -403,6 +445,8 @@
 
     // Firebase Data Fetcher & Visualizer
     const DB_BASE = 'https://notes-plus-88985-default-rtdb.asia-southeast1.firebasedatabase.app';
+    let cachedStats = null;
+    let cachedUsers = null;
 
     async function fetchStats() {
       try {
@@ -410,9 +454,9 @@
           fetch(`${DB_BASE}/stats.json`).then(r => r.json()).catch(() => null),
           fetch(`${DB_BASE}/users.json?shallow=true`).then(r => r.json()).catch(() => null),
         ]);
-        return { stats: statsSnap || {}, users: usersSnap || {} };
+        return { stats: statsSnap, users: usersSnap };
       } catch (e) {
-        return { stats: {}, users: {} };
+        return { stats: null, users: null };
       }
     }
 
@@ -426,30 +470,87 @@
 
     async function refreshData() {
       const { stats, users } = await fetchStats();
+      cachedStats = stats;
+      cachedUsers = users;
+
+      const rulesAlert = document.getElementById('rulesAlert');
+      if (stats && stats.error === 'Permission denied') {
+        rulesAlert.style.display = 'flex';
+      } else {
+        rulesAlert.style.display = 'none';
+      }
+
       const today = new Date().toISOString().slice(0, 10);
 
-      const accountsCount = Object.keys(users || {}).length || 24;
-      const dauToday = (stats.activeUsers && stats.activeUsers[today]) ? Object.keys(stats.activeUsers[today]).length : 18;
-      const visitsToday = (stats.web && stats.web.visits && stats.web.visits[today]) ? stats.web.visits[today] : 62;
-      const apkToday = (stats.web && stats.web.downloads && stats.web.downloads.android && stats.web.downloads.android[today]) || 7;
-      const exeToday = (stats.web && stats.web.downloads && stats.web.downloads.windows && stats.web.downloads.windows[today]) || 5;
-      const downloadsToday = apkToday + exeToday;
-      const conversion = visitsToday > 0 ? Math.round((downloadsToday / visitsToday) * 100) : 19;
+      // Real User Accounts Count (only if valid object, ignoring error payloads)
+      let accountsCount = 0;
+      if (users && typeof users === 'object' && !users.error) {
+        accountsCount = Object.keys(users).length;
+      }
 
+      // Real DAU
+      let dauToday = 0;
+      if (stats && stats.activeUsers && stats.activeUsers[today]) {
+        dauToday = Object.keys(stats.activeUsers[today]).length;
+      }
+
+      // Real MAU (Unique active users over all tracked dates in stats)
+      let mauCount = 0;
+      if (stats && stats.activeUsers && typeof stats.activeUsers === 'object') {
+        const uniqueUids = new Set();
+        Object.values(stats.activeUsers).forEach(dayMap => {
+          if (dayMap && typeof dayMap === 'object') {
+            Object.keys(dayMap).forEach(k => uniqueUids.add(k));
+          }
+        });
+        mauCount = uniqueUids.size;
+      }
+
+      // Real Web Visits
+      let visitsToday = 0;
+      if (stats && stats.web && stats.web.visits && stats.web.visits[today]) {
+        visitsToday = stats.web.visits[today];
+      }
+
+      // Real Downloads
+      let apkToday = 0;
+      let exeToday = 0;
+      if (stats && stats.web && stats.web.downloads) {
+        apkToday = stats.web.downloads.android?.[today] || 0;
+        exeToday = stats.web.downloads.windows?.[today] || 0;
+      }
+      const downloadsToday = apkToday + exeToday;
+      const conversion = visitsToday > 0 ? Math.round((downloadsToday / visitsToday) * 100) : 0;
+
+      // Update KPI DOM Elements
       document.getElementById('kpiAccounts').textContent = accountsCount.toLocaleString();
       document.getElementById('kpiDau').textContent = dauToday.toLocaleString();
-      document.getElementById('kpiMau').textContent = Math.round(dauToday * 2.8).toLocaleString();
+      document.getElementById('kpiMau').textContent = mauCount.toLocaleString();
       document.getElementById('kpiVisits').textContent = visitsToday.toLocaleString();
       document.getElementById('kpiDownloads').textContent = downloadsToday.toLocaleString();
       document.getElementById('kpiConversion').textContent = conversion + '%';
 
+      // Update Funnel with Real Counts
+      const pageViews = (stats && stats.web && stats.web.downloads_page && stats.web.downloads_page[today]) || 0;
+      document.getElementById('fVisits').textContent = visitsToday.toLocaleString();
+      document.getElementById('fPage').textContent = pageViews.toLocaleString();
+      document.getElementById('fApk').textContent = apkToday.toLocaleString();
+      document.getElementById('fExe').textContent = exeToday.toLocaleString();
+
+      const baseVisits = Math.max(visitsToday, pageViews, downloadsToday, 1);
+      document.getElementById('barVisits').style.width = visitsToday > 0 ? '100%' : '0%';
+      document.getElementById('barPage').style.width = Math.min(100, Math.round((pageViews / baseVisits) * 100)) + '%';
+      document.getElementById('barApk').style.width = Math.min(100, Math.round((apkToday / baseVisits) * 100)) + '%';
+      document.getElementById('barExe').style.width = Math.min(100, Math.round((exeToday / baseVisits) * 100)) + '%';
+
+      // Update Charts & Stream
       drawTrendChart();
-      drawPlatformChart();
+      drawPlatformChart(apkToday, exeToday, visitsToday);
       drawTypesChart();
-      populateStream(today, visitsToday, downloadsToday);
+      populateStream(stats);
     }
 
-    // Chart Renderers (Pure Canvas for high-performance zero-dependency rendering)
+    // Chart Renderers (Pure Canvas with 100% Real Timeline Data)
     function drawTrendChart() {
       const cvs = document.getElementById('trendChart');
       if (!cvs) return;
@@ -459,7 +560,6 @@
       cvs.width = w * window.devicePixelRatio;
       cvs.height = h * window.devicePixelRatio;
       ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-
       ctx.clearRect(0, 0, w, h);
 
       // Grid lines
@@ -469,33 +569,61 @@
         ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(w - 20, y); ctx.stroke();
       }
 
-      // Generate smooth trend data for range
-      const pts = trendRangeDays;
+      // Build date timeline for trendRangeDays
       const visitData = [];
       const dauData = [];
-      for (let i = 0; i < pts; i++) {
-        const sin = Math.sin(i / 3) * 12;
-        visitData.push(35 + sin + (i * 0.8) + (Math.random() * 8));
-        dauData.push(15 + (sin * 0.4) + (i * 0.4) + (Math.random() * 4));
+      const now = new Date();
+      let hasAnyData = false;
+
+      for (let i = trendRangeDays - 1; i >= 0; i--) {
+        const d = new Date(now.getTime() - (i * 86400000));
+        const dateKey = d.toISOString().slice(0, 10);
+        let v = 0;
+        let u = 0;
+        if (cachedStats && cachedStats.web && cachedStats.web.visits) {
+          v = cachedStats.web.visits[dateKey] || 0;
+        }
+        if (cachedStats && cachedStats.activeUsers && cachedStats.activeUsers[dateKey]) {
+          u = Object.keys(cachedStats.activeUsers[dateKey]).length;
+        }
+        if (v > 0 || u > 0) hasAnyData = true;
+        visitData.push(v);
+        dauData.push(u);
       }
 
-      function drawLine(data, color, fillGrad) {
-        const max = Math.max(...data) * 1.25;
-        const stepX = (w - 70) / (pts - 1);
+      const emptyNotice = document.getElementById('trendEmptyNotice');
+      if (!hasAnyData) {
+        if (emptyNotice) emptyNotice.style.display = 'flex';
+      } else {
+        if (emptyNotice) emptyNotice.style.display = 'none';
+      }
+
+      const maxVal = Math.max(10, ...visitData, ...dauData);
+
+      function drawLine(arr, color, fillGrad) {
+        if (arr.length === 0) return;
+        const padX = 40;
+        const padY = 30;
+        const chartW = w - padX - 20;
+        const chartH = h - padY - 30;
 
         ctx.beginPath();
-        data.forEach((val, i) => {
-          const x = 45 + (i * stepX);
-          const y = (h - 30) - ((val / max) * (h - 60));
-          if (i === 0) ctx.moveTo(x, y);
+        arr.forEach((v, idx) => {
+          const x = padX + (idx / (arr.length - 1)) * chartW;
+          const y = (h - 20) - (v / maxVal) * chartH;
+          if (idx === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         });
 
-        if (fillGrad) {
-          ctx.lineTo(45 + ((pts - 1) * stepX), h - 30);
-          ctx.lineTo(45, h - 30);
+        if (fillGrad && hasAnyData) {
+          ctx.save();
+          const lastX = padX + chartW;
+          ctx.lineTo(lastX, h - 20);
+          ctx.lineTo(padX, h - 20);
+          ctx.closePath();
           ctx.fillStyle = fillGrad;
           ctx.fill();
+          ctx.restore();
         }
 
         ctx.strokeStyle = color;
@@ -514,7 +642,7 @@
       drawLine(dauData, '#14b8a6', gradDau);
     }
 
-    function drawPlatformChart() {
+    function drawPlatformChart(apk = 0, exe = 0, web = 0) {
       const cvs = document.getElementById('platformChart');
       if (!cvs) return;
       const ctx = cvs.getContext('2d');
@@ -526,14 +654,37 @@
       ctx.clearRect(0, 0, w, h);
 
       const cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - 15;
-      const data = [{ v: 48, c: '#14b8a6' }, { v: 34, c: '#3b82f6' }, { v: 18, c: '#a855f7' }];
+      const total = apk + exe + web;
+
+      if (total === 0) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.arc(cx, cy, r - 16, Math.PI * 2, 0, true);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.fill();
+        document.getElementById('shareAndroid').textContent = '0%';
+        document.getElementById('shareWindows').textContent = '0%';
+        document.getElementById('shareWeb').textContent = '0%';
+        return;
+      }
+
+      const pAndroid = Math.round((apk / total) * 100);
+      const pWindows = Math.round((exe / total) * 100);
+      const pWeb = 100 - pAndroid - pWindows;
+
+      document.getElementById('shareAndroid').textContent = pAndroid + '%';
+      document.getElementById('shareWindows').textContent = pWindows + '%';
+      document.getElementById('shareWeb').textContent = pWeb + '%';
+
+      const data = [{ v: apk, c: '#14b8a6' }, { v: exe, c: '#3b82f6' }, { v: web, c: '#a855f7' }];
       let start = -Math.PI / 2;
 
       data.forEach(d => {
-        const angle = (d.v / 100) * (Math.PI * 2);
+        if (d.v <= 0) return;
+        const angle = (d.v / total) * (Math.PI * 2);
         ctx.beginPath();
         ctx.arc(cx, cy, r, start, start + angle);
-        ctx.arc(cx, cy, r - 18, start + angle, start, true);
+        ctx.arc(cx, cy, r - 16, start + angle, start, true);
         ctx.fillStyle = d.c;
         ctx.fill();
         start += angle;
@@ -552,42 +703,46 @@
       ctx.clearRect(0, 0, w, h);
 
       const cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - 15;
-      const data = [
-        { v: 42, c: '#f59e0b' },
-        { v: 26, c: '#14b8a6' },
-        { v: 18, c: '#3b82f6' },
-        { v: 14, c: '#a855f7' }
-      ];
-      let start = -Math.PI / 2;
-
-      data.forEach(d => {
-        const angle = (d.v / 100) * (Math.PI * 2);
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, start, start + angle);
-        ctx.arc(cx, cy, r - 18, start + angle, start, true);
-        ctx.fillStyle = d.c;
-        ctx.fill();
-        start += angle;
-      });
+      // Strict privacy empty ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.arc(cx, cy, r - 16, Math.PI * 2, 0, true);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.fill();
     }
 
-    function populateStream(today, visits, dls) {
+    function populateStream(stats) {
       const tbody = document.getElementById('telemetryStream');
-      const events = [
-        { time: 'Just now', type: 'App Download', platform: 'Android APK', res: 'Notes-Plus-15.1.apk', tag: 'tag-dl' },
-        { time: '2m ago', type: 'Web Visit', platform: 'Web Desktop', res: 'notes.talken.in/', tag: 'tag-visit' },
-        { time: '5m ago', type: 'Sync Heartbeat', platform: 'Android (Client)', res: 'stats/activeUsers', tag: 'tag-sync' },
-        { time: '9m ago', type: 'App Download', platform: 'Windows (x64)', res: 'Notes-Plus-Windows-15.1.zip', tag: 'tag-dl' },
-        { time: '14m ago', type: 'Sync Heartbeat', platform: 'Windows (App)', res: 'stats/activeUsers', tag: 'tag-sync' },
-        { time: '22m ago', type: 'Web Visit', platform: 'Mobile Browser', res: 'notes.talken.in/download', tag: 'tag-visit' },
-      ];
+      const localEvents = JSON.parse(localStorage.getItem('np_telemetry_events_v1') || '[]');
+      
+      // Pull Firebase events if available
+      let fbEvents = [];
+      if (stats && stats.events && typeof stats.events === 'object') {
+        fbEvents = Object.values(stats.events);
+      }
 
-      tbody.innerHTML = events.map(e => `
+      const allEvents = [...fbEvents, ...localEvents]
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+        .slice(0, 20);
+
+      if (allEvents.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
+              <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--text-sec);">No telemetry events recorded yet today</div>
+              <div style="font-size: 12px; color: var(--text-muted);">Incoming page visits and app download button clicks will stream here live.</div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = allEvents.map(e => `
         <tr>
-          <td><code style="color: var(--text-sec);">${e.time}</code></td>
-          <td><span class="tag ${e.tag}">${e.type}</span></td>
-          <td>${e.platform}</td>
-          <td><code style="color: var(--gold);">${e.res}</code></td>
+          <td><code style="color: var(--text-sec); font-family: 'JetBrains Mono', monospace;">${e.time || 'Just now'}</code></td>
+          <td><span class="tag ${e.tag || 'tag-visit'}">${e.type || 'Event'}</span></td>
+          <td>${e.platform || 'Client'}</td>
+          <td><code style="color: var(--gold); font-family: 'JetBrains Mono', monospace;">${e.res || 'System'}</code></td>
           <td><span style="color: var(--teal); font-weight: 600;">Success</span></td>
         </tr>
       `).join('');

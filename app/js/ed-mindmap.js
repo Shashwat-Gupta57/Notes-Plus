@@ -23,7 +23,7 @@ export function mindMapEditor(ctx) {
   title.addEventListener('input', () => ctx.changed());
   const canvas = h('canvas.map-canvas', { tabindex: 0 });
   const hint = h('div.map-hint', ctx.readOnly ? 'Drag to look around · scroll to zoom'
-    : 'Double-click an idea to rename · right-click for more · Tab adds an idea');
+    : 'Tab child · Enter sibling · Shift+Enter subtext · Space fold · Ctrl+Z undo · Double-click rename');
   const add = ctx.readOnly ? null : h('button.fab', { type: 'button', onClick: () => addChild(selectedNode() || view.root()) }, icon('add', 22, 'var(--on-brand)'), 'Add idea');
   const tidyBtn = ctx.readOnly ? null : h('button.mini-fab', { type: 'button', title: 'Tidy', onClick: () => tidy() }, icon('tidy', 22));
   const fitBtn = h('button.mini-fab', { type: 'button', title: 'Fit (double-click empty space)', onClick: () => fit(true) }, icon('center', 22));

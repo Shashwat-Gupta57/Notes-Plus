@@ -160,8 +160,17 @@ function pickFiles(accept, multiple, onFiles) {
   input.click();
 }
 
-function footer(ctx, text) {
-  return h('div.editor-footer', text);
+function footer(ctx, getExtraText) {
+  const el = h('div.editor-footer');
+  const update = () => {
+    const extra = typeof getExtraText === 'function' ? getExtraText() : getExtraText;
+    const statusText = ctx && ctx.syncStatus ? `  ·  ${ctx.syncStatus}` : '';
+    el.textContent = (extra || '') + statusText;
+  };
+  if (ctx && ctx.onSyncStatus) ctx.onSyncStatus(update);
+  update();
+  el._update = update;
+  return el;
 }
 
 const editedLine = note => 'Edited ' + new Date(note.timestamp || Date.now())
@@ -174,10 +183,8 @@ export function textEditor(ctx) {
   let body;
   const title = titleField(ctx, 'Title', () => body.focusStart());
   body = richBody(ctx, n.content, 'Note');
-  const foot = footer(ctx, '');
-  const update = () => { foot.textContent = editedLine(ctx.note) + '  ·  ' + body.words() + (body.words() === 1 ? ' word' : ' words'); };
-  body.node.addEventListener('input', update);
-  update();
+  const foot = footer(ctx, () => editedLine(ctx.note) + '  ·  ' + body.words() + (body.words() === 1 ? ' word' : ' words'));
+  body.node.addEventListener('input', () => foot._update());
   const addPic = ctx.readOnly ? null : h('button.chip-btn', { type: 'button', onClick: () => pickFiles('image/*', true, f => body.addPicture(f)) }, icon('photo', 18), 'Add picture');
   const page = h('div.page', title, body.node, h('div.page-actions', addPic), foot);
   page.addEventListener('click', e => { if (e.target === page && !ctx.readOnly) body.focusEnd(); });
@@ -254,10 +261,8 @@ export function journalEditor(ctx) {
   }
   showMedia();
 
-  const foot = footer(ctx, '');
-  const update = () => { foot.textContent = editedLine(ctx.note) + '  ·  ' + body.words() + (body.words() === 1 ? ' word' : ' words'); };
-  body.node.addEventListener('input', update);
-  update();
+  const foot = footer(ctx, () => editedLine(ctx.note) + '  ·  ' + body.words() + (body.words() === 1 ? ' word' : ' words'));
+  body.node.addEventListener('input', () => foot._update());
   const addPic = ctx.readOnly ? null : h('button.chip-btn', { type: 'button', onClick: () => pickFiles('image/*', true, f => body.addPicture(f)) }, icon('photo', 18), 'Picture in the text');
   return {
     node: h('div.page', header, moods, strip, title, body.node, h('div.page-actions', addPic), foot),
@@ -438,8 +443,9 @@ export function listEditor(ctx) {
     addPictures(files, items.length);
   });
   const add = ctx.readOnly ? null : h('button.add-row', { type: 'button', onClick: () => addAt(items.length) }, icon('add', 24, 'var(--tile-green)'), 'Add item');
+  const foot = footer(ctx, () => editedLine(ctx.note));
   return {
-    node: h('div.page', title, h('div.progress-track', bar), progress, rows, add),
+    node: h('div.page', title, h('div.progress-track', bar), progress, rows, add, foot),
     collect(note) {
       note.title = title.value.trim();
       const kept = items.filter(i => i.text.trim());

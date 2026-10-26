@@ -16,6 +16,7 @@ import * as links from './links.js';
 import * as db from './db.js';
 import * as account from './account.js';
 import * as drive from './drive.js';
+import { toast } from './ui.js';
 import { SKETCH } from './model.js';
 
 export const OPEN = new Set();
@@ -181,6 +182,32 @@ async function pull(uid) {
   localStorage.setItem('np_last_pull_' + uid, String(waiting < Infinity ? Math.min(waiting, newest) : newest));
 }
 
+export function forceClose(uuid, reason) {
+  OPEN.delete(uuid);
+  const currentHash = location.hash || '';
+  if (currentHash === '#/n/' + uuid || currentHash.startsWith('#/n/' + uuid + '?')) {
+    location.hash = '#/';
+    if (reason) toast(reason);
+  }
+}
+
+async function saveConflictedCopy(uid, local, r) {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const timestamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const copyUuid = crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2));
+  const copy = copyInto(r, {
+    uuid: copyUuid,
+    account: uid,
+    title: (local.title || 'Untitled') + ' (Conflicted copy ' + timestamp + ')',
+    sharedFrom: null,
+    rev: 1,
+    dirty: true
+  });
+  await db.putNote(copy, true);
+  toast('Conflict detected: a conflicted copy was saved for ' + (local.title || 'Untitled'));
+}
+
 /** Applies one pulled note; false when it had to wait (open here). */
 async function apply(uid, r) {
   let local = await db.getNote(r.uuid);
@@ -193,10 +220,14 @@ async function apply(uid, r) {
   const action = decide(!!local, !!local && OPEN.has(local.uuid), !!local && local.dirty, local ? local.rev : 0, r.rev, r.deleted);
   switch (action) {
     case WAIT:
-      if (!local.dirty && r.rev > local.rev) {
-        NEWER.set(local.uuid, r);
-        const w = WATCHERS.get(local.uuid);
-        if (w) setTimeout(w);
+      if (r.rev > local.rev) {
+        if (!local.dirty) {
+          NEWER.set(local.uuid, r);
+          const w = WATCHERS.get(local.uuid);
+          if (w) setTimeout(w);
+        } else {
+          await saveConflictedCopy(uid, local, r);
+        }
       }
       return false;
     case INSERT:
@@ -207,6 +238,7 @@ async function apply(uid, r) {
       await db.putNote(copyInto(r, local), true);
       return true;
     case REMOVE:
+      if (OPEN.has(local.uuid)) forceClose(local.uuid, 'This note was deleted or unshared');
       await db.purgeNote(local.uuid, true);
       return true;
     default:
@@ -316,7 +348,10 @@ async function pullReceived(uid) {
     const local = await db.getNote(sid);
     if (local && !local.sharedFrom) continue; // My own note.
     if (r.deleted) {
-      if (local) await db.purgeNote(sid, true);
+      if (local) {
+        if (OPEN.has(sid)) forceClose(sid, 'Access to this shared note was withdrawn');
+        await db.purgeNote(sid, true);
+      }
       continue;
     }
     const from = sent.fromName || 'someone';
@@ -330,7 +365,10 @@ async function pullReceived(uid) {
     }
   }
   for (const n of await db.allNotes()) {
-    if (n.sharedFrom && n.account === uid && !listed.has(n.uuid) && !OPEN.has(n.uuid)) await db.purgeNote(n.uuid, true);
+    if (n.sharedFrom && n.account === uid && !listed.has(n.uuid)) {
+      if (OPEN.has(n.uuid)) forceClose(n.uuid, 'Access to this shared note was withdrawn');
+      await db.purgeNote(n.uuid, true);
+    }
   }
 }
 
@@ -371,11 +409,11 @@ async function pullGroups(uid) {
       await db.putNote(local, true);
     }
   }
-  // Taken out of a group (or it ended): the note stays, as my own again.
+  // Taken out of a group (or it ended): access withdrawn
   for (const n of await db.allNotes()) {
-    if (n.groupId && n.account === uid && !listed.has(n.groupId) && !OPEN.has(n.uuid)) {
-      Object.assign(n, { groupId: null, groupMembers: null, rev: 0, dirty: true, media: null });
-      await db.putNote(n, true);
+    if (n.groupId && n.account === uid && !listed.has(n.groupId)) {
+      if (OPEN.has(n.uuid)) forceClose(n.uuid, 'Access to this shared note was withdrawn');
+      await db.purgeNote(n.uuid, true);
     }
   }
 }

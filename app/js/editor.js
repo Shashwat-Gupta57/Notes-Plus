@@ -48,10 +48,38 @@ export async function openEditor({ uuid, type }, implFor, go) {
   let timer = null;
   let saving = Promise.resolve();
 
+  let syncStatus = 'Saved';
+  const statusListeners = new Set();
+  const setSyncStatus = s => {
+    syncStatus = s;
+    statusListeners.forEach(f => f(s));
+  };
+
+  const offSync = sync.onStatus(active => {
+    if (active) {
+      if (syncStatus === 'Saved') setSyncStatus('Syncing…');
+    } else {
+      if (syncStatus === 'Syncing…' || syncStatus === 'Saving…') setSyncStatus('Synced');
+    }
+  });
+
   const ctx = {
     get note() { return note; },
     readOnly,
-    changed() { clearTimeout(timer); timer = setTimeout(() => { saving = saving.then(save); }, 700); },
+    get syncStatus() { return syncStatus; },
+    onSyncStatus: f => { statusListeners.add(f); return () => statusListeners.delete(f); },
+    changed() {
+      if (readOnly) return;
+      setSyncStatus('Unsaved changes');
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        setSyncStatus('Saving…');
+        saving = saving.then(save).then(() => {
+          setSyncStatus('Saved');
+          sync.schedule(300);
+        });
+      }, 10000);
+    },
     async putFile(name, blob) { await db.putFile(note.uuid, name, blob); },
     fileUrl: name => db.fileUrl(note.uuid, name),
     save: () => (saving = saving.then(save)),
@@ -298,6 +326,7 @@ export async function openEditor({ uuid, type }, implFor, go) {
     el: root,
     async leave() {
       clearTimeout(timer);
+      offSync();
       if (impl) await (saving = saving.then(save));
       if (impl && impl.destroy) impl.destroy();
       sync.WATCHERS.delete(note.uuid);

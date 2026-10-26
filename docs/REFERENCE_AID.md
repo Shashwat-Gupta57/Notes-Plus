@@ -203,3 +203,28 @@ if (local != null && !uid.equals(local.getAccount())) {
 }
 ```
 - This ensures the note retains its stable UUID, and any conflicts are safely handled by the normal revision check (`decide()`), preventing duplicate notes.
+
+---
+
+## 14. Talken Admin Panel & Telemetry System (v15.1)
+
+### 14.1 Location & Routing
+- Web Dashboard URL: `https://notes.talken.in/talken-admin` or `#/talken-admin`
+- Files: `talken-admin/index.html`, `talken-admin.html`, and `js/telemetry.js`
+
+### 14.2 Zero-PII Security & Salted Hash Authentication
+- **Credential Storage**: Administrator credentials are NEVER stored in plain text in client code, bundles, or git commits.
+- **Salt & Digest**:
+  - Salt: `talken_admin_sec_99342`
+  - Target Digest: `0250115e1ab04d61cd0a1eb2821f0dbd59d1ea00f023436748b15f7f9bf1560c`
+  - Authentication: Evaluated at runtime using Web Crypto API (`crypto.subtle.digest('SHA-256')`).
+  - Session state is kept securely in `sessionStorage`.
+- **Zero-PII Guarantee**:
+  - The admin dashboard only accesses aggregated telemetry paths (`stats/web`, `stats/activeUsers/{date}`) and shallow user counts (`/users.json?shallow=true`).
+  - It NEVER reads, queries, or exposes individual note contents, titles, or user vaults.
+
+### 14.3 Metrics & Telemetry Trackers
+- **DAU / MAU**: Daily active users logged anonymously with truncated IDs (`u_XXXXXXXX`) on sync heartbeat.
+- **Web Visits**: Tracked daily via `stats/web/visits/{date}` without cookies or tracking IDs.
+- **Download Funnel**: Tracked on direct APK and Windows installer clicks via `stats/web/downloads/{platform}/{date}`.
+

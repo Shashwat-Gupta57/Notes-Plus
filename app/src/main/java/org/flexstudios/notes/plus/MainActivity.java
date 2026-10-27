@@ -160,7 +160,10 @@ public class MainActivity extends AppCompatActivity {
 
         handleRelock(getIntent());
         Account.init(this);
-        if (savedInstanceState == null) SyncWorker.syncOnStart(this);
+        if (savedInstanceState == null) {
+            SyncWorker.syncOnStart(this);
+            Updater.checkOnStartup(this);
+        }
     }
 
     // ================================================================ content

@@ -1,17 +1,17 @@
 {
-  "versionCode": 30,
-  "versionName": "15.4",
+  "versionCode": 31,
+  "versionName": "15.5",
   "forced": false,
-  "changelog": "Notes+ 15.4: Multi-tier in-place fallback updater, cached package detection, and Android in-app session logging with local export.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.4.apk",
-  "sha256": "b50f053fb5e65039e21f8fb45a6826179dea5c2a660a7c9564b4cccc765ba1cc",
+  "changelog": "Notes+ 15.5: Background update downloads, live % and MB/s download speed metrics, instant startup auto-checks, and web cache invalidation.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.5.apk",
+  "sha256": "3ece3522508fe28e0bfaaad267fb0d8f3f6f09908bf771c1582c2f4980dc338a",
   "desktop": {
-    "versionName": "15.4",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-15.4.exe",
-    "sha256": "dcc0541b836abbbbf946517b6122759eaa15aa6d23dd29d917840e58d1f19e1e",
+    "versionName": "15.5",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-15.5.exe",
+    "sha256": "00cc0b0a72bea75d43a9fa227a9c01efb1ec3ec35d5beaf52873542718102719",
     "size": "76 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-15.4.zip",
-    "zipSha256": "e981461adc561fea6272a7c78363e274d1411133d51b13b34fffc5dc1cc68e44",
-    "changelog": "Notes+ 15.4 for Windows: multi-tier in-place fallback updater, cached update detection, and session logging."
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-15.5.zip",
+    "zipSha256": "e91149f2f2e5c9c55900b462fe21d107256ff2352c6936e152ec4fae3bacd9e8",
+    "changelog": "Notes+ 15.5 for Windows: instant startup update checks, multi-tier atomic updater, and session diagnostics."
   }
 }

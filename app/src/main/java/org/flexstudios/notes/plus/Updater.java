@@ -59,7 +59,9 @@ import java.util.concurrent.TimeUnit;
 public final class Updater {
 
     private static final String TAG = "Updater";
-    private static final String VERSION_URL =
+    private static final String PRIMARY_VERSION_URL =
+            "https://releases.talken.in/version.json";
+    private static final String FALLBACK_VERSION_URL =
             "https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json";
     private static final String PREFS = "update_prefs";
     private static final String KEY_DOWNLOAD_ID = "download_id";
@@ -112,6 +114,24 @@ public final class Updater {
      * What the notes screen calls on every resume: offers a downloaded update, and checks for
      * a new one at most every twelve hours.
      */
+    /**
+     * Checks for updates 5 seconds after startup on a delayed handler, and notifies the user if an update is found.
+     */
+    public static void checkOnStartup(Activity activity) {
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+            if (isReadyToInstall(activity)) {
+                promptInstallNow(activity, null);
+                return;
+            }
+            check(activity, (release, error) -> {
+                if (release != null && !activity.isFinishing() && !activity.isDestroyed()) {
+                    showReleaseDialog(activity, release);
+                }
+            });
+        }, 5000);
+    }
+
     public static void onForeground(Activity activity) {
         if (isReadyToInstall(activity)) {
             if (!promptedThisSession) {
@@ -144,32 +164,43 @@ public final class Updater {
     }
 
     private static Release fetch() throws Exception {
-        HttpURLConnection conn = (HttpURLConnection) new URL(VERSION_URL + "?t=" + System.currentTimeMillis())
-                .openConnection();
-        try {
-            conn.setUseCaches(false);
-            conn.setConnectTimeout(TIMEOUT_MS);
-            conn.setReadTimeout(TIMEOUT_MS);
-            int status = conn.getResponseCode();
-            if (status != HttpURLConnection.HTTP_OK) throw new java.io.IOException("HTTP " + status);
-            String body;
-            try (InputStream in = conn.getInputStream()) {
-                body = new String(VaultCrypto.readAll(in), java.nio.charset.StandardCharsets.UTF_8);
+        Exception lastErr = null;
+        for (String url : new String[]{PRIMARY_VERSION_URL, FALLBACK_VERSION_URL}) {
+            try {
+                HttpURLConnection conn = (HttpURLConnection) new URL(url + "?t=" + System.currentTimeMillis())
+                        .openConnection();
+                try {
+                    conn.setUseCaches(false);
+                    conn.setConnectTimeout(TIMEOUT_MS);
+                    conn.setReadTimeout(TIMEOUT_MS);
+                    conn.setRequestProperty("User-Agent", "NotesPlus-Android/15.5");
+                    int status = conn.getResponseCode();
+                    if (status != HttpURLConnection.HTTP_OK) throw new java.io.IOException("HTTP " + status);
+                    String body;
+                    try (InputStream in = conn.getInputStream()) {
+                        body = new String(VaultCrypto.readAll(in), java.nio.charset.StandardCharsets.UTF_8);
+                    }
+                    JSONObject json = new JSONObject(body);
+                    Release release = new Release();
+                    release.versionCode = json.getInt("versionCode");
+                    release.versionName = json.optString("versionName", String.valueOf(release.versionCode));
+                    release.changelog = json.optString("changelog", "");
+                    release.apkUrl = json.getString("apkUrl");
+                    release.forced = json.optBoolean("forced", false);
+                    String sha = json.optString("sha256", "");
+                    release.sha256 = sha.isEmpty() ? null : sha.toLowerCase(java.util.Locale.US);
+                    if (!release.apkUrl.startsWith("https://")) throw new SecurityException("Insecure update URL");
+                    return release;
+                } finally {
+                    conn.disconnect();
+                }
+            } catch (Exception e) {
+                lastErr = e;
+                Log.w(TAG, "Failed to fetch update from " + url + ": " + e.getMessage());
             }
-            JSONObject json = new JSONObject(body);
-            Release release = new Release();
-            release.versionCode = json.getInt("versionCode");
-            release.versionName = json.optString("versionName", String.valueOf(release.versionCode));
-            release.changelog = json.optString("changelog", "");
-            release.apkUrl = json.getString("apkUrl");
-            release.forced = json.optBoolean("forced", false);
-            String sha = json.optString("sha256", "");
-            release.sha256 = sha.isEmpty() ? null : sha.toLowerCase(java.util.Locale.US);
-            if (!release.apkUrl.startsWith("https://")) throw new SecurityException("Insecure update URL");
-            return release;
-        } finally {
-            conn.disconnect();
         }
+        if (lastErr != null) throw lastErr;
+        throw new java.io.IOException("Failed to fetch version info");
     }
 
     // --------------------------------------------------------------- download
@@ -242,6 +273,10 @@ public final class Updater {
         AlertDialog progressDialog = new MaterialAlertDialogBuilder(activity)
                 .setTitle("Downloading Update")
                 .setView(layout)
+                .setPositiveButton("Background", (d, w) -> {
+                    Toast.makeText(activity, "Download continuing in background. You will be notified when ready.", Toast.LENGTH_SHORT).show();
+                    d.dismiss();
+                })
                 .setNegativeButton("Cancel", (d, w) -> {
                     if (dm != null) dm.remove(id);
                     prefs(activity).edit().remove(KEY_DOWNLOAD_ID).apply();
@@ -250,6 +285,10 @@ public final class Updater {
                 .show();
 
         Handler handler = new Handler(Looper.getMainLooper());
+        final long[] lastBytes = {0};
+        final long[] lastTime = {System.currentTimeMillis()};
+        final double[] smoothedSpeed = {0.0};
+
         Runnable poll = new Runnable() {
             @Override
             public void run() {
@@ -263,12 +302,37 @@ public final class Updater {
                         long downloaded = dlIdx >= 0 ? cursor.getLong(dlIdx) : 0;
                         long total = totIdx >= 0 ? cursor.getLong(totIdx) : -1;
 
+                        long now = System.currentTimeMillis();
+                        long dt = now - lastTime[0];
+                        if (dt >= 200) {
+                            long db = downloaded - lastBytes[0];
+                            if (db >= 0 && lastBytes[0] > 0) {
+                                double instantSpeed = (db / (1024.0 * 1024.0)) / (dt / 1000.0);
+                                smoothedSpeed[0] = smoothedSpeed[0] <= 0 ? instantSpeed : (smoothedSpeed[0] * 0.7 + instantSpeed * 0.3);
+                            }
+                            lastBytes[0] = downloaded;
+                            lastTime[0] = now;
+                        }
+
                         if (total > 0) {
                             bar.setIndeterminate(false);
-                            int pct = (int) ((downloaded * 100) / total);
+                            int pct = (int) Math.min(100, Math.max(0, (downloaded * 100) / total));
                             bar.setProgress(pct);
-                            details.setText(String.format(java.util.Locale.US, "%d%% • %.1f MB / %.1f MB",
-                                    pct, downloaded / (1024.0 * 1024.0), total / (1024.0 * 1024.0)));
+                            if (smoothedSpeed[0] > 0.01) {
+                                details.setText(String.format(java.util.Locale.US, "%d%% • %.1f MB / %.1f MB (%.2f MB/s)",
+                                        pct, downloaded / (1024.0 * 1024.0), total / (1024.0 * 1024.0), smoothedSpeed[0]));
+                            } else {
+                                details.setText(String.format(java.util.Locale.US, "%d%% • %.1f MB / %.1f MB",
+                                        pct, downloaded / (1024.0 * 1024.0), total / (1024.0 * 1024.0)));
+                            }
+                        } else if (downloaded > 0) {
+                            if (smoothedSpeed[0] > 0.01) {
+                                details.setText(String.format(java.util.Locale.US, "%.1f MB (%.2f MB/s)",
+                                        downloaded / (1024.0 * 1024.0), smoothedSpeed[0]));
+                            } else {
+                                details.setText(String.format(java.util.Locale.US, "%.1f MB",
+                                        downloaded / (1024.0 * 1024.0)));
+                            }
                         }
 
                         if (status == DownloadManager.STATUS_SUCCESSFUL) {

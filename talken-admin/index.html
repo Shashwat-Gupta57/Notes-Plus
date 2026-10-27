@@ -1659,7 +1659,7 @@
     function parseFeedback(feedbackData) {
       let fbList = [];
       if (feedbackData && typeof feedbackData === 'object' && !feedbackData.error) {
-        fbList = Object.values(feedbackData);
+        fbList = Object.entries(feedbackData).map(([id, val]) => ({ id, ...val }));
       }
       
       cachedFeedbacks = fbList;
@@ -1717,7 +1717,10 @@
                   ${escapeHtml(f.type || 'Review')}
                 </span>
               </div>
-              <div class="star-rating">${stars}</div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div class="star-rating">${stars}</div>
+                <button class="cyber-btn" style="padding: 2px 8px; font-size: 10px; color: var(--neon-magenta); border: 1px solid var(--neon-magenta); background: rgba(255, 42, 109, 0.1); cursor: pointer;" onclick="deleteFeedback('${escapeHtml(f.id)}')">PURGE</button>
+              </div>
             </div>
             <div class="feedback-msg">"${escapeHtml(f.message || '')}"</div>
             <div class="feedback-meta">
@@ -1728,6 +1731,26 @@
         `;
       }).join('');
     }
+
+    window.deleteFeedback = async function(fid) {
+      if (!fid) return;
+      if (!confirm('Permanently purge this feedback record (' + fid + ') from RTDB?')) return;
+      try {
+        const DB_URL = 'https://notes-plus-88985-default-rtdb.asia-southeast1.firebasedatabase.app';
+        const res = await fetch(`${DB_URL}/feedback/${fid}.json`, { method: 'DELETE' });
+        if (res.ok) {
+          cachedFeedbacks = cachedFeedbacks.filter(f => f.id !== fid);
+          const reconstructed = {};
+          cachedFeedbacks.forEach(f => { reconstructed[f.id] = f; });
+          parseFeedback(reconstructed);
+          alert('Feedback purged successfully.');
+        } else {
+          alert('Error deleting feedback: HTTP ' + res.status);
+        }
+      } catch (e) {
+        alert('Network error: ' + e.message);
+      }
+    };
 
     // Header Oscilloscope
     function initHeaderOscilloscope() {

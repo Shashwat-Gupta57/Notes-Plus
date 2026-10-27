@@ -45,7 +45,6 @@ final class Updates {
 
     /** Blocking. The newer release, or null when this build is up to date. */
     static Release check() throws Exception {
-        recordCheckTelemetry();
         HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(12)).build();
         for (String endpoint : VERSION_ENDPOINTS) {
             try {
@@ -55,6 +54,7 @@ final class Updates {
                 HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
                 if (response.statusCode() != 200) continue;
                 Prefs.put(PREF_LAST_CHECK, System.currentTimeMillis());
+                recordCheckTelemetry(response.headers().firstValue("date").orElse(null));
                 JSONObject desktop = new JSONObject(response.body()).optJSONObject("desktop");
                 if (desktop == null) return null;
                 String name = desktop.optString("versionName", "");
@@ -170,9 +170,16 @@ final class Updates {
         checkOnStartup();
     }
 
-    private static void recordCheckTelemetry() {
+    private static void recordCheckTelemetry(String dateHeader) {
         try {
-            String today = java.time.LocalDate.now().toString();
+            if ("true".equals(Prefs.get("telemetry_opt_out"))) return;
+            String today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString();
+            if (dateHeader != null && !dateHeader.isEmpty()) {
+                try {
+                    java.time.ZonedDateTime zdt = java.time.ZonedDateTime.parse(dateHeader, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME);
+                    today = zdt.toLocalDate().toString();
+                } catch (Exception ignored) {}
+            }
             // 1. Global daily checks counter for Windows
             try {
                 Object c = Firebase.get("stats/checks/" + today + "/windows", null);

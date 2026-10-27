@@ -8,10 +8,10 @@
   "desktop": {
     "versionName": "15.2",
     "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-15.2.exe",
-    "sha256": "f167f7da009ebc21059e052a983ddd23ed5b2ebaf49be519991ba6d2c4097014",
+    "sha256": "44f67104734235cdd816763d347b7cc1c35312166ac29ca12621750f5e4588a2",
     "size": "76 MB",
     "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-15.2.zip",
-    "zipSha256": "6956658ebd66f26af8fa2e97b445732b5262c991e4bfa72c75c965012ae45baa",
+    "zipSha256": "a2e7ab0f1e8f0a07270afb94a863a46ea5c68451a37adb133f9e58601a51c918",
     "changelog": "Notes+ 15.2 for Windows: startup auto-update check, in-app progress tracking, and seamless updates."
   }
 }

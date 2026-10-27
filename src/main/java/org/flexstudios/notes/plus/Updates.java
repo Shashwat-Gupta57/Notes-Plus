@@ -19,8 +19,10 @@ final class Updates {
 
     private Updates() {}
 
-    private static final String VERSION_URL =
-            "https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json";
+    private static final String[] VERSION_ENDPOINTS = {
+            "https://releases.talken.in/version.json",
+            "https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json"
+    };
     private static final String PREF_LAST_CHECK = "update_last_check";
     private static final long AUTO_CHECK_MS = 5 * 60 * 1000L;
     private static boolean checkedOnStartThisSession;
@@ -43,18 +45,24 @@ final class Updates {
 
     /** Blocking. The newer release, or null when this build is up to date. */
     static Release check() throws Exception {
-        HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
-        HttpRequest request = HttpRequest.newBuilder(URI.create(VERSION_URL + "?t=" + System.currentTimeMillis()))
-                .timeout(Duration.ofSeconds(20)).GET().build();
-        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() != 200) throw new java.io.IOException("HTTP " + response.statusCode());
-        Prefs.put(PREF_LAST_CHECK, System.currentTimeMillis());
-        JSONObject desktop = new JSONObject(response.body()).optJSONObject("desktop");
-        if (desktop == null) return null;
-        String name = desktop.optString("versionName", "");
-        String url = desktop.optString("url", "");
-        if (name.isEmpty() || !url.startsWith("https://") || compare(name, VERSION) <= 0) return null;
-        return new Release(name, url, desktop.optString("size", ""), desktop.optString("changelog", ""));
+        HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(12)).build();
+        for (String endpoint : VERSION_ENDPOINTS) {
+            try {
+                HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint + "?t=" + System.currentTimeMillis()))
+                        .header("User-Agent", "NotesPlus-Desktop/" + VERSION)
+                        .timeout(Duration.ofSeconds(15)).GET().build();
+                HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() != 200) continue;
+                Prefs.put(PREF_LAST_CHECK, System.currentTimeMillis());
+                JSONObject desktop = new JSONObject(response.body()).optJSONObject("desktop");
+                if (desktop == null) return null;
+                String name = desktop.optString("versionName", "");
+                String url = desktop.optString("url", "");
+                if (name.isEmpty() || !url.startsWith("https://") || compare(name, VERSION) <= 0) return null;
+                return new Release(name, url, desktop.optString("size", ""), desktop.optString("changelog", ""));
+            } catch (Exception ignored) {}
+        }
+        return null;
     }
 
     /** Numeric, part by part: "10.0" is newer than "1.1.0". A dev build is never behind. */
@@ -108,7 +116,8 @@ final class Updates {
     /** Opens Setup on Update, then closes Notes+ the usual way (saving everything) so its files can change. */
     private static void runSetup(java.nio.file.Path setup) {
         try {
-            new ProcessBuilder(setup.toString(), "--update").directory(setup.getParent().toFile()).start();
+            java.nio.file.Path temp = java.nio.file.Path.of(System.getProperty("java.io.tmpdir"));
+            new ProcessBuilder(setup.toString(), "--update").directory(temp.toFile()).start();
         } catch (Exception e) {
             Ui.toast("Couldn't open Notes+ Setup");
             return;

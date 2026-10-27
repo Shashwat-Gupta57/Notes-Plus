@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -68,8 +69,10 @@ import java.util.zip.ZipInputStream;
 public class Setup extends Application {
 
     static final String APP_EXE = "Notes+.exe", SETUP_EXE = "Notes+ Setup.exe", UNINS_EXE = "unins.exe";
-    private static final String VERSION_URL =
-            "https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json";
+    private static final String[] VERSION_ENDPOINTS = {
+            "https://releases.talken.in/version.json",
+            "https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json"
+    };
     private static final String REG_UNINSTALL = "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Notes+";
     private static final String REG_APP_PATH = "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Notes+.exe";
     private static final String TEMP_PREFIX = "NotesPlusSetup-";
@@ -127,6 +130,7 @@ public class Setup extends Application {
 
     @Override
     public void start(Stage stage) {
+        releaseWorkingDir();
         this.stage = stage;
         args = getParameters().getRaw();
         for (String face : new String[]{"Regular", "Medium", "Bold"}) {
@@ -216,19 +220,22 @@ public class Setup extends Application {
 
     /** Starts {@code exe} with this run's arguments; {@code admin}: through the UAC prompt. True if it started. */
     private Boolean relaunch(Path exe, boolean admin) throws Exception {
+        Path temp = Path.of(System.getProperty("java.io.tmpdir"));
         if (!admin) {
             List<String> cmd = new ArrayList<>(List.of(exe.toString()));
             cmd.addAll(args);
             handedOff = true;
-            new ProcessBuilder(cmd).start();
+            new ProcessBuilder(cmd).directory(temp.toFile()).start();
             return true;
         }
-        StringBuilder ps = new StringBuilder("Start-Process -FilePath '").append(exe.toString().replace("'", "''")).append("' -Verb RunAs");
+        StringBuilder ps = new StringBuilder("Start-Process -FilePath '").append(exe.toString().replace("'", "''"))
+                .append("' -WorkingDirectory '").append(temp.toString().replace("'", "''")).append("' -Verb RunAs");
         if (!args.isEmpty()) {
             ps.append(" -ArgumentList ");
             for (int i = 0; i < args.size(); i++) ps.append(i == 0 ? "" : ",").append("'").append(args.get(i).replace("'", "''")).append("'");
         }
         Process p = new ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command", ps.toString())
+                .directory(temp.toFile())
                 .redirectErrorStream(true).start();
         p.getInputStream().readAllBytes();
         boolean started = p.waitFor() == 0;
@@ -243,6 +250,19 @@ public class Setup extends Application {
         boolean have = installed();
         String there = installedVersion();
         List<Node> rows = new ArrayList<>();
+        Path freshPending = installDir().resolveSibling("Notes+.new");
+        if (Files.exists(freshPending.resolve(APP_EXE)) && Files.exists(freshPending.resolve("version.txt"))) {
+            String pendingVer = "";
+            try {
+                pendingVer = Files.readString(freshPending.resolve("version.txt"), StandardCharsets.UTF_8).trim();
+            } catch (Exception ignored) {}
+            if (!pendingVer.isEmpty() && (there.isEmpty() || Updates.compare(pendingVer, there) > 0)) {
+                final String fv = pendingVer;
+                rows.add(VaultSettingsView.row(Icons.SAVE, "tile_green", "Finish Update",
+                        "Install downloaded update " + pendingVer + " now", VaultSettingsView.chevron(),
+                        () -> runInstall(freshPending, fv, Files.exists(desktopLink()), Files.exists(startMenuLink()), "Updated")));
+            }
+        }
         if (!have) rows.add(VaultSettingsView.row(Icons.SAVE, "tile_green", "Install",
                 "Notes+ " + Updates.VERSION + " on this PC", VaultSettingsView.chevron(), this::install));
         rows.add(VaultSettingsView.row(Icons.CLOUD, "tile_blue", "Update",
@@ -301,36 +321,34 @@ public class Setup extends Application {
             Label status = Ui.label("Copying files…", 14, "secondary");
             show(progressScreen("Installing Notes+ " + version, status, bar));
             work(() -> {
+                releaseWorkingDir();
                 Path dir = installDir();
                 Path fresh = dir.resolveSibling("Notes+.new"), old = dir.resolveSibling("Notes+.old");
-                try {
-                    deleteTree(fresh);
-                } catch (Exception ignored) {}
-                try {
-                    deleteTree(old);
-                } catch (Exception ignored) {}
-                if (Files.exists(old)) {
-                    old = dir.resolveSibling("Notes+.old-" + System.currentTimeMillis());
-                }
-                long total = size(source);
-                long[] done = {0};
-                copyTree(source, fresh, n -> {
-                    done[0] += n;
-                    double f = total == 0 ? 0 : (double) done[0] / total;
-                    Platform.runLater(() -> bar.setProgress(f));
-                });
-                Files.writeString(fresh.resolve("version.txt"), version, StandardCharsets.UTF_8);
-                Platform.runLater(() -> status.setText("Finishing…"));
-                // Swap in one move each, so a failure never leaves half an app.
-                if (Files.exists(dir)) moveWithRetry(dir, old);
-                moveWithRetry(fresh, dir);
-                try {
-                    deleteTree(old);
-                } catch (Exception e) {
+                if (!source.equals(fresh)) {
                     try {
-                        new ProcessBuilder("cmd", "/c", "ping -n 4 127.0.0.1 >nul & rmdir /s /q \"" + old + "\"").start();
+                        deleteTree(fresh);
                     } catch (Exception ignored) {}
+                    try {
+                        deleteTree(old);
+                    } catch (Exception ignored) {}
+                    if (Files.exists(old)) {
+                        old = dir.resolveSibling("Notes+.old-" + System.currentTimeMillis());
+                    }
+                    long total = size(source);
+                    long[] done = {0};
+                    copyTree(source, fresh, n -> {
+                        done[0] += n;
+                        double f = total == 0 ? 0 : (double) done[0] / total;
+                        Platform.runLater(() -> bar.setProgress(f));
+                    });
+                    Files.writeString(fresh.resolve("version.txt"), version, StandardCharsets.UTF_8);
                 }
+                long total = size(fresh);
+                Platform.runLater(() -> status.setText("Finishing…"));
+
+                // Multi-tier atomic replace
+                swapDirectories(fresh, dir, old);
+
                 register(dir, version, total);
                 shortcut(desktopLink(), dir, desktop);
                 shortcut(startMenuLink(), dir, menu);
@@ -345,6 +363,7 @@ public class Setup extends Application {
             }, r -> show(screen(doneTitle, "Notes+ " + version + " is ready. Your notes are where they were."
                             + (makeDefault ? " Text files now open with it." : ""),
                     null,
+                    button("Finish", false, Platform::exit),
                     button("Open Notes+", true, () -> {
                         try {
                             new ProcessBuilder(installDir().resolve(APP_EXE).toString()).directory(installDir().toFile()).start();
@@ -352,9 +371,11 @@ public class Setup extends Application {
                             // They can open it from the Start menu.
                         }
                         Platform.exit();
-                    }),
-                    button("Finish", false, Platform::exit))),
-                    err -> show(message("Installation didn't finish", err + "\n\nNothing was half-installed: try again.", true)));
+                    }))),
+                    err -> show(message("Installation didn't finish",
+                            err + "\n\nTip: Close any open Notes+ windows or File Explorer folders, then click Retry.",
+                            () -> runInstall(source, version, desktop, menu, doneTitle),
+                            true)));
         });
     }
 
@@ -363,49 +384,63 @@ public class Setup extends Application {
     private void update() {
         if (!installed()) {
             show(screen("Notes+ isn't installed", "There is nothing to update yet.", null,
-                    button("Install", true, this::install), button("Back", false, this::home)));
+                    button("Back", false, this::home), button("Install", true, this::install)));
             return;
         }
         show(busy("Looking for the newest version…"));
         String have = installedVersion();
-        work(() -> {
-            try {
-                return latestOnline();
-            } catch (Exception e) {
-                return null;
-            }
-        }, online -> {
+        work(Setup::latestOnline, online -> {
             String bundled = Updates.VERSION;
             String onlineVersion = online == null ? null : online.optString("versionName", null);
             String best = onlineVersion != null && Updates.compare(onlineVersion, bundled) > 0 ? onlineVersion : bundled;
             if (!have.isEmpty() && Updates.compare(best, have) <= 0) {
-                show(screen("You're up to date", "Notes+ " + have + " is the newest version."
-                        + (online == null ? " (Couldn't reach the internet to double-check.)" : ""), null,
-                        button("Done", true, Platform::exit), button("Back", false, this::home)));
+                show(screen("You're up to date", "Notes+ " + have + " is the newest version.", null,
+                        button("Back", false, this::home), button("Done", true, Platform::exit)));
                 return;
             }
             boolean shortcutsDesktop = Files.exists(desktopLink()), shortcutsMenu = Files.exists(startMenuLink()) || !Files.exists(desktopLink());
             if (best.equals(bundled) || online == null || online.optString("zip").isEmpty()) {
                 show(screen("Update to " + bundled, (have.isEmpty() ? "" : "This PC has " + have + ". ") + "Your notes stay as they are.", null,
-                        button("Update", true, () -> runInstall(selfImage(), bundled, shortcutsDesktop, shortcutsMenu, "Updated")),
-                        button("Back", false, this::home)));
+                        button("Back", false, this::home),
+                        button("Update", true, () -> runInstall(selfImage(), bundled, shortcutsDesktop, shortcutsMenu, "Updated"))));
                 return;
             }
             show(screen("Update to " + best, (have.isEmpty() ? "" : "This PC has " + have + ". ")
                     + "It downloads" + (online.optString("size").isEmpty() ? "" : " (" + online.optString("size") + ")")
                     + ", then installs. Your notes stay as they are.", null,
-                    button("Download and update", true, () -> download(online, best, shortcutsDesktop, shortcutsMenu)),
-                    button("Back", false, this::home)));
-        }, err -> show(message("Couldn't check for updates", err, true)));
+                    button("Back", false, this::home),
+                    button("Download and update", true, () -> download(online, best, shortcutsDesktop, shortcutsMenu))));
+        }, err -> show(message("Couldn't check for updates",
+                "Couldn't reach the update server: " + err + "\n\nPlease check your internet connection.",
+                this::update,
+                true)));
     }
 
     /** The {@code desktop} entry of version.json. */
-    private static JSONObject latestOnline() throws Exception {
-        HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).followRedirects(HttpClient.Redirect.NORMAL).build();
-        HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(VERSION_URL + "?t=" + System.currentTimeMillis()))
-                .timeout(Duration.ofSeconds(20)).build(), HttpResponse.BodyHandlers.ofString());
-        if (r.statusCode() != 200) throw new IOException("HTTP " + r.statusCode());
-        return new JSONObject(r.body()).optJSONObject("desktop");
+    static JSONObject latestOnline() throws Exception {
+        HttpClient http = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(12))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
+        Exception lastErr = null;
+        for (String url : VERSION_ENDPOINTS) {
+            try {
+                HttpRequest req = HttpRequest.newBuilder(URI.create(url + "?t=" + System.currentTimeMillis()))
+                        .header("User-Agent", "NotesPlus-Setup/" + Updates.VERSION)
+                        .timeout(Duration.ofSeconds(15))
+                        .GET()
+                        .build();
+                HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
+                if (r.statusCode() == 200) {
+                    JSONObject obj = new JSONObject(r.body()).optJSONObject("desktop");
+                    if (obj != null) return obj;
+                }
+            } catch (Exception e) {
+                lastErr = e;
+            }
+        }
+        if (lastErr != null) throw lastErr;
+        throw new IOException("Failed to fetch version info from update servers.");
     }
 
     /** Downloads the newest app zip, checks it, unpacks it and installs it. */
@@ -420,7 +455,8 @@ public class Setup extends Application {
             Path zip = temp.resolve("notes-plus.zip");
             HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
                     .connectTimeout(Duration.ofSeconds(20)).build();
-            HttpResponse<InputStream> r = http.send(HttpRequest.newBuilder(URI.create(url)).build(),
+            HttpResponse<InputStream> r = http.send(HttpRequest.newBuilder(URI.create(url))
+                    .header("User-Agent", "NotesPlus-Setup/" + Updates.VERSION).build(),
                     HttpResponse.BodyHandlers.ofInputStream());
             if (r.statusCode() != 200) throw new IOException("Download failed (HTTP " + r.statusCode() + ")");
             long total = r.headers().firstValueAsLong("Content-Length").orElse(-1);
@@ -456,7 +492,10 @@ public class Setup extends Application {
             if (!Files.exists(image.resolve(APP_EXE))) throw new IOException("The download isn't a Notes+ build");
             return image;
         }, image -> runInstall(image, version, desktop, menu, "Updated"),
-                err -> show(message("Update didn't finish", err, true)));
+                err -> show(message("Update didn't finish",
+                        err + "\n\nTip: Check your connection and try again.",
+                        () -> download(online, version, desktop, menu),
+                        true)));
     }
 
     // ============================================================== repair
@@ -513,25 +552,60 @@ public class Setup extends Application {
 
     // ======================================================== the open app
 
+    private interface WinKernel extends com.sun.jna.win32.StdCallLibrary {
+        WinKernel INSTANCE = com.sun.jna.Native.load("kernel32", WinKernel.class, com.sun.jna.win32.W32APIOptions.DEFAULT_OPTIONS);
+
+        boolean SetCurrentDirectory(String path);
+        boolean MoveFileEx(String existingFile, String newFile, int flags);
+    }
+
+    static void releaseWorkingDir() {
+        try {
+            WinKernel.INSTANCE.SetCurrentDirectory(System.getProperty("java.io.tmpdir"));
+        } catch (Throwable ignored) {}
+    }
+
+    private static void killLingeringApp() {
+        try {
+            new ProcessBuilder("taskkill", "/F", "/IM", APP_EXE, "/T").redirectErrorStream(true).start().waitFor();
+        } catch (Exception ignored) {}
+        try {
+            Thread.sleep(400);
+        } catch (InterruptedException ignored) {}
+    }
+
+    private static boolean isAppRunning() {
+        if (!runningApp().isEmpty()) return true;
+        try {
+            Process p = new ProcessBuilder("tasklist", "/FI", "IMAGENAME eq " + APP_EXE, "/NH").redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            return out.toLowerCase(Locale.ROOT).contains(APP_EXE.toLowerCase(Locale.ROOT));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /** Notes+ must be closed before its files change: asks, and closes it on request. */
     private void whenClosed(Runnable then) {
-        List<ProcessHandle> running = runningApp();
-        if (running.isEmpty()) {
+        if (!isAppRunning()) {
             then.run();
             return;
         }
         show(screen("Notes+ is open", "Close it first, so its files can be replaced. Notes are saved as you go.", null,
+                button("Cancel", false, this::home),
                 button("Close Notes+ and continue", true, () -> {
                     show(busy("Closing Notes+…"));
                     work(() -> {
                         for (ProcessHandle p : runningApp()) p.destroy();
-                        for (ProcessHandle p : runningApp()) p.onExit().get(10, java.util.concurrent.TimeUnit.SECONDS);
-                        for (ProcessHandle p : runningApp()) p.destroyForcibly();
-                        Thread.sleep(500);
+                        for (ProcessHandle p : runningApp()) {
+                            try {
+                                p.onExit().get(3, java.util.concurrent.TimeUnit.SECONDS);
+                            } catch (Exception ignored) {}
+                        }
+                        killLingeringApp();
                         return null;
-                    }, r -> then.run(), err -> show(message("Couldn't close Notes+", err, true)));
-                }),
-                button("Cancel", false, this::home)));
+                    }, r -> then.run(), err -> show(message("Couldn't close Notes+", err, () -> whenClosed(then), true)));
+                })));
     }
 
     private static List<ProcessHandle> runningApp() {
@@ -548,6 +622,87 @@ public class Setup extends Application {
                     }
                 }).orElse(false))
                 .toList();
+    }
+
+    private static void swapDirectories(Path fresh, Path dir, Path old) throws IOException {
+        releaseWorkingDir();
+        killLingeringApp();
+
+        // Tier 1: Fast directory rename (standard move)
+        if (Files.exists(dir)) {
+            try {
+                moveWithRetry(dir, old);
+                moveWithRetry(fresh, dir);
+                cleanOldDirectory(old);
+                return;
+            } catch (IOException e) {
+                System.getLogger("Setup").log(System.Logger.Level.WARNING,
+                        "Directory move failed (" + e.getMessage() + "), falling back to in-place file replacement.");
+                if (!Files.exists(dir) && Files.exists(old)) {
+                    try {
+                        Files.move(old, dir);
+                    } catch (Exception ignored) {}
+                }
+            }
+        } else {
+            moveWithRetry(fresh, dir);
+            return;
+        }
+
+        // Tier 2: In-place file replacement (handles locked directories/CWD/Explorer)
+        copyTreeWithFileFallback(fresh, dir);
+        try {
+            deleteTree(fresh);
+        } catch (Exception ignored) {}
+    }
+
+    private static void copyTreeWithFileFallback(Path source, Path target) throws IOException {
+        Files.createDirectories(target);
+        try (Stream<Path> stream = Files.walk(source)) {
+            for (Path src : stream.toList()) {
+                Path rel = source.relativize(src);
+                Path dst = target.resolve(rel.toString());
+                if (Files.isDirectory(src)) {
+                    Files.createDirectories(dst);
+                } else if (Files.isRegularFile(src)) {
+                    replaceFileWithFallback(src, dst);
+                }
+            }
+        }
+    }
+
+    private static void replaceFileWithFallback(Path src, Path dst) throws IOException {
+        Files.createDirectories(dst.getParent());
+        try {
+            Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING);
+            return;
+        } catch (IOException e) {
+            Path oldFile = dst.resolveSibling(dst.getFileName().toString() + ".old-" + System.currentTimeMillis());
+            try {
+                Files.move(dst, oldFile, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException moveEx) {
+                throw new IOException("Cannot replace file " + dst.getFileName() + ": " + e.getMessage(), e);
+            }
+            Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.deleteIfExists(oldFile);
+            } catch (Exception ignored) {
+                try {
+                    WinKernel.INSTANCE.MoveFileEx(oldFile.toString(), null, 0x04); // MOVEFILE_DELAY_UNTIL_REBOOT
+                } catch (Throwable ignored2) {}
+            }
+        }
+    }
+
+    private static void cleanOldDirectory(Path old) {
+        if (!Files.exists(old)) return;
+        try {
+            deleteTree(old);
+        } catch (Exception e) {
+            try {
+                new ProcessBuilder("cmd", "/c", "ping -n 4 127.0.0.1 >nul & rmdir /s /q \"" + old + "\"").start();
+            } catch (Exception ignored) {}
+        }
     }
 
     private static void moveWithRetry(Path source, Path target) throws IOException {
@@ -814,7 +969,7 @@ public class Setup extends Application {
     }
 
     /** The brand line, a title and a line under it, the body, and the buttons with the version beside them. */
-    private Node screen(String title, String subtitle, Node body, Button primary, Button secondary) {
+    private Node screen(String title, String subtitle, Node body, Button... buttons) {
         Label brand = new Label("Notes+");
         brand.getStyleClass().add("setup-brand");
         Label chip = new Label("Setup");
@@ -840,8 +995,11 @@ public class Setup extends Application {
         HBox.setHgrow(gap, Priority.ALWAYS);
         HBox bottom = new HBox(10, foot, gap);
         bottom.setAlignment(Pos.CENTER_LEFT);
-        if (secondary != null) bottom.getChildren().add(secondary);
-        if (primary != null) bottom.getChildren().add(primary);
+        if (buttons != null) {
+            for (Button b : buttons) {
+                if (b != null) bottom.getChildren().add(b);
+            }
+        }
         content.getChildren().addAll(grow, bottom);
         content.setPadding(new Insets(26, 32, 22, 32));
         return content;
@@ -857,9 +1015,16 @@ public class Setup extends Application {
         return icon;
     }
 
+    private Node message(String title, String text, Runnable retry, boolean back) {
+        List<Button> buttons = new ArrayList<>();
+        if (back) buttons.add(button("Back", false, this::home));
+        if (retry != null) buttons.add(button("Retry", true, retry));
+        buttons.add(button("Close", retry == null, Platform::exit));
+        return screen(title, text, null, buttons.toArray(new Button[0]));
+    }
+
     private Node message(String title, String text, boolean back) {
-        return screen(title, text, null, button(back ? "Back" : "Close", true, back ? this::home : Platform::exit),
-                back ? button("Close", false, Platform::exit) : null);
+        return message(title, text, null, back);
     }
 
     private Node busy(String text) {

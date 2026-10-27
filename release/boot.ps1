@@ -6,4 +6,4 @@ $zip = Join-Path $PSScriptRoot 'payload.zip'
 & tar.exe -xf $zip -C $dest 2>$null
 $setup = Join-Path $dest 'Notes+\Notes+ Setup.exe'
 if (-not (Test-Path -LiteralPath $setup)) { Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force }
-Start-Process -FilePath $setup
+Start-Process -FilePath $setup -WorkingDirectory $dest

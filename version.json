@@ -4,7 +4,7 @@
   "forced": false,
   "changelog": "Notes+ 15.1: One-click note duplication, real-time sync with conflict detection, instant list auto-save, mind map picture zoom, markdown bullet lists, and Notes+ analytics.",
   "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.1.apk",
-  "sha256": "0b83d6daace5adee35a135c2bf36aac268eb922c6006b461eefbd852a9cef7ba",
+  "sha256": "f9daadfbceee19fbd362321446d4a1b6b950aa51a35c730a28e316ffbc055d6e",
   "desktop": {
     "versionName": "15.1",
     "url": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v15.1/Notes-Plus-Setup-15.1.exe",

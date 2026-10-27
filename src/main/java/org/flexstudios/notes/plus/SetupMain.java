@@ -8,6 +8,7 @@ import javafx.application.Application;
  */
 public class SetupMain {
     public static void main(String[] args) {
+        AppLog.init("setup");
         Application.launch(Setup.class, args);
     }
 }

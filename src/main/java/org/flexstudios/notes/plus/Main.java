@@ -8,9 +8,13 @@ import javafx.application.Application;
  */
 public class Main {
     public static void main(String[] args) {
+        AppLog.init("notes");
         // Notes+ already open: it opens the file (or, started plainly, a new window), and this
         // second start ends here, so every window shares one process and sees every change.
-        if (Instance.handOff(args)) return;
+        if (Instance.handOff(args)) {
+            AppLog.info("[INSTANCE] Handoff sent to running instance. Exiting secondary process.");
+            return;
+        }
         Application.launch(NotesApp.class, args);
     }
 }

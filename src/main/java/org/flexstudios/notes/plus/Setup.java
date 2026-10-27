@@ -349,6 +349,12 @@ public class Setup extends Application {
                 // Multi-tier atomic replace
                 swapDirectories(fresh, dir, old);
 
+                Path logs = dir.resolve("logs");
+                try {
+                    Files.createDirectories(logs);
+                    new ProcessBuilder("icacls", logs.toString(), "/grant", "*S-1-5-32-545:(OI)(CI)M", "/T", "/Q").start().waitFor();
+                } catch (Exception ignored) {}
+
                 register(dir, version, total);
                 shortcut(desktopLink(), dir, desktop);
                 shortcut(startMenuLink(), dir, menu);

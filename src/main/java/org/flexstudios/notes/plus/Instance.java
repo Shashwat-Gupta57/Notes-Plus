@@ -74,6 +74,7 @@ final class Instance {
                             if (TextEditorView.openable(p)) javafx.application.Platform.runLater(() -> open.accept(p));
                         }
                         if (files == 0) javafx.application.Platform.runLater(another);
+                        AppLog.info("[INSTANCE] Handoff received from another process. Files: " + files + (files == 0 ? " (opening new window)" : ""));
                         s.getOutputStream().write('K');
                     } catch (IOException ignored) {
                         // One bad start doesn't stop the listener.

@@ -41,6 +41,8 @@ public class NotesApp extends Application {
 
     /** One window: its stage, its screens and its floating layer. */
     static final class Win {
+        private static int nextWinId = 1;
+        final int id = nextWinId++;
         final Stage stage;
         private final StackPane screens = new StackPane();
         private final Deque<Screen> stack = new ArrayDeque<>();
@@ -65,9 +67,13 @@ public class NotesApp extends Application {
                 // No icon: the default one.
             }
             stage.setScene(scene);
+            AppLog.windowOpened(id, stage.getTitle() != null ? stage.getTitle() : "Notes+", WINDOWS.size() + 1);
             // Leaving the window is the phone's "app to the background": save, then sync.
             stage.focusedProperty().addListener((o, was, is) -> {
-                if (is) use(this);
+                if (is) {
+                    use(this);
+                    AppLog.windowFocused(id, stage.getTitle() != null ? stage.getTitle() : "Notes+");
+                }
                 if (!is && top() != null) top().onPause();
                 if (!is) NoteStore.write(s -> NoteSync.schedule());
                 if (!is) {
@@ -110,6 +116,7 @@ public class NotesApp extends Application {
             }
             stack.clear();
             WINDOWS.remove(this);
+            AppLog.windowClosed(id, WINDOWS.size());
             if (active == this) active = WINDOWS.isEmpty() ? null : WINDOWS.get(WINDOWS.size() - 1);
             if (active != null) use(active);
             if (hidden || WINDOWS.isEmpty()) {
@@ -185,6 +192,7 @@ public class NotesApp extends Application {
         push(w, first, false);
         w.stage.show();
         w.stage.toFront();
+        AppLog.info("[MULTI-WINDOW] Created window #" + w.id + " with screen: " + first.getClass().getSimpleName() + ". Total active windows: " + WINDOWS.size());
         return w;
     }
 

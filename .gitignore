@@ -42,3 +42,8 @@ build/
 oauth-client.json
 dist/
 client_secret_*.json
+
+# Session logs
+logs/
+*.log
+*.err

@@ -18,6 +18,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
@@ -64,7 +67,8 @@ public final class Updater {
     private static final String KEY_EXPECTED_SHA = "expected_sha256";
     private static final String KEY_READY = "ready_apk";
     private static final String KEY_LAST_CHECK = "last_check";
-    private static final long AUTO_CHECK_INTERVAL = TimeUnit.HOURS.toMillis(12);
+    private static final long AUTO_CHECK_INTERVAL = TimeUnit.MINUTES.toMillis(5);
+    private static boolean checkedOnStartThisSession;
     private static final int TIMEOUT_MS = 15_000;
 
     /** Once per process, so the "ready to install" prompt doesn't nag on every resume. */
@@ -112,20 +116,18 @@ public final class Updater {
         if (isReadyToInstall(activity)) {
             if (!promptedThisSession) {
                 promptedThisSession = true;
-                new MaterialAlertDialogBuilder(activity)
-                        .setTitle("Update ready")
-                        .setMessage("A new version of Notes+ has been downloaded.")
-                        .setPositiveButton("Install", (d, w) -> install(activity))
-                        .setNegativeButton("Later", null)
-                        .show();
+                promptInstallNow(activity, null);
             }
             return;
         }
         long last = prefs(activity).getLong(KEY_LAST_CHECK, 0);
-        if (System.currentTimeMillis() - last < AUTO_CHECK_INTERVAL) return;
-        check(activity, (release, error) -> {
-            if (release != null && !activity.isFinishing()) showReleaseDialog(activity, release);
-        });
+        long now = System.currentTimeMillis();
+        if (!checkedOnStartThisSession || now - last >= AUTO_CHECK_INTERVAL) {
+            checkedOnStartThisSession = true;
+            check(activity, (release, error) -> {
+                if (release != null && !activity.isFinishing()) showReleaseDialog(activity, release);
+            });
+        }
     }
 
     public static void showReleaseDialog(Activity activity, Release release) {
@@ -135,7 +137,6 @@ public final class Updater {
                         + (release.forced ? "\n\nThis update is required to keep using the app." : ""))
                 .setPositiveButton("Download", (d, w) -> {
                     download(activity, release);
-                    Toast.makeText(activity, "Downloading update…", Toast.LENGTH_SHORT).show();
                 })
                 .setCancelable(!release.forced);
         if (!release.forced) builder.setNegativeButton("Later", null);
@@ -174,9 +175,17 @@ public final class Updater {
     // --------------------------------------------------------------- download
 
     public static void download(Context context, Release release) {
+        if (context instanceof Activity) {
+            download((Activity) context, release);
+            return;
+        }
+        enqueueDownload(context, release);
+    }
+
+    private static long enqueueDownload(Context context, Release release) {
         SharedPreferences prefs = prefs(context);
         DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
-        if (dm == null) return;
+        if (dm == null) return -1;
 
         long previous = prefs.getLong(KEY_DOWNLOAD_ID, -1);
         if (previous != -1) dm.remove(previous);
@@ -196,6 +205,112 @@ public final class Updater {
                 .putString(KEY_EXPECTED_SHA, release.sha256)
                 .remove(KEY_READY)
                 .apply();
+        return id;
+    }
+
+    public static void download(Activity activity, Release release) {
+        long id = enqueueDownload(activity, release);
+        if (id == -1) {
+            Toast.makeText(activity, "DownloadManager unavailable", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        DownloadManager dm = (DownloadManager) activity.getSystemService(Context.DOWNLOAD_SERVICE);
+
+        LinearLayout layout = new LinearLayout(activity);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (20 * activity.getResources().getDisplayMetrics().density);
+        layout.setPadding(pad, pad, pad, pad);
+
+        TextView label = new TextView(activity);
+        label.setText("Downloading Notes+ v" + release.versionName + "…");
+        label.setTextSize(15);
+        label.setPadding(0, 0, 0, (int) (12 * activity.getResources().getDisplayMetrics().density));
+        layout.addView(label);
+
+        ProgressBar bar = new ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal);
+        bar.setIndeterminate(true);
+        bar.setMax(100);
+        layout.addView(bar);
+
+        TextView details = new TextView(activity);
+        details.setText("Connecting…");
+        details.setTextSize(12);
+        details.setTextColor(0xFF888888);
+        details.setPadding(0, (int) (8 * activity.getResources().getDisplayMetrics().density), 0, 0);
+        layout.addView(details);
+
+        AlertDialog progressDialog = new MaterialAlertDialogBuilder(activity)
+                .setTitle("Downloading Update")
+                .setView(layout)
+                .setNegativeButton("Cancel", (d, w) -> {
+                    if (dm != null) dm.remove(id);
+                    prefs(activity).edit().remove(KEY_DOWNLOAD_ID).apply();
+                })
+                .setCancelable(false)
+                .show();
+
+        Handler handler = new Handler(Looper.getMainLooper());
+        Runnable poll = new Runnable() {
+            @Override
+            public void run() {
+                if (activity.isFinishing() || !progressDialog.isShowing()) return;
+                try (Cursor cursor = dm != null ? dm.query(new DownloadManager.Query().setFilterById(id)) : null) {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        int statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                        int status = statusIdx >= 0 ? cursor.getInt(statusIdx) : -1;
+                        int dlIdx = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR);
+                        int totIdx = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES);
+                        long downloaded = dlIdx >= 0 ? cursor.getLong(dlIdx) : 0;
+                        long total = totIdx >= 0 ? cursor.getLong(totIdx) : -1;
+
+                        if (total > 0) {
+                            bar.setIndeterminate(false);
+                            int pct = (int) ((downloaded * 100) / total);
+                            bar.setProgress(pct);
+                            details.setText(String.format(java.util.Locale.US, "%d%% • %.1f MB / %.1f MB",
+                                    pct, downloaded / (1024.0 * 1024.0), total / (1024.0 * 1024.0)));
+                        }
+
+                        if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                            progressDialog.dismiss();
+                            File target = apkFile(activity);
+                            AppDatabase.IO.execute(() -> {
+                                boolean ok = verify(activity, target);
+                                activity.runOnUiThread(() -> {
+                                    if (activity.isFinishing()) return;
+                                    if (ok) {
+                                        prefs(activity).edit().putString(KEY_READY, target.getAbsolutePath()).apply();
+                                        promptInstallNow(activity, release);
+                                    } else {
+                                        Toast.makeText(activity, "Update verification failed", Toast.LENGTH_LONG).show();
+                                    }
+                                });
+                            });
+                            return;
+                        } else if (status == DownloadManager.STATUS_FAILED) {
+                            progressDialog.dismiss();
+                            Toast.makeText(activity, "Update download failed", Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Polling error", e);
+                }
+                handler.postDelayed(this, 300);
+            }
+        };
+        handler.postDelayed(poll, 300);
+    }
+
+    public static void promptInstallNow(Activity activity, Release release) {
+        if (activity.isFinishing()) return;
+        new MaterialAlertDialogBuilder(activity)
+                .setTitle("Update Ready to Install")
+                .setMessage("Notes+ v" + (release != null ? release.versionName : "") + " has been downloaded.\n\nInstall it now to enjoy the latest features?")
+                .setPositiveButton("Install Now", (d, w) -> install(activity))
+                .setNegativeButton("Later", null)
+                .setCancelable(false)
+                .show();
     }
 
     /** Receives DownloadManager's completion broadcast; acts only on our own download. */

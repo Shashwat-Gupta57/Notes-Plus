@@ -10,16 +10,36 @@
   <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+
+  <!-- PWA & Mobile Web App Meta -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Notes+">
+  <link rel="apple-touch-icon" href="../res/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../res/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="../res/icon-512.png">
   <link rel="icon" href="../res/notes_icon.png">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=15.5b">
+  <link rel="stylesheet" href="app.css?v=15.8">
   <script>try { var t = localStorage.getItem('np_theme'); if (t && t !== 'system') document.documentElement.dataset.theme = t; } catch (e) {}</script>
 </head>
 <body>
   <main id="app" aria-live="polite"></main>
   <noscript><p style="padding:24px">Notes+ on the web needs JavaScript.</p></noscript>
-  <script type="module" src="js/main.js?v=15.5b"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('sw.js?v=15.8', { scope: './' })
+          .then(function(reg) { console.log('[PWA] Service Worker registered with scope:', reg.scope); })
+          .catch(function(err) { console.warn('[PWA] Service Worker registration failed:', err); });
+      });
+    }
+  </script>
+  <script type="module" src="js/main.js?v=15.8"></script>
 </body>
 </html>

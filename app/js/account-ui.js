@@ -35,6 +35,7 @@ export function accountScreen(go) {
     if (!account.signedIn()) column.replaceChildren(signedOut());
     else if (!account.uid()) column.replaceChildren(verify());
     else column.replaceChildren(await signedIn());
+    column.append(dedicatedAppsCard());
     column.append(appCard());
   }
 
@@ -264,11 +265,49 @@ export function accountScreen(go) {
     });
   }
 
+  function dedicatedAppsCard() {
+    return h('div.dedicated-apps-card',
+      h('div.dedicated-badge', '⭐ Recommended Apps'),
+      h('h3.dedicated-title', 'Unlock Full Features on Android & Windows'),
+      h('p.dedicated-desc', 'Notes+ on the web gives you instant cloud notes in any browser. However, the dedicated Android and Windows native apps provide the complete extended feature suite for a far more powerful, seamless experience:'),
+      h('ul.dedicated-features',
+        h('li.dedicated-item',
+          h('span.dedicated-icon', '🔒'),
+          h('span', h('strong', 'Hidden Military-Grade Encrypted Vaults: '), 'Hidden photo, video, and secret chat vaults protected by Tink AES-256-GCM encryption, unlocked only via stealth gestures. Kept off the web for complete security.')
+        ),
+        h('li.dedicated-item',
+          h('span.dedicated-icon', '⚡'),
+          h('span', h('strong', 'Continuous Background Sync: '), 'Native background workers (Android WorkManager & Windows service threads) sync notes in real time without browser tab pauses.')
+        ),
+        h('li.dedicated-item',
+          h('span.dedicated-icon', '🎨'),
+          h('span', h('strong', 'Hardware-Accelerated Infinite Canvas: '), 'Zero-latency pressure sketching, fluid 60 FPS infinite mind maps, and live waveform voice audio recordings.')
+        ),
+        h('li.dedicated-item',
+          h('span.dedicated-icon', '📁'),
+          h('span', h('strong', 'Google Drive Cloud Attachments: '), 'Store full-resolution note attachments, albums, and encrypted cloud backups directly in your Drive without browser storage limits.')
+        ),
+        h('li.dedicated-item',
+          h('span.dedicated-icon', '🚀'),
+          h('span', h('strong', '100% Offline-First Architecture: '), 'Create, search, and organize notes completely offline with instant launch.')
+        )
+      ),
+      h('div.dedicated-actions',
+        h('a.btn-dedicated.android', { href: '../download.html#android', target: '_blank', rel: 'noopener' }, '📱 Get for Android (APK)'),
+        h('a.btn-dedicated.windows', { href: '../download.html#windows', target: '_blank', rel: 'noopener' }, '💻 Get for Windows (.exe)')
+      )
+    );
+  }
+
   // -------------------------------------------------------------- the app
   function appCard() {
     return h('div',
-      header('Notes+'),
+      header('Notes+ Web & Apps'),
       card(
+        row('download', 'tile-teal', 'Install Web App (PWA)', 'Add Notes+ to home screen or desktop', async () => {
+          const { promptPwaInstall } = await import('./main.js');
+          promptPwaInstall();
+        }),
         row('palette', 'tile-purple', 'Theme', theme.NAMES[Math.max(0, theme.MODES.indexOf(theme.mode()))], () =>
           choices('Theme', theme.MODES.map((m, i) => ({ text: (m === theme.mode() ? '✓  ' : '') + theme.NAMES[i], onClick: () => { theme.set(m); render(); } })))),
         row('info', 'tile-amber', 'Send Feedback & Review', 'Rate 5 stars or report bugs', () => openFeedbackDialog()),
@@ -282,7 +321,7 @@ export function accountScreen(go) {
           message: `Version ${VERSION} on the web. Your notes stay in this browser; sign in to sync them with your phone and PC.`,
           buttons: [{ text: 'OK' }],
         })),
-        row('download', 'tile-green', 'Get the apps', 'Android and Windows', () => { location.href = '../download.html'; })),
+        row('download', 'tile-green', 'Get dedicated apps', 'Android APK and Windows installer', () => { location.href = '../download.html'; })),
       h('p.settings-footer', 'Flex Studios · notes.talken.in'));
   }
 

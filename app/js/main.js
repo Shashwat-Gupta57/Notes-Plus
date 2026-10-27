@@ -244,6 +244,43 @@ export async function checkForWebUpdate(interactive = false) {
   if (interactive) toast("Couldn't check for updates");
 }
 
+// PWA installation state
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  window.dispatchEvent(new CustomEvent('np-can-install'));
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  window.dispatchEvent(new CustomEvent('np-installed'));
+  toast('Notes+ is now installed as an app!');
+});
+
+export function canInstallPwa() {
+  return !!deferredInstallPrompt;
+}
+
+export async function promptPwaInstall() {
+  if (!deferredInstallPrompt) {
+    dialog({
+      title: 'Install Notes+ Web App',
+      message: 'To install Notes+ on your device:\n\n• On iOS (Safari): Tap the Share button (⎋) and select "Add to Home Screen".\n• On Desktop (Chrome / Edge): Click the Install icon in the address bar (or menu ⋮ > "Install Notes+").\n• On Android: Tap menu (⋮) > "Install app" or "Add to Home screen".',
+      buttons: [{ text: 'Got it' }]
+    });
+    return false;
+  }
+  deferredInstallPrompt.prompt();
+  const choice = await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  if (choice.outcome === 'accepted') {
+    toast('Installing Notes+…');
+    return true;
+  }
+  return false;
+}
+
 async function boot() {
   route();
   checkForWebUpdate();

@@ -10,9 +10,9 @@
 
 import * as account from './account.js';
 import * as sync from './sync.js';
-import { hasModal, closeTop, toast } from './ui.js';
+import { hasModal, closeTop, toast, dialog, button } from './ui.js';
 import { homeScreen } from './home.js';
-import { accountScreen } from './account-ui.js';
+import { accountScreen, VERSION } from './account-ui.js';
 import { openEditor } from './editor.js';
 import { sharedNoteScreen, joinScreen } from './share-ui.js';
 import { forType as textEditors } from './ed-text.js';
@@ -107,8 +107,46 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => { if (current && current.flush) current.flush(); });
 
+const VERSION_URL = 'https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json';
+
+function parseVer(v) {
+  return String(v || '').split('.').map(x => parseInt(x, 10) || 0);
+}
+
+function isNewer(remote, local) {
+  const r = parseVer(remote), l = parseVer(local);
+  for (let i = 0; i < Math.max(r.length, l.length); i++) {
+    const a = r[i] || 0, b = l[i] || 0;
+    if (a !== b) return a > b;
+  }
+  return false;
+}
+
+let updateNotified = false;
+
+async function checkForWebUpdate() {
+  try {
+    const res = await fetch(`${VERSION_URL}?t=${Date.now()}`, { cache: 'no-cache' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const remoteVer = data.versionName;
+    if (remoteVer && isNewer(remoteVer, VERSION) && !updateNotified) {
+      updateNotified = true;
+      dialog({
+        title: `Notes+ v${remoteVer} is available`,
+        message: `A new version of Notes+ is out!\n\n${data.changelog ? data.changelog + '\n\n' : ''}Please refresh the page to update to the latest version.\n\n(If a normal refresh doesn't show the new version, perform a hard refresh with Ctrl+F5 or Shift+Refresh.)`,
+        buttons: [
+          button('Refresh Now', () => location.reload(), 'filled'),
+          button('Later', () => closeTop(), 'tonal')
+        ]
+      });
+    }
+  } catch (_) {}
+}
+
 async function boot() {
   route();
+  checkForWebUpdate();
   await account.restore();
   if (account.uid()) {
     sync.startLive();
@@ -123,6 +161,7 @@ async function boot() {
     }
   });
   setInterval(() => sync.schedule(0), 5 * 60 * 1000);
+  setInterval(checkForWebUpdate, 15 * 60 * 1000);
 }
 
 boot();

@@ -228,3 +228,26 @@ if (local != null && !uid.equals(local.getAccount())) {
 - **Web Visits**: Tracked daily via `stats/web/visits/{date}` without cookies or tracking IDs.
 - **Download Funnel**: Tracked on direct APK and Windows installer clicks via `stats/web/downloads/{platform}/{date}`.
 
+---
+
+## 15. Auto-Updater Architecture (v15.2)
+
+### 15.1 Android In-App Updater (`Updater.java`)
+- **Startup Auto-Check**: Runs immediately on application startup / resume (without the old 12-hour throttling block).
+- **Interactive Download Progress**: Shows an in-app progress dialog with percentage, downloaded MB / total MB (`COLUMN_BYTES_DOWNLOADED_SO_FAR` / `COLUMN_TOTAL_SIZE_BYTES`), and a Cancel button.
+- **Immediate Install Prompt**: As soon as download completes and passes cryptographic verification, immediately prompts user with "Install Now" (calls `install(activity)`) and "Later".
+- **Release Keystore**:
+  - Path: `D:\User\Data\Notes-Plus-Keystore`
+  - Alias: `key-notes-plus`
+  - SHA-256 Digest: `14:FE:49:77:A1:0B:47:6E:A5:7B:C9:24:EB:54:6F:1C:13:CF:51:66:7E:FF:02:40:86:CE:64:4F:E5:63:04:23`
+
+### 15.2 Desktop Windows Updater (`Updates.java` & `Setup.java`)
+- **Startup Auto-Check**: `Updates.checkSoon()` runs on app launch without the 12-hour cooldown.
+- **Prominent Update Dialog**: Prompts user directly with changelog and "Update Now" button.
+- **Setup Update**: Handled via `Notes+ Setup.exe --update`, displaying download progress bar and restarting into the new version.
+
+### 15.3 Web App Live Updater (`main.js`)
+- **Automatic Version Checks**: Runs on page load and every 15 minutes against `version.json`.
+- **Refresh Prompt**: Displays modal informing the user of the new version with "Refresh Now" and advising hard refresh (`Ctrl + F5` or `Shift + Refresh`) if cached.
+
+

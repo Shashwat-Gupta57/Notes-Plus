@@ -22,7 +22,8 @@ final class Updates {
     private static final String VERSION_URL =
             "https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json";
     private static final String PREF_LAST_CHECK = "update_last_check";
-    private static final long AUTO_CHECK_MS = 12 * 60 * 60 * 1000L;
+    private static final long AUTO_CHECK_MS = 5 * 60 * 1000L;
+    private static boolean checkedOnStartThisSession;
 
     /** From pom.xml, filled in at build time. */
     static final String VERSION = load();
@@ -122,13 +123,14 @@ final class Updates {
     /** At start: looks at most every twelve hours, and offers a newer release quietly. */
     static void checkSoon() {
         long last = Prefs.getLong(PREF_LAST_CHECK);
-        if (System.currentTimeMillis() - last < AUTO_CHECK_MS) return;
+        long now = System.currentTimeMillis();
+        if (checkedOnStartThisSession && now - last < AUTO_CHECK_MS) return;
+        checkedOnStartThisSession = true;
         Account.BG.execute(() -> {
             try {
                 Release r = check();
                 if (r != null) {
-                    javafx.application.Platform.runLater(() -> Ui.snackbar("Notes+ " + r.versionName() + " is available",
-                            Ui.LONG, "See what's new", () -> offer(r), null));
+                    javafx.application.Platform.runLater(() -> offer(r));
                 }
             } catch (Exception e) {
                 System.getLogger("Updates").log(System.Logger.Level.INFO, "Update check skipped", e);

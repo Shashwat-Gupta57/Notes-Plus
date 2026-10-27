@@ -69,7 +69,7 @@ public final class Updater {
     private static final String KEY_EXPECTED_SHA = "expected_sha256";
     private static final String KEY_READY = "ready_apk";
     private static final String KEY_LAST_CHECK = "last_check";
-    private static final long AUTO_CHECK_INTERVAL = TimeUnit.MINUTES.toMillis(5);
+    private static final long AUTO_CHECK_INTERVAL = TimeUnit.MINUTES.toMillis(10); // 600 seconds
     private static boolean checkedOnStartThisSession;
     private static final int TIMEOUT_MS = 15_000;
 
@@ -100,6 +100,7 @@ public final class Updater {
         AppDatabase.IO.execute(() -> {
             try {
                 Release release = fetch();
+                recordCheckTelemetry(app);
                 prefs(app).edit().putLong(KEY_LAST_CHECK, System.currentTimeMillis()).apply();
                 boolean newer = release.versionCode > installedVersion(app);
                 main.post(() -> callback.onResult(newer ? release : null, null));
@@ -555,4 +556,56 @@ public final class Updater {
     private static SharedPreferences prefs(Context context) {
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
+
+    private static void recordCheckTelemetry(Context context) {
+        try {
+            String today = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date());
+            com.google.firebase.database.DatabaseReference db = com.google.firebase.database.FirebaseDatabase.getInstance().getReference();
+
+            // 1. Increment global daily checks for android
+            db.child("stats/checks/" + today + "/android").runTransaction(new com.google.firebase.database.Transaction.Handler() {
+                @androidx.annotation.NonNull
+                @Override
+                public com.google.firebase.database.Transaction.Result doTransaction(@androidx.annotation.NonNull com.google.firebase.database.MutableData currentData) {
+                    Integer val = currentData.getValue(Integer.class);
+                    currentData.setValue(val == null ? 1 : val + 1);
+                    return com.google.firebase.database.Transaction.success(currentData);
+                }
+                @Override
+                public void onComplete(@androidx.annotation.Nullable com.google.firebase.database.DatabaseError error, boolean committed, @androidx.annotation.Nullable com.google.firebase.database.DataSnapshot currentData) {}
+            });
+
+            // 2. If signed in, update user daily check count and diagnostics
+            String uid = Account.uid();
+            if (uid != null) {
+                com.google.firebase.auth.FirebaseUser user = com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
+                com.google.firebase.database.DatabaseReference userRef = db.child("stats/users/" + uid);
+                java.util.Map<String, Object> map = new java.util.HashMap<>();
+                map.put("uid", uid);
+                if (user != null) {
+                    if (user.getDisplayName() != null) map.put("displayName", user.getDisplayName());
+                    if (user.getEmail() != null) map.put("email", user.getEmail());
+                    if (user.getPhotoUrl() != null) map.put("photoUrl", user.getPhotoUrl().toString());
+                }
+                map.put("platform", "Android");
+                map.put("version", "15.5");
+                map.put("os", "Android " + android.os.Build.VERSION.RELEASE);
+                map.put("lastActiveDate", today);
+                userRef.updateChildren(map);
+
+                userRef.child("checks/" + today).runTransaction(new com.google.firebase.database.Transaction.Handler() {
+                    @androidx.annotation.NonNull
+                    @Override
+                    public com.google.firebase.database.Transaction.Result doTransaction(@androidx.annotation.NonNull com.google.firebase.database.MutableData currentData) {
+                        Integer val = currentData.getValue(Integer.class);
+                        currentData.setValue(val == null ? 1 : val + 1);
+                        return com.google.firebase.database.Transaction.success(currentData);
+                    }
+                    @Override
+                    public void onComplete(@androidx.annotation.Nullable com.google.firebase.database.DatabaseError error, boolean committed, @androidx.annotation.Nullable com.google.firebase.database.DataSnapshot currentData) {}
+                });
+            }
+        } catch (Exception ignored) {}
+    }
+
 }

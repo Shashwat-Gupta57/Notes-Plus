@@ -107,7 +107,8 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => { if (current && current.flush) current.flush(); });
 
-const VERSION_URL = 'https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json';
+const PRIMARY_VERSION_URL = 'https://releases.talken.in/version.json';
+const FALLBACK_VERSION_URL = 'https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json';
 
 function parseVer(v) {
   return String(v || '').split('.').map(x => parseInt(x, 10) || 0);
@@ -124,24 +125,48 @@ function isNewer(remote, local) {
 
 let updateNotified = false;
 
-async function checkForWebUpdate() {
+async function forceWebUpdate() {
   try {
-    const res = await fetch(`${VERSION_URL}?t=${Date.now()}`, { cache: 'no-cache' });
-    if (!res.ok) return;
-    const data = await res.json();
-    const remoteVer = data.versionName;
-    if (remoteVer && isNewer(remoteVer, VERSION) && !updateNotified) {
-      updateNotified = true;
-      dialog({
-        title: `Notes+ v${remoteVer} is available`,
-        message: `A new version of Notes+ is out!\n\n${data.changelog ? data.changelog + '\n\n' : ''}Please refresh the page to update to the latest version.\n\n(If a normal refresh doesn't show the new version, perform a hard refresh with Ctrl+F5 or Shift+Refresh.)`,
-        buttons: [
-          button('Refresh Now', () => location.reload(), 'filled'),
-          button('Later', () => closeTop(), 'tonal')
-        ]
-      });
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of registrations) {
+        await reg.unregister();
+      }
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      for (const k of keys) {
+        await caches.delete(k);
+      }
     }
   } catch (_) {}
+  const url = new URL(window.location.href);
+  url.searchParams.set('v', Date.now());
+  window.location.href = url.toString();
+}
+
+async function checkForWebUpdate() {
+  const endpoints = [PRIMARY_VERSION_URL, FALLBACK_VERSION_URL];
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const remoteVer = data.versionName;
+      if (remoteVer && isNewer(remoteVer, VERSION) && !updateNotified) {
+        updateNotified = true;
+        dialog({
+          title: `Notes+ v${remoteVer} is available`,
+          message: `A new version of Notes+ is out!\n\n${data.changelog ? data.changelog + '\n\n' : ''}Tap "Update Now" to load the latest version immediately.`,
+          buttons: [
+            button('Update Now', forceWebUpdate, 'filled'),
+            button('Later', () => closeTop(), 'tonal')
+          ]
+        });
+      }
+      return;
+    } catch (_) {}
+  }
 }
 
 async function boot() {

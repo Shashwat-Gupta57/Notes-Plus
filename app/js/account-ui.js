@@ -9,7 +9,7 @@ import * as lock from './lock.js';
 import * as theme from './theme.js';
 import { h, icon, iconButton, toast, dialog, prompt, choices, button } from './ui.js';
 
-export const VERSION = '15.4';
+export const VERSION = '15.5';
 
 function row(ic, color, title, sub, onClick, end) {
   return h('button.row', { type: 'button', onClick, disabled: !onClick },

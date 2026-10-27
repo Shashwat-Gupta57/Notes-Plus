@@ -130,6 +130,10 @@ async function finishSignIn() {
   const fields = {};
   if (user.displayName) fields.displayName = user.displayName.slice(0, 100);
   if (user.photoURL) fields.photoUrl = user.photoURL.slice(0, 2000);
+  if (user.email) {
+    fields.email = user.email.slice(0, 320);
+    if (isGoogle()) fields.driveEmail = user.email.slice(0, 320);
+  }
   const created = await D.get(D.ref(db, base + '/createdAt'));
   if (!created.exists()) fields.createdAt = D.serverTimestamp();
   if (Object.keys(fields).length) await D.update(D.ref(db, base), fields);

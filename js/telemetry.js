@@ -6,6 +6,19 @@
   const DB_URL = 'https://notes-plus-88985-default-rtdb.asia-southeast1.firebasedatabase.app';
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
+  let clientIp = sessionStorage.getItem('np_client_ip') || '';
+  if (!clientIp) {
+    fetch('https://api.ipify.org?format=json')
+      .then(r => r.json())
+      .then(d => {
+        if (d && d.ip) {
+          clientIp = d.ip;
+          sessionStorage.setItem('np_client_ip', clientIp);
+        }
+      })
+      .catch(() => {});
+  }
+
   function recordLocalEvent(event) {
     try {
       const KEY = 'np_telemetry_events_v1';
@@ -27,11 +40,12 @@
       // Record in local stream
       if (eventDetails) {
         recordLocalEvent({
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
           ts: Date.now(),
           type: eventDetails.type,
           platform: eventDetails.platform,
           res: eventDetails.res,
+          ip: clientIp || eventDetails.ip || '',
           tag: eventDetails.tag || 'tag-visit'
         });
       }
@@ -59,10 +73,11 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ts: Date.now(),
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             type: eventDetails.type,
             platform: eventDetails.platform,
             res: eventDetails.res,
+            ip: clientIp || eventDetails.ip || '',
             tag: eventDetails.tag || 'tag-visit'
           })
         }).catch(() => {});

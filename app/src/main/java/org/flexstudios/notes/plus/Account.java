@@ -257,6 +257,7 @@ final class Account {
             Map<String, Object> fields = new HashMap<>();
             if (user.getDisplayName() != null) fields.put("displayName", clip(user.getDisplayName(), 100));
             if (user.getPhotoUrl() != null) fields.put("photoUrl", clip(user.getPhotoUrl().toString(), 2000));
+            if (user.getEmail() != null) fields.put("email", clip(user.getEmail(), 320));
             DatabaseReference publicPhoto = root().child("profiles").child(user.getUid()).child("photo");
             profile.child("createdAt").get().continueWithTask(t -> {
                 if (t.isSuccessful() && !t.getResult().exists()) fields.put("createdAt", ServerValue.TIMESTAMP);

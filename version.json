@@ -1,16 +1,16 @@
 {
-  "versionCode": 31,
-  "versionName": "15.5",
+  "versionCode": 32,
+  "versionName": "15.8",
   "forced": false,
   "changelog": "Notes+ 15.5: Background update downloads, live % and MB/s download speed metrics, instant startup auto-checks, and web cache invalidation.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.5.apk",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.8.apk",
   "sha256": "3ece3522508fe28e0bfaaad267fb0d8f3f6f09908bf771c1582c2f4980dc338a",
   "desktop": {
-    "versionName": "15.5",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-15.5.exe",
+    "versionName": "15.8",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-15.8.exe",
     "sha256": "00cc0b0a72bea75d43a9fa227a9c01efb1ec3ec35d5beaf52873542718102719",
     "size": "76 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-15.5.zip",
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-15.8.zip",
     "zipSha256": "e91149f2f2e5c9c55900b462fe21d107256ff2352c6936e152ec4fae3bacd9e8",
     "changelog": "Notes+ 15.5 for Windows: instant startup update checks, multi-tier atomic updater, and session diagnostics."
   }

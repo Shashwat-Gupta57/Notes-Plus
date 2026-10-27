@@ -376,7 +376,7 @@
       <div class="notice-box rules-alert" id="rulesAlert">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <div>
-          <strong>Firebase Rules Status:</strong> Telemetry collection is active under <code>/stats</code>.
+          <strong>Firebase Rules Setup Notice:</strong> If some user records return permission denied, update <code>database.rules.json</code> to allow read on <code>/usernames</code> and <code>/profiles</code>.
         </div>
       </div>
 
@@ -719,7 +719,7 @@
       }
     }
 
-    // Firebase Data Fetcher & Visualizer
+    // Firebase Data Fetcher & Multi-Source Visualizer
     const DB_BASE = 'https://notes-plus-88985-default-rtdb.asia-southeast1.firebasedatabase.app';
     let cachedStats = null;
     let cachedUsersList = [];
@@ -728,13 +728,15 @@
 
     async function fetchStats() {
       try {
-        const [statsSnap, usersDirSnap] = await Promise.all([
+        const [statsSnap, usersDirSnap, usernamesSnap, profilesSnap] = await Promise.all([
           fetch(`${DB_BASE}/stats.json`).then(r => r.json()).catch(() => null),
           fetch(`${DB_BASE}/stats/users.json`).then(r => r.json()).catch(() => null),
+          fetch(`${DB_BASE}/usernames.json`).then(r => r.json()).catch(() => null),
+          fetch(`${DB_BASE}/profiles.json`).then(r => r.json()).catch(() => null),
         ]);
-        return { stats: statsSnap, usersDir: usersDirSnap };
+        return { stats: statsSnap, usersDir: usersDirSnap, usernames: usernamesSnap, profiles: profilesSnap };
       } catch (e) {
-        return { stats: null, usersDir: null };
+        return { stats: null, usersDir: null, usernames: null, profiles: null };
       }
     }
 
@@ -747,28 +749,80 @@
     }
 
     async function refreshData() {
-      const { stats, usersDir } = await fetchStats();
+      const { stats, usersDir, usernames, profiles } = await fetchStats();
       cachedStats = stats;
 
-      // Parse user list from stats/users directory
-      cachedUsersList = [];
+      // Master user registry map: UID -> User Profile
+      const usersByUid = new Map();
+
+      // 1. Synced user profiles in stats/users
       if (usersDir && typeof usersDir === 'object' && !usersDir.error) {
-        cachedUsersList = Object.values(usersDir);
+        Object.values(usersDir).forEach(u => {
+          if (u && u.uid) usersByUid.set(u.uid, { ...u });
+        });
       }
 
-      // If stats.activeUsers has user keys not yet in cachedUsersList, synthesize them
+      // 2. All claimed usernames in RTDB (/usernames.json: name -> uid)
+      if (usernames && typeof usernames === 'object' && !usernames.error) {
+        Object.entries(usernames).forEach(([name, uid]) => {
+          if (!uid || typeof uid !== 'string') return;
+          const existing = usersByUid.get(uid) || {
+            uid,
+            displayName: name,
+            username: name,
+            photoUrl: '',
+            email: '',
+            createdAt: Date.now(),
+            lastActive: null,
+            platform: 'Notes+ Account',
+            syncCount: 0
+          };
+          existing.username = name;
+          if (!existing.displayName || existing.displayName.startsWith('Sync Client')) {
+            existing.displayName = name;
+          }
+          usersByUid.set(uid, existing);
+        });
+      }
+
+      // 3. All profile photos in RTDB (/profiles.json: uid -> { photo: { url } })
+      if (profiles && typeof profiles === 'object' && !profiles.error) {
+        Object.entries(profiles).forEach(([uid, pData]) => {
+          if (!uid || !pData) return;
+          const photoUrl = (pData.photo && pData.photo.url) ? pData.photo.url : '';
+          if (photoUrl) {
+            const existing = usersByUid.get(uid) || {
+              uid,
+              displayName: 'Notes+ User',
+              username: null,
+              photoUrl,
+              email: '',
+              createdAt: Date.now(),
+              lastActive: null,
+              platform: 'Notes+ Account',
+              syncCount: 0
+            };
+            existing.photoUrl = photoUrl;
+            usersByUid.set(uid, existing);
+          }
+        });
+      }
+
+      // 4. Synthesize active sessions from stats.activeUsers
       if (stats && stats.activeUsers && typeof stats.activeUsers === 'object') {
-        const existingUids = new Set(cachedUsersList.map(u => u.uid));
         const today = new Date().toISOString().slice(0, 10);
         Object.entries(stats.activeUsers).forEach(([dateStr, dayMap]) => {
           if (dayMap && typeof dayMap === 'object') {
             Object.keys(dayMap).forEach(anonKey => {
               if (anonKey.startsWith('u_')) {
                 const prefix = anonKey.slice(2);
-                const match = cachedUsersList.find(u => u.uid && u.uid.startsWith(prefix));
-                if (!match && !existingUids.has(anonKey)) {
-                  existingUids.add(anonKey);
-                  cachedUsersList.push({
+                const match = Array.from(usersByUid.values()).find(u => u.uid && u.uid.startsWith(prefix));
+                if (match) {
+                  if (dateStr === today) {
+                    match.lastActive = Math.max(match.lastActive || 0, Date.now());
+                  }
+                } else if (!usersByUid.has(anonKey)) {
+                  usersByUid.set(anonKey, {
                     uid: prefix + ' (Active Session)',
                     displayName: 'Sync Client (' + prefix + ')',
                     photoUrl: '',
@@ -786,8 +840,30 @@
         });
       }
 
-      // Sort users by lastActive descending
+      cachedUsersList = Array.from(usersByUid.values());
       cachedUsersList.sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0));
+
+      // Asynchronously fetch detailed profile cards for UIDs if available
+      const uidsToInspect = Array.from(usersByUid.keys()).filter(id => !id.includes(' ')).slice(0, 40);
+      if (uidsToInspect.length > 0) {
+        Promise.all(uidsToInspect.map(async id => {
+          try {
+            const prof = await fetch(`${DB_BASE}/users/${id}/profile.json`).then(r => r.json()).catch(() => null);
+            if (prof && typeof prof === 'object' && !prof.error) {
+              const u = usersByUid.get(id);
+              if (u) {
+                if (prof.displayName) u.displayName = prof.displayName;
+                if (prof.username) u.username = prof.username;
+                if (prof.photoUrl && !u.photoUrl) u.photoUrl = prof.photoUrl;
+                if (prof.createdAt) u.createdAt = prof.createdAt;
+                if (prof.driveEmail) u.driveEmail = prof.driveEmail;
+              }
+            }
+          } catch (_) {}
+        })).then(() => {
+          renderUsersTable();
+        });
+      }
 
       const rulesAlert = document.getElementById('rulesAlert');
       if (stats && stats.error === 'Permission denied') {
@@ -944,7 +1020,7 @@
           <tr>
             <td colspan="7" style="text-align: center; padding: 50px 20px; color: var(--text-muted);">
               <div style="font-size: 15px; font-weight: 700; color: var(--text-sec); margin-bottom: 6px;">No users match current filters</div>
-              <div style="font-size: 12.5px;">User accounts will appear here automatically when they sign in or sync from Web, Android, or Desktop.</div>
+              <div style="font-size: 12.5px;">User accounts will appear here automatically when they sign in or claim a username in Notes+.</div>
             </td>
           </tr>
         `;
@@ -979,7 +1055,7 @@
                     ${safeName}
                     ${safeUname ? `<span class="user-uname-badge">${safeUname}</span>` : ''}
                   </div>
-                  <div class="user-email-text">${u.email || 'Email Private'}</div>
+                  <div class="user-email-text">${u.email || (u.username ? '@' + u.username : 'User')}</div>
                 </div>
               </div>
             </td>
@@ -1005,7 +1081,7 @@
                 ${lastActiveText}
               </div>
               <div style="font-size: 11px; color: var(--text-muted);">
-                ${u.syncCount ? `${u.syncCount} syncs` : (u.loginCount ? `${u.loginCount} logins` : '1 session')}
+                ${u.syncCount ? `${u.syncCount} syncs` : (u.loginCount ? `${u.loginCount} logins` : 'Active')}
               </div>
             </td>
             <td style="font-size: 12.5px; color: var(--text-sec);">
@@ -1035,7 +1111,7 @@
 
       document.getElementById('modalDisplayName').textContent = u.displayName || 'Notes+ User';
       document.getElementById('modalUsername').textContent = u.username ? `@${u.username}` : 'No username set';
-      document.getElementById('modalPlatform').textContent = u.platform || 'Web Desktop';
+      document.getElementById('modalPlatform').textContent = u.platform || 'Notes+ Client';
       document.getElementById('modalUid').textContent = u.uid || '--';
       document.getElementById('modalEmail').textContent = u.email || 'None';
       document.getElementById('modalCreatedAt').textContent = u.createdAt ? new Date(u.createdAt).toLocaleString() : 'Recent';

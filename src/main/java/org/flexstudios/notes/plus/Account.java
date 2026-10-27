@@ -206,6 +206,8 @@ final class Account {
         String name = Prefs.secret(NAME), photo = Prefs.secret(PHOTO);
         if (name != null) fields.put("displayName", clip(name, 100));
         if (photo != null) fields.put("photoUrl", clip(photo, 2000));
+        String mail = email();
+        if (mail != null) fields.put("email", clip(mail, 320));
         if (Firebase.get(base + "/createdAt", null) == null) fields.put("createdAt", Firebase.now());
         String driveEmail = Prefs.secret(DRIVE_EMAIL);
         if (driveEmail != null) fields.put("driveEmail", clip(driveEmail, 320));

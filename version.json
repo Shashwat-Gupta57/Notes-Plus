@@ -7,10 +7,10 @@
   "sha256": "b7bf4006d108eb3c7421438a589763116a3bf25ba8b3aee2dcdb6d2257f4a991",
   "desktop": {
     "versionName": "15.2",
-    "url": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v15.2/Notes-Plus-Setup-15.2.exe",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-15.2.exe",
     "sha256": "f167f7da009ebc21059e052a983ddd23ed5b2ebaf49be519991ba6d2c4097014",
     "size": "76 MB",
-    "zip": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v15.2/Notes-Plus-Windows-15.2.zip",
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-15.2.zip",
     "zipSha256": "6956658ebd66f26af8fa2e97b445732b5262c991e4bfa72c75c965012ae45baa",
     "changelog": "Notes+ 15.2 for Windows: startup auto-update check, in-app progress tracking, and seamless updates."
   }

@@ -137,6 +137,8 @@ public class AccountActivity extends AppCompatActivity {
                 .show());
         ((TextView) findViewById(R.id.txtAboutVersion)).setText("Version " + versionName());
         findViewById(R.id.rowLogs).setOnClickListener(v -> startActivity(new Intent(this, LogsActivity.class)));
+        View rowFeedback = findViewById(R.id.rowFeedback);
+        if (rowFeedback != null) rowFeedback.setOnClickListener(v -> showFeedback());
         findViewById(R.id.rowAbout).setOnClickListener(v -> showAbout());
 
         WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData(NoteSync.UNIQUE)
@@ -583,6 +585,109 @@ public class AccountActivity extends AppCompatActivity {
                         Toast.makeText(this, "No browser to open it", Toast.LENGTH_SHORT).show();
                     }
                 })
+                .show();
+    }
+    private void showFeedback() {
+        int pad = (int) (18 * getResources().getDisplayMetrics().density);
+        int padTop = (int) (8 * getResources().getDisplayMetrics().density);
+
+        android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.setPadding(pad, padTop, pad, 0);
+
+        TextView prompt = new TextView(this);
+        prompt.setText("Share your experience, feature ideas, or bug reports directly with the developers:");
+        prompt.setTextSize(13);
+        prompt.setTextColor(getResources().getColor(android.R.color.darker_gray, getTheme()));
+        layout.addView(prompt);
+
+        android.widget.LinearLayout starRow = new android.widget.LinearLayout(this);
+        starRow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        starRow.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
+        starRow.setPadding(0, padTop, 0, padTop);
+
+        final int[] selectedRating = {5};
+        final TextView[] stars = new TextView[5];
+        for (int i = 0; i < 5; i++) {
+            final int starIndex = i + 1;
+            TextView star = new TextView(this);
+            star.setText("★");
+            star.setTextSize(32);
+            star.setPadding(padTop, 0, padTop, 0);
+            star.setTextColor(0xFFFFB300);
+            star.setOnClickListener(v -> {
+                selectedRating[0] = starIndex;
+                for (int j = 0; j < 5; j++) {
+                    stars[j].setTextColor(j < starIndex ? 0xFFFFB300 : 0xFF888888);
+                }
+            });
+            stars[i] = star;
+            starRow.addView(star);
+        }
+        layout.addView(starRow);
+
+        final String[] categories = {"Feature Suggestion", "Bug Report", "General Praise", "Other"};
+        final int[] selectedCat = {0};
+        android.widget.RadioGroup catGroup = new android.widget.RadioGroup(this);
+        catGroup.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        for (int i = 0; i < categories.length; i++) {
+            android.widget.RadioButton rb = new android.widget.RadioButton(this);
+            rb.setText(categories[i]);
+            rb.setId(i + 100);
+            rb.setTextSize(12);
+            if (i == 0) rb.setChecked(true);
+            catGroup.addView(rb);
+        }
+        catGroup.setOnCheckedChangeListener((g, checkedId) -> {
+            selectedCat[0] = Math.max(0, checkedId - 100);
+        });
+        android.widget.HorizontalScrollView hscroll = new android.widget.HorizontalScrollView(this);
+        hscroll.setHorizontalScrollBarEnabled(false);
+        hscroll.addView(catGroup);
+        layout.addView(hscroll);
+
+        com.google.android.material.textfield.TextInputLayout inputLayout = new com.google.android.material.textfield.TextInputLayout(this);
+        inputLayout.setHint("Write your feedback or bug details...");
+        com.google.android.material.textfield.TextInputEditText edit = new com.google.android.material.textfield.TextInputEditText(this);
+        edit.setLines(3);
+        edit.setMaxLines(6);
+        edit.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
+        inputLayout.addView(edit);
+        layout.addView(inputLayout);
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Feedback & Reviews")
+                .setView(layout)
+                .setPositiveButton("Submit", (dialog, which) -> {
+                    String msg = edit.getText() != null ? edit.getText().toString().trim() : "";
+                    if (msg.isEmpty()) {
+                        Toast.makeText(this, "Please enter some feedback", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    String uid = Account.uid();
+                    String email = Account.user() != null ? Account.user().getEmail() : "";
+                    String uname = profile != null && profile.username != null ? profile.username : (email != null && !email.isEmpty() ? email : "anonymous");
+                    String dname = profile != null && profile.displayName != null && !profile.displayName.isEmpty() ? profile.displayName : "Notes+ User";
+
+                    long now = System.currentTimeMillis();
+                    String fid = "fb_" + now;
+                    java.util.Map<String, Object> payload = new java.util.HashMap<>();
+                    payload.put("uid", uid != null ? uid : "anonymous");
+                    payload.put("username", uname);
+                    payload.put("displayName", dname);
+                    payload.put("email", email != null ? email : "");
+                    payload.put("rating", selectedRating[0]);
+                    payload.put("type", categories[selectedCat[0]]);
+                    payload.put("message", msg);
+                    payload.put("platform", "Android");
+                    payload.put("version", versionName());
+                    payload.put("ts", now);
+                    payload.put("date", new java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(new java.util.Date(now)));
+
+                    Account.root().child("feedback").child(fid).setValue(payload);
+                    Toast.makeText(this, "Thank you! Your feedback has been sent directly to the team.", Toast.LENGTH_LONG).show();
+                })
+                .setNegativeButton("Cancel", null)
                 .show();
     }
 }

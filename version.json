@@ -1,17 +1,17 @@
 {
-  "versionCode": 32,
-  "versionName": "15.8",
+  "versionCode": 33,
+  "versionName": "16.0",
   "forced": false,
-  "changelog": "Notes+ 15.8: Live user profile sync, interactive customer feedback, dual-credential authentication, and telemetry privacy controls.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.8.apk",
-  "sha256": "503a2ecddafe830a27e870b1c273e16c17b28109e7751379c9340744251fb740",
+  "changelog": "Notes+ 16.0: Built-in feedback and review system across Android and Desktop, rich text styling with kerning/leading controls, PWA installation support, and unified telemetry deletion in Admin Panel.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-16.0.apk",
+  "sha256": "cf877f0c990a8287f7995b169f0f1a2284560e1f751fdb48d8ac65bd27ef3bdf",
   "desktop": {
-    "versionName": "15.8",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-15.8.exe",
-    "sha256": "1fd6a6fa483530be2332142d95e304e3794b7e986371951d23cb9ebcfff3518a",
+    "versionName": "16.0",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-16.0.exe",
+    "sha256": "c3053a493dce75612873851086e37979abdb6d99dc7a37bf46bdf6df569d8691",
     "size": "76 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-15.8.zip",
-    "zipSha256": "6061f5e41d6ccf10b84d4ec6ec9d7f49b415940c80e801f9ae81e1bfdb51c3fb",
-    "changelog": "Notes+ 15.8 for Windows: real-time profile email synchronization, telemetry opt-out, and session integrity fixes."
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-16.0.zip",
+    "zipSha256": "07417e53954fd4f14452f034085104ca7024ebc5d4b059d82bfd82c1e2163d58",
+    "changelog": "Notes+ 16.0 for Windows: 5-star customer feedback system, comprehensive rich text editor with kerning and leading adjustments, and stability upgrades."
   }
 }

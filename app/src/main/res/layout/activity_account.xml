@@ -398,6 +398,16 @@
 
                     <View style="@style/Settings.Divider" />
 
+                    <LinearLayout android:id="@+id/rowFeedback" style="@style/Settings.Row">
+                        <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_orange" android:src="@drawable/ic_info" />
+                        <LinearLayout style="@style/Settings.Texts">
+                            <TextView style="@style/Settings.Title" android:text="Send Feedback &amp; Review" />
+                            <TextView style="@style/Settings.Subtitle" android:text="Rate 5 stars or report bugs" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <View style="@style/Settings.Divider" />
+
                     <LinearLayout android:id="@+id/rowNoteLock" style="@style/Settings.Row">
                         <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_orange" android:src="@drawable/ic_lock" />
                         <LinearLayout style="@style/Settings.Texts">

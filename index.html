@@ -1,413 +1,445 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Notes+ — The New Dimension</title>
-  <meta name="description" content="Notes+ is a notes app for Android and Windows with six kinds of notes and sync between your devices, and two hidden worlds underneath: an encrypted photo vault and a private chat.">
-  <meta name="theme-color" content="#07040d">
-  <meta name="author" content="Shashwat Gupta">
-  <meta property="og:title" content="Notes+ — The New Dimension">
-  <meta property="og:description" content="A notepad on the surface. Two hidden worlds underneath. Now on Windows too.">
+  <title>Notes+ — Notes without limits. Synced across your universe.</title>
+  <meta name="description" content="Notes+ is the high-performance cross-platform workspace for Windows, Android, and Web. Rich typography, mind maps, sketches, real-time sync, and dual zero-knowledge encrypted vaults.">
+  <meta name="theme-color" content="#09090b">
+  <meta name="author" content="Shashwat Gupta / Flex Studios">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Notes+ — Notes without limits. Synced across your universe.">
+  <meta property="og:description" content="Rich typography, mind maps, sketches, real-time sync, and dual zero-knowledge encrypted vaults on Windows, Android, and Web.">
   <meta property="og:type" content="website">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600&display=swap">
-  <link rel="stylesheet" href="css/style.css">
+  <meta property="og:url" content="https://notes.talken.in">
+  <meta property="og:image" content="res/notes_icon.png">
+
+  <!-- Icons -->
   <link rel="icon" type="image/png" href="res/notes_icon.png">
+  <link rel="apple-touch-icon" href="res/apple-touch-icon.png">
+
+  <!-- Zero-Flash Theme Bootstrapper -->
+  <script>
+    try {
+      const saved = localStorage.getItem('np_site_theme');
+      const theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {}
+  </script>
+
+  <!-- Masterpiece Stylesheet -->
+  <link rel="stylesheet" href="css/masterpiece.css">
 </head>
-<body data-achievement="Entered the new dimension">
-  <a class="skip" href="#main">Skip to content</a>
+<body>
+  <!-- Ambient Atmospheric Glow -->
+  <div class="ambient-glow" aria-hidden="true"></div>
 
-  <nav class="navbar" aria-label="Main">
-    <div class="container">
-      <a href="index.html" class="navbar-brand" aria-label="Notes+ home">
-        <img src="res/notes_icon.png" alt="" width="36" height="36">
-        Notes<span class="brand-plus">+</span>
+  <!-- Smoothed-Out Floating Top Navbar -->
+  <div class="navbar-wrap">
+    <nav class="navbar" aria-label="Main Navigation">
+      <a href="index.html" class="nav-brand" aria-label="Notes+ Home">
+        <div class="brand-icon-wrap">
+          <img src="res/notes_icon.png" alt="Notes+ Logo" width="26" height="26">
+        </div>
+        <span>Notes<span class="brand-plus">+</span></span>
       </a>
-      <div class="nav-links" id="navLinks">
-        <a href="#notes">Notes</a>
-        <a href="#vault">Hidden worlds</a>
-        <a href="#windows">Windows</a>
-        <a href="#screens">Screens</a>
-        <a href="download.html">Download</a>
-        <a href="app/">Web app</a>
-        <a href="privacy.html">Privacy</a>
-      </div>
-      <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="navLinks"><span></span><span></span><span></span></button>
-    </div>
-  </nav>
-  <div class="nav-overlay"></div>
 
-  <header class="hero">
+      <div class="nav-links">
+        <a href="#hero" class="nav-link active">Home</a>
+        <a href="#studio" class="nav-link">Studio</a>
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#vaults" class="nav-link">Vaults</a>
+        <a href="#downloads" class="nav-link">Downloads</a>
+        <a href="#feedback" class="nav-link">Feedback</a>
+      </div>
+
+      <div class="nav-actions">
+        <!-- Tactile Theme Toggle Button -->
+        <button class="btn-theme-toggle" data-action="toggle-theme" aria-label="Toggle Light/Dark Theme" title="Toggle Theme (or press T)">
+          <!-- Moon Icon (shown in light mode) -->
+          <svg class="icon-moon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+          </svg>
+          <!-- Sun Icon (shown in dark mode) -->
+          <svg class="icon-sun" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+        </button>
+
+        <a href="app/" class="btn-tactile btn-primary" style="padding: 8px 18px; font-size: 0.88rem;">
+          Launch Web App
+        </a>
+      </div>
+    </nav>
+  </div>
+
+  <!-- Hero Section -->
+  <header class="hero-section" id="hero">
     <div class="container">
-      <div>
-        <a class="tag tag--new" href="#windows" data-desktop-banner hidden><span class="dot" aria-hidden="true"></span>New: Notes+ for Windows is out</a>
-        <span class="tag" data-desktop-hide><span class="dot" aria-hidden="true"></span>Version 12 — Notes+ on the web</span>
-        <h1>Your notes.<br>Two hidden <span class="portal-word">dimensions</span>.</h1>
-        <p class="lead">
-          On the surface, a fast, colourful notepad: lists, journals, mind maps, sketches and voice
-          notes, synced between your phone and your PC. Underneath, behind a gesture only you know:
-          an encrypted vault for your photos, and a private chat with its own locks.
-        </p>
-        <div class="hero-actions">
-          <a href="download.html" class="btn btn--gold" data-version-text>Download APK</a>
-          <a href="download.html#windows" class="btn" data-desktop-cta>Windows: coming soon</a>
-          <a href="app/" class="btn">Open on the web</a>
-        </div>
-        <div class="xp" aria-label="Current version">
-          <div class="xp-level"><span data-version-name>v9.2</span></div>
-          <div class="xp-bar" aria-hidden="true">
-            <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
-            <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
-            <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i>
-          </div>
-          <div class="xp-caption">Free · no ads · no tracking · Android 7+ · <span data-desktop-status>Windows soon</span></div>
-        </div>
+      <div class="hero-pill-badge">
+        <span class="pulse-dot" aria-hidden="true"></span>
+        <span>Notes+ v16.0 Live • Cross-Platform Ecosystem</span>
       </div>
 
-      <div class="portal-frame" aria-hidden="true">
-        <div class="phone">
-          <img src="res/shots/01-notes-grid.png" alt="" width="260" height="578" loading="eager">
+      <h1 class="hero-title">
+        Notes without limits.<br>
+        <span class="gradient-text">Synced across your universe.</span>
+      </h1>
+
+      <p class="hero-subtitle">
+        A high-performance workspace engineered with kinetic typography, infinite mind maps,
+        vector sketches, and zero-latency multi-device sync. Behind a discrete gesture:
+        dual zero-knowledge encrypted vaults for your private media and covert messaging.
+      </p>
+
+      <div class="hero-ctas">
+        <a href="https://releases.talken.in/desktop/Notes-Plus-Setup-16.0.exe" class="btn-tactile btn-primary" data-desktop-link>
+          <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+          <span>Download for Windows (v16.0)</span>
+        </a>
+
+        <a href="https://releases.talken.in/android/Notes-Plus-16.0.apk" class="btn-tactile btn-secondary" data-version-link>
+          <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4116 13.8533 8.0805 12 8.0805s-3.5902.3311-5.1367.8692L4.841 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
+          <span>Android APK (v16.0)</span>
+        </a>
+
+        <a href="app/" class="btn-tactile btn-secondary">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+          <span>Open Web App (PWA)</span>
+        </a>
+      </div>
+
+      <!-- Interactive 3D Perspective Device Showcase -->
+      <div class="showcase-wrapper">
+        <div class="showcase-nav">
+          <button class="showcase-tab active" data-target="windows">
+            <span>💻 Windows Desktop</span>
+          </button>
+          <button class="showcase-tab" data-target="android">
+            <span>📱 Android Mobile</span>
+          </button>
+          <button class="showcase-tab" data-target="mindmap">
+            <span>🧠 Infinite Mind Map</span>
+          </button>
+          <button class="showcase-tab" data-target="vault">
+            <span>🔒 Encrypted Vault</span>
+          </button>
+        </div>
+
+        <div class="showcase-card">
+          <div class="showcase-window-header">
+            <div class="window-dots">
+              <span class="window-dot dot-red"></span>
+              <span class="window-dot dot-yellow"></span>
+              <span class="window-dot dot-green"></span>
+            </div>
+            <span class="window-title">Notes+ v16.0 • Production Canvas</span>
+            <div style="width: 48px;"></div>
+          </div>
+          <div class="showcase-screen">
+            <img src="res/shots/16-windows-notes.webp" alt="Notes+ Windows Desktop" class="active" data-screen="windows">
+            <img src="res/shots/01-notes-grid.png" alt="Notes+ Android" data-screen="android">
+            <img src="res/shots/15-windows-mind-map.webp" alt="Notes+ Mind Map" data-screen="mindmap">
+            <img src="res/shots/07-gallery.png" alt="Notes+ Secret Vault" data-screen="vault">
+            <div class="showcase-glare" aria-hidden="true"></div>
+          </div>
         </div>
       </div>
     </div>
   </header>
 
-  <main id="main">
-    <!-- Overview: everything at a glance, each slot jumps to its part of the page. -->
-    <section class="section">
-      <div class="container">
-        <div class="section-head reveal">
-          <span class="biome">[ Your inventory ]</span>
-          <h2>Everything in one <span class="c-gold">block</span>.</h2>
-          <p>Simple on the outside. A whole world when you know where to look.</p>
-        </div>
-
-        <div class="slots">
-          <a class="slot block reveal" href="#notes">
-            <div class="icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffcc00" stroke-width="2.5" stroke-linecap="square"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></div>
-            <h3>Six kinds of notes</h3>
-            <p>Text, checklists, journals with photos and videos, mind maps, sketches and voice recordings, each with a live preview on its card.</p>
-          </a>
-          <a class="slot block reveal" href="#sync">
-            <div class="icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5ef0e4" stroke-width="2.5" stroke-linecap="square"><path d="M4 12a8 8 0 0114-5l2 2M20 12a8 8 0 01-14 5l-2-2"/><path d="M20 4v5h-5M4 20v-5h5"/></svg></div>
-            <h3>On every device</h3>
-            <p>Sign in with Google or email and your notes sync between your phones and your PC. Photos and recordings go to your own Google Drive.</p>
-          </a>
-          <a class="slot block reveal" href="#vault">
-            <div class="icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff4d4d" stroke-width="2.5" stroke-linecap="square"><path d="M5 11h14v10H5z"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div>
-            <h3>The hidden vault</h3>
-            <p>Swipe left on your notes and hold. An encrypted gallery appears, behind a PIN, password or pattern.</p>
-          </a>
-          <a class="slot block reveal" href="#chat">
-            <div class="icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#b45cff" stroke-width="2.5" stroke-linecap="square"><path d="M4 5h16v11H9l-5 4z"/></svg></div>
-            <h3>The hidden chat</h3>
-            <p>Swipe right and hold. A private messenger with its own locks, its own vaults, and photos only your contact can open.</p>
-          </a>
-          <a class="slot block reveal" href="#backups">
-            <div class="icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3ee08f" stroke-width="2.5" stroke-linecap="square"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
-            <h3>Encrypted where it counts</h3>
-            <p>Vault media is AES-256 encrypted on your phone, and backups check themselves before they say "saved".</p>
-          </a>
-          <a class="slot block reveal" href="#windows">
-            <div class="icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f1efb8" stroke-width="2.5" stroke-linecap="square"><path d="M3 5h18v12H3z"/><path d="M8 21h8M12 17v4"/></svg></div>
-            <h3>Now on your PC</h3>
-            <p>Notes+ for Windows: the same notes and the same hidden worlds, on a big screen with a real keyboard.</p>
-          </a>
-        </div>
+  <!-- Interactive Bento Grid: The Six Dimensions -->
+  <section class="bento-section" id="studio">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Engineered for Builders</span>
+        <h2 class="section-title">A Symphony of Tactile Precision</h2>
+        <p class="section-lead">
+          Every component has physical weight, kinetic feedback, and purpose.
+          Experience fluid note crafting, visual ideation, and hardened security.
+        </p>
       </div>
-    </section>
 
-    <!-- Notes -->
-    <section class="feature" id="notes">
-      <div class="container">
-        <div class="row">
-          <div class="text reveal">
-            <div class="panel block">
-              <span class="biome">[ The overworld ]</span>
-              <h2>Notes for <span class="c-gold">everything</span></h2>
-              <p class="desc">Tap New and pick what you're making. Every note becomes a card that previews what's inside, so the grid reads at a glance.</p>
-              <ul class="list">
-                <li><strong>Text</strong>: plain words, with pictures between them</li>
-                <li><strong>Lists</strong>: tick things off, see progress on the card</li>
-                <li><strong>Journal</strong>: dated entries with your mood, photos and videos</li>
-                <li><strong>Mind maps</strong>: drag ideas, fold branches, colour them, link them to other notes, tidy the whole map in one tap, share it as a picture</li>
-                <li><strong>Sketches</strong>: draw with pens, markers and an eraser</li>
-                <li><strong>Audio</strong>: record your voice, see the waveform</li>
-                <li>Pin, colour, search and filter by type; works fully offline</li>
-              </ul>
-            </div>
-          </div>
-          <div class="visual reveal">
-            <div class="phone"><img src="res/shots/02-new-note.png" alt="The New sheet with six kinds of notes" loading="lazy"></div>
-            <div class="phone"><img src="res/shots/03-mind-map.png" alt="A mind map with coloured branches" loading="lazy"></div>
-          </div>
-        </div>
-      </div>
-    </section>
+      <div class="bento-grid">
+        <!-- Bento 1 (Large 2-Col): Live Interactive Typography Studio -->
+        <div class="bento-card col-span-2">
+          <span class="bento-badge">Interactive Note Studio</span>
+          <h3 class="bento-title">Kinetic Typography & Formatting Engine</h3>
+          <p class="bento-desc">
+            Directly test the v16.0 styling engine below. Adjust weights, kerning, leading,
+            and vibrant text hues with instant real-time feedback.
+          </p>
 
-    <!-- Sync -->
-    <section class="feature flip" id="sync">
-      <div class="container">
-        <div class="row">
-          <div class="text reveal">
-            <div class="panel block">
-              <span class="biome">[ The sky ]</span>
-              <h2>Your notes, on <span class="c-diamond">every device</span></h2>
-              <p class="desc">Accounts are optional. Sign in and your notes follow you, phone to phone and phone to PC; stay signed out and nothing ever leaves your device.</p>
-              <ul class="list diamond">
-                <li>Sign in with Google, or with email and a password</li>
-                <li>Pick a unique @username</li>
-                <li>Edits sync when you finish a note, and appear live on your other devices</li>
-                <li>Edited in two places at once? Both versions are kept, never lost</li>
-                <li>Photos, videos and recordings go to your own Google Drive</li>
-                <li>Sign out keeping a copy, or delete the account and everything stored online</li>
-              </ul>
-            </div>
-          </div>
-          <div class="visual reveal">
-            <div class="phone"><img src="res/shots/04-journal.png" alt="A journal entry with its mood and photos" loading="lazy"></div>
-            <div class="phone"><img src="res/shots/10-account.png" alt="The account screen with username and sync status" loading="lazy"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- The vault -->
-    <section class="feature" id="vault">
-      <div class="container">
-        <div class="row">
-          <div class="text reveal">
-            <div class="panel block">
-              <span class="biome">[ Dimension one: the vault ]</span>
-              <h2>The vault <span class="c-red">nobody</span> knows about</h2>
-              <div class="gesture">
-                <span class="arrow" aria-hidden="true">◀◀</span>
-                <span class="how">On the notes list, swipe left and keep holding for 2 seconds.</span>
+          <div class="studio-widget">
+            <div class="studio-toolbar">
+              <div class="tool-group">
+                <button class="tool-btn active" id="btnStudioBold" title="Bold">B</button>
+                <button class="tool-btn" id="btnStudioItalic" title="Italic"><i>I</i></button>
+                <button class="tool-btn" id="btnStudioUnderline" title="Underline"><u>U</u></button>
               </div>
-              <p class="desc">A lock screen appears that wasn't there a second ago. Behind it, your photos and videos, encrypted with AES-256 the moment they enter.</p>
-              <ul class="list red">
-                <li>PIN, password or pattern; wrong guesses lock you out for longer each time</li>
-                <li>Locks itself again when you leave; screens can't be captured</li>
-                <li>Several vaults, each with its own lock: keep a harmless decoy</li>
-                <li>Smooth grid for thousands of items, albums and favourites</li>
-                <li>Full-screen viewer with zoom and video; delete with undo</li>
-              </ul>
-            </div>
-          </div>
-          <div class="visual reveal">
-            <div class="phone"><img src="res/shots/06-lock-screen.png" alt="The hidden lock screen with a pattern grid" loading="lazy"></div>
-            <div class="phone"><img src="res/shots/07-gallery.png" alt="The vault gallery grid, grouped by date" loading="lazy"></div>
-          </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- The chat -->
-    <section class="feature flip" id="chat">
-      <div class="container">
-        <div class="row">
-          <div class="text reveal">
-            <div class="panel block">
-              <span class="biome">[ Dimension two: the chat ]</span>
-              <h2>A messenger <span class="c-portal">behind a wall</span></h2>
-              <div class="gesture">
-                <span class="arrow right" aria-hidden="true">▶▶</span>
-                <span class="how">On the notes list, swipe right and keep holding for 2 seconds.</span>
+              <div class="slider-group">
+                <span>Kerning</span>
+                <input type="range" id="studioKerning" min="0" max="6" value="1" step="0.5">
               </div>
-              <p class="desc">A second lock, a second world. The chat and the vault never mention each other.</p>
-              <div class="ticks" aria-label="Message states">
-                <span>◷ waiting</span><span>✓ sent</span><span>✓✓ received</span><span class="c-gold">✓✓ seen</span>
+
+              <div class="slider-group">
+                <span>Leading</span>
+                <input type="range" id="studioLeading" min="1.2" max="2.4" value="1.6" step="0.1">
               </div>
-              <ul class="list portal">
-                <li>Chat vaults with their own locks; each shows only its own conversations</li>
-                <li>Reach someone by @username plus a 4-character vault ID</li>
-                <li>Photos and videos encrypted on your device before upload</li>
-                <li>Shared backgrounds, private nicknames, profile photos per vault</li>
-                <li>No notifications, ever: nothing announces that the chat exists</li>
-              </ul>
-            </div>
-          </div>
-          <div class="visual reveal">
-            <div class="phone"><img src="res/shots/12-conversation.png" alt="A conversation with ticks, a photo and a custom background" loading="lazy"></div>
-            <div class="phone"><img src="res/shots/11-chat-list.png" alt="The chat list with profile photos" loading="lazy"></div>
-          </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- Backups and customising, side by side -->
-    <section class="section" id="backups">
-      <div class="container">
-        <div class="pair">
-          <div class="panel block reveal">
-            <span class="biome">[ The ender chest ]</span>
-            <h2 class="h-small">Backups you can <span class="c-emerald">trust</span></h2>
-            <ul class="list emerald">
-              <li>Read back and checked before it ever says "saved"</li>
-              <li>An encrypted file you can copy anywhere and open on a new phone</li>
-              <li>Optional backup password; "Check a backup file" proves an old one still restores</li>
-              <li>Google Drive backup that only uploads what changed, with restore points</li>
-            </ul>
-          </div>
-          <div class="panel block reveal">
-            <span class="biome">[ Your build ]</span>
-            <h2 class="h-small">Make it <span class="c-gold">yours</span></h2>
-            <ul class="list">
-              <li>Lock screen background: a colour, a photo or a video, with blur and dim</li>
-              <li>Backgrounds for every vault, every chat list and every conversation</li>
-              <li>Note colours and pinning; light and dark, following your device</li>
-              <li>Your Google photo, or your own, as your profile picture</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- What's new -->
-    <section class="feature" id="new">
-      <div class="container">
-        <div class="panel block reveal">
-          <span class="status live"><span class="dot" aria-hidden="true"></span>New in 15.5</span>
-          <h2>Notes+ <span class="c-gold">15.5</span>: background downloads & instant startup checks</h2>
-          <p class="desc">Leave downloads running in background with live speed & progress metrics, automatic startup update checks on Android & Desktop, and seamless web auto-updates.</p>
-          <ul class="list diamond">
-            <li><b>Background download option.</b> Choose "Background" anytime while downloading updates on Android to keep using the app smoothly while it downloads.</li>
-            <li><b>Live progress & speed metrics.</b> Smooth real-time download percentage, transferred MBs, total size, and download speed (MB/s).</li>
-            <li><b>Instant startup update checks.</b> Automatically checks for new updates 5 seconds after launching Android or Desktop and notifies you immediately.</li>
-            <li><b>Zero-lag web cache invalidation.</b> Direct Cloudflare R2 version checks with automatic cache clearing and one-click instant update reload.</li>
-            <li><b>10-session diagnostic logging.</b> Full <code>.log</code> and <code>.err</code> session files tracked with auto-rotation, multi-window tracking, and thread monitoring.</li>
-          </ul>
-          <p class="desc">New in 12, still here:</p>
-          <ul class="list diamond">
-            <li><b>Notes+ on the web.</b> Every kind of note, right here: text with pictures, lists, journals, mind maps, sketches and recordings, in the Notes+ look. Saved in your browser; sign in and it syncs with your phone and PC. <a href="app/">Open it</a>.</li>
-            <li><b>Locked notes open everywhere.</b> A note locked on your phone opens on the web with the same lock, and the other way round.</li>
-            <li><b>Backups you can hold.</b> On Windows, Export saves any note as one .npnote file, colours and pictures included, for a USB stick; opening it brings the note back. Deleting a linked note sends its .txt to the Recycle Bin.</li>
-            <li><b>Locked notes.</b> Lock any note with a PIN, password or pattern. It opens with that lock on every device, stays open for as long as you choose, and stays encrypted everywhere else until you decrypt it yourself.</li>
-            <li><b>The Editor, on Windows.</b> Notes | Editor, one switch apart. Open any .txt, then Save to notes: edit it on your phone and the file on your PC changes too. Lock it, and the file is encrypted.</li>
-            <li><b>A real Windows installer.</b> Start menu, desktop shortcut, your default text editor if you like, and Notes+ updates itself.</li>
-            <li><b>Your vault on Google Drive, from your PC too.</b> One backup for both, opened with your main vault lock or a backup lock of your own.</li>
-            <li><b>Mind maps that never cut you off.</b> Ideas wrap, take a sub-text, and new ones can go behind an idea as well as after it.</li>
-            <li><b>Calmer syncing.</b> "Syncing…" when notes are on their way, no more conflict copies, and recordings from your PC play on your phone.</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <!-- Windows -->
-    <section class="feature" id="windows">
-      <div class="container">
-        <div class="row">
-          <div class="text reveal">
-            <div class="panel block">
-              <span class="status" data-desktop-pill><span class="dot" aria-hidden="true"></span><span data-desktop-pill-text>Coming soon</span></span>
-              <h2>Notes+ for <span class="c-diamond">Windows</span></h2>
-              <p class="desc">The same Notes+, on a big screen with a real keyboard. Sign in with the same account and your notes move between your phone and your PC by themselves.</p>
-              <ul class="list diamond">
-                <li>All six kinds of notes, looking just like on your phone</li>
-                <li>Paste a picture right into a note, journal or mind-map idea</li>
-                <li>Hold Ctrl to see links and IP addresses; Ctrl+click opens or copies them</li>
-                <li>Both hidden worlds, behind the same kind of gesture: click, swipe, hold</li>
-                <li>The Editor: open any .txt, save it to your notes, and edits on your phone reach the file</li>
-                <li>Lock a note; its copies, and its file, stay encrypted until you decrypt it</li>
-                <li>A proper installer, keyboard shortcuts everywhere, and updates by itself</li>
-              </ul>
-              <div class="hero-actions" style="margin-top: 22px;">
-                <a href="download.html#windows" class="btn btn--gold" data-desktop-cta>Windows: coming soon</a>
+              <div class="color-swatches">
+                <span class="color-swatch active" style="background: #f8fafc;" data-color="#f8fafc" title="Default Ink"></span>
+                <span class="color-swatch" style="background: var(--indigo-500);" data-color="#6366f1" title="Electric Indigo"></span>
+                <span class="color-swatch" style="background: var(--emerald-400);" data-color="#34d399" title="Cyber Emerald"></span>
+                <span class="color-swatch" style="background: var(--cyan-400);" data-color="#22d3ee" title="Cyan Flare"></span>
+                <span class="color-swatch" style="background: var(--amber-400);" data-color="#fbbf24" title="Amber Gold"></span>
+                <span class="color-swatch" style="background: var(--rose-500);" data-color="#f43f5e" title="Rose Coral"></span>
               </div>
             </div>
-          </div>
-          <div class="visual visual--windows reveal">
-            <div class="window">
-              <div class="window-bar"><span>Notes+</span><span aria-hidden="true">_ □ ×</span></div>
-              <img src="res/shots/15-windows-mind-map.webp" alt="Notes+ for Windows showing a mind map with a picture in one idea" width="1266" height="783" loading="lazy">
-            </div>
-            <div class="window">
-              <div class="window-bar"><span>Notes+</span><span aria-hidden="true">_ □ ×</span></div>
-              <img src="res/shots/16-windows-notes.webp" alt="Notes+ for Windows showing the notes grid" width="1266" height="783" loading="lazy">
+
+            <div class="studio-preview-box" id="studioPreview" contenteditable="true">
+              Notes+ transforms raw thoughts into crystalline clarity. Type your ideas freely, organize complex structures, and feel every keystroke with kinetic weight.
             </div>
           </div>
         </div>
-      </div>
-    </section>
 
-    <!-- Screens -->
-    <section class="section" id="screens">
-      <div class="container">
-        <div class="section-head reveal">
-          <span class="biome">[ Screenshots ]</span>
-          <h2>See it in <span class="c-gold">action</span>.</h2>
-          <p>From the overworld to the deepest vault. Tap any screen to look closer.</p>
+        <!-- Bento 2: Dual Zero-Knowledge Vaults -->
+        <div class="bento-card" id="vaults">
+          <span class="bento-badge" style="color: var(--purple-500); border-color: rgba(139, 92, 246, 0.3);">Hardened Security</span>
+          <h3 class="bento-title">Dual Secret Vaults</h3>
+          <p class="bento-desc">
+            Behind an innocuous gesture lies an impenetrable media safe (AES-256-GCM) and covert chat with separate keys and auto-lock timeouts.
+          </p>
+          <div class="vault-graphic">
+            <svg class="vault-safe-icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+          </div>
         </div>
-        <div class="shots">
-          <figure class="shot reveal"><div class="phone"><img src="res/shots/01-notes-grid.png" alt="Notes grid with cards of every type" loading="lazy"></div><p>Notes as cards, each previewing what's inside</p></figure>
-          <figure class="shot reveal"><div class="phone"><img src="res/shots/05-sketch.png" alt="A sketch note" loading="lazy"></div><p>Sketches with pens, markers and an eraser</p></figure>
-          <figure class="shot reveal"><div class="phone"><img src="res/shots/08-viewer.png" alt="The photo viewer" loading="lazy"></div><p>Full-screen viewer with zoom and video</p></figure>
-          <figure class="shot reveal"><div class="phone"><img src="res/shots/09-vault-settings.png" alt="Vault settings with backups" loading="lazy"></div><p>Verified backups, local and on Drive</p></figure>
-          <figure class="shot reveal"><div class="phone"><img src="res/shots/13-picker.png" alt="The photo picker under a conversation" loading="lazy"></div><p>Recent photos right where the keyboard was</p></figure>
-          <figure class="shot reveal"><div class="phone"><img src="res/shots/14-chat-settings.png" alt="Chat settings with vault IDs" loading="lazy"></div><p>Chat vaults, each with its own ID and lock</p></figure>
-          <figure class="shot reveal"><div class="phone"><img src="res/shots/03-mind-map.png" alt="A mind map" loading="lazy"></div><p>Mind maps that tidy, fold and link</p></figure>
-          <figure class="shot reveal"><div class="phone"><img src="res/shots/12-conversation.png" alt="A conversation" loading="lazy"></div><p>Ticks, encrypted photos, shared backgrounds</p></figure>
-        </div>
-      </div>
-    </section>
 
-    <!-- Coming next -->
-    <section class="section">
-      <div class="container">
-        <div class="section-head reveal">
-          <span class="biome">[ Next level ]</span>
-          <h2>Already <span class="c-portal">loading</span>.</h2>
+        <!-- Bento 3: Real-Time Multi-Device Sync -->
+        <div class="bento-card" id="features">
+          <span class="bento-badge" style="color: var(--emerald-400); border-color: rgba(52, 211, 153, 0.3);">Distributed Parity</span>
+          <h3 class="bento-title">Instant Live Sync</h3>
+          <p class="bento-desc">
+            Edit on Windows, review on Android, view on Web. Offline-first local SQLite and Room persistence seamlessly synchronizes.
+          </p>
+          <div class="sync-graphic">
+            <div class="sync-node">
+              <svg fill="currentColor" viewBox="0 0 24 24"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+              <span>PC</span>
+            </div>
+            <div class="sync-line"></div>
+            <div class="sync-node">
+              <svg fill="currentColor" viewBox="0 0 24 24"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4116 13.8533 8.0805 12 8.0805s-3.5902.3311-5.1367.8692L4.841 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
+              <span>Mobile</span>
+            </div>
+            <div class="sync-line"></div>
+            <div class="sync-node">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+              <span>Cloud</span>
+            </div>
+          </div>
         </div>
-        <div class="slots slots--4">
-          <article class="slot block reveal"><h3>Group chats</h3><p>Up to 20 people in one conversation, with receipts from everyone.</p></article>
-          <article class="slot block reveal"><h3>Shared notes</h3><p>Share a list or a mind map with up to 20 people and edit it together.</p></article>
-          <article class="slot block reveal"><h3>Voice messages</h3><p>Hold to talk in chat, with a waveform to follow.</p></article>
-          <article class="slot block reveal"><h3>View once</h3><p>Photos and videos that disappear after they're opened, from everywhere.</p></article>
-        </div>
-      </div>
-    </section>
 
-    <section class="cta">
-      <div class="container">
-        <div class="block reveal">
-          <span class="biome">[ Ready? ]</span>
-          <h2>Step through the <span class="c-portal">portal</span>.</h2>
-          <p>Free on Android and Windows. No account needed to start, no ads, no trackers.</p>
-          <div class="hero-actions" style="justify-content: center;">
-            <a href="download.html" class="btn btn--gold" data-version-text>Download APK</a>
-            <a href="download.html#windows" class="btn" data-desktop-cta>Windows: coming soon</a>
+        <!-- Bento 4: Infinite Mind Maps & Sketches -->
+        <div class="bento-card">
+          <span class="bento-badge" style="color: var(--cyan-400); border-color: rgba(34, 211, 238, 0.3);">Non-Linear Ideation</span>
+          <h3 class="bento-title">Mind Maps & Ink Sketches</h3>
+          <p class="bento-desc">
+            Break free from rigid paragraphs. Connect nodes across an infinite visual canvas or sketch vector diagrams with pressure-sensitive ink.
+          </p>
+          <div style="border-radius: 14px; overflow: hidden; margin-top: auto; border: 1px solid var(--border-subtle);">
+            <img src="res/shots/03-mind-map.png" alt="Mind Map" style="width: 100%; display: block; aspect-ratio: 16/9; object-fit: cover;">
+          </div>
+        </div>
+
+        <!-- Bento 5: Full PWA Everywhere -->
+        <div class="bento-card">
+          <span class="bento-badge" style="color: var(--amber-400); border-color: rgba(251, 191, 36, 0.3);">Zero Friction</span>
+          <h3 class="bento-title">Installable Web PWA</h3>
+          <p class="bento-desc">
+            Install Notes+ directly to your home screen or dock in any browser. Operates with service worker offline caching and zero download bloat.
+          </p>
+          <div style="display: flex; align-items: center; justify-content: center; padding: 24px 0; margin-top: auto;">
+            <a href="app/" class="btn-tactile btn-secondary" style="width: 100%;">Open notes.talken.in/app</a>
           </div>
         </div>
       </div>
-    </section>
-  </main>
+    </div>
+  </section>
 
-  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot">
-    <button class="btn" data-close aria-label="Close">✕</button>
-    <button class="btn" data-prev aria-label="Previous">◀</button>
-    <figure><img src="" alt=""><figcaption></figcaption></figure>
-    <button class="btn" data-next aria-label="Next">▶</button>
+  <!-- Interactive 5-Star Feedback Station -->
+  <section class="feedback-section" id="feedback">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Direct Line</span>
+        <h2 class="section-title">Shape the Future of Notes+</h2>
+        <p class="section-lead">
+          Have an idea or spotted a bug? Send your 5-star review or feature request directly to the engineering team in real time.
+        </p>
+      </div>
+
+      <div class="feedback-card-container">
+        <!-- Interactive Star Selector -->
+        <div class="star-rating-row">
+          <span class="rating-star active" data-val="1">★</span>
+          <span class="rating-star active" data-val="2">★</span>
+          <span class="rating-star active" data-val="3">★</span>
+          <span class="rating-star active" data-val="4">★</span>
+          <span class="rating-star active" data-val="5">★</span>
+        </div>
+
+        <!-- Category Pills -->
+        <div class="feedback-category-pills">
+          <span class="cat-pill active">Feature Suggestion</span>
+          <span class="cat-pill">Bug Report</span>
+          <span class="cat-pill">General Praise</span>
+          <span class="cat-pill">UI & Polish</span>
+        </div>
+
+        <div class="feedback-form-group">
+          <input type="email" id="feedbackEmail" class="feedback-input" placeholder="Your email or username (optional, for reply)">
+        </div>
+
+        <div class="feedback-form-group">
+          <textarea id="feedbackMessage" class="feedback-textarea" placeholder="Tell us what you love or what we should build next..."></textarea>
+        </div>
+
+        <button class="btn-tactile btn-primary" id="btnSubmitFeedback" style="width: 100%; padding: 14px;">
+          Submit Feedback
+        </button>
+
+        <div id="feedbackStatus"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Downloads Hub -->
+  <section class="downloads-section" id="downloads">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Official Releases</span>
+        <h2 class="section-title">Get Notes+ v16.0</h2>
+        <p class="section-lead">
+          Verified, cryptographic builds distributed via high-speed Cloudflare R2 infrastructure.
+        </p>
+      </div>
+
+      <div class="download-cards-grid">
+        <!-- Windows Card -->
+        <div class="dl-card" id="download-windows">
+          <div class="dl-icon">
+            <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+          </div>
+          <h3 class="dl-title">Windows Desktop</h3>
+          <p class="dl-meta">v16.0 • 64-bit Windows 10/11 • 76 MB</p>
+          <div class="dl-hash-box">
+            <span>SHA-256: c3053a493d...</span>
+            <button class="dl-copy-btn" data-copy-hash="c3053a493dce75612873851086e37979abdb6d99dc7a37bf46bdf6df569d8691">Copy</button>
+          </div>
+          <div class="dl-actions">
+            <a href="https://releases.talken.in/desktop/Notes-Plus-Setup-16.0.exe" class="btn-tactile btn-primary">Download Setup (.exe)</a>
+            <a href="https://releases.talken.in/desktop/Notes-Plus-Windows-16.0.zip" class="btn-tactile btn-secondary">Portable (.zip)</a>
+          </div>
+        </div>
+
+        <!-- Android Card -->
+        <div class="dl-card" id="download-android">
+          <div class="dl-icon" style="color: var(--emerald-400);">
+            <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4116 13.8533 8.0805 12 8.0805s-3.5902.3311-5.1367.8692L4.841 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
+          </div>
+          <h3 class="dl-title">Android Mobile</h3>
+          <p class="dl-meta">v16.0 (Build 33) • Android 7.0+ • 13.6 MB</p>
+          <div class="dl-hash-box">
+            <span>SHA-256: cf877f0c99...</span>
+            <button class="dl-copy-btn" data-copy-hash="cf877f0c990a8287f7995b169f0f1a2284560e1f751fdb48d8ac65bd27ef3bdf">Copy</button>
+          </div>
+          <div class="dl-actions">
+            <a href="https://releases.talken.in/android/Notes-Plus-16.0.apk" class="btn-tactile btn-primary">Download APK</a>
+          </div>
+        </div>
+
+        <!-- Web PWA Card -->
+        <div class="dl-card">
+          <div class="dl-icon" style="color: var(--cyan-400);">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+          </div>
+          <h3 class="dl-title">Web & PWA</h3>
+          <p class="dl-meta">Instant Access • Chrome, Safari, Edge, Firefox</p>
+          <div class="dl-hash-box">
+            <span>Zero installation • Works 100% offline</span>
+          </div>
+          <div class="dl-actions">
+            <a href="app/" class="btn-tactile btn-primary">Launch Web App</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Animated Floating Dock (macOS / iPadOS style) -->
+  <div class="floating-dock-wrap">
+    <div class="floating-dock" role="toolbar" aria-label="Quick Actions Dock">
+      <a href="#studio" class="dock-item" data-tooltip="Note Studio">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+      </a>
+      <a href="#features" class="dock-item" data-tooltip="Mind Maps">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+      </a>
+      <a href="#vaults" class="dock-item" data-tooltip="Secret Vaults">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+      </a>
+      <div class="dock-separator"></div>
+      <a href="https://releases.talken.in/desktop/Notes-Plus-Setup-16.0.exe" class="dock-item" data-tooltip="Windows (.exe)">
+        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+      </a>
+      <a href="https://releases.talken.in/android/Notes-Plus-16.0.apk" class="dock-item" data-tooltip="Android APK">
+        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4116 13.8533 8.0805 12 8.0805s-3.5902.3311-5.1367.8692L4.841 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
+      </a>
+      <a href="app/" class="dock-item" data-tooltip="Web App (PWA)">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+      </a>
+      <div class="dock-separator"></div>
+      <a href="#feedback" class="dock-item" data-tooltip="5-Star Review">
+        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+      </a>
+      <button class="dock-item" data-action="toggle-theme" data-tooltip="Toggle Theme (T)">
+        <svg class="icon-moon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+        </svg>
+        <svg class="icon-sun" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+        </svg>
+      </button>
+    </div>
   </div>
 
-  <footer class="footer">
+  <!-- Modern Masterpiece Footer -->
+  <footer class="site-footer">
     <div class="container">
-      <div class="brand">Notes<span class="brand-plus">+</span></div>
-      <nav aria-label="Footer">
-        <a href="#notes">Notes</a>
-        <a href="#vault">Hidden worlds</a>
-        <a href="#windows">Windows</a>
-        <a href="download.html">Download</a>
-        <a href="app/">Web app</a>
-        <a href="privacy.html">Privacy</a>
-        <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer">GitHub</a>
-      </nav>
-      <small>Made with ♥ by Shashwat Gupta · Flex Studios</small>
+      <div class="footer-content">
+        <div class="footer-copy">
+          <p>© 2026 Shashwat Gupta • Flex Studios. All rights reserved.</p>
+          <p style="font-size: 0.8rem; margin-top: 4px; color: var(--text-muted);">
+            Engineered with zero third-party telemetry scripts. Notes+ v16.0 Production.
+          </p>
+        </div>
+
+        <div class="footer-links">
+          <a href="privacy.html">Privacy</a>
+          <a href="talken-admin/">Admin</a>
+          <a href="app/">PWA Web App</a>
+          <a href="https://releases.talken.in/version.json">Manifest</a>
+        </div>
+      </div>
     </div>
   </footer>
 
-  <script src="js/main.js"></script>
+  <!-- Scripts -->
+  <script src="js/masterpiece.js"></script>
   <script src="js/version.js"></script>
   <script src="js/telemetry.js"></script>
 </body>

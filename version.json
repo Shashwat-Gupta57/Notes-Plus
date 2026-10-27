@@ -2,16 +2,16 @@
   "versionCode": 30,
   "versionName": "15.4",
   "forced": false,
-  "changelog": "Notes+ 15.4: Process termination middleman updater, cached package detection, and Android in-app session logging with local export.",
+  "changelog": "Notes+ 15.4: Multi-tier in-place fallback updater, cached package detection, and Android in-app session logging with local export.",
   "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.4.apk",
   "sha256": "b50f053fb5e65039e21f8fb45a6826179dea5c2a660a7c9564b4cccc765ba1cc",
   "desktop": {
     "versionName": "15.4",
     "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-15.4.exe",
-    "sha256": "badf34503c51df3905bbf76a849a23df43cb32a786efe53989bf3fda785d2d7a",
+    "sha256": "dcc0541b836abbbbf946517b6122759eaa15aa6d23dd29d917840e58d1f19e1e",
     "size": "76 MB",
     "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-15.4.zip",
-    "zipSha256": "ab1f1198910c286c444c1aa5d075aea519f49b7ec3c3905cdf0235a5c6312914",
-    "changelog": "Notes+ 15.4 for Windows: middleman process handover, cached update detection with install choice, in-place fallback, and 10-session logging."
+    "zipSha256": "e981461adc561fea6272a7c78363e274d1411133d51b13b34fffc5dc1cc68e44",
+    "changelog": "Notes+ 15.4 for Windows: multi-tier in-place fallback updater, cached update detection, and session logging."
   }
 }

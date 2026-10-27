@@ -72,6 +72,13 @@ final class Icons {
     static final Icon SEND = new Icon(24, "M2.01,21L23,12 2.01,3 2,10l15,2 -15,2z");
     static final Icon CHAT = new Icon(24, "M20,2H4c-1.1,0 -1.99,0.9 -1.99,2L2,22l4,-4h14c1.1,0 2,-0.9 2,-2V4c0,-1.1 -0.9,-2 -2,-2zM6,9h12v2H6V9zM14,14H6v-2h8v2zM18,8H6V6h12v2z");
 
+    static final Icon BOLD = new Icon(24, "M15.6,10.79c0.97,-0.67 1.65,-1.77 1.65,-2.79 0,-2.26 -1.75,-4 -4,-4H7v14h7.04c2.09,0 3.71,-1.7 3.71,-3.79 0,-1.52 -0.86,-2.82 -2.15,-3.42zM10,6.5h3c0.83,0 1.5,0.67 1.5,1.5s-0.67,1.5 -1.5,1.5h-3v-3zM10.5,15.5H10v-3h4c0.83,0 1.5,0.67 1.5,1.5s-0.67,1.5 -1.5,1.5z");
+    static final Icon ITALIC = new Icon(24, "M10,4v3h2.21l-3.42,8H6v3h8v-3h-2.21l3.42,-8H18V4z");
+    static final Icon UNDERLINE = new Icon(24, "M12,17c3.31,0 6,-2.69 6,-6V3h-2.5v8c0,1.93 -1.57,3.5 -3.5,3.5S8.5,12.93 8.5,11V3H6v8c0,3.31 2.69,6 6,6zM5,19v2h14v-2H5z");
+    static final Icon STRIKETHROUGH = new Icon(24, "M10,19h4v-3h-4v3zM5,4v3h5v3h4V7h5V4H5zM3,14h18v-2H3v2z");
+    static final Icon FORMAT_LINE_SPACING = new Icon(24, "M6,7h2.5L5,3.5 1.5,7H4v10H1.5L5,20.5 8.5,17H6V7zM10,5h12v2H10V5zM10,11h12v2H10v-2zM10,17h12v2H10v-2z");
+    static final Icon FORMAT_LETTER_SPACING = new Icon(24, "M22,12l-4,-4v3H6V8L2,12l4,4v-3h12v3l4,-4z");
+
     /** A three-dot overflow, which the phone gets from the toolbar itself. */
     static final Icon MORE = new Icon(24, "M12,8c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2zM12,10c-1.1,0 -2,0.9 -2,2s0.9,2 2,2 2,-0.9 2,-2 -0.9,-2 -2,-2zM12,16c-1.1,0 -2,0.9 -2,2s0.9,2 2,2 2,-0.9 2,-2 -0.9,-2 -2,-2z");
 }

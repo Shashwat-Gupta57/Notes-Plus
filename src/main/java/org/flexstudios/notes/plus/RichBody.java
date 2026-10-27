@@ -187,6 +187,7 @@ final class RichBody extends VBox {
         // The measure below can wrap a little differently from the area's own text (padding,
         // CSS applied late), which cut the last lines off: the real text's height also counts.
         area.skinProperty().addListener((o, a, b) -> Platform.runLater(() -> Ui.innerText(area, () -> grow(area))));
+        area.focusedProperty().addListener((o, was, is) -> { if (is) activeArea = area; });
         area.addEventFilter(KeyEvent.KEY_PRESSED, e -> keys(area, e));
         Ui.logicalArrows(area);
         Links.install(area);
@@ -218,6 +219,25 @@ final class RichBody extends VBox {
     private void keys(TextArea area, KeyEvent e) {
         if (locked) return;
         int index = getChildren().indexOf(area);
+        if (e.isShortcutDown()) {
+            if (e.getCode() == KeyCode.B) {
+                e.consume();
+                wrapSelection(area, "**", "**");
+                return;
+            } else if (e.getCode() == KeyCode.I) {
+                e.consume();
+                wrapSelection(area, "*", "*");
+                return;
+            } else if (e.getCode() == KeyCode.U) {
+                e.consume();
+                wrapSelection(area, "<u>", "</u>");
+                return;
+            } else if (e.getCode() == KeyCode.X && e.isShiftDown()) {
+                e.consume();
+                wrapSelection(area, "~~", "~~");
+                return;
+            }
+        }
         if (PASTE.match(e) || PASTE_INSERT.match(e)) {
             if (pasteImage(area)) e.consume();
         } else if (e.getCode() == KeyCode.BACK_SPACE && area.getCaretPosition() == 0 && area.getSelection().getLength() == 0
@@ -470,6 +490,99 @@ final class RichBody extends VBox {
             view.setFitWidth(w);
             clip.setWidth(w);
             clip.setHeight(w * img.getHeight() / Math.max(1, img.getWidth()));
+        }
+    }
+
+    private TextArea activeArea;
+
+    TextArea getActiveArea() {
+        if (activeArea != null && activeArea.getScene() != null) return activeArea;
+        for (Node n : getChildren()) {
+            if (n instanceof TextArea t && t.isFocused()) return t;
+        }
+        TextArea last = null;
+        for (Node n : getChildren()) if (n instanceof TextArea t) last = t;
+        return last;
+    }
+
+    void wrapSelection(String before, String after) {
+        TextArea a = getActiveArea();
+        if (a != null) wrapSelection(a, before, after);
+    }
+
+    static void wrapSelection(TextArea area, String before, String after) {
+        javafx.scene.control.IndexRange sel = area.getSelection();
+        int start = sel.getStart(), end = sel.getEnd();
+        String text = area.getText();
+        if (start != end) {
+            String selected = text.substring(start, end);
+            if (selected.startsWith(before) && selected.endsWith(after) && selected.length() >= before.length() + after.length()) {
+                String unwrapped = selected.substring(before.length(), selected.length() - after.length());
+                area.replaceText(start, end, unwrapped);
+                area.selectRange(start, start + unwrapped.length());
+            } else {
+                area.replaceText(start, end, before + selected + after);
+                area.selectRange(start, start + before.length() + selected.length() + after.length());
+            }
+        } else {
+            area.insertText(start, before + after);
+            area.positionCaret(start + before.length());
+        }
+        area.requestFocus();
+    }
+
+    void prefixLines(String prefix) {
+        TextArea area = getActiveArea();
+        if (area == null) return;
+        javafx.scene.control.IndexRange sel = area.getSelection();
+        int start = sel.getStart(), end = sel.getEnd();
+        String text = area.getText();
+        int lineStart = text.lastIndexOf('\n', start - 1) + 1;
+        int lineEnd = text.indexOf('\n', end);
+        if (lineEnd == -1) lineEnd = text.length();
+        String chunk = text.substring(lineStart, lineEnd);
+        String[] lines = chunk.split("\n", -1);
+        boolean allPrefixed = true;
+        for (String l : lines) {
+            if (!l.startsWith(prefix)) { allPrefixed = false; break; }
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) sb.append('\n');
+            String l = lines[i];
+            if (allPrefixed && !prefix.isEmpty()) {
+                sb.append(l.substring(prefix.length()));
+            } else {
+                String cleaned = l.replaceFirst("^(?:•\\s*|\\d+[.)]\\s*|- \\[[ x]\\]\\s*|#+\\s*|> )", "");
+                sb.append(prefix).append(cleaned);
+            }
+        }
+        area.replaceText(lineStart, lineEnd, sb.toString());
+        area.selectRange(lineStart, lineStart + sb.length());
+        area.requestFocus();
+    }
+
+    void setLeading(double spacing) {
+        for (Node n : getChildren()) {
+            if (n instanceof TextArea t) {
+                t.setStyle((t.getStyle() == null ? "" : t.getStyle()) + " -fx-line-spacing: " + spacing + "px;");
+            }
+        }
+    }
+
+    void setKerning(String kerning) {
+        for (Node n : getChildren()) {
+            if (n instanceof TextArea t) {
+                t.setStyle((t.getStyle() == null ? "" : t.getStyle()) + " -fx-letter-spacing: " + kerning + ";");
+            }
+        }
+    }
+
+    void setFontColor(String color) {
+        for (Node n : getChildren()) {
+            if (n instanceof TextArea t) {
+                t.setStyle((t.getStyle() == null ? "" : t.getStyle()) + " -fx-text-fill: " + color + ";");
+            }
         }
     }
 }

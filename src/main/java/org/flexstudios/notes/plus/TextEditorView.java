@@ -86,6 +86,10 @@ final class TextEditorView {
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.getStyleClass().add("editor-bar");
 
+        HBox formatBar = createFormatBar();
+        VBox topHeader = new VBox(bar, formatBar);
+        root.setTop(topHeader);
+
         // ---------------------------------------------------------------- page
         area.getStyleClass().add("editor-area");
         area.setWrapText(true);
@@ -95,6 +99,23 @@ final class TextEditorView {
             updateStatus();
         });
         area.caretPositionProperty().addListener((o, a, b) -> updateStatus());
+        area.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
+            if (e.isShortcutDown()) {
+                if (e.getCode() == KeyCode.B) {
+                    e.consume();
+                    wrapSelection("**", "**");
+                } else if (e.getCode() == KeyCode.I) {
+                    e.consume();
+                    wrapSelection("*", "*");
+                } else if (e.getCode() == KeyCode.U) {
+                    e.consume();
+                    wrapSelection("<u>", "</u>");
+                } else if (e.getCode() == KeyCode.X && e.isShiftDown()) {
+                    e.consume();
+                    wrapSelection("~~", "~~");
+                }
+            }
+        });
         area.addEventFilter(javafx.scene.input.ScrollEvent.SCROLL, e -> {
             if (e.isShortcutDown()) {
                 e.consume();
@@ -581,5 +602,105 @@ final class TextEditorView {
     /** True when a file could be opened by this app (any regular file; text is what it expects). */
     static boolean openable(Path p) {
         return p != null && Files.isRegularFile(p);
+    }
+
+    private HBox createFormatBar() {
+        Button bold = tool(Icons.BOLD, "Bold (Ctrl+B)", () -> wrapSelection("**", "**"));
+        Button italic = tool(Icons.ITALIC, "Italic (Ctrl+I)", () -> wrapSelection("*", "*"));
+        Button underline = tool(Icons.UNDERLINE, "Underline (Ctrl+U)", () -> wrapSelection("<u>", "</u>"));
+        Button strike = tool(Icons.STRIKETHROUGH, "Strikethrough (Ctrl+Shift+X)", () -> wrapSelection("~~", "~~"));
+
+        Button colorBtn = tool(Icons.PALETTE, "Font / Text Color", () -> {});
+        colorBtn.setOnAction(e -> {
+            List<String> colors = List.of("Default", "Gold (#FFCC00)", "Blue (#0A84FF)", "Green (#30D158)", "Purple (#BF5AF2)", "Red (#FF453A)");
+            List<String> hexes = List.of("-fx-text-inner-color", "#FFCC00", "#0A84FF", "#30D158", "#BF5AF2", "#FF453A");
+            List<Runnable> acts = new ArrayList<>();
+            for (String hx : hexes) acts.add(() -> area.setStyle(area.getStyle() + " -fx-text-fill: " + hx + ";"));
+            Ui.menu(colorBtn, colors, acts);
+        });
+
+        Button leadingBtn = tool(Icons.FORMAT_LINE_SPACING, "Line Spacing (Leading)", () -> {});
+        leadingBtn.setOnAction(e -> {
+            List<String> opts = List.of("Compact (2px)", "Normal (5px)", "Relaxed (8px)", "Spacious (12px)");
+            List<Double> vals = List.of(2.0, 5.0, 8.0, 12.0);
+            List<Runnable> acts = new ArrayList<>();
+            for (Double v : vals) acts.add(() -> area.setStyle(area.getStyle() + " -fx-line-spacing: " + v + "px;"));
+            Ui.menu(leadingBtn, opts, acts);
+        });
+
+        Button kerningBtn = tool(Icons.FORMAT_LETTER_SPACING, "Letter Spacing (Kerning)", () -> {});
+        kerningBtn.setOnAction(e -> {
+            List<String> opts = List.of("Tight (-0.5px)", "Normal (0px)", "Wide (1px)", "Expanded (2px)");
+            List<String> vals = List.of("-0.5px", "0px", "1px", "2px");
+            List<Runnable> acts = new ArrayList<>();
+            for (String v : vals) acts.add(() -> area.setStyle(area.getStyle() + " -fx-letter-spacing: " + v + ";"));
+            Ui.menu(kerningBtn, opts, acts);
+        });
+
+        Button bulletBtn = Ui.textButton("• List", () -> prefixLines("• "));
+        Button numBtn = Ui.textButton("1. List", () -> prefixLines("1. "));
+        Button headBtn = Ui.textButton("Heading", () -> {});
+        headBtn.setOnAction(e -> {
+            Ui.menu(headBtn,
+                List.of("Heading 1 (#)", "Heading 2 (##)", "Heading 3 (###)", "Normal Body"),
+                List.of(() -> prefixLines("# "), () -> prefixLines("## "), () -> prefixLines("### "), () -> prefixLines(""))
+            );
+        });
+
+        HBox fbar = new HBox(4, bold, italic, underline, strike, gap(6), colorBtn, leadingBtn, kerningBtn, gap(6), headBtn, bulletBtn, numBtn);
+        fbar.setAlignment(Pos.CENTER_LEFT);
+        fbar.setPadding(new Insets(2, 8, 4, 8));
+        fbar.getStyleClass().add("editor-bar");
+        return fbar;
+    }
+
+    private void wrapSelection(String before, String after) {
+        javafx.scene.control.IndexRange sel = area.getSelection();
+        int start = sel.getStart(), end = sel.getEnd();
+        String text = area.getText();
+        if (start != end) {
+            String selected = text.substring(start, end);
+            if (selected.startsWith(before) && selected.endsWith(after) && selected.length() >= before.length() + after.length()) {
+                String unwrapped = selected.substring(before.length(), selected.length() - after.length());
+                area.replaceText(start, end, unwrapped);
+                area.selectRange(start, start + unwrapped.length());
+            } else {
+                area.replaceText(start, end, before + selected + after);
+                area.selectRange(start, start + before.length() + selected.length() + after.length());
+            }
+        } else {
+            area.insertText(start, before + after);
+            area.positionCaret(start + before.length());
+        }
+        area.requestFocus();
+    }
+
+    private void prefixLines(String prefix) {
+        javafx.scene.control.IndexRange sel = area.getSelection();
+        int start = sel.getStart(), end = sel.getEnd();
+        String text = area.getText();
+        int lineStart = text.lastIndexOf('\n', start - 1) + 1;
+        int lineEnd = text.indexOf('\n', end);
+        if (lineEnd == -1) lineEnd = text.length();
+        String chunk = text.substring(lineStart, lineEnd);
+        String[] lines = chunk.split("\n", -1);
+        boolean allPrefixed = true;
+        for (String l : lines) {
+            if (!l.startsWith(prefix)) { allPrefixed = false; break; }
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) sb.append('\n');
+            String l = lines[i];
+            if (allPrefixed && !prefix.isEmpty()) {
+                sb.append(l.substring(prefix.length()));
+            } else {
+                String cleaned = l.replaceFirst("^(?:•\\s*|\\d+[.)]\\s*|- \\[[ x]\\]\\s*|#+\\s*|> )", "");
+                sb.append(prefix).append(cleaned);
+            }
+        }
+        area.replaceText(lineStart, lineEnd, sb.toString());
+        area.selectRange(lineStart, lineStart + sb.length());
+        area.requestFocus();
     }
 }

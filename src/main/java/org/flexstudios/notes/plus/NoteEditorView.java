@@ -118,7 +118,8 @@ final class NoteEditorView extends NoteEditor {
         body.setOnChange(() -> { markDirty(); updateFooter(); });
         title.setPromptText(NoteData.JOURNAL.equals(type) ? "Give the day a title"
                 : NoteData.LIST.equals(type) ? "List name" : "Title");
-        column.getChildren().add(padded(title, new Insets(12, 20, 8, 20)));
+        column.getChildren().add(padded(title, new Insets(12, 20, 4, 20)));
+        if (!NoteData.LIST.equals(type)) column.getChildren().add(padded(createFormatBar(), new Insets(0, 20, 6, 20)));
         if (NoteData.LIST.equals(type)) {
             column.getChildren().add(listSection(note));
         } else {
@@ -814,5 +815,62 @@ final class NoteEditorView extends NoteEditor {
         c.set(Calendar.SECOND, 0);
         c.set(Calendar.MILLISECOND, 0);
         return c.getTimeInMillis();
+    }
+
+    
+    private static Region hgap(double width) {
+        Region r = new Region();
+        r.setMinWidth(width);
+        r.setMaxWidth(width);
+        return r;
+    }
+
+    private HBox createFormatBar() {
+        Button bold = Ui.iconButton(Icons.BOLD, 34, 16, "text_secondary", "Bold (Ctrl+B)", () -> body.wrapSelection("**", "**"));
+        Button italic = Ui.iconButton(Icons.ITALIC, 34, 16, "text_secondary", "Italic (Ctrl+I)", () -> body.wrapSelection("*", "*"));
+        Button underline = Ui.iconButton(Icons.UNDERLINE, 34, 16, "text_secondary", "Underline (Ctrl+U)", () -> body.wrapSelection("<u>", "</u>"));
+        Button strike = Ui.iconButton(Icons.STRIKETHROUGH, 34, 16, "text_secondary", "Strikethrough (Ctrl+Shift+X)", () -> body.wrapSelection("~~", "~~"));
+
+        Button colorBtn = Ui.iconButton(Icons.PALETTE, 34, 16, "text_secondary", "Font / Text Color", () -> {});
+        colorBtn.setOnAction(e -> {
+            List<String> colors = List.of("Default", "Gold / Amber (#FFCC00)", "Electric Blue (#0A84FF)", "Emerald Green (#30D158)", "Vivid Purple (#BF5AF2)", "Crimson Red (#FF453A)");
+            List<String> hexes = List.of("-fx-text-inner-color", "#FFCC00", "#0A84FF", "#30D158", "#BF5AF2", "#FF453A");
+            List<Runnable> acts = new ArrayList<>();
+            for (String hx : hexes) acts.add(() -> { body.setFontColor(hx); markDirty(); });
+            Ui.menu(colorBtn, colors, acts);
+        });
+
+        Button leadingBtn = Ui.iconButton(Icons.FORMAT_LINE_SPACING, 34, 16, "text_secondary", "Line Spacing (Leading)", () -> {});
+        leadingBtn.setOnAction(e -> {
+            List<String> opts = List.of("Compact (2px)", "Normal (5px)", "Relaxed (8px)", "Spacious (12px)");
+            List<Double> vals = List.of(2.0, 5.0, 8.0, 12.0);
+            List<Runnable> acts = new ArrayList<>();
+            for (Double v : vals) acts.add(() -> { body.setLeading(v); markDirty(); });
+            Ui.menu(leadingBtn, opts, acts);
+        });
+
+        Button kerningBtn = Ui.iconButton(Icons.FORMAT_LETTER_SPACING, 34, 16, "text_secondary", "Letter Spacing (Kerning)", () -> {});
+        kerningBtn.setOnAction(e -> {
+            List<String> opts = List.of("Tight (-0.5px)", "Normal (0px)", "Wide (1px)", "Expanded (2px)");
+            List<String> vals = List.of("-0.5px", "0px", "1px", "2px");
+            List<Runnable> acts = new ArrayList<>();
+            for (String v : vals) acts.add(() -> { body.setKerning(v); markDirty(); });
+            Ui.menu(kerningBtn, opts, acts);
+        });
+
+        Button bulletBtn = Ui.textButton("• List", () -> body.prefixLines("• "));
+        Button numBtn = Ui.textButton("1. List", () -> body.prefixLines("1. "));
+        Button headBtn = Ui.textButton("Heading", () -> {});
+        headBtn.setOnAction(e -> {
+            Ui.menu(headBtn,
+                List.of("Heading 1 (#)", "Heading 2 (##)", "Heading 3 (###)", "Normal Body"),
+                List.of(() -> body.prefixLines("# "), () -> body.prefixLines("## "), () -> body.prefixLines("### "), () -> body.prefixLines(""))
+            );
+        });
+
+        HBox bar = new HBox(4, bold, italic, underline, strike, hgap(6), colorBtn, leadingBtn, kerningBtn, hgap(6), headBtn, bulletBtn, numBtn);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.setPadding(new Insets(2, 0, 6, 0));
+        return bar;
     }
 }

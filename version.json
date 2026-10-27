@@ -1,17 +1,17 @@
 {
-  "versionCode": 28,
-  "versionName": "15.2",
+  "versionCode": 29,
+  "versionName": "15.3",
   "forced": false,
-  "changelog": "Notes+ 15.2: Startup auto-updates, in-app download progress tracking, immediate install prompts, and web auto-detection.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.2.apk",
-  "sha256": "b7bf4006d108eb3c7421438a589763116a3bf25ba8b3aee2dcdb6d2257f4a991",
+  "changelog": "Notes+ 15.3: Robust updater with file locking protection, directory CWD release, multi-tier fallback, and in-app session logging.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.3.apk",
+  "sha256": "6a11a3c9e397e31d2eef8d25441a3574308355ce7c964c114ed01545eb5482b0",
   "desktop": {
-    "versionName": "15.2",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-15.2.exe",
-    "sha256": "44f67104734235cdd816763d347b7cc1c35312166ac29ca12621750f5e4588a2",
+    "versionName": "15.3",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-15.3.exe",
+    "sha256": "8ea79ada870ca956ac053460e0df9941e341be9eb1ad1566d5fe5290154d5c8d",
     "size": "76 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-15.2.zip",
-    "zipSha256": "a2e7ab0f1e8f0a07270afb94a863a46ea5c68451a37adb133f9e58601a51c918",
-    "changelog": "Notes+ 15.2 for Windows: startup auto-update check, in-app progress tracking, and seamless updates."
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-15.3.zip",
+    "zipSha256": "48d85869c7e5df81367daae873afd38075408f4cbea487d2c9df683738444ca4",
+    "changelog": "Notes+ 15.3 for Windows: updater file-lock immunity, multi-tier fallback, Retry option, and session logging."
   }
 }

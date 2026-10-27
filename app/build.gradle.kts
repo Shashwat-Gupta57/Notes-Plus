@@ -14,8 +14,8 @@ android {
         // Keep in sync with version.json at the repo root and the release tag. The in-app
         // updater compares version.json's versionCode against this one, so a stale value
         // here silently tells every user they are up to date.
-        versionCode = 28
-        versionName = "15.2"
+        versionCode = 29
+        versionName = "15.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

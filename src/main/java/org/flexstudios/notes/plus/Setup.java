@@ -417,54 +417,39 @@ public class Setup extends Application {
                 }
                 long total = size(fresh);
 
-                if (!Files.exists(dir)) {
-                    Platform.runLater(() -> status.setText("Finishing…"));
-                    Files.move(fresh, dir);
-                    Path logs = dir.resolve("logs");
-                    try {
-                        Files.createDirectories(logs);
-                        new ProcessBuilder("icacls", logs.toString(), "/grant", "*S-1-5-32-545:(OI)(CI)M", "/T", "/Q").start().waitFor();
-                    } catch (Exception ignored) {}
-                    register(dir, version, total);
-                    shortcut(desktopLink(), dir, desktop);
-                    shortcut(startMenuLink(), dir, menu);
-                    if (makeDefault) {
-                        try {
-                            DefaultApp.set(".txt", PROG_ID);
-                        } catch (Exception e) {
-                            System.getLogger("Setup").log(System.Logger.Level.WARNING, "Couldn't make Notes+ the default for .txt", e);
-                        }
-                    }
-                    return false;
-                }
+                Platform.runLater(() -> status.setText("Finishing…"));
 
-                Platform.runLater(() -> status.setText("Restarting Notes+ to finish update…"));
+                // Multi-tier atomic replace
+                swapDirectories(fresh, dir, old);
+
+                Path logs = dir.resolve("logs");
+                try {
+                    Files.createDirectories(logs);
+                    new ProcessBuilder("icacls", logs.toString(), "/grant", "*S-1-5-32-545:(OI)(CI)M", "/T", "/Q").start().waitFor();
+                } catch (Exception ignored) {}
+
                 register(dir, version, total);
                 shortcut(desktopLink(), dir, desktop);
                 shortcut(startMenuLink(), dir, menu);
                 if (makeDefault) {
                     try {
                         DefaultApp.set(".txt", PROG_ID);
-                    } catch (Exception ignored) {}
+                    } catch (Exception e) {
+                        System.getLogger("Setup").log(System.Logger.Level.WARNING, "Couldn't make Notes+ the default for .txt", e);
+                    }
                 }
-
-                launchMiddlemanAndExit(fresh, dir, old, dir.resolve(APP_EXE));
-                return true;
-            }, handedOffToMiddleman -> {
-                if (Boolean.TRUE.equals(handedOffToMiddleman)) {
-                    return;
-                }
-                show(screen(doneTitle, "Notes+ " + version + " is ready. Your notes are where they were."
-                                + (makeDefault ? " Text files now open with it." : ""),
-                        null,
-                        button("Finish", false, Platform::exit),
-                        button("Open Notes+", true, () -> {
-                            try {
-                                new ProcessBuilder(installDir().resolve(APP_EXE).toString()).directory(installDir().toFile()).start();
-                            } catch (IOException ignored) {}
-                            Platform.exit();
-                        })));
-            }, err -> show(message("Installation didn't finish",
+                return null;
+            }, r -> show(screen(doneTitle, "Notes+ " + version + " is ready. Your notes are where they were."
+                            + (makeDefault ? " Text files now open with it." : ""),
+                    null,
+                    button("Finish", false, Platform::exit),
+                    button("Open Notes+", true, () -> {
+                        try {
+                            new ProcessBuilder(installDir().resolve(APP_EXE).toString()).directory(installDir().toFile()).start();
+                        } catch (IOException ignored) {}
+                        Platform.exit();
+                    }))),
+            err -> show(message("Installation didn't finish",
                     err + "\n\nTip: Close any open Notes+ windows or File Explorer folders, then click Retry.",
                     () -> runInstall(source, version, desktop, menu, doneTitle),
                     true)));
@@ -781,175 +766,16 @@ public class Setup extends Application {
                 .toList();
     }
 
-    private static void launchMiddlemanAndExit(Path fresh, Path dir, Path old, Path relaunchExe) throws IOException {
-        Path temp = Path.of(System.getProperty("java.io.tmpdir"));
-        Path scriptDir = temp.resolve("NotesPlusUpdate");
-        Files.createDirectories(scriptDir);
-        Path psScript = scriptDir.resolve("apply-update.ps1");
-        Path logFile = scriptDir.resolve("middleman-update.log");
-
-        String scriptContent = """
-param(
-    [string]$FreshDir,
-    [string]$TargetDir,
-    [string]$OldDir,
-    [int]$SetupPid,
-    [string]$RelaunchExe,
-    [string]$LogFile
-)
-
-function Log($text) {
-    $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff"
-    "$stamp [MIDDLEMAN] $text" | Out-File -Append -FilePath $LogFile -Encoding utf8
-}
-
-Log "Middleman started. SetupPid=$SetupPid, TargetDir=$TargetDir, FreshDir=$FreshDir"
-
-# 1. Wait for parent Setup process to terminate
-if ($SetupPid -gt 0) {
-    Log "Waiting for parent Setup PID $SetupPid to terminate..."
-    try {
-        $p = Get-Process -Id $SetupPid -ErrorAction SilentlyContinue
-        if ($p) {
-            $p.WaitForExit(20000)
-            Log "Parent Setup PID $SetupPid has exited."
-        }
-    } catch {
-        Log "Wait for parent exception: $_"
-    }
-}
-
-# 2. Terminate any remaining Notes+ and Notes+ Setup processes
-Log "Terminating any lingering Notes+ processes..."
-Get-Process -Name "Notes+", "Notes+ Setup", "unins" -ErrorAction SilentlyContinue | ForEach-Object {
-    try {
-        Stop-Process -Id $_.Id -Force
-        Log "Killed process $($_.Name) PID $($_.Id)"
-    } catch {}
-}
-
-# 3. Wait 1.2 seconds for Windows kernel and AV to release file locks
-Start-Sleep -Milliseconds 1200
-
-# 4. Swap directories
-$swapDone = $false
-if (Test-Path -LiteralPath $TargetDir) {
-    for ($attempt = 1; $attempt -le 20; $attempt++) {
-        try {
-            Log "Attempt $attempt: Renaming TargetDir to $OldDir..."
-            Move-Item -LiteralPath $TargetDir -Destination $OldDir -Force -ErrorAction Stop
-            $swapDone = $true
-            Log "TargetDir successfully renamed to $OldDir."
-            break
-        } catch {
-            Log "Attempt $attempt failed: $($_.Exception.Message). Retrying in 500ms..."
-            Start-Sleep -Milliseconds 500
-        }
-    }
-} else {
-    $swapDone = $true
-}
-
-if ($swapDone) {
-    try {
-        Log "Renaming FreshDir to TargetDir..."
-        Move-Item -LiteralPath $FreshDir -Destination $TargetDir -Force -ErrorAction Stop
-        Log "FreshDir successfully moved to TargetDir."
-    } catch {
-        Log "Failed to move FreshDir to TargetDir: $($_.Exception.Message)"
-        Copy-Item -LiteralPath "$FreshDir\\*" -Destination $TargetDir -Recurse -Force -ErrorAction SilentlyContinue
-    }
-} else {
-    Log "Directory swap failed after retries. Executing in-place file replacement..."
-    if (!(Test-Path -LiteralPath $TargetDir)) {
-        New-Item -ItemType Directory -LiteralPath $TargetDir -Force | Out-Null
-    }
-    Get-ChildItem -LiteralPath $FreshDir -Recurse | ForEach-Object {
-        $rel = $_.FullName.Substring($FreshDir.Length).TrimStart('\\', '/')
-        $dest = Join-Path $TargetDir $rel
-        if ($_.PSIsContainer) {
-            if (!(Test-Path -LiteralPath $dest)) {
-                New-Item -ItemType Directory -LiteralPath $dest -Force | Out-Null
-            }
-        } else {
-            $destDir = Split-Path -Parent $dest
-            if (!(Test-Path -LiteralPath $destDir)) {
-                New-Item -ItemType Directory -LiteralPath $destDir -Force | Out-Null
-            }
-            try {
-                Copy-Item -LiteralPath $_.FullName -Destination $dest -Force -ErrorAction Stop
-            } catch {
-                $oldFile = "$dest.old-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
-                Log "File locked ($dest), renaming to $oldFile"
-                try {
-                    Move-Item -LiteralPath $dest -Destination $oldFile -Force -ErrorAction SilentlyContinue
-                    Copy-Item -LiteralPath $_.FullName -Destination $dest -Force -ErrorAction SilentlyContinue
-                } catch {
-                    Log "Cannot replace file $dest: $_"
-                }
-            }
-        }
-    }
-    Log "In-place file replacement completed."
-    try { Remove-Item -LiteralPath $FreshDir -Recurse -Force -ErrorAction SilentlyContinue } catch {}
-}
-
-# 5. Ensure logs directory and permissions
-try {
-    $logsDir = Join-Path $TargetDir "logs"
-    if (!(Test-Path -LiteralPath $logsDir)) {
-        New-Item -ItemType Directory -LiteralPath $logsDir -Force | Out-Null
-    }
-    & icacls $logsDir /grant "*S-1-5-32-545:(OI)(CI)M" /T /Q | Out-Null
-} catch {}
-
-# 6. Clean old backup directory in background
-if (Test-Path -LiteralPath $OldDir) {
-    try {
-        Remove-Item -LiteralPath $OldDir -Recurse -Force -ErrorAction SilentlyContinue
-    } catch {}
-}
-
-# 7. Relaunch Notes+
-if ($RelaunchExe -and (Test-Path -LiteralPath $RelaunchExe)) {
-    Log "Launching updated Notes+: $RelaunchExe"
-    Start-Process -FilePath $RelaunchExe -WorkingDirectory $TargetDir
-}
-
-Log "Middleman update complete. Exiting."
-""";
-
-        Files.writeString(psScript, scriptContent, StandardCharsets.UTF_8);
-
-        long myPid = ProcessHandle.current().pid();
-        List<String> cmd = List.of(
-                "powershell.exe",
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy", "Bypass",
-                "-File", psScript.toAbsolutePath().toString(),
-                "-FreshDir", fresh.toAbsolutePath().toString(),
-                "-TargetDir", dir.toAbsolutePath().toString(),
-                "-OldDir", old.toAbsolutePath().toString(),
-                "-SetupPid", String.valueOf(myPid),
-                "-RelaunchExe", relaunchExe.toAbsolutePath().toString(),
-                "-LogFile", logFile.toAbsolutePath().toString()
-        );
-
-        new ProcessBuilder(cmd).directory(temp.toFile()).start();
-
-        Platform.runLater(() -> {
-            try {
-                Thread.sleep(600);
-            } catch (InterruptedException ignored) {}
-            Platform.exit();
-            System.exit(0);
-        });
-    }
-
     private static void swapDirectories(Path fresh, Path dir, Path old) throws IOException {
         releaseWorkingDir();
         killLingeringApp();
+
+        try {
+            deleteTree(old);
+        } catch (Exception ignored) {}
+        if (Files.exists(old)) {
+            old = dir.resolveSibling("Notes+.old-" + System.currentTimeMillis());
+        }
 
         // Tier 1: Fast directory rename (standard move)
         if (Files.exists(dir)) {

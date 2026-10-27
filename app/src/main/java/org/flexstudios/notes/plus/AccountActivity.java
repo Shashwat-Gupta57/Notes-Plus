@@ -1,5 +1,6 @@
 package org.flexstudios.notes.plus;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.format.DateUtils;
 import android.view.View;
@@ -135,6 +136,7 @@ public class AccountActivity extends AppCompatActivity {
                 .setNegativeButton("Cancel", null)
                 .show());
         ((TextView) findViewById(R.id.txtAboutVersion)).setText("Version " + versionName());
+        findViewById(R.id.rowLogs).setOnClickListener(v -> startActivity(new Intent(this, LogsActivity.class)));
         findViewById(R.id.rowAbout).setOnClickListener(v -> showAbout());
 
         WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData(NoteSync.UNIQUE)

@@ -22,6 +22,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
+        android:name=".NotesApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
@@ -131,6 +132,10 @@
             android:theme="@style/Theme.Notes" />
         <activity
             android:name=".ChatSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Notes" />
+        <activity
+            android:name=".LogsActivity"
             android:exported="false"
             android:theme="@style/Theme.Notes" />
         <activity

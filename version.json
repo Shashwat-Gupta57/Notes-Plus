@@ -1,17 +1,17 @@
 {
-  "versionCode": 29,
-  "versionName": "15.3",
+  "versionCode": 30,
+  "versionName": "15.4",
   "forced": false,
-  "changelog": "Notes+ 15.3: Robust updater with file locking protection, directory CWD release, multi-tier fallback, and in-app session logging.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.3.apk",
-  "sha256": "6a11a3c9e397e31d2eef8d25441a3574308355ce7c964c114ed01545eb5482b0",
+  "changelog": "Notes+ 15.4: Process termination middleman updater, cached package detection, and Android in-app session logging with local export.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.4.apk",
+  "sha256": "b50f053fb5e65039e21f8fb45a6826179dea5c2a660a7c9564b4cccc765ba1cc",
   "desktop": {
-    "versionName": "15.3",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-15.3.exe",
-    "sha256": "8ea79ada870ca956ac053460e0df9941e341be9eb1ad1566d5fe5290154d5c8d",
+    "versionName": "15.4",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-15.4.exe",
+    "sha256": "badf34503c51df3905bbf76a849a23df43cb32a786efe53989bf3fda785d2d7a",
     "size": "76 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-15.3.zip",
-    "zipSha256": "48d85869c7e5df81367daae873afd38075408f4cbea487d2c9df683738444ca4",
-    "changelog": "Notes+ 15.3 for Windows: updater file-lock immunity, multi-tier fallback, Retry option, and session logging."
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-15.4.zip",
+    "zipSha256": "ab1f1198910c286c444c1aa5d075aea519f49b7ec3c3905cdf0235a5c6312914",
+    "changelog": "Notes+ 15.4 for Windows: middleman process handover, cached update detection with install choice, in-place fallback, and 10-session logging."
   }
 }

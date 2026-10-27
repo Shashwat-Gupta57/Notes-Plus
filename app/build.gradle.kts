@@ -14,10 +14,19 @@ android {
         // Keep in sync with version.json at the repo root and the release tag. The in-app
         // updater compares version.json's versionCode against this one, so a stale value
         // here silently tells every user they are up to date.
-        versionCode = 29
-        versionName = "15.3"
+        versionCode = 30
+        versionName = "15.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("D:/User/Data/Notes-Plus-Keystore")
+            storePassword = "Sha#95801"
+            keyAlias = "Key-Notes-Plus"
+            keyPassword = "Sha#95801"
+        }
     }
 
     buildTypes {
@@ -27,7 +36,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     packaging {

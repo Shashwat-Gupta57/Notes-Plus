@@ -418,6 +418,16 @@
 
                     <View style="@style/Settings.Divider" />
 
+                    <LinearLayout android:id="@+id/rowLogs" style="@style/Settings.Row">
+                        <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_blue" android:src="@drawable/ic_history" />
+                        <LinearLayout style="@style/Settings.Texts">
+                            <TextView style="@style/Settings.Title" android:text="App logs" />
+                            <TextView android:id="@+id/txtLogsSubtitle" style="@style/Settings.Subtitle" android:text="View session logs and save to file" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <View style="@style/Settings.Divider" />
+
                     <LinearLayout android:id="@+id/rowAbout" style="@style/Settings.Row">
                         <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_gray" android:src="@drawable/ic_info" />
                         <LinearLayout style="@style/Settings.Texts">

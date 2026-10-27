@@ -245,24 +245,96 @@ public class Setup extends Application {
 
     // ================================================================ home
 
+    static Path updateCacheDir(String version) {
+        String localApp = System.getenv("LOCALAPPDATA");
+        Path base = (localApp != null && !localApp.isBlank())
+                ? Path.of(localApp, "Notes+", "updates", version)
+                : Path.of(System.getProperty("java.io.tmpdir"), "NotesPlusUpdates", version);
+        return base;
+    }
+
+    static Path getDownloadedUpdate(String version) {
+        if (version == null || version.isBlank()) return null;
+        try {
+            Path cache = updateCacheDir(version);
+            Path img = cache.resolve("Notes+");
+            Path verFile = img.resolve("version.txt");
+            if (Files.exists(img.resolve(APP_EXE)) && Files.isDirectory(img.resolve("runtime"))) {
+                if (Files.exists(verFile)) {
+                    String v = Files.readString(verFile, StandardCharsets.UTF_8).trim();
+                    if (v.equalsIgnoreCase(version)) return img;
+                } else {
+                    return img;
+                }
+            }
+        } catch (Exception ignored) {}
+
+        try {
+            Path freshPending = installDir().resolveSibling("Notes+.new");
+            if (Files.exists(freshPending.resolve(APP_EXE)) && Files.exists(freshPending.resolve("version.txt"))) {
+                String v = Files.readString(freshPending.resolve("version.txt"), StandardCharsets.UTF_8).trim();
+                if (v.equalsIgnoreCase(version)) return freshPending;
+            }
+        } catch (Exception ignored) {}
+
+        return null;
+    }
+
+    static Path findAnyDownloadedUpdate(String currentVersion) {
+        try {
+            Path freshPending = installDir().resolveSibling("Notes+.new");
+            if (Files.exists(freshPending.resolve(APP_EXE)) && Files.exists(freshPending.resolve("version.txt"))) {
+                String pendingVer = Files.readString(freshPending.resolve("version.txt"), StandardCharsets.UTF_8).trim();
+                if (!pendingVer.isEmpty() && (currentVersion.isEmpty() || Updates.compare(pendingVer, currentVersion) > 0)) {
+                    return freshPending;
+                }
+            }
+        } catch (Exception ignored) {}
+
+        try {
+            String localApp = System.getenv("LOCALAPPDATA");
+            Path updatesBase = (localApp != null && !localApp.isBlank())
+                    ? Path.of(localApp, "Notes+", "updates")
+                    : Path.of(System.getProperty("java.io.tmpdir"), "NotesPlusUpdates");
+            if (Files.isDirectory(updatesBase)) {
+                try (Stream<Path> stream = Files.list(updatesBase)) {
+                    for (Path verDir : stream.toList()) {
+                        Path img = verDir.resolve("Notes+");
+                        Path verFile = img.resolve("version.txt");
+                        if (Files.exists(img.resolve(APP_EXE)) && Files.exists(verFile)) {
+                            String v = Files.readString(verFile, StandardCharsets.UTF_8).trim();
+                            if (!v.isEmpty() && (currentVersion.isEmpty() || Updates.compare(v, currentVersion) > 0)) {
+                                return img;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        return null;
+    }
+
     private void home() {
         Path self = selfImage();
         boolean have = installed();
         String there = installedVersion();
         List<Node> rows = new ArrayList<>();
-        Path freshPending = installDir().resolveSibling("Notes+.new");
-        if (Files.exists(freshPending.resolve(APP_EXE)) && Files.exists(freshPending.resolve("version.txt"))) {
+
+        Path pending = findAnyDownloadedUpdate(there);
+        if (pending != null) {
             String pendingVer = "";
             try {
-                pendingVer = Files.readString(freshPending.resolve("version.txt"), StandardCharsets.UTF_8).trim();
+                pendingVer = Files.readString(pending.resolve("version.txt"), StandardCharsets.UTF_8).trim();
             } catch (Exception ignored) {}
             if (!pendingVer.isEmpty() && (there.isEmpty() || Updates.compare(pendingVer, there) > 0)) {
                 final String fv = pendingVer;
                 rows.add(VaultSettingsView.row(Icons.SAVE, "tile_green", "Finish Update",
                         "Install downloaded update " + pendingVer + " now", VaultSettingsView.chevron(),
-                        () -> runInstall(freshPending, fv, Files.exists(desktopLink()), Files.exists(startMenuLink()), "Updated")));
+                        () -> runInstall(pending, fv, Files.exists(desktopLink()), Files.exists(startMenuLink()), "Updated")));
             }
         }
+
         if (!have) rows.add(VaultSettingsView.row(Icons.SAVE, "tile_green", "Install",
                 "Notes+ " + Updates.VERSION + " on this PC", VaultSettingsView.chevron(), this::install));
         rows.add(VaultSettingsView.row(Icons.CLOUD, "tile_blue", "Update",
@@ -318,7 +390,7 @@ public class Setup extends Application {
         }
         whenClosed(() -> {
             ProgressBar bar = new ProgressBar(0);
-            Label status = Ui.label("Copying files…", 14, "secondary");
+            Label status = Ui.label("Preparing files…", 14, "secondary");
             show(progressScreen("Installing Notes+ " + version, status, bar));
             work(() -> {
                 releaseWorkingDir();
@@ -344,44 +416,58 @@ public class Setup extends Application {
                     Files.writeString(fresh.resolve("version.txt"), version, StandardCharsets.UTF_8);
                 }
                 long total = size(fresh);
-                Platform.runLater(() -> status.setText("Finishing…"));
 
-                // Multi-tier atomic replace
-                swapDirectories(fresh, dir, old);
+                if (!Files.exists(dir)) {
+                    Platform.runLater(() -> status.setText("Finishing…"));
+                    Files.move(fresh, dir);
+                    Path logs = dir.resolve("logs");
+                    try {
+                        Files.createDirectories(logs);
+                        new ProcessBuilder("icacls", logs.toString(), "/grant", "*S-1-5-32-545:(OI)(CI)M", "/T", "/Q").start().waitFor();
+                    } catch (Exception ignored) {}
+                    register(dir, version, total);
+                    shortcut(desktopLink(), dir, desktop);
+                    shortcut(startMenuLink(), dir, menu);
+                    if (makeDefault) {
+                        try {
+                            DefaultApp.set(".txt", PROG_ID);
+                        } catch (Exception e) {
+                            System.getLogger("Setup").log(System.Logger.Level.WARNING, "Couldn't make Notes+ the default for .txt", e);
+                        }
+                    }
+                    return false;
+                }
 
-                Path logs = dir.resolve("logs");
-                try {
-                    Files.createDirectories(logs);
-                    new ProcessBuilder("icacls", logs.toString(), "/grant", "*S-1-5-32-545:(OI)(CI)M", "/T", "/Q").start().waitFor();
-                } catch (Exception ignored) {}
-
+                Platform.runLater(() -> status.setText("Restarting Notes+ to finish update…"));
                 register(dir, version, total);
                 shortcut(desktopLink(), dir, desktop);
                 shortcut(startMenuLink(), dir, menu);
                 if (makeDefault) {
                     try {
                         DefaultApp.set(".txt", PROG_ID);
-                    } catch (Exception e) {
-                        System.getLogger("Setup").log(System.Logger.Level.WARNING, "Couldn't make Notes+ the default for .txt", e);
-                    }
+                    } catch (Exception ignored) {}
                 }
-                return null;
-            }, r -> show(screen(doneTitle, "Notes+ " + version + " is ready. Your notes are where they were."
-                            + (makeDefault ? " Text files now open with it." : ""),
-                    null,
-                    button("Finish", false, Platform::exit),
-                    button("Open Notes+", true, () -> {
-                        try {
-                            new ProcessBuilder(installDir().resolve(APP_EXE).toString()).directory(installDir().toFile()).start();
-                        } catch (IOException ignored) {
-                            // They can open it from the Start menu.
-                        }
-                        Platform.exit();
-                    }))),
-                    err -> show(message("Installation didn't finish",
-                            err + "\n\nTip: Close any open Notes+ windows or File Explorer folders, then click Retry.",
-                            () -> runInstall(source, version, desktop, menu, doneTitle),
-                            true)));
+
+                launchMiddlemanAndExit(fresh, dir, old, dir.resolve(APP_EXE));
+                return true;
+            }, handedOffToMiddleman -> {
+                if (Boolean.TRUE.equals(handedOffToMiddleman)) {
+                    return;
+                }
+                show(screen(doneTitle, "Notes+ " + version + " is ready. Your notes are where they were."
+                                + (makeDefault ? " Text files now open with it." : ""),
+                        null,
+                        button("Finish", false, Platform::exit),
+                        button("Open Notes+", true, () -> {
+                            try {
+                                new ProcessBuilder(installDir().resolve(APP_EXE).toString()).directory(installDir().toFile()).start();
+                            } catch (IOException ignored) {}
+                            Platform.exit();
+                        })));
+            }, err -> show(message("Installation didn't finish",
+                    err + "\n\nTip: Close any open Notes+ windows or File Explorer folders, then click Retry.",
+                    () -> runInstall(source, version, desktop, menu, doneTitle),
+                    true)));
         });
     }
 
@@ -411,11 +497,25 @@ public class Setup extends Application {
                         button("Update", true, () -> runInstall(selfImage(), bundled, shortcutsDesktop, shortcutsMenu, "Updated"))));
                 return;
             }
+
+            Path cached = getDownloadedUpdate(best);
+            if (cached != null) {
+                show(screen("Update " + best + " found",
+                        "Notes+ " + best + " is already downloaded on this PC."
+                                + (have.isEmpty() ? "" : "\nCurrently installed: " + have)
+                                + "\n\nYou can use the downloaded update, or download another one.",
+                        null,
+                        button("Use downloaded (" + best + ")", true, () -> runInstall(cached, best, shortcutsDesktop, shortcutsMenu, "Updated")),
+                        button("Download again", false, () -> download(online, best, shortcutsDesktop, shortcutsMenu, true)),
+                        button("Back", false, this::home)));
+                return;
+            }
+
             show(screen("Update to " + best, (have.isEmpty() ? "" : "This PC has " + have + ". ")
                     + "It downloads" + (online.optString("size").isEmpty() ? "" : " (" + online.optString("size") + ")")
                     + ", then installs. Your notes stay as they are.", null,
                     button("Back", false, this::home),
-                    button("Download and update", true, () -> download(online, best, shortcutsDesktop, shortcutsMenu))));
+                    button("Download and update", true, () -> download(online, best, shortcutsDesktop, shortcutsMenu, false))));
         }, err -> show(message("Couldn't check for updates",
                 "Couldn't reach the update server: " + err + "\n\nPlease check your internet connection.",
                 this::update,
@@ -450,58 +550,109 @@ public class Setup extends Application {
     }
 
     /** Downloads the newest app zip, checks it, unpacks it and installs it. */
-    private void download(JSONObject online, String version, boolean desktop, boolean menu) {
+    private void download(JSONObject online, String version, boolean desktop, boolean menu, boolean forceFresh) {
+        Path cacheDir = updateCacheDir(version);
+        Path imageDir = cacheDir.resolve("Notes+");
         ProgressBar bar = new ProgressBar(0);
         Label status = Ui.label("Downloading…", 14, "secondary");
         show(progressScreen("Downloading Notes+ " + version, status, bar));
         work(() -> {
+            if (forceFresh) {
+                try {
+                    deleteTree(cacheDir);
+                } catch (Exception ignored) {}
+            }
+            Files.createDirectories(cacheDir);
+            Path zip = cacheDir.resolve("notes-plus-" + version + ".zip");
             String url = online.getString("zip");
             if (!url.startsWith("https://")) throw new IOException("Unexpected download address");
-            Path temp = Files.createTempDirectory(TEMP_PREFIX + "dl-");
-            Path zip = temp.resolve("notes-plus.zip");
-            HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
-                    .connectTimeout(Duration.ofSeconds(20)).build();
-            HttpResponse<InputStream> r = http.send(HttpRequest.newBuilder(URI.create(url))
-                    .header("User-Agent", "NotesPlus-Setup/" + Updates.VERSION).build(),
-                    HttpResponse.BodyHandlers.ofInputStream());
-            if (r.statusCode() != 200) throw new IOException("Download failed (HTTP " + r.statusCode() + ")");
-            long total = r.headers().firstValueAsLong("Content-Length").orElse(-1);
-            MessageDigest sha = MessageDigest.getInstance("SHA-256");
-            try (InputStream in = r.body(); OutputStream out = Files.newOutputStream(zip)) {
-                byte[] buf = new byte[64 * 1024];
-                long done = 0;
-                int n;
-                while ((n = in.read(buf)) != -1) {
-                    out.write(buf, 0, n);
-                    sha.update(buf, 0, n);
-                    done += n;
-                    double f = total > 0 ? (double) done / total : ProgressBar.INDETERMINATE_PROGRESS;
-                    long d = done;
-                    Platform.runLater(() -> {
-                        bar.setProgress(f);
-                        status.setText("Downloading…  " + ViewerView.bytes(d) + (total > 0 ? " of " + ViewerView.bytes(total) : ""));
-                    });
+
+            String expectedSha = online.optString("zipSha256", "");
+            boolean needDownload = true;
+            if (Files.exists(zip) && !expectedSha.isEmpty()) {
+                String localSha = calculateSha256(zip);
+                if (expectedSha.equalsIgnoreCase(localSha)) {
+                    needDownload = false;
                 }
             }
-            String expected = online.optString("zipSha256", "");
-            if (!expected.isEmpty() && !expected.equalsIgnoreCase(HexFormat.of().formatHex(sha.digest()))) {
-                throw new IOException("The download was damaged (its checksum doesn't match). Try again.");
+
+            if (needDownload) {
+                HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
+                        .connectTimeout(Duration.ofSeconds(20)).build();
+                HttpResponse<InputStream> r = http.send(HttpRequest.newBuilder(URI.create(url))
+                        .header("User-Agent", "NotesPlus-Setup/" + Updates.VERSION).build(),
+                        HttpResponse.BodyHandlers.ofInputStream());
+                if (r.statusCode() != 200) throw new IOException("Download failed (HTTP " + r.statusCode() + ")");
+                long total = r.headers().firstValueAsLong("Content-Length").orElse(-1);
+                MessageDigest sha = MessageDigest.getInstance("SHA-256");
+                try (InputStream in = r.body(); OutputStream out = Files.newOutputStream(zip)) {
+                    byte[] buf = new byte[64 * 1024];
+                    long done = 0;
+                    int n;
+                    while ((n = in.read(buf)) != -1) {
+                        out.write(buf, 0, n);
+                        sha.update(buf, 0, n);
+                        done += n;
+                        double f = total > 0 ? (double) done / total : ProgressBar.INDETERMINATE_PROGRESS;
+                        long d = done;
+                        Platform.runLater(() -> {
+                            bar.setProgress(f);
+                            status.setText("Downloading…  " + ViewerView.bytes(d) + (total > 0 ? " of " + ViewerView.bytes(total) : ""));
+                        });
+                    }
+                }
+                if (!expectedSha.isEmpty() && !expectedSha.equalsIgnoreCase(HexFormat.of().formatHex(sha.digest()))) {
+                    Files.deleteIfExists(zip);
+                    throw new IOException("The download was damaged (its checksum doesn't match). Try again.");
+                }
             }
+
             Platform.runLater(() -> {
                 bar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
                 status.setText("Unpacking…");
             });
-            Path out = temp.resolve("unpacked");
-            unzip(zip, out);
-            Files.deleteIfExists(zip);
-            Path image = out.resolve("Notes+");
+
+            try {
+                deleteTree(imageDir);
+            } catch (Exception ignored) {}
+
+            Path unpacked = cacheDir.resolve("unpacked");
+            try {
+                deleteTree(unpacked);
+            } catch (Exception ignored) {}
+            unzip(zip, unpacked);
+            Path image = unpacked.resolve("Notes+");
             if (!Files.exists(image.resolve(APP_EXE))) throw new IOException("The download isn't a Notes+ build");
-            return image;
+
+            Files.move(image, imageDir, StandardCopyOption.REPLACE_EXISTING);
+            Files.writeString(imageDir.resolve("version.txt"), version, StandardCharsets.UTF_8);
+            try {
+                deleteTree(unpacked);
+                Files.deleteIfExists(zip);
+            } catch (Exception ignored) {}
+
+            return imageDir;
         }, image -> runInstall(image, version, desktop, menu, "Updated"),
-                err -> show(message("Update didn't finish",
-                        err + "\n\nTip: Check your connection and try again.",
-                        () -> download(online, version, desktop, menu),
-                        true)));
+        err -> show(message("Update didn't finish",
+                err + "\n\nTip: Check your connection and try again.",
+                () -> download(online, version, desktop, menu, false),
+                true)));
+    }
+
+    private static String calculateSha256(Path file) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            try (InputStream in = Files.newInputStream(file)) {
+                byte[] buf = new byte[64 * 1024];
+                int n;
+                while ((n = in.read(buf)) != -1) {
+                    md.update(buf, 0, n);
+                }
+            }
+            return HexFormat.of().formatHex(md.digest());
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     // ============================================================== repair
@@ -628,6 +779,172 @@ public class Setup extends Application {
                     }
                 }).orElse(false))
                 .toList();
+    }
+
+    private static void launchMiddlemanAndExit(Path fresh, Path dir, Path old, Path relaunchExe) throws IOException {
+        Path temp = Path.of(System.getProperty("java.io.tmpdir"));
+        Path scriptDir = temp.resolve("NotesPlusUpdate");
+        Files.createDirectories(scriptDir);
+        Path psScript = scriptDir.resolve("apply-update.ps1");
+        Path logFile = scriptDir.resolve("middleman-update.log");
+
+        String scriptContent = """
+param(
+    [string]$FreshDir,
+    [string]$TargetDir,
+    [string]$OldDir,
+    [int]$SetupPid,
+    [string]$RelaunchExe,
+    [string]$LogFile
+)
+
+function Log($text) {
+    $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff"
+    "$stamp [MIDDLEMAN] $text" | Out-File -Append -FilePath $LogFile -Encoding utf8
+}
+
+Log "Middleman started. SetupPid=$SetupPid, TargetDir=$TargetDir, FreshDir=$FreshDir"
+
+# 1. Wait for parent Setup process to terminate
+if ($SetupPid -gt 0) {
+    Log "Waiting for parent Setup PID $SetupPid to terminate..."
+    try {
+        $p = Get-Process -Id $SetupPid -ErrorAction SilentlyContinue
+        if ($p) {
+            $p.WaitForExit(20000)
+            Log "Parent Setup PID $SetupPid has exited."
+        }
+    } catch {
+        Log "Wait for parent exception: $_"
+    }
+}
+
+# 2. Terminate any remaining Notes+ and Notes+ Setup processes
+Log "Terminating any lingering Notes+ processes..."
+Get-Process -Name "Notes+", "Notes+ Setup", "unins" -ErrorAction SilentlyContinue | ForEach-Object {
+    try {
+        Stop-Process -Id $_.Id -Force
+        Log "Killed process $($_.Name) PID $($_.Id)"
+    } catch {}
+}
+
+# 3. Wait 1.2 seconds for Windows kernel and AV to release file locks
+Start-Sleep -Milliseconds 1200
+
+# 4. Swap directories
+$swapDone = $false
+if (Test-Path -LiteralPath $TargetDir) {
+    for ($attempt = 1; $attempt -le 20; $attempt++) {
+        try {
+            Log "Attempt $attempt: Renaming TargetDir to $OldDir..."
+            Move-Item -LiteralPath $TargetDir -Destination $OldDir -Force -ErrorAction Stop
+            $swapDone = $true
+            Log "TargetDir successfully renamed to $OldDir."
+            break
+        } catch {
+            Log "Attempt $attempt failed: $($_.Exception.Message). Retrying in 500ms..."
+            Start-Sleep -Milliseconds 500
+        }
+    }
+} else {
+    $swapDone = $true
+}
+
+if ($swapDone) {
+    try {
+        Log "Renaming FreshDir to TargetDir..."
+        Move-Item -LiteralPath $FreshDir -Destination $TargetDir -Force -ErrorAction Stop
+        Log "FreshDir successfully moved to TargetDir."
+    } catch {
+        Log "Failed to move FreshDir to TargetDir: $($_.Exception.Message)"
+        Copy-Item -LiteralPath "$FreshDir\\*" -Destination $TargetDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+} else {
+    Log "Directory swap failed after retries. Executing in-place file replacement..."
+    if (!(Test-Path -LiteralPath $TargetDir)) {
+        New-Item -ItemType Directory -LiteralPath $TargetDir -Force | Out-Null
+    }
+    Get-ChildItem -LiteralPath $FreshDir -Recurse | ForEach-Object {
+        $rel = $_.FullName.Substring($FreshDir.Length).TrimStart('\\', '/')
+        $dest = Join-Path $TargetDir $rel
+        if ($_.PSIsContainer) {
+            if (!(Test-Path -LiteralPath $dest)) {
+                New-Item -ItemType Directory -LiteralPath $dest -Force | Out-Null
+            }
+        } else {
+            $destDir = Split-Path -Parent $dest
+            if (!(Test-Path -LiteralPath $destDir)) {
+                New-Item -ItemType Directory -LiteralPath $destDir -Force | Out-Null
+            }
+            try {
+                Copy-Item -LiteralPath $_.FullName -Destination $dest -Force -ErrorAction Stop
+            } catch {
+                $oldFile = "$dest.old-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
+                Log "File locked ($dest), renaming to $oldFile"
+                try {
+                    Move-Item -LiteralPath $dest -Destination $oldFile -Force -ErrorAction SilentlyContinue
+                    Copy-Item -LiteralPath $_.FullName -Destination $dest -Force -ErrorAction SilentlyContinue
+                } catch {
+                    Log "Cannot replace file $dest: $_"
+                }
+            }
+        }
+    }
+    Log "In-place file replacement completed."
+    try { Remove-Item -LiteralPath $FreshDir -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+}
+
+# 5. Ensure logs directory and permissions
+try {
+    $logsDir = Join-Path $TargetDir "logs"
+    if (!(Test-Path -LiteralPath $logsDir)) {
+        New-Item -ItemType Directory -LiteralPath $logsDir -Force | Out-Null
+    }
+    & icacls $logsDir /grant "*S-1-5-32-545:(OI)(CI)M" /T /Q | Out-Null
+} catch {}
+
+# 6. Clean old backup directory in background
+if (Test-Path -LiteralPath $OldDir) {
+    try {
+        Remove-Item -LiteralPath $OldDir -Recurse -Force -ErrorAction SilentlyContinue
+    } catch {}
+}
+
+# 7. Relaunch Notes+
+if ($RelaunchExe -and (Test-Path -LiteralPath $RelaunchExe)) {
+    Log "Launching updated Notes+: $RelaunchExe"
+    Start-Process -FilePath $RelaunchExe -WorkingDirectory $TargetDir
+}
+
+Log "Middleman update complete. Exiting."
+""";
+
+        Files.writeString(psScript, scriptContent, StandardCharsets.UTF_8);
+
+        long myPid = ProcessHandle.current().pid();
+        List<String> cmd = List.of(
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy", "Bypass",
+                "-File", psScript.toAbsolutePath().toString(),
+                "-FreshDir", fresh.toAbsolutePath().toString(),
+                "-TargetDir", dir.toAbsolutePath().toString(),
+                "-OldDir", old.toAbsolutePath().toString(),
+                "-SetupPid", String.valueOf(myPid),
+                "-RelaunchExe", relaunchExe.toAbsolutePath().toString(),
+                "-LogFile", logFile.toAbsolutePath().toString()
+        );
+
+        new ProcessBuilder(cmd).directory(temp.toFile()).start();
+
+        Platform.runLater(() -> {
+            try {
+                Thread.sleep(600);
+            } catch (InterruptedException ignored) {}
+            Platform.exit();
+            System.exit(0);
+        });
     }
 
     private static void swapDirectories(Path fresh, Path dir, Path old) throws IOException {

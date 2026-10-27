@@ -145,9 +145,18 @@ export async function forceWebUpdate() {
   window.location.href = url.toString();
 }
 
-function recordCheckTelemetry() {
+function recordCheckTelemetry(httpDateHeader) {
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem('np_telemetry_opt_out') === 'true') return;
+    let today = '';
+    if (httpDateHeader) {
+      try {
+        const d = new Date(httpDateHeader);
+        if (!isNaN(d.getTime())) today = d.toISOString().slice(0, 10);
+      } catch (_) {}
+    }
+    if (!today) today = new Date().toISOString().slice(0, 10);
+
     const DB_URL = 'https://notes-plus-88985-default-rtdb.asia-southeast1.firebasedatabase.app';
     const ua = navigator.userAgent || '';
     const os = ua.includes('Windows') ? 'Windows' : ua.includes('Android') ? 'Android' : ua.includes('Mac') ? 'macOS' : ua.includes('Linux') ? 'Linux' : 'Web';
@@ -193,13 +202,24 @@ function recordCheckTelemetry() {
 }
 
 export async function checkForWebUpdate(interactive = false) {
-  recordCheckTelemetry();
+  // Multi-tab coordination: Prevent duplicate counts if multiple tabs are open simultaneously
+  const now = Date.now();
+  const lastCheck = parseInt(localStorage.getItem('np_last_update_check') || '0', 10);
+  if (!interactive && (now - lastCheck) < 550 * 1000) {
+    return;
+  }
+
   const endpoints = [PRIMARY_VERSION_URL, FALLBACK_VERSION_URL];
   for (const url of endpoints) {
     try {
       const res = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) continue;
       const data = await res.json();
+      
+      // Successfully completed: record telemetry using NTS/HTTP date and stamp lock
+      localStorage.setItem('np_last_update_check', String(Date.now()));
+      recordCheckTelemetry(res.headers.get('date'));
+
       const remoteVer = data.versionName;
       if (remoteVer && isNewer(remoteVer, VERSION)) {
         if (!updateNotified || interactive) {

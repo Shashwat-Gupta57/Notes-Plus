@@ -17,3 +17,6 @@ local.properties
 # Build outputs and device logs: never committed.
 /app/release/
 /[Ll]ogcat*.txt
+
+# Firebase rules and secrets
+database.rules.json

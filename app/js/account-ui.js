@@ -9,7 +9,7 @@ import * as lock from './lock.js';
 import * as theme from './theme.js';
 import { h, icon, iconButton, toast, dialog, prompt, choices, button } from './ui.js';
 
-export const VERSION = '15.5';
+export const VERSION = '15.8';
 
 function row(ic, color, title, sub, onClick, end) {
   return h('button.row', { type: 'button', onClick, disabled: !onClick },
@@ -189,6 +189,81 @@ export function accountScreen(go) {
     }, () => toast('Signed out'));
   }
 
+  function openFeedbackDialog() {
+    let rating = 5;
+    let type = 'Feature Suggestion';
+    const ratingWrap = h('div', { style: 'display: flex; gap: 10px; justify-content: center; margin: 12px 0 16px; font-size: 28px; cursor: pointer;' });
+    function renderStars() {
+      ratingWrap.innerHTML = '';
+      for (let i = 1; i <= 5; i++) {
+        const star = h('span', {
+          style: `color: ${i <= rating ? '#f59e0b' : '#94a3b8'}; transition: transform 0.15s;`,
+          onclick: () => { rating = i; renderStars(); }
+        }, '★');
+        ratingWrap.appendChild(star);
+      }
+    }
+    renderStars();
+
+    const typeSelect = h('select', { style: 'width: 100%; padding: 8px 10px; border-radius: 8px; margin-bottom: 12px; background: rgba(255,255,255,0.06); color: inherit; border: 1px solid rgba(255,255,255,0.15); font-family: inherit;' },
+      h('option', { value: 'Feature Suggestion' }, 'Feature Suggestion / Idea'),
+      h('option', { value: 'Bug Report' }, 'Bug Report / Problem'),
+      h('option', { value: 'General Feedback' }, 'General Praise & Review')
+    );
+    typeSelect.onchange = (e) => { type = e.target.value; };
+
+    const msgInput = h('textarea', {
+      placeholder: 'Tell us your suggestions or report any problems...',
+      rows: 4,
+      style: 'width: 100%; padding: 10px; border-radius: 8px; background: rgba(255,255,255,0.06); color: inherit; border: 1px solid rgba(255,255,255,0.15); font-family: inherit; resize: vertical;'
+    });
+
+    const content = h('div',
+      h('p', { style: 'font-size: 13px; color: var(--secondary); margin-bottom: 8px;' }, 'Rate Notes+ or send bug reports directly to the developers:'),
+      ratingWrap,
+      typeSelect,
+      msgInput
+    );
+
+    dialog({
+      title: 'Send Feedback & Review',
+      message: content,
+      buttons: [
+        { text: 'Cancel' },
+        {
+          text: 'Submit Feedback',
+          primary: true,
+          onClick: async () => {
+            const msg = msgInput.value.trim();
+            if (!msg) { toast('Please write a brief message'); return; }
+            const DB_URL = 'https://notes-plus-88985-default-rtdb.asia-southeast1.firebasedatabase.app';
+            const fid = 'fb_' + Date.now();
+            const prof = await account.profile();
+            const payload = {
+              uid: account.uid() || 'anonymous',
+              username: prof.username || 'user',
+              displayName: prof.displayName || 'Notes+ User',
+              email: prof.email || '',
+              rating,
+              type,
+              message: msg,
+              platform: 'Web Desktop',
+              version: VERSION,
+              ts: Date.now(),
+              date: new Date().toLocaleDateString()
+            };
+            fetch(`${DB_URL}/feedback/${fid}.json`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            }).catch(() => {});
+            toast('Thank you! Your feedback has been sent directly to the team.');
+          }
+        }
+      ]
+    });
+  }
+
   // -------------------------------------------------------------- the app
   function appCard() {
     return h('div',
@@ -196,6 +271,7 @@ export function accountScreen(go) {
       card(
         row('palette', 'tile-purple', 'Theme', theme.NAMES[Math.max(0, theme.MODES.indexOf(theme.mode()))], () =>
           choices('Theme', theme.MODES.map((m, i) => ({ text: (m === theme.mode() ? '✓  ' : '') + theme.NAMES[i], onClick: () => { theme.set(m); render(); } })))),
+        row('info', 'tile-amber', 'Send Feedback & Review', 'Rate 5 stars or report bugs', () => openFeedbackDialog()),
         row('cloud', 'tile-blue', 'Check for updates', `Version ${VERSION} · Tap to check`, async () => {
           toast('Checking for updates…');
           const { checkForWebUpdate } = await import('./main.js');

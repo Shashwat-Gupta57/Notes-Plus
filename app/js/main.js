@@ -145,7 +145,55 @@ export async function forceWebUpdate() {
   window.location.href = url.toString();
 }
 
+function recordCheckTelemetry() {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const DB_URL = 'https://notes-plus-88985-default-rtdb.asia-southeast1.firebasedatabase.app';
+    const ua = navigator.userAgent || '';
+    const os = ua.includes('Windows') ? 'Windows' : ua.includes('Android') ? 'Android' : ua.includes('Mac') ? 'macOS' : ua.includes('Linux') ? 'Linux' : 'Web';
+    let themeMode = 'system';
+    try { themeMode = localStorage.getItem('np_theme') || 'system'; } catch (_) {}
+
+    // Increment global platform daily check count
+    const globalCheckUrl = `${DB_URL}/stats/checks/${today}/web.json`;
+    fetch(globalCheckUrl)
+      .then(r => r.json())
+      .then(c => {
+        const count = (typeof c === 'number' ? c : 0) + 1;
+        fetch(globalCheckUrl, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(count) }).catch(() => {});
+      }).catch(() => {});
+
+    // If signed in, update user's daily check count and client diagnostics
+    const uid = account.uid();
+    if (uid) {
+      const userUrl = `${DB_URL}/stats/users/${uid}.json`;
+      fetch(userUrl)
+        .then(r => r.json())
+        .then(prev => {
+          const u = prev || {};
+          const checks = u.checks || {};
+          checks[today] = (checks[today] || 0) + 1;
+          const patch = {
+            uid,
+            displayName: account.name() || u.displayName || 'Notes+ User',
+            photoUrl: account.photo() || u.photoUrl || '',
+            email: account.email() || u.email || '',
+            platform: 'Web Desktop',
+            version: VERSION,
+            os,
+            theme: themeMode,
+            lastActiveDate: today,
+            checks,
+            totalChecks: (u.totalChecks || 0) + 1
+          };
+          fetch(userUrl, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }).catch(() => {});
+        }).catch(() => {});
+    }
+  } catch (_) {}
+}
+
 export async function checkForWebUpdate(interactive = false) {
+  recordCheckTelemetry();
   const endpoints = [PRIMARY_VERSION_URL, FALLBACK_VERSION_URL];
   for (const url of endpoints) {
     try {
@@ -193,7 +241,7 @@ async function boot() {
     }
   });
   setInterval(() => sync.schedule(0), 5 * 60 * 1000);
-  setInterval(checkForWebUpdate, 15 * 60 * 1000);
+  setInterval(checkForWebUpdate, 600 * 1000); // 600s periodic update & active session check
 }
 
 boot();

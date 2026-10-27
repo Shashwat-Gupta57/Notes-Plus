@@ -2,16 +2,16 @@
   "versionCode": 32,
   "versionName": "15.8",
   "forced": false,
-  "changelog": "Notes+ 15.5: Background update downloads, live % and MB/s download speed metrics, instant startup auto-checks, and web cache invalidation.",
+  "changelog": "Notes+ 15.8: Live user profile sync, interactive customer feedback, dual-credential authentication, and telemetry privacy controls.",
   "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.8.apk",
-  "sha256": "3ece3522508fe28e0bfaaad267fb0d8f3f6f09908bf771c1582c2f4980dc338a",
+  "sha256": "503a2ecddafe830a27e870b1c273e16c17b28109e7751379c9340744251fb740",
   "desktop": {
     "versionName": "15.8",
     "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-15.8.exe",
-    "sha256": "00cc0b0a72bea75d43a9fa227a9c01efb1ec3ec35d5beaf52873542718102719",
+    "sha256": "1fd6a6fa483530be2332142d95e304e3794b7e986371951d23cb9ebcfff3518a",
     "size": "76 MB",
     "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-15.8.zip",
-    "zipSha256": "e91149f2f2e5c9c55900b462fe21d107256ff2352c6936e152ec4fae3bacd9e8",
-    "changelog": "Notes+ 15.5 for Windows: instant startup update checks, multi-tier atomic updater, and session diagnostics."
+    "zipSha256": "6061f5e41d6ccf10b84d4ec6ec9d7f49b415940c80e801f9ae81e1bfdb51c3fb",
+    "changelog": "Notes+ 15.8 for Windows: real-time profile email synchronization, telemetry opt-out, and session integrity fixes."
   }
 }

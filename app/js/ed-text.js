@@ -4,7 +4,8 @@
 // their own, `![[IMG_….png]]`, exactly as the desktop writes them, so a note with pictures
 // reads the same everywhere. Pictures come from the button, a paste, or a drop.
 
-import { h, icon, iconButton, toast } from './ui.js';
+import { h, icon, iconButton, toast, choices, dialog } from './ui.js';
+import { object } from './model.js';
 import { TEXT, LIST, JOURNAL, PICTURE_LINE, todos, todosJson, wraps, journal, journalJson, MOODS, mediaName, isVideo, dayStart } from './model.js';
 
 function autoGrow(ta) {
@@ -36,6 +37,17 @@ function richBody(ctx, content, placeholder) {
     const ta = autoGrow(h('textarea.para', { rows: 1, readOnly: ctx.readOnly }));
     ta.value = value;
     ta.addEventListener('input', () => ctx.changed());
+    ta.addEventListener('focus', () => { activeTa = ta; });
+    ta.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'b') { e.preventDefault(); wrapSelection('**', '**'); return; }
+        if (k === 'i') { e.preventDefault(); wrapSelection('*', '*'); return; }
+        if (k === 'u') { e.preventDefault(); wrapSelection('<u>', '</u>'); return; }
+        if (k === 'x' && e.shiftKey) { e.preventDefault(); wrapSelection('~~', '~~'); return; }
+        if (k === 'e') { e.preventDefault(); wrapSelection('`', '`'); return; }
+      }
+    });
     ta.addEventListener('paste', e => {
       const files = [...(e.clipboardData ? e.clipboardData.files : [])].filter(f => f.type.startsWith('image/'));
       if (!files.length || ctx.readOnly) return;
@@ -235,6 +247,159 @@ function footer(ctx, getExtraText) {
 const editedLine = note => 'Edited ' + new Date(note.timestamp || Date.now())
   .toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
+
+// ========================================================= rich formatting
+const TEXT_COLORS = [
+  { name: 'Default', value: '' },
+  { name: 'Gold / Amber', value: '#F59E0B' },
+  { name: 'Electric Blue', value: '#0A84FF' },
+  { name: 'Emerald Green', value: '#10B981' },
+  { name: 'Vivid Purple', value: '#8B5CF6' },
+  { name: 'Crimson Red', value: '#EF4444' },
+  { name: 'Sunset Orange', value: '#FF9F0A' },
+  { name: 'Slate Gray', value: '#9CA3AF' },
+];
+
+const LEADING_OPTIONS = [
+  { label: 'Compact (1.3x)', val: '1.3' },
+  { label: 'Normal (1.6x)', val: '1.6' },
+  { label: 'Relaxed (1.9x)', val: '1.9' },
+  { label: 'Spacious (2.3x)', val: '2.3' },
+];
+
+const KERNING_OPTIONS = [
+  { label: 'Tight (-0.5px)', val: '-0.5px' },
+  { label: 'Normal (0px)', val: 'normal' },
+  { label: 'Wide (+1px)', val: '1px' },
+  { label: 'Expanded (+2px)', val: '2px' },
+];
+
+const ALIGN_OPTIONS = [
+  { label: 'Left align', val: 'left' },
+  { label: 'Center align', val: 'center' },
+  { label: 'Right align', val: 'right' },
+  { label: 'Justify', val: 'justify' },
+];
+
+function formatBar(ctx, body) {
+  if (ctx.readOnly) return null;
+  const bar = h('div.format-bar');
+
+  const btn = (title, ic, onClick, textLabel) => {
+    const b = h('button.fmt-btn', { type: 'button', title, onmousedown: e => { e.preventDefault(); onClick(); } },
+      ic ? icon(ic, 18) : null, textLabel || null);
+    return b;
+  };
+
+  // Bold, Italic, Underline, Strikethrough
+  const group1 = h('div.format-group',
+    btn('Bold (Ctrl+B)', 'bold', () => body.wrapSelection('**', '**')),
+    btn('Italic (Ctrl+I)', 'italic', () => body.wrapSelection('*', '*')),
+    btn('Underline (Ctrl+U)', 'underline', () => body.wrapSelection('<u>', '</u>')),
+    btn('Strikethrough (Ctrl+Shift+X)', 'strikethrough', () => body.wrapSelection('~~', '~~'))
+  );
+
+  // Font Color picker
+  const colorBtn = h('button.fmt-dropdown-btn', {
+    type: 'button', title: 'Text Color',
+    onmousedown: e => {
+      e.preventDefault();
+      choices('Font / Text Color', TEXT_COLORS.map(c => ({
+        text: (c.value === (body.getTypography().color || '') ? '✓  ' : '') + c.name,
+        onClick: () => {
+          body.setTypography({ color: c.value });
+          ctx.changed();
+        }
+      })), 'Choose note text color');
+    }
+  }, icon('formatColor', 18), 'Color');
+
+  // Spacing: Leading (Line-height) & Kerning (Letter-spacing)
+  const leadingBtn = h('button.fmt-dropdown-btn', {
+    type: 'button', title: 'Line Spacing (Leading)',
+    onmousedown: e => {
+      e.preventDefault();
+      const cur = body.getTypography().leading || '1.6';
+      choices('Line Spacing (Leading)', LEADING_OPTIONS.map(opt => ({
+        text: (opt.val === cur ? '✓  ' : '') + opt.label,
+        onClick: () => {
+          body.setTypography({ leading: opt.val });
+          ctx.changed();
+        }
+      })), 'Adjust vertical space between lines');
+    }
+  }, icon('formatLineSpacing', 18), 'Leading');
+
+  const kerningBtn = h('button.fmt-dropdown-btn', {
+    type: 'button', title: 'Letter Spacing (Kerning)',
+    onmousedown: e => {
+      e.preventDefault();
+      const cur = body.getTypography().kerning || 'normal';
+      choices('Letter Spacing (Kerning)', KERNING_OPTIONS.map(opt => ({
+        text: (opt.val === cur ? '✓  ' : '') + opt.label,
+        onClick: () => {
+          body.setTypography({ kerning: opt.val });
+          ctx.changed();
+        }
+      })), 'Adjust horizontal character spacing');
+    }
+  }, icon('formatLetterSpacing', 18), 'Kerning');
+
+  // Headings
+  const headingBtn = h('button.fmt-dropdown-btn', {
+    type: 'button', title: 'Headings & Titles',
+    onmousedown: e => {
+      e.preventDefault();
+      choices('Text Heading Style', [
+        { text: 'Heading 1  (#)', onClick: () => body.prefixLines('# ') },
+        { text: 'Heading 2  (##)', onClick: () => body.prefixLines('## ') },
+        { text: 'Heading 3  (###)', onClick: () => body.prefixLines('### ') },
+        { text: 'Normal Body Text', onClick: () => body.prefixLines('') }
+      ]);
+    }
+  }, icon('formatHeading', 18), 'Style');
+
+  // Lists & Quotes
+  const group2 = h('div.format-group',
+    btn('Bullet List', 'formatListBulleted', () => body.prefixLines('• ')),
+    btn('Numbered List', 'formatListNumbered', () => body.prefixLines('1. ')),
+    btn('Checklist', 'check', () => body.prefixLines('- [ ] ')),
+    btn('Blockquote', 'formatQuote', () => body.prefixLines('> ')),
+    btn('Code Block', 'formatCode', () => body.wrapSelection('`', '`'))
+  );
+
+  // Alignment
+  const alignBtn = h('button.fmt-dropdown-btn', {
+    type: 'button', title: 'Text Alignment',
+    onmousedown: e => {
+      e.preventDefault();
+      const cur = body.getTypography().align || 'left';
+      choices('Text Alignment', ALIGN_OPTIONS.map(opt => ({
+        text: (opt.val === cur ? '✓  ' : '') + opt.label,
+        onClick: () => {
+          body.setTypography({ align: opt.val });
+          ctx.changed();
+        }
+      })));
+    }
+  }, icon('formatAlignLeft', 18));
+
+  bar.append(
+    group1,
+    h('div.format-sep'),
+    colorBtn,
+    leadingBtn,
+    kerningBtn,
+    h('div.format-sep'),
+    headingBtn,
+    group2,
+    h('div.format-sep'),
+    alignBtn
+  );
+
+  return bar;
+}
+
 // ================================================================== text
 
 export function textEditor(ctx) {
@@ -242,16 +407,21 @@ export function textEditor(ctx) {
   let body;
   const title = titleField(ctx, 'Title', () => body.focusStart());
   body = richBody(ctx, n.content, 'Note');
+  body.setTypography(object(n.data));
+  const toolbar = formatBar(ctx, body);
   const foot = footer(ctx, () => editedLine(ctx.note) + '  ·  ' + body.words() + (body.words() === 1 ? ' word' : ' words'));
   body.node.addEventListener('input', () => foot._update());
   const addPic = ctx.readOnly ? null : h('button.chip-btn', { type: 'button', onClick: () => pickFiles('image/*', true, f => body.addPicture(f)) }, icon('photo', 18), 'Add picture');
-  const page = h('div.page', title, body.node, h('div.page-actions', addPic), foot);
+  const page = h('div.page', title, toolbar, body.node, h('div.page-actions', addPic), foot);
   page.addEventListener('click', e => { if (e.target === page && !ctx.readOnly) body.focusEnd(); });
   return {
     node: page,
     collect(note) {
       note.title = title.value.trim();
       note.content = body.value().trim();
+      const current = object(note.data);
+      const typo = body.getTypography();
+      note.data = JSON.stringify({ ...current, ...typo });
       return !!(note.content || note.title);
     },
     focus(isNew) { if (isNew) title.focus(); },
@@ -323,8 +493,9 @@ export function journalEditor(ctx) {
   const foot = footer(ctx, () => editedLine(ctx.note) + '  ·  ' + body.words() + (body.words() === 1 ? ' word' : ' words'));
   body.node.addEventListener('input', () => foot._update());
   const addPic = ctx.readOnly ? null : h('button.chip-btn', { type: 'button', onClick: () => pickFiles('image/*', true, f => body.addPicture(f)) }, icon('photo', 18), 'Picture in the text');
+  const toolbar = formatBar(ctx, body);
   return {
-    node: h('div.page', header, moods, strip, title, body.node, h('div.page-actions', addPic), foot),
+    node: h('div.page', header, moods, strip, title, toolbar, body.node, h('div.page-actions', addPic), foot),
     collect(note) {
       note.title = title.value.trim();
       note.content = body.value().trim();

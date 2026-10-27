@@ -265,6 +265,10 @@ public final class AppLog {
         }
     }
 
+    public static void i(String tag, String message) {
+        info("[" + tag + "] " + message);
+    }
+
     public static synchronized void warn(String message) {
         String timestamp = LocalDateTime.now().format(TIME_FMT);
         String thread = Thread.currentThread().getName();
@@ -274,6 +278,10 @@ public final class AppLog {
         } else {
             System.out.println(line);
         }
+    }
+
+    public static void w(String tag, String message) {
+        warn("[" + tag + "] " + message);
     }
 
     public static synchronized void error(String message, Throwable t) {
@@ -292,6 +300,10 @@ public final class AppLog {
             System.err.println(line);
             if (t != null) t.printStackTrace();
         }
+    }
+
+    public static void e(String tag, String message, Throwable t) {
+        error("[" + tag + "] " + message, t);
     }
 
     // Multi-window session tracking

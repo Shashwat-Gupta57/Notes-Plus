@@ -129,21 +129,33 @@ final class Updates {
         System.exit(0);
     }
 
-    /** At start: looks at most every twelve hours, and offers a newer release quietly. */
-    static void checkSoon() {
-        long last = Prefs.getLong(PREF_LAST_CHECK);
-        long now = System.currentTimeMillis();
-        if (checkedOnStartThisSession && now - last < AUTO_CHECK_MS) return;
-        checkedOnStartThisSession = true;
-        Account.BG.execute(() -> {
+    private static final java.util.concurrent.ScheduledExecutorService UPDATE_EXECUTOR =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "notes-updater");
+                t.setDaemon(true);
+                return t;
+            });
+
+    /** Checks for updates 5 seconds after startup on a dedicated thread. */
+    static void checkOnStartup() {
+        UPDATE_EXECUTOR.schedule(() -> {
             try {
+                AppLog.i("Updates", "Running startup update check (5s delay)... Current version: " + VERSION);
                 Release r = check();
                 if (r != null) {
+                    AppLog.i("Updates", "New release available on startup: " + r.versionName());
                     javafx.application.Platform.runLater(() -> offer(r));
+                } else {
+                    AppLog.i("Updates", "Startup check: Application is up to date (" + VERSION + ")");
                 }
             } catch (Exception e) {
-                System.getLogger("Updates").log(System.Logger.Level.INFO, "Update check skipped", e);
+                AppLog.w("Updates", "Startup update check failed: " + e.getMessage());
             }
-        });
+        }, 5, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    /** At start: checks 5 seconds after launch. */
+    static void checkSoon() {
+        checkOnStartup();
     }
 }

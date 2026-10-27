@@ -8,6 +8,9 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.TextArea;
+import org.json.JSONObject;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
@@ -106,6 +109,8 @@ final class AccountView extends Screen {
                 row(Icons.PALETTE, "tile_purple", "Theme", theme, chevron(), () -> chooseTheme(theme)),
                 row(Icons.LOCK, "tile_orange", "Locked notes", lockTime, chevron(), () -> chooseLockTime(lockTime)),
                 row(Icons.SAVE, "tile_green", "Check for updates", updateStatus, null, () -> checkForUpdate(updateStatus)),
+                row(Icons.INFO, "tile_orange", "Send Feedback & Review", Ui.label("Rate 5 stars or report bugs", 13, "secondary"), chevron(),
+                        this::showFeedbackDialog),
                 row(Icons.INFO, "tile_gray", "About", Ui.label("Version " + Updates.VERSION, 13, "secondary"), null,
                         AccountView::showAbout));
         return new VBox(header("Notes+"), app);
@@ -716,5 +721,98 @@ final class AccountView extends Screen {
         row.getStyleClass().add("settings-row");
         row.setOnMouseClicked(e -> action.run());
         return row;
+    }
+    private void showFeedbackDialog() {
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(0, 24, 0, 24));
+
+        Label prompt = Ui.label("Share your experience, feature ideas, or bug reports directly with the developers:", 13, "secondary");
+        prompt.setWrapText(true);
+
+        HBox starBox = new HBox(10);
+        starBox.setAlignment(Pos.CENTER_LEFT);
+        int[] selectedRating = {5};
+        Label[] starLabels = new Label[5];
+        Label ratingText = Ui.label("5 / 5 - Excellent", 13, "medium");
+
+        String[] ratingDescriptions = {
+            "1 / 5 - Poor", "2 / 5 - Fair", "3 / 5 - Good", "4 / 5 - Very Good", "5 / 5 - Excellent"
+        };
+
+        for (int i = 0; i < 5; i++) {
+            final int starVal = i + 1;
+            Label star = new Label("★");
+            star.setStyle("-fx-font-size: 26px; -fx-text-fill: #f59e0b; -fx-cursor: hand;");
+            star.setOnMouseClicked(e -> {
+                selectedRating[0] = starVal;
+                for (int j = 0; j < 5; j++) {
+                    starLabels[j].setStyle(j < starVal
+                            ? "-fx-font-size: 26px; -fx-text-fill: #f59e0b; -fx-cursor: hand;"
+                            : "-fx-font-size: 26px; -fx-text-fill: #555555; -fx-cursor: hand;");
+                }
+                ratingText.setText(ratingDescriptions[starVal - 1]);
+            });
+            starLabels[i] = star;
+            starBox.getChildren().add(star);
+        }
+        starBox.getChildren().add(ratingText);
+
+        Label catLabel = Ui.label("Feedback Type", 12, "secondary");
+        ComboBox<String> categoryBox = new ComboBox<>();
+        categoryBox.getItems().addAll("Feature Suggestion", "Bug Report", "General Praise", "Other");
+        categoryBox.getSelectionModel().select(0);
+        categoryBox.setMaxWidth(Double.MAX_VALUE);
+
+        Label msgLabel = Ui.label("Your Comments / Suggestions", 12, "secondary");
+        TextArea textArea = new TextArea();
+        textArea.setPromptText("Write your feedback, bug report, or ideas here...");
+        textArea.setPrefRowCount(4);
+        textArea.setWrapText(true);
+
+        content.getChildren().addAll(prompt, starBox, catLabel, categoryBox, msgLabel, textArea);
+
+        Ui.dialog()
+                .title("Send Feedback & Review")
+                .content(content)
+                .width(420)
+                .positive("Submit Feedback", () -> {
+                    String msg = textArea.getText().trim();
+                    if (msg.isEmpty()) return;
+                    String uid = Account.uid();
+                    String email = Account.email();
+                    String username = profile != null && profile.username != null ? profile.username : (email != null && !email.isEmpty() ? email : "anonymous");
+                    String displayName = profile != null && profile.displayName != null && !profile.displayName.isEmpty() ? profile.displayName : "Notes+ User";
+
+                    long now = System.currentTimeMillis();
+                    String fid = "fb_" + now;
+
+                    JSONObject payload = new JSONObject();
+                    payload.put("uid", uid != null ? uid : "anonymous");
+                    payload.put("username", username);
+                    payload.put("displayName", displayName);
+                    payload.put("email", email != null ? email : "");
+                    payload.put("rating", selectedRating[0]);
+                    payload.put("type", categoryBox.getValue());
+                    payload.put("message", msg);
+                    payload.put("platform", "Windows Desktop");
+                    payload.put("version", Updates.VERSION);
+                    payload.put("ts", now);
+                    payload.put("date", java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+
+                    Account.BG.execute(() -> {
+                        try {
+                            Firebase.put("feedback/" + fid, payload);
+                        } catch (Exception ex) {
+                            System.getLogger("Account").log(System.Logger.Level.WARNING, "Failed to submit feedback", ex);
+                        }
+                    });
+
+                    Ui.dialog().title("Thank You!")
+                            .message("Your feedback has been sent directly to the development team. We appreciate your support!")
+                            .positive("OK", null)
+                            .show();
+                })
+                .negative("Cancel", null)
+                .show();
     }
 }

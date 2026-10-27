@@ -153,6 +153,20 @@ export async function run() {
         const userAnonKey = 'u_' + uid.slice(0, 8);
         const { db: fdb, D } = account.firebase();
         D.set(D.ref(fdb, `stats/activeUsers/${today}/${userAnonKey}`), true).catch(() => {});
+        const statsUserRef = D.ref(fdb, `stats/users/${uid}`);
+        D.get(statsUserRef).then(snap => {
+          const prev = snap.exists() ? snap.val() : {};
+          D.update(statsUserRef, {
+            uid,
+            displayName: account.name() || prev.displayName || 'Notes+ User',
+            photoUrl: account.photo() || prev.photoUrl || '',
+            email: account.email() || prev.email || '',
+            createdAt: prev.createdAt || Date.now(),
+            lastActive: Date.now(),
+            platform: 'Web Desktop',
+            syncCount: (prev.syncCount || 0) + 1,
+          }).catch(() => {});
+        }).catch(() => {});
       } catch (_) {}
       lastError = null;
     } catch (e) {

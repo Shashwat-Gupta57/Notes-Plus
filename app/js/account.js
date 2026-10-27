@@ -133,6 +133,25 @@ async function finishSignIn() {
   const created = await D.get(D.ref(db, base + '/createdAt'));
   if (!created.exists()) fields.createdAt = D.serverTimestamp();
   if (Object.keys(fields).length) await D.update(D.ref(db, base), fields);
+
+  // Sync to directory under stats/users/${id} for admin dashboard
+  try {
+    const statsUserRef = D.ref(db, `stats/users/${id}`);
+    const snap = await D.get(statsUserRef);
+    const prev = snap.exists() ? snap.val() : {};
+    await D.update(statsUserRef, {
+      uid: id,
+      displayName: user.displayName || prev.displayName || 'Notes+ User',
+      photoUrl: user.photoURL || prev.photoUrl || '',
+      email: user.email || prev.email || '',
+      username: prev.username || null,
+      createdAt: prev.createdAt || Date.now(),
+      lastActive: Date.now(),
+      platform: 'Web Desktop',
+      loginCount: (prev.loginCount || 0) + 1,
+    });
+  } catch (_) {}
+
   changed();
 }
 
@@ -194,6 +213,7 @@ export async function claimUsername(nameWanted, previous) {
   if (previous && previous !== nameWanted) upd['usernames/' + previous] = null;
   try {
     await D.update(D.ref(db), upd);
+    try { await D.update(D.ref(db, `stats/users/${id}`), { username: nameWanted }); } catch (_) {}
   } catch (e) {
     if (String(e.code || e.message).includes('PERMISSION')) throw new Error(`@${nameWanted} is taken. Try another.`);
     throw e;

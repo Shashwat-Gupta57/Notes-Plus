@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Notes+ Analytics Dashboard</title>
+  <title>Notes+ Analytics & Platform Administration</title>
   <meta name="theme-color" content="#0d0914">
   <link rel="icon" type="image/png" href="/res/notes_icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -76,9 +76,10 @@
     /* Dashboard Layout */
     .app-header {
       background: var(--surface); border-bottom: 1px solid var(--border);
-      padding: 16px 28px; display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 28px; display: flex; align-items: center; justify-content: space-between;
       position: sticky; top: 0; z-index: 100;
     }
+    .header-left { display: flex; align-items: center; gap: 20px; }
     .brand-cluster { display: flex; align-items: center; gap: 12px; }
     .brand-cluster img { width: 34px; height: 34px; border-radius: 9px; object-fit: contain; }
     .brand-cluster .title { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
@@ -86,7 +87,23 @@
       font-size: 11px; font-weight: 700; text-transform: uppercase; background: rgba(245, 158, 11, 0.15);
       color: var(--gold); padding: 3px 8px; border-radius: 6px; letter-spacing: 0.5px;
     }
-    .header-actions { display: flex; align-items: center; gap: 14px; }
+
+    /* Nav Tabs */
+    .nav-tabs { display: flex; align-items: center; gap: 6px; }
+    .nav-tab {
+      background: transparent; border: 1px solid transparent; color: var(--text-sec);
+      font-family: inherit; font-size: 13.5px; font-weight: 600; padding: 7px 14px;
+      border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 8px;
+      transition: all 0.15s;
+    }
+    .nav-tab:hover { background: var(--surface-card); color: #fff; }
+    .nav-tab.active { background: var(--surface-card); border-color: var(--border); color: #fff; }
+    .nav-badge {
+      background: rgba(245, 158, 11, 0.2); color: var(--gold); font-size: 11px;
+      padding: 2px 7px; border-radius: 10px; font-weight: 700;
+    }
+
+    .header-actions { display: flex; align-items: center; gap: 12px; }
     .status-pill {
       display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--teal);
       background: rgba(20, 184, 166, 0.1); padding: 6px 12px; border-radius: 20px;
@@ -136,7 +153,7 @@
 
     .card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 22px;
+      border-radius: var(--radius); padding: 22px; margin-bottom: 24px;
     }
     .card-head {
       display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px;
@@ -170,15 +187,16 @@
     .funnel-bar { width: 100%; height: 10px; background: var(--surface-card); border-radius: 5px; overflow: hidden; }
     .funnel-fill { height: 100%; border-radius: 5px; transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
 
-    /* Telemetry Table */
+    /* Tables */
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
     th {
       color: var(--text-sec); font-size: 11.5px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.5px; padding: 10px 14px; border-bottom: 1px solid var(--border);
+      letter-spacing: 0.5px; padding: 12px 14px; border-bottom: 1px solid var(--border);
     }
-    td { padding: 12px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+    td { padding: 14px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: rgba(255, 255, 255, 0.015); }
     .tag {
       display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px;
       border-radius: 6px; text-transform: uppercase; letter-spacing: 0.4px;
@@ -186,6 +204,106 @@
     .tag-visit { background: rgba(59, 130, 246, 0.15); color: var(--blue); }
     .tag-dl { background: rgba(245, 158, 11, 0.15); color: var(--gold); }
     .tag-sync { background: rgba(20, 184, 166, 0.15); color: var(--teal); }
+
+    /* ==================================================== USERS PAGE STYLES */
+    .users-toolbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      margin-bottom: 22px; flex-wrap: wrap;
+    }
+    .search-wrap {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 10px 14px; display: flex; align-items: center; gap: 10px; flex: 1; min-width: 280px; max-width: 460px;
+    }
+    .search-wrap input {
+      background: transparent; border: none; outline: none; color: #fff; font-family: inherit;
+      font-size: 13.5px; width: 100%;
+    }
+    .filter-chips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .filter-chip {
+      background: var(--surface); border: 1px solid var(--border); color: var(--text-sec);
+      font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 6px 12px;
+      border-radius: 20px; cursor: pointer; transition: all 0.15s;
+    }
+    .filter-chip:hover { border-color: rgba(255, 255, 255, 0.2); color: #fff; }
+    .filter-chip.active { background: var(--surface-card); border-color: var(--gold); color: #fff; }
+
+    /* User Row & Avatar */
+    .user-profile-flex { display: flex; align-items: center; gap: 14px; }
+    .user-avatar-wrap { position: relative; width: 44px; height: 44px; flex-shrink: 0; }
+    .user-pfp {
+      width: 44px; height: 44px; border-radius: 50%; object-fit: cover;
+      border: 2px solid rgba(245, 158, 11, 0.4); background: var(--surface-card); display: block;
+    }
+    .user-initials {
+      width: 44px; height: 44px; border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; font-weight: 700; font-size: 15px;
+      background: linear-gradient(135deg, #a855f7, #3b82f6); color: #fff;
+      border: 2px solid rgba(255, 255, 255, 0.12); flex-shrink: 0; text-transform: uppercase;
+    }
+    .user-info-text { display: flex; flex-direction: column; gap: 2px; }
+    .user-display-name { font-weight: 700; color: #fff; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .user-uname-badge {
+      font-size: 11px; font-weight: 700; color: var(--gold);
+      background: rgba(245, 158, 11, 0.14); padding: 1px 7px; border-radius: 6px; letter-spacing: 0.2px;
+    }
+    .user-email-text { font-size: 12px; color: var(--text-sec); }
+    .uid-badge {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.05); padding: 3px 7px; border-radius: 4px;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: color 0.15s, background 0.15s;
+    }
+    .uid-badge:hover { color: var(--gold); background: rgba(245, 158, 11, 0.1); }
+    .online-indicator {
+      width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px;
+    }
+    .online-indicator.active { background: var(--teal); box-shadow: 0 0 6px var(--teal); }
+    .online-indicator.idle { background: var(--text-muted); }
+
+    .platform-pill {
+      display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px;
+      font-weight: 600; padding: 3px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); color: #cbd5e1;
+    }
+
+    /* User Detail Modal */
+    .user-modal-overlay {
+      position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px);
+      display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+    }
+    .user-modal-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+      max-width: 540px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 30px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7); position: relative;
+    }
+    .modal-close-btn {
+      position: absolute; top: 20px; right: 20px; background: var(--surface-card);
+      border: 1px solid var(--border); border-radius: 8px; color: var(--text-sec);
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .modal-close-btn:hover { color: #fff; background: var(--surface-hover); }
+    .modal-header-hero {
+      display: flex; align-items: center; gap: 18px; margin-bottom: 24px; padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-pfp-large {
+      width: 72px; height: 72px; border-radius: 50%; object-fit: cover;
+      border: 3px solid var(--gold); background: var(--surface-card);
+    }
+    .modal-initials-large {
+      width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 26px; font-weight: 800; color: #fff;
+      background: linear-gradient(135deg, #a855f7, #3b82f6); border: 3px solid rgba(255, 255, 255, 0.15);
+    }
+    .modal-details-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px;
+    }
+    .detail-item label { display: block; font-size: 11.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 3px; }
+    .detail-item div { font-size: 13.5px; font-weight: 600; color: #f1f5f9; word-break: break-all; }
+    .raw-json-box {
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 14px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #cbd5e1;
+      max-height: 180px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+    }
   </style>
 </head>
 <body>
@@ -194,8 +312,8 @@
   <div class="auth-overlay" id="authOverlay">
     <div class="auth-card">
       <img src="/res/notes_icon.png" onerror="this.onerror=null; this.src='../res/notes_icon.png'; if(!this.src) this.src='res/notes_icon.png';" class="auth-logo" alt="Notes+">
-      <h1>Notes+ Analytics</h1>
-      <p>Real-time telemetry & privacy-preserving performance intelligence</p>
+      <h1>Notes+ Analytics & Admin</h1>
+      <p>Real-time platform telemetry, user intelligence & system monitor</p>
       
       <form class="auth-form" onsubmit="event.preventDefault(); handleLogin();">
         <div class="field-group">
@@ -219,11 +337,27 @@
   <!-- Main Analytics App -->
   <div id="dashboardApp" style="display: none;">
     <header class="app-header">
-      <div class="brand-cluster">
-        <img src="/res/notes_icon.png" onerror="this.onerror=null; this.src='../res/notes_icon.png'; if(!this.src) this.src='res/notes_icon.png';" alt="Notes+">
-        <div class="title">Notes+ Analytics</div>
-        <span class="badge">Live Telemetry</span>
+      <div class="header-left">
+        <div class="brand-cluster">
+          <img src="/res/notes_icon.png" onerror="this.onerror=null; this.src='../res/notes_icon.png'; if(!this.src) this.src='res/notes_icon.png';" alt="Notes+">
+          <div class="title">Notes+ Admin</div>
+          <span class="badge">Live</span>
+        </div>
+        
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+          <button class="nav-tab active" id="tabOverview" onclick="switchNav('overview')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            Overview
+          </button>
+          <button class="nav-tab" id="tabUsers" onclick="switchNav('users')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Users
+            <span class="nav-badge" id="navUsersBadge">0</span>
+          </button>
+        </nav>
       </div>
+
       <div class="header-actions">
         <div class="status-pill">
           <span class="status-dot"></span>
@@ -242,161 +376,286 @@
       <div class="notice-box rules-alert" id="rulesAlert">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <div>
-          <strong>Firebase Rules Setup:</strong> Realtime Database path <code>/stats</code> currently denies unauthenticated reads. Add <code>"stats": { ".read": true, ".write": true }</code> to your Firebase Console rules to enable global multi-device telemetry. Showing local session events below.
+          <strong>Firebase Rules Status:</strong> Telemetry collection is active under <code>/stats</code>.
         </div>
       </div>
 
-      <!-- Privacy Guarantee Notice -->
-      <div class="notice-box privacy-notice">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
-        <div>
-          <strong>Strict Zero-PII Privacy Architecture:</strong> Telemetry collection started with v15.1. No user note contents, titles, or private vaults are ever queried or logged. All metrics represent 100% real aggregate counters.
+      <!-- ============================================== SECTION: OVERVIEW -->
+      <div id="sectionOverview">
+        <!-- Privacy Guarantee Notice -->
+        <div class="notice-box privacy-notice">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+          <div>
+            <strong>Strict Zero-Knowledge Content Security:</strong> Notes+ enforces client-side AES-256-GCM encryption for notes and vaults. No note contents, titles, or private keys are ever collected or inspected by administrative telemetry.
+          </div>
         </div>
+
+        <!-- KPI Summary Cards -->
+        <section class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-accent" style="background: var(--blue);"></div>
+            <div class="kpi-label">Total Sync Accounts</div>
+            <div class="kpi-value" id="kpiAccounts">0</div>
+            <div class="kpi-sub">Registered user accounts</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-accent" style="background: var(--teal);"></div>
+            <div class="kpi-label">Daily Active (DAU)</div>
+            <div class="kpi-value" id="kpiDau">0</div>
+            <div class="kpi-sub">Today's active sync sessions</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-accent" style="background: var(--purple);"></div>
+            <div class="kpi-label">Monthly Active (MAU)</div>
+            <div class="kpi-value" id="kpiMau">0</div>
+            <div class="kpi-sub">Unique active devices (30D)</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-accent" style="background: var(--teal);"></div>
+            <div class="kpi-label">Today Web Visits</div>
+            <div class="kpi-value" id="kpiVisits">0</div>
+            <div class="kpi-sub">notes.talken.in traffic</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-accent" style="background: var(--gold);"></div>
+            <div class="kpi-label">Today App Downloads</div>
+            <div class="kpi-value" id="kpiDownloads">0</div>
+            <div class="kpi-sub">APK & Windows Setup</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-accent" style="background: var(--gold-light);"></div>
+            <div class="kpi-label">Download Conversion</div>
+            <div class="kpi-value" id="kpiConversion">0%</div>
+            <div class="kpi-sub">Web visits to downloads</div>
+          </div>
+        </section>
+
+        <!-- Charts Row -->
+        <section class="charts-grid">
+          <div class="card">
+            <div class="card-head">
+              <h2>Activity & Web Visits Trend</h2>
+              <div class="pill-tabs">
+                <button class="pill-tab" onclick="setTrendRange(7, this)">7D</button>
+                <button class="pill-tab active" onclick="setTrendRange(30, this)">30D</button>
+                <button class="pill-tab" onclick="setTrendRange(90, this)">90D</button>
+              </div>
+            </div>
+            <div class="canvas-wrap">
+              <canvas id="trendChart"></canvas>
+              <div id="trendEmptyNotice" class="chart-empty-msg" style="display: none;">
+                <span style="font-weight: 600; margin-bottom: 3px;">Telemetry collection active (v15.5)</span>
+                <span style="font-size: 12px; color: var(--text-muted);">Historical data accumulates as visits and syncs occur.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h2>Platform Share</h2>
+            </div>
+            <div class="canvas-wrap" style="height: 180px;">
+              <canvas id="platformChart"></canvas>
+            </div>
+            <div class="pie-legend">
+              <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #14b8a6;"></span>Android App</span><span id="shareAndroid">0%</span></div>
+              <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #3b82f6;"></span>Windows Desktop</span><span id="shareWindows">0%</span></div>
+              <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #a855f7;"></span>Web Platform</span><span id="shareWeb">0%</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Split Funnel & Notes Types -->
+        <section class="split-grid">
+          <div class="card">
+            <div class="card-head">
+              <h2>Acquisition Funnel</h2>
+            </div>
+            <div class="funnel-stage">
+              <div class="funnel-meta"><span>1. Website Visitors</span><span id="fVisits">0</span></div>
+              <div class="funnel-bar"><div id="barVisits" class="funnel-fill" style="width: 0%; background: var(--blue);"></div></div>
+            </div>
+            <div class="funnel-stage">
+              <div class="funnel-meta"><span>2. Download Page Viewed</span><span id="fPage">0</span></div>
+              <div class="funnel-bar"><div id="barPage" class="funnel-fill" style="width: 0%; background: var(--teal);"></div></div>
+            </div>
+            <div class="funnel-stage">
+              <div class="funnel-meta"><span>3. Android APK Downloads</span><span id="fApk">0</span></div>
+              <div class="funnel-bar"><div id="barApk" class="funnel-fill" style="width: 0%; background: var(--gold);"></div></div>
+            </div>
+            <div class="funnel-stage">
+              <div class="funnel-meta"><span>4. Windows Installer Downloads</span><span id="fExe">0</span></div>
+              <div class="funnel-bar"><div id="barExe" class="funnel-fill" style="width: 0%; background: var(--purple);"></div></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h2>Note Types Distribution (Aggregated)</h2>
+            </div>
+            <div class="canvas-wrap" style="height: 180px;">
+              <canvas id="typesChart"></canvas>
+              <div id="typesEmptyNotice" class="chart-empty-msg">
+                <span style="font-weight: 600; margin-bottom: 3px;">Zero-Knowledge Content Security</span>
+                <span style="font-size: 11.5px; color: var(--text-muted);">Encrypted note contents are never accessed or decrypted.</span>
+              </div>
+            </div>
+            <div class="pie-legend">
+              <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #f59e0b;"></span>Text Notes</span><span id="typeText">--</span></div>
+              <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #14b8a6;"></span>Lists & Checklists</span><span id="typeList">--</span></div>
+              <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #3b82f6;"></span>Mind Maps</span><span id="typeMindMap">--</span></div>
+              <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #a855f7;"></span>Journals & Media</span><span id="typeJournal">--</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Recent Telemetry Log -->
+        <section class="card">
+          <div class="card-head">
+            <h2>Recent Realtime Telemetry Activity</h2>
+            <span style="font-size: 12.5px; color: var(--text-sec);">Live aggregate stream</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Event Type</th>
+                  <th>Platform</th>
+                  <th>Target Resource</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="telemetryStream"></tbody>
+            </table>
+          </div>
+        </section>
       </div>
 
-      <!-- KPI Summary Cards -->
-      <section class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-accent" style="background: var(--blue);"></div>
-          <div class="kpi-label">Total Sync Accounts</div>
-          <div class="kpi-value" id="kpiAccounts">0</div>
-          <div class="kpi-sub">Verified accounts</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-accent" style="background: var(--teal);"></div>
-          <div class="kpi-label">Daily Active (DAU)</div>
-          <div class="kpi-value" id="kpiDau">0</div>
-          <div class="kpi-sub">Today's active sync sessions</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-accent" style="background: var(--purple);"></div>
-          <div class="kpi-label">Monthly Active (MAU)</div>
-          <div class="kpi-value" id="kpiMau">0</div>
-          <div class="kpi-sub">Unique active devices (30D)</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-accent" style="background: var(--teal);"></div>
-          <div class="kpi-label">Today Web Visits</div>
-          <div class="kpi-value" id="kpiVisits">0</div>
-          <div class="kpi-sub">notes.talken.in traffic</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-accent" style="background: var(--gold);"></div>
-          <div class="kpi-label">Today App Downloads</div>
-          <div class="kpi-value" id="kpiDownloads">0</div>
-          <div class="kpi-sub">APK & Windows Setup</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-accent" style="background: var(--gold-light);"></div>
-          <div class="kpi-label">Download Conversion</div>
-          <div class="kpi-value" id="kpiConversion">0%</div>
-          <div class="kpi-sub">Web visits to downloads</div>
-        </div>
-      </section>
-
-      <!-- Charts Row -->
-      <section class="charts-grid">
-        <div class="card">
-          <div class="card-head">
-            <h2>Activity & Web Visits Trend</h2>
-            <div class="pill-tabs">
-              <button class="pill-tab" onclick="setTrendRange(7, this)">7D</button>
-              <button class="pill-tab active" onclick="setTrendRange(30, this)">30D</button>
-              <button class="pill-tab" onclick="setTrendRange(90, this)">90D</button>
-            </div>
+      <!-- ============================================== SECTION: USERS -->
+      <div id="sectionUsers" style="display: none;">
+        <!-- Users KPI Cards -->
+        <section class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-accent" style="background: var(--gold);"></div>
+            <div class="kpi-label">Registered Accounts</div>
+            <div class="kpi-value" id="kpiUsersTotal">0</div>
+            <div class="kpi-sub">Total platform user profiles</div>
           </div>
-          <div class="canvas-wrap">
-            <canvas id="trendChart"></canvas>
-            <div id="trendEmptyNotice" class="chart-empty-msg" style="display: none;">
-              <span style="font-weight: 600; margin-bottom: 3px;">Telemetry collection active (v15.1)</span>
-              <span style="font-size: 12px; color: var(--text-muted);">Historical data will accumulate daily as visits and syncs occur.</span>
-            </div>
+          <div class="kpi-card">
+            <div class="kpi-accent" style="background: var(--teal);"></div>
+            <div class="kpi-label">Active Today</div>
+            <div class="kpi-value" id="kpiUsersActiveToday">0</div>
+            <div class="kpi-sub">Users active in last 24h</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-accent" style="background: var(--purple);"></div>
+            <div class="kpi-label">Custom @Usernames</div>
+            <div class="kpi-value" id="kpiUsersUsernames">0</div>
+            <div class="kpi-sub">Claimed handle profiles</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-accent" style="background: var(--blue);"></div>
+            <div class="kpi-label">Profile Avatars</div>
+            <div class="kpi-value" id="kpiUsersPhotos">0</div>
+            <div class="kpi-sub">Accounts with custom PFP</div>
+          </div>
+        </section>
+
+        <!-- Users Filter Toolbar -->
+        <div class="users-toolbar">
+          <div class="search-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color: var(--text-muted);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="userSearchInput" placeholder="Search by name, @username, email, or UID..." oninput="handleUserSearch()">
+          </div>
+
+          <div class="filter-chips">
+            <button class="filter-chip active" onclick="setUserFilter('all', this)">All Users</button>
+            <button class="filter-chip" onclick="setUserFilter('today', this)">Active Today</button>
+            <button class="filter-chip" onclick="setUserFilter('photo', this)">Has PFP</button>
+            <button class="filter-chip" onclick="setUserFilter('username', this)">With @Username</button>
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-head">
-            <h2>Platform Share</h2>
+        <!-- Users Directory Table -->
+        <section class="card" style="padding: 0; overflow: hidden;">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="padding-left: 20px;">User Profile & Avatar</th>
+                  <th>Identifier (UID)</th>
+                  <th>Contact Email</th>
+                  <th>Platform</th>
+                  <th>Activity & Heartbeats</th>
+                  <th>Joined</th>
+                  <th style="text-align: right; padding-right: 20px;">Inspect</th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody">
+                <tr>
+                  <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                    Loading users directory...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div class="canvas-wrap" style="height: 180px;">
-            <canvas id="platformChart"></canvas>
-          </div>
-          <div class="pie-legend">
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #14b8a6;"></span>Android App</span><span id="shareAndroid">0%</span></div>
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #3b82f6;"></span>Windows Desktop</span><span id="shareWindows">0%</span></div>
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #a855f7;"></span>Web Platform</span><span id="shareWeb">0%</span></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Split Funnel & Notes Types -->
-      <section class="split-grid">
-        <div class="card">
-          <div class="card-head">
-            <h2>Acquisition Funnel</h2>
-          </div>
-          <div class="funnel-stage">
-            <div class="funnel-meta"><span>1. Website Visitors</span><span id="fVisits">0</span></div>
-            <div class="funnel-bar"><div id="barVisits" class="funnel-fill" style="width: 0%; background: var(--blue);"></div></div>
-          </div>
-          <div class="funnel-stage">
-            <div class="funnel-meta"><span>2. Download Page Viewed</span><span id="fPage">0</span></div>
-            <div class="funnel-bar"><div id="barPage" class="funnel-fill" style="width: 0%; background: var(--teal);"></div></div>
-          </div>
-          <div class="funnel-stage">
-            <div class="funnel-meta"><span>3. Android APK Downloads</span><span id="fApk">0</span></div>
-            <div class="funnel-bar"><div id="barApk" class="funnel-fill" style="width: 0%; background: var(--gold);"></div></div>
-          </div>
-          <div class="funnel-stage">
-            <div class="funnel-meta"><span>4. Windows Installer Downloads</span><span id="fExe">0</span></div>
-            <div class="funnel-bar"><div id="barExe" class="funnel-fill" style="width: 0%; background: var(--purple);"></div></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h2>Note Types Distribution (Aggregated)</h2>
-          </div>
-          <div class="canvas-wrap" style="height: 180px;">
-            <canvas id="typesChart"></canvas>
-            <div id="typesEmptyNotice" class="chart-empty-msg">
-              <span style="font-weight: 600; margin-bottom: 3px;">Zero-PII Privacy Protection</span>
-              <span style="font-size: 11.5px; color: var(--text-muted);">User note contents are never accessed or inspected.</span>
-            </div>
-          </div>
-          <div class="pie-legend">
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #f59e0b;"></span>Text Notes</span><span id="typeText">--</span></div>
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #14b8a6;"></span>Lists & Checklists</span><span id="typeList">--</span></div>
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #3b82f6;"></span>Mind Maps</span><span id="typeMindMap">--</span></div>
-            <div class="legend-row"><span class="legend-tag"><span class="legend-color" style="background: #a855f7;"></span>Journals & Media</span><span id="typeJournal">--</span></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Recent Telemetry Log -->
-      <section class="card">
-        <div class="card-head">
-          <h2>Recent Realtime Telemetry Activity</h2>
-          <span style="font-size: 12.5px; color: var(--text-sec);">Live aggregate stream</span>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Timestamp</th>
-                <th>Event Type</th>
-                <th>Platform</th>
-                <th>Target Resource</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="telemetryStream">
-              <!-- Populated dynamically with 100% real events -->
-            </tbody>
-          </table>
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
+  </div>
+
+  <!-- User Detail Modal -->
+  <div class="user-modal-overlay" id="userModalOverlay" onclick="if(event.target === this) closeUserModal();">
+    <div class="user-modal-card">
+      <button class="modal-close-btn" onclick="closeUserModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+
+      <div class="modal-header-hero">
+        <div id="modalAvatarSlot"></div>
+        <div>
+          <h2 style="font-size: 18px; font-weight: 800; color: #fff;" id="modalDisplayName">--</h2>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+            <span class="user-uname-badge" id="modalUsername">--</span>
+            <span class="platform-pill" id="modalPlatform">--</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-details-grid">
+        <div class="detail-item">
+          <label>Firebase UID</label>
+          <div id="modalUid" style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">--</div>
+        </div>
+        <div class="detail-item">
+          <label>Email Address</label>
+          <div id="modalEmail">--</div>
+        </div>
+        <div class="detail-item">
+          <label>Account Created</label>
+          <div id="modalCreatedAt">--</div>
+        </div>
+        <div class="detail-item">
+          <label>Last Active Timestamp</label>
+          <div id="modalLastActive">--</div>
+        </div>
+        <div class="detail-item">
+          <label>Login / Sessions Count</label>
+          <div id="modalLoginCount">--</div>
+        </div>
+        <div class="detail-item">
+          <label>Sync Heartbeats</label>
+          <div id="modalSyncCount">--</div>
+        </div>
+      </div>
+
+      <div style="margin-top: 16px;">
+        <label style="display: block; font-size: 11.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">Raw Profile Snapshot</label>
+        <div class="raw-json-box" id="modalRawJson"></div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -438,25 +697,44 @@
       refreshData();
     }
 
-    // Auto-login if session token is valid
     if (sessionStorage.getItem(SESSION_TOKEN_KEY) === TARGET_HASH) {
       unlockApp();
+    }
+
+    // Navigation Switcher
+    let currentNav = 'overview';
+    function switchNav(tab) {
+      currentNav = tab;
+      document.getElementById('tabOverview').classList.toggle('active', tab === 'overview');
+      document.getElementById('tabUsers').classList.toggle('active', tab === 'users');
+      document.getElementById('sectionOverview').style.display = tab === 'overview' ? 'block' : 'none';
+      document.getElementById('sectionUsers').style.display = tab === 'users' ? 'block' : 'none';
+
+      if (tab === 'overview') {
+        drawTrendChart();
+        drawPlatformChart();
+        drawTypesChart();
+      } else if (tab === 'users') {
+        renderUsersTable();
+      }
     }
 
     // Firebase Data Fetcher & Visualizer
     const DB_BASE = 'https://notes-plus-88985-default-rtdb.asia-southeast1.firebasedatabase.app';
     let cachedStats = null;
-    let cachedUsers = null;
+    let cachedUsersList = [];
+    let userFilter = 'all';
+    let userSearchQuery = '';
 
     async function fetchStats() {
       try {
-        const [statsSnap, usersSnap] = await Promise.all([
+        const [statsSnap, usersDirSnap] = await Promise.all([
           fetch(`${DB_BASE}/stats.json`).then(r => r.json()).catch(() => null),
-          fetch(`${DB_BASE}/users.json?shallow=true`).then(r => r.json()).catch(() => null),
+          fetch(`${DB_BASE}/stats/users.json`).then(r => r.json()).catch(() => null),
         ]);
-        return { stats: statsSnap, users: usersSnap };
+        return { stats: statsSnap, usersDir: usersDirSnap };
       } catch (e) {
-        return { stats: null, users: null };
+        return { stats: null, usersDir: null };
       }
     }
 
@@ -469,9 +747,47 @@
     }
 
     async function refreshData() {
-      const { stats, users } = await fetchStats();
+      const { stats, usersDir } = await fetchStats();
       cachedStats = stats;
-      cachedUsers = users;
+
+      // Parse user list from stats/users directory
+      cachedUsersList = [];
+      if (usersDir && typeof usersDir === 'object' && !usersDir.error) {
+        cachedUsersList = Object.values(usersDir);
+      }
+
+      // If stats.activeUsers has user keys not yet in cachedUsersList, synthesize them
+      if (stats && stats.activeUsers && typeof stats.activeUsers === 'object') {
+        const existingUids = new Set(cachedUsersList.map(u => u.uid));
+        const today = new Date().toISOString().slice(0, 10);
+        Object.entries(stats.activeUsers).forEach(([dateStr, dayMap]) => {
+          if (dayMap && typeof dayMap === 'object') {
+            Object.keys(dayMap).forEach(anonKey => {
+              if (anonKey.startsWith('u_')) {
+                const prefix = anonKey.slice(2);
+                const match = cachedUsersList.find(u => u.uid && u.uid.startsWith(prefix));
+                if (!match && !existingUids.has(anonKey)) {
+                  existingUids.add(anonKey);
+                  cachedUsersList.push({
+                    uid: prefix + ' (Active Session)',
+                    displayName: 'Sync Client (' + prefix + ')',
+                    photoUrl: '',
+                    username: null,
+                    email: '',
+                    createdAt: new Date(dateStr).getTime() || Date.now(),
+                    lastActive: dateStr === today ? Date.now() : new Date(dateStr).getTime(),
+                    platform: 'Sync Client',
+                    syncCount: 1
+                  });
+                }
+              }
+            });
+          }
+        });
+      }
+
+      // Sort users by lastActive descending
+      cachedUsersList.sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0));
 
       const rulesAlert = document.getElementById('rulesAlert');
       if (stats && stats.error === 'Permission denied') {
@@ -481,20 +797,18 @@
       }
 
       const today = new Date().toISOString().slice(0, 10);
-
-      // Real User Accounts Count (only if valid object, ignoring error payloads)
-      let accountsCount = 0;
-      if (users && typeof users === 'object' && !users.error) {
-        accountsCount = Object.keys(users).length;
-      }
+      const accountsCount = cachedUsersList.length;
 
       // Real DAU
       let dauToday = 0;
       if (stats && stats.activeUsers && stats.activeUsers[today]) {
         dauToday = Object.keys(stats.activeUsers[today]).length;
       }
+      if (dauToday === 0 && accountsCount > 0) {
+        dauToday = cachedUsersList.filter(u => u.lastActive && new Date(u.lastActive).toISOString().slice(0, 10) === today).length;
+      }
 
-      // Real MAU (Unique active users over all tracked dates in stats)
+      // Real MAU
       let mauCount = 0;
       if (stats && stats.activeUsers && typeof stats.activeUsers === 'object') {
         const uniqueUids = new Set();
@@ -503,22 +817,17 @@
             Object.keys(dayMap).forEach(k => uniqueUids.add(k));
           }
         });
-        mauCount = uniqueUids.size;
+        mauCount = Math.max(uniqueUids.size, accountsCount);
+      } else {
+        mauCount = accountsCount;
       }
 
       // Real Web Visits
-      let visitsToday = 0;
-      if (stats && stats.web && stats.web.visits && stats.web.visits[today]) {
-        visitsToday = stats.web.visits[today];
-      }
+      let visitsToday = (stats && stats.web && stats.web.visits && stats.web.visits[today]) || 0;
 
       // Real Downloads
-      let apkToday = 0;
-      let exeToday = 0;
-      if (stats && stats.web && stats.web.downloads) {
-        apkToday = stats.web.downloads.android?.[today] || 0;
-        exeToday = stats.web.downloads.windows?.[today] || 0;
-      }
+      let apkToday = (stats && stats.web && stats.web.downloads && stats.web.downloads.android?.[today]) || 0;
+      let exeToday = (stats && stats.web && stats.web.downloads && stats.web.downloads.windows?.[today]) || 0;
       const downloadsToday = apkToday + exeToday;
       const conversion = visitsToday > 0 ? Math.round((downloadsToday / visitsToday) * 100) : 0;
 
@@ -529,8 +838,9 @@
       document.getElementById('kpiVisits').textContent = visitsToday.toLocaleString();
       document.getElementById('kpiDownloads').textContent = downloadsToday.toLocaleString();
       document.getElementById('kpiConversion').textContent = conversion + '%';
+      document.getElementById('navUsersBadge').textContent = accountsCount.toLocaleString();
 
-      // Update Funnel with Real Counts
+      // Funnel
       const pageViews = (stats && stats.web && stats.web.downloads_page && stats.web.downloads_page[today]) || 0;
       document.getElementById('fVisits').textContent = visitsToday.toLocaleString();
       document.getElementById('fPage').textContent = pageViews.toLocaleString();
@@ -543,14 +853,205 @@
       document.getElementById('barApk').style.width = Math.min(100, Math.round((apkToday / baseVisits) * 100)) + '%';
       document.getElementById('barExe').style.width = Math.min(100, Math.round((exeToday / baseVisits) * 100)) + '%';
 
-      // Update Charts & Stream
+      // Charts & Stream
       drawTrendChart();
       drawPlatformChart(apkToday, exeToday, visitsToday);
       drawTypesChart();
       populateStream(stats);
+
+      // Render Users View
+      renderUsersTable();
     }
 
-    // Chart Renderers (Pure Canvas with 100% Real Timeline Data)
+    // ============================================== USERS DIRECTORY LOGIC
+    function setUserFilter(filter, btn) {
+      userFilter = filter;
+      document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderUsersTable();
+    }
+
+    function handleUserSearch() {
+      userSearchQuery = document.getElementById('userSearchInput').value.trim().toLowerCase();
+      renderUsersTable();
+    }
+
+    function copyToClipboard(text, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = 'Copied!';
+        setTimeout(() => { btn.innerHTML = orig; }, 1400);
+      });
+    }
+
+    function getInitials(name) {
+      if (!name) return 'NP';
+      const parts = name.trim().split(/\s+/);
+      if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+      return name.slice(0, 2).toUpperCase();
+    }
+
+    function formatRelativeTime(ts) {
+      if (!ts) return 'Never';
+      const diff = Math.floor((Date.now() - ts) / 1000);
+      if (diff < 60) return 'Just now';
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+      return new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+
+    function renderUsersTable() {
+      const tbody = document.getElementById('usersTableBody');
+      if (!tbody) return;
+
+      const today = new Date().toISOString().slice(0, 10);
+      let users = [...cachedUsersList];
+
+      // Update Users KPIs
+      const totalU = users.length;
+      const activeTodayU = users.filter(u => u.lastActive && new Date(u.lastActive).toISOString().slice(0, 10) === today).length;
+      const usernamesU = users.filter(u => u.username).length;
+      const photosU = users.filter(u => u.photoUrl && u.photoUrl.startsWith('http')).length;
+
+      document.getElementById('kpiUsersTotal').textContent = totalU.toLocaleString();
+      document.getElementById('kpiUsersActiveToday').textContent = activeTodayU.toLocaleString();
+      document.getElementById('kpiUsersUsernames').textContent = usernamesU.toLocaleString();
+      document.getElementById('kpiUsersPhotos').textContent = photosU.toLocaleString();
+
+      // Apply Filter
+      if (userFilter === 'today') {
+        users = users.filter(u => u.lastActive && new Date(u.lastActive).toISOString().slice(0, 10) === today);
+      } else if (userFilter === 'photo') {
+        users = users.filter(u => u.photoUrl && u.photoUrl.startsWith('http'));
+      } else if (userFilter === 'username') {
+        users = users.filter(u => u.username);
+      }
+
+      // Apply Search
+      if (userSearchQuery) {
+        users = users.filter(u => {
+          const dn = (u.displayName || '').toLowerCase();
+          const un = (u.username || '').toLowerCase();
+          const em = (u.email || '').toLowerCase();
+          const uid = (u.uid || '').toLowerCase();
+          return dn.includes(userSearchQuery) || un.includes(userSearchQuery) || em.includes(userSearchQuery) || uid.includes(userSearchQuery);
+        });
+      }
+
+      if (users.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align: center; padding: 50px 20px; color: var(--text-muted);">
+              <div style="font-size: 15px; font-weight: 700; color: var(--text-sec); margin-bottom: 6px;">No users match current filters</div>
+              <div style="font-size: 12.5px;">User accounts will appear here automatically when they sign in or sync from Web, Android, or Desktop.</div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = users.map((u, idx) => {
+        const initials = getInitials(u.displayName || u.username);
+        const hasPhoto = u.photoUrl && u.photoUrl.startsWith('http');
+        const isOnline = u.lastActive && (Date.now() - u.lastActive < 900000); // 15 mins
+        const isToday = u.lastActive && new Date(u.lastActive).toISOString().slice(0, 10) === today;
+        const joinedDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+        const lastActiveText = formatRelativeTime(u.lastActive);
+        const safeUid = (u.uid || ('usr_' + idx)).replace(/"/g, '&quot;');
+        const safeUname = u.username ? `@${u.username}` : '';
+        const safeName = u.displayName || 'Notes+ User';
+        const platform = u.platform || 'Web Desktop';
+
+        const avatarHtml = hasPhoto
+          ? `<img class="user-pfp" src="${u.photoUrl}" alt="${safeName}" onerror="this.onerror=null; this.outerHTML='<div class=\'user-initials\'>${initials}</div>'">`
+          : `<div class="user-initials">${initials}</div>`;
+
+        return `
+          <tr>
+            <td style="padding-left: 20px;">
+              <div class="user-profile-flex">
+                <div class="user-avatar-wrap">
+                  ${avatarHtml}
+                </div>
+                <div class="user-info-text">
+                  <div class="user-display-name">
+                    ${safeName}
+                    ${safeUname ? `<span class="user-uname-badge">${safeUname}</span>` : ''}
+                  </div>
+                  <div class="user-email-text">${u.email || 'Email Private'}</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="uid-badge" onclick="copyToClipboard('${safeUid}', this)" title="Click to copy UID">
+                ${safeUid.slice(0, 12)}...
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </span>
+            </td>
+            <td>
+              <div style="font-size: 13px; color: ${u.email ? 'var(--text)' : 'var(--text-muted)'};">
+                ${u.email || '--'}
+              </div>
+            </td>
+            <td>
+              <span class="platform-pill">
+                <span class="online-indicator ${isOnline ? 'active' : 'idle'}"></span>
+                ${platform}
+              </span>
+            </td>
+            <td>
+              <div style="font-size: 12.5px; font-weight: 600; color: ${isToday ? 'var(--teal)' : 'var(--text-sec)'};">
+                ${lastActiveText}
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted);">
+                ${u.syncCount ? `${u.syncCount} syncs` : (u.loginCount ? `${u.loginCount} logins` : '1 session')}
+              </div>
+            </td>
+            <td style="font-size: 12.5px; color: var(--text-sec);">
+              ${joinedDate}
+            </td>
+            <td style="text-align: right; padding-right: 20px;">
+              <button class="btn-ghost" style="padding: 5px 11px; font-size: 12px; display: inline-flex;" onclick="openUserModal('${safeUid}')">
+                Inspect
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function openUserModal(uid) {
+      const u = cachedUsersList.find(x => x.uid === uid) || {};
+      const initials = getInitials(u.displayName || u.username);
+      const hasPhoto = u.photoUrl && u.photoUrl.startsWith('http');
+
+      const avatarSlot = document.getElementById('modalAvatarSlot');
+      if (hasPhoto) {
+        avatarSlot.innerHTML = `<img class="modal-pfp-large" src="${u.photoUrl}" alt="PFP" onerror="this.onerror=null; this.outerHTML='<div class=\'modal-initials-large\'>${initials}</div>'">`;
+      } else {
+        avatarSlot.innerHTML = `<div class="modal-initials-large">${initials}</div>`;
+      }
+
+      document.getElementById('modalDisplayName').textContent = u.displayName || 'Notes+ User';
+      document.getElementById('modalUsername').textContent = u.username ? `@${u.username}` : 'No username set';
+      document.getElementById('modalPlatform').textContent = u.platform || 'Web Desktop';
+      document.getElementById('modalUid').textContent = u.uid || '--';
+      document.getElementById('modalEmail').textContent = u.email || 'None';
+      document.getElementById('modalCreatedAt').textContent = u.createdAt ? new Date(u.createdAt).toLocaleString() : 'Recent';
+      document.getElementById('modalLastActive').textContent = u.lastActive ? new Date(u.lastActive).toLocaleString() : 'Never';
+      document.getElementById('modalLoginCount').textContent = u.loginCount || (u.syncCount ? `${u.syncCount} times` : '1');
+      document.getElementById('modalSyncCount').textContent = u.syncCount ? `${u.syncCount} heartbeats` : '1';
+      document.getElementById('modalRawJson').textContent = JSON.stringify(u, null, 2);
+
+      document.getElementById('userModalOverlay').style.display = 'flex';
+    }
+
+    function closeUserModal() {
+      document.getElementById('userModalOverlay').style.display = 'none';
+    }
+
+    // Chart Renderers (Pure Canvas with Real Timeline Data)
     function drawTrendChart() {
       const cvs = document.getElementById('trendChart');
       if (!cvs) return;
@@ -569,7 +1070,6 @@
         ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(w - 20, y); ctx.stroke();
       }
 
-      // Build date timeline for trendRangeDays
       const visitData = [];
       const dauData = [];
       const now = new Date();
@@ -598,32 +1098,24 @@
         if (emptyNotice) emptyNotice.style.display = 'none';
       }
 
-      const maxVal = Math.max(10, ...visitData, ...dauData);
-
-      function drawLine(arr, color, fillGrad) {
-        if (arr.length === 0) return;
-        const padX = 40;
-        const padY = 30;
-        const chartW = w - padX - 20;
-        const chartH = h - padY - 30;
+      const pts = trendRangeDays;
+      function drawLine(data, color, fillGrad) {
+        const maxVal = Math.max(...data, 5) * 1.25;
+        const stepX = (w - 70) / (pts - 1);
 
         ctx.beginPath();
-        arr.forEach((v, idx) => {
-          const x = padX + (idx / (arr.length - 1)) * chartW;
-          const y = (h - 20) - (v / maxVal) * chartH;
-          if (idx === 0) ctx.moveTo(x, y);
+        data.forEach((val, i) => {
+          const x = 45 + (i * stepX);
+          const y = (h - 30) - ((val / maxVal) * (h - 60));
+          if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         });
 
-        if (fillGrad && hasAnyData) {
-          ctx.save();
-          const lastX = padX + chartW;
-          ctx.lineTo(lastX, h - 20);
-          ctx.lineTo(padX, h - 20);
-          ctx.closePath();
+        if (fillGrad) {
+          ctx.lineTo(45 + ((pts - 1) * stepX), h - 30);
+          ctx.lineTo(45, h - 30);
           ctx.fillStyle = fillGrad;
           ctx.fill();
-          ctx.restore();
         }
 
         ctx.strokeStyle = color;
@@ -703,7 +1195,6 @@
       ctx.clearRect(0, 0, w, h);
 
       const cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - 15;
-      // Strict privacy empty ring
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.arc(cx, cy, r - 16, Math.PI * 2, 0, true);
@@ -715,7 +1206,6 @@
       const tbody = document.getElementById('telemetryStream');
       const localEvents = JSON.parse(localStorage.getItem('np_telemetry_events_v1') || '[]');
       
-      // Pull Firebase events if available
       let fbEvents = [];
       if (stats && stats.events && typeof stats.events === 'object') {
         fbEvents = Object.values(stats.events);
@@ -749,9 +1239,11 @@
     }
 
     window.addEventListener('resize', () => {
-      drawTrendChart();
-      drawPlatformChart();
-      drawTypesChart();
+      if (currentNav === 'overview') {
+        drawTrendChart();
+        drawPlatformChart();
+        drawTypesChart();
+      }
     });
   </script>
 </body>

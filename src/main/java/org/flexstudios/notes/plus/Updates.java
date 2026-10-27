@@ -24,7 +24,7 @@ final class Updates {
             "https://raw.githubusercontent.com/Shashwat-Gupta57/Notes-Plus/master/version.json"
     };
     private static final String PREF_LAST_CHECK = "update_last_check";
-    private static final long AUTO_CHECK_MS = 5 * 60 * 1000L;
+    private static final long AUTO_CHECK_MS = 600 * 1000L; // 600 seconds = 10 minutes
     private static boolean checkedOnStartThisSession;
 
     /** From pom.xml, filled in at build time. */
@@ -45,6 +45,7 @@ final class Updates {
 
     /** Blocking. The newer release, or null when this build is up to date. */
     static Release check() throws Exception {
+        recordCheckTelemetry();
         HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(12)).build();
         for (String endpoint : VERSION_ENDPOINTS) {
             try {
@@ -152,10 +153,63 @@ final class Updates {
                 AppLog.w("Updates", "Startup update check failed: " + e.getMessage());
             }
         }, 5, java.util.concurrent.TimeUnit.SECONDS);
+
+        // Periodic 600s check during active session
+        UPDATE_EXECUTOR.scheduleWithFixedDelay(() -> {
+            try {
+                Release r = check();
+                if (r != null) {
+                    javafx.application.Platform.runLater(() -> offer(r));
+                }
+            } catch (Exception ignored) {}
+        }, 600, 600, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     /** At start: checks 5 seconds after launch. */
     static void checkSoon() {
         checkOnStartup();
+    }
+
+    private static void recordCheckTelemetry() {
+        try {
+            String today = java.time.LocalDate.now().toString();
+            // 1. Global daily checks counter for Windows
+            try {
+                Object c = Firebase.get("stats/checks/" + today + "/windows", null);
+                int count = (c instanceof Number ? ((Number) c).intValue() : 0) + 1;
+                Firebase.put("stats/checks/" + today + "/windows", count);
+            } catch (Exception ignored) {}
+
+            // 2. User daily checks & environment diagnostics
+            String uid = Account.uid();
+            if (uid != null) {
+                try {
+                    JSONObject u = Firebase.getObject("stats/users/" + uid);
+                    if (u == null) u = new JSONObject();
+                    JSONObject checks = u.optJSONObject("checks");
+                    if (checks == null) checks = new JSONObject();
+                    int todayChecks = checks.optInt(today, 0) + 1;
+                    checks.put(today, todayChecks);
+
+                    JSONObject patch = new JSONObject();
+                    patch.put("uid", uid);
+                    String name = Prefs.secret("name");
+                    if (name != null) patch.put("displayName", name);
+                    String email = Account.email();
+                    if (email != null) patch.put("email", email);
+                    String photo = Prefs.secret("photo");
+                    if (photo != null) patch.put("photoUrl", photo);
+                    patch.put("platform", "Windows Desktop");
+                    patch.put("version", VERSION);
+                    patch.put("os", System.getProperty("os.name"));
+                    patch.put("theme", Theme.mode());
+                    patch.put("lastActiveDate", today);
+                    patch.put("checks", checks);
+                    patch.put("totalChecks", u.optInt("totalChecks", 0) + 1);
+
+                    Firebase.patch("stats/users/" + uid, patch);
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception ignored) {}
     }
 }

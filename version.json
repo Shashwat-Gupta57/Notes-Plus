@@ -1,17 +1,17 @@
 {
-  "versionCode": 27,
-  "versionName": "15.1",
+  "versionCode": 28,
+  "versionName": "15.2",
   "forced": false,
-  "changelog": "Notes+ 15.1: One-click note duplication, real-time sync with conflict detection, instant list auto-save, mind map picture zoom, markdown bullet lists, and Notes+ analytics.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.1.apk",
-  "sha256": "f9daadfbceee19fbd362321446d4a1b6b950aa51a35c730a28e316ffbc055d6e",
+  "changelog": "Notes+ 15.2: Startup auto-updates, in-app download progress tracking, immediate install prompts, and web auto-detection.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-15.2.apk",
+  "sha256": "b7bf4006d108eb3c7421438a589763116a3bf25ba8b3aee2dcdb6d2257f4a991",
   "desktop": {
-    "versionName": "15.1",
-    "url": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v15.1/Notes-Plus-Setup-15.1.exe",
-    "sha256": "9be2684792685305022a8e0363d803a3782f8f2c45d9413e9310ecef7121fbc9",
+    "versionName": "15.2",
+    "url": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v15.2/Notes-Plus-Setup-15.2.exe",
+    "sha256": "f167f7da009ebc21059e052a983ddd23ed5b2ebaf49be519991ba6d2c4097014",
     "size": "76 MB",
-    "zip": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v15.1/Notes-Plus-Windows-15.1.zip",
-    "zipSha256": "b6ae576ecb93c693578012fa11acb706cde601745b158742bc72bf3f06d36d03",
-    "changelog": "Notes+ 15.1 for Windows: note duplication, checklist auto-save, mind map picture zoom, markdown lists, and smooth animations."
+    "zip": "https://github.com/Shashwat-Gupta57/Notes-Plus/releases/download/desktop-v15.2/Notes-Plus-Windows-15.2.zip",
+    "zipSha256": "6956658ebd66f26af8fa2e97b445732b5262c991e4bfa72c75c965012ae45baa",
+    "changelog": "Notes+ 15.2 for Windows: startup auto-update check, in-app progress tracking, and seamless updates."
   }
 }

@@ -8,7 +8,7 @@ everything it points to must already be online by then.
 | Part | Built in | Goes to | Users get it through |
 |---|---|---|---|
 | Android APK | this repo (`master`) | Cloudflare R2, bucket `releases`, `android/Notes-Plus-<ver>.apk` | the in-app updater, the site's download page |
-| Windows app | `Notes-Plus-Desktop` (local repo) | GitHub release `desktop-v<ver>` on this repo | Setup's Update, the in-app update check, the site |
+| Windows app | `Notes-Plus-Desktop` (local repo) | Cloudflare R2, bucket `releases`, `desktop/Notes-Plus-Setup-<ver>.exe` & `zip` | Setup's Update, the in-app update check, the site |
 | Website + web app | website repo, `web` branch | GitHub Pages, `notes.talken.in` | the browser (instantly on push) |
 | `version.json` | this repo, `master` | GitHub raw | everything above reads it |
 
@@ -94,23 +94,33 @@ curl -sI https://releases.talken.in/android/Notes-Plus-13.0.apk | grep -iE "^HTT
 curl -s https://releases.talken.in/android/Notes-Plus-13.0.apk | sha256sum
 ```
 
-## 4. Publish the Windows release (GitHub)
+## 4. Upload Windows release to R2
+
+Like Android, R2 holds **only one version of Desktop at a time** (the previous version is purged upon new release upload):
 
 ```bash
-cd D:/User/Data/projects/Notes-Plus-Desktop
-gh release create desktop-v13.0 \
-    dist/13.0/Notes-Plus-Setup-13.0.exe dist/13.0/Notes-Plus-Windows-13.0.zip \
-    -R Shashwat-Gupta57/Notes-Plus --title "Notes+ for Windows 13.0" \
-    --notes-file release/ANNOUNCEMENT.md --latest=false
-git add -A && git commit -m "v13.0" && git tag v13.0
+cd D:/User/Data/projects/Notes-Plus
+export R2_KEY_ID=<R2 access key id>
+export R2_SECRET=<R2 secret access key>
+
+# Upload installer EXE and portable ZIP
+python tools/r2put.py ../Notes-Plus-Desktop/dist/15.2/Notes-Plus-Setup-15.2.exe \
+    desktop/Notes-Plus-Setup-15.2.exe application/x-msdownload
+
+python tools/r2put.py ../Notes-Plus-Desktop/dist/15.2/Notes-Plus-Windows-15.2.zip \
+    desktop/Notes-Plus-Windows-15.2.zip application/zip
 ```
 
-- `--latest=false` keeps the Android release as the repo's "Latest".
-- Fixing a release after it's out (same version): rebuild, then
-  `gh release upload desktop-v13.0 <files> -R Shashwat-Gupta57/Notes-Plus --clobber`, and put the
-  new SHA-256s into `version.json`.
-  - Installs that already have that version won't be offered it again.
-  - Re-tag with `git tag -f v13.0`.
+Verify public URLs:
+- `https://releases.talken.in/desktop/Notes-Plus-Setup-15.2.exe`
+- `https://releases.talken.in/desktop/Notes-Plus-Windows-15.2.zip`
+
+Tag the desktop repo:
+```bash
+cd D:/User/Data/projects/Notes-Plus-Desktop
+git add -A && git commit -m "v15.2" && git tag v15.2
+git push origin desktop --tags
+```
 
 ## 5. Website and Notes+ on the web
 

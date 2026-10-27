@@ -559,7 +559,10 @@ public final class Updater {
 
     private static void recordCheckTelemetry(Context context) {
         try {
-            String today = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date());
+            if (prefs(context).getBoolean("telemetry_opt_out", false)) return;
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+            sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+            String today = sdf.format(new java.util.Date());
             com.google.firebase.database.DatabaseReference db = com.google.firebase.database.FirebaseDatabase.getInstance().getReference();
 
             // 1. Increment global daily checks for android

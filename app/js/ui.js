@@ -177,6 +177,10 @@ export function dialog({ title, message, content, buttons = [], cancel, width = 
     box,
   };
   for (const b of buttons) {
+    if (b instanceof Node) {
+      row.appendChild(b);
+      continue;
+    }
     row.appendChild(h('button.btn.' + (b.kind || 'text'), {
       type: 'button',
       onClick: () => {

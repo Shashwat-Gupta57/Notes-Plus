@@ -125,7 +125,7 @@ function isNewer(remote, local) {
 
 let updateNotified = false;
 
-async function forceWebUpdate() {
+export async function forceWebUpdate() {
   try {
     if ('serviceWorker' in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
@@ -145,7 +145,7 @@ async function forceWebUpdate() {
   window.location.href = url.toString();
 }
 
-async function checkForWebUpdate() {
+export async function checkForWebUpdate(interactive = false) {
   const endpoints = [PRIMARY_VERSION_URL, FALLBACK_VERSION_URL];
   for (const url of endpoints) {
     try {
@@ -153,20 +153,27 @@ async function checkForWebUpdate() {
       if (!res.ok) continue;
       const data = await res.json();
       const remoteVer = data.versionName;
-      if (remoteVer && isNewer(remoteVer, VERSION) && !updateNotified) {
-        updateNotified = true;
-        dialog({
-          title: `Notes+ v${remoteVer} is available`,
-          message: `A new version of Notes+ is out!\n\n${data.changelog ? data.changelog + '\n\n' : ''}Tap "Update Now" to load the latest version immediately.`,
-          buttons: [
-            button('Update Now', forceWebUpdate, 'filled'),
-            button('Later', () => closeTop(), 'tonal')
-          ]
-        });
+      if (remoteVer && isNewer(remoteVer, VERSION)) {
+        if (!updateNotified || interactive) {
+          updateNotified = true;
+          dialog({
+            title: `Notes+ v${remoteVer} is available`,
+            message: `A new version of Notes+ is out!\n\n${data.changelog ? data.changelog + '\n\n' : ''}Tap "Update Now" to load the latest version immediately.`,
+            buttons: [
+              { text: 'Later', kind: 'text' },
+              { text: 'Update Now', kind: 'filled', onClick: forceWebUpdate }
+            ]
+          });
+        }
+        return;
+      } else if (interactive) {
+        toast(`Notes+ is up to date (v${VERSION})`);
+        return;
       }
       return;
     } catch (_) {}
   }
+  if (interactive) toast("Couldn't check for updates");
 }
 
 async function boot() {

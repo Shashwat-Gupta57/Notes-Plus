@@ -196,6 +196,11 @@ export function accountScreen(go) {
       card(
         row('palette', 'tile-purple', 'Theme', theme.NAMES[Math.max(0, theme.MODES.indexOf(theme.mode()))], () =>
           choices('Theme', theme.MODES.map((m, i) => ({ text: (m === theme.mode() ? '✓  ' : '') + theme.NAMES[i], onClick: () => { theme.set(m); render(); } })))),
+        row('cloud', 'tile-blue', 'Check for updates', `Version ${VERSION} · Tap to check`, async () => {
+          toast('Checking for updates…');
+          const { checkForWebUpdate } = await import('./main.js');
+          checkForWebUpdate(true);
+        }),
         row('info', 'tile-gray', 'About', `Notes+ on the web, version ${VERSION}`, () => dialog({
           title: 'Notes+',
           message: `Version ${VERSION} on the web. Your notes stay in this browser; sign in to sync them with your phone and PC.`,

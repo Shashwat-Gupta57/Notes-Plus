@@ -40,11 +40,9 @@
     /* ---- boot / login ---- */
     #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 16px; }
     /* GlyphMatrix: a grid of slowly mutating glyphs behind the boot screen and the sidebar. */
-    /* Voxel logo behind the event stream (../js/ascii.js). */
-    aside.has-ascii { position: relative; }
-    aside.has-ascii > :not(.np-ascii) { position: relative; z-index: 1; }
-    .np-ascii { position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%); pointer-events: none; z-index: 0; opacity: 0.25; }
-    .np-ascii canvas { display: block; }
+    /* Voxel logo in the command bar (../js/ascii.js), rising above it. */
+    .ops-logo { display: grid; place-items: center; width: 58px; height: 58px; margin: -26px 4px -6px 0; border: 1px solid var(--dim); background: #020602; box-shadow: 0 0 18px rgba(61, 255, 124, 0.25); flex: none; }
+    .np-ascii-inline canvas { display: block; }
     canvas.glyphs { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; z-index: 0; }
     #boot > :not(.glyphs) { position: relative; z-index: 1; }
     main { position: relative; }
@@ -166,9 +164,9 @@
       <canvas class="glyphs side" id="navGlyphs" aria-hidden="true"></canvas>
       <nav id="nav" class="glow"></nav>
       <section id="view"></section>
-      <aside data-ascii data-ascii-src="../res/notes_icon.png" data-ascii-tint="#3dff7c" data-ascii-tint-opacity="85" data-ascii-cell="5" data-ascii-fit="center" data-ascii-size="240"><h3 class="glow">event stream</h3><div id="log" class="glow"></div></aside>
+      <aside><h3 class="glow">event stream</h3><div id="log" class="glow"></div></aside>
     </main>
-    <footer class="glow"><label>ops@notes+:~$</label><input id="cmd" autocomplete="off" spellcheck="false" placeholder="type help  ·  / to focus"></footer>
+    <footer class="glow"><span class="ops-logo" aria-hidden="true" data-ascii data-ascii-inline data-ascii-src="../res/notes_icon.png" data-ascii-tint="#3dff7c" data-ascii-tint-opacity="85" data-ascii-cell="3" data-ascii-size="54"></span><label>ops@notes+:~$</label><input id="cmd" autocomplete="off" spellcheck="false" placeholder="type help  ·  / to focus"></footer>
   </div>
 
 <script src="../js/telemetry.js" data-quiet></script>

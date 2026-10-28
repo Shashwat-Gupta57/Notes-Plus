@@ -15,6 +15,8 @@
 //   data-ascii-y       top: beside the section's heading instead of its middle
 //   data-ascii-scale   the picture's size inside the emblem (default 0.9)
 //   data-ascii-bg      a solid background colour drawn at 88% (default none: see-through)
+//   data-ascii-inline  the art is the element's own content, exactly data-ascii-size px square
+//                      (the dock's home button), not a backdrop of its section
 //
 // The blocks are drawn once into a cached image; each frame only copies it and dims a few random
 // blocks (the flicker), at 12 fps, paused off screen, still for reduced motion.
@@ -33,6 +35,7 @@
   function art(host) {
     if (host.querySelector(':scope > .np-ascii')) return;
     const cell = Math.max(3, parseInt(host.dataset.asciiCell, 10) || 6);
+    const inline = host.hasAttribute('data-ascii-inline');
     const fit = host.dataset.asciiFit || 'right';
     const maxSize = parseInt(host.dataset.asciiSize, 10) || 420;
     const scale = parseFloat(host.dataset.asciiScale || '0.9');
@@ -41,11 +44,11 @@
     const bg = host.dataset.asciiBg || null;
 
     const layer = document.createElement('div');
-    layer.className = 'np-ascii np-ascii-' + fit + (host.dataset.asciiY === 'top' ? ' np-ascii-top' : '');
+    layer.className = inline ? 'np-ascii-inline' : 'np-ascii np-ascii-' + fit + (host.dataset.asciiY === 'top' ? ' np-ascii-top' : '');
     layer.setAttribute('aria-hidden', 'true');
     const canvas = document.createElement('canvas');
     layer.append(canvas);
-    host.classList.add('has-ascii');
+    if (!inline) host.classList.add('has-ascii');
     host.prepend(layer);
     const ctx = canvas.getContext('2d');
 
@@ -59,7 +62,7 @@
       if (!img.complete || !img.naturalWidth) return;
       // The emblem: a square no bigger than its cap, beside the section's content.
       const hr = host.getBoundingClientRect();
-      const size = Math.max(80, Math.round(Math.min(maxSize, hr.height * 0.85, hr.width * (fit === 'center' ? 0.8 : 0.42))));
+      const size = inline ? maxSize : Math.max(80, Math.round(Math.min(maxSize, hr.height * 0.85, hr.width * (fit === 'center' ? 0.8 : 0.42))));
       layer.style.width = layer.style.height = size + 'px';
       dpr = Math.min(2, window.devicePixelRatio || 1);
       w = h = size;

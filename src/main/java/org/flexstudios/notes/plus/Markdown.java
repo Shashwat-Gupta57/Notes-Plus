@@ -271,4 +271,39 @@ final class Markdown {
         }
         return out.toString();
     }
+
+    // ================================================================= repair
+
+    private static final Pattern ENTITY = Pattern.compile("&(#\\d{2,7}|amp|lt|gt|quot|nbsp);");
+    private static final Pattern SPAN_COLOR = Pattern.compile("<span style=\"color:\\s*(#[0-9A-Fa-f]{6});?\">(.*?)</span>");
+
+    /**
+     * Undoes what Notes+ 16.1 for Android wrote by mistake: characters as HTML entities
+     * ({@code &#128512;}, {@code &amp;}) and colours as {@code <span style="color:…">}. Text
+     * without them comes back as it was.
+     */
+    static String repair(String text) {
+        if (text == null) return "";
+        if (text.indexOf('&') < 0 && !text.contains("<span")) return text;
+        Matcher m = SPAN_COLOR.matcher(text);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) m.appendReplacement(sb, Matcher.quoteReplacement("<font color=\"" + m.group(1).toUpperCase(java.util.Locale.ROOT) + "\">" + m.group(2) + "</font>"));
+        m.appendTail(sb);
+        Matcher e = ENTITY.matcher(sb.toString());
+        StringBuilder out = new StringBuilder();
+        while (e.find()) {
+            String g = e.group(1);
+            String r = switch (g) {
+                case "amp" -> "&";
+                case "lt" -> "<";
+                case "gt" -> ">";
+                case "quot" -> "\"";
+                case "nbsp" -> " ";
+                default -> new String(Character.toChars(Integer.parseInt(g.substring(1))));
+            };
+            e.appendReplacement(out, Matcher.quoteReplacement(r));
+        }
+        e.appendTail(out);
+        return out.toString();
+    }
 }

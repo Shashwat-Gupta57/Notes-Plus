@@ -126,7 +126,7 @@ final class RichArea extends StyledTextArea<Markdown.Block, Markdown.Style> impl
     void setMarkdown(String text) {
         List<Markdown.Para> paras = new ArrayList<>();
         StringBuilder plain = new StringBuilder();
-        String[] lines = (text == null ? "" : text).split("\n", -1);
+        String[] lines = Markdown.repair(text).split("\n", -1);
         for (int i = 0; i < lines.length; i++) {
             Markdown.Para p = Markdown.parse(lines[i]);
             paras.add(p);

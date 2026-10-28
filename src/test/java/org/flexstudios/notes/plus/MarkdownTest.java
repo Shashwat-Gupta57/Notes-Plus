@@ -66,4 +66,11 @@ class MarkdownTest {
     void plainHasNoMarks() {
         assertEquals("Title\n• item\nbold", Markdown.plain("# Title\n- item\n**bold**"));
     }
+
+    @Test
+    void repairsWhatAndroid161Wrote() {
+        assertEquals("Tom & Jerry 😀 <font color=\"#FF3B30\">red</font>",
+                Markdown.repair("Tom &amp; Jerry &#128512; <span style=\"color:#ff3b30;\">red</span>"));
+        assertEquals("nothing to do", Markdown.repair("nothing to do"));
+    }
 }

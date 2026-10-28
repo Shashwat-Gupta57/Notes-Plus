@@ -39,3 +39,10 @@ The browser opens Google's own page; the answer comes back to the app on 127.0.0
 
 `mvn test` runs the unit tests. Sync was checked end to end against the Firebase emulators
 (Auth + Database, with the phone repo's `database.rules.json`).
+
+## Contributing and license
+
+This is the `desktop` branch of [Notes+](https://github.com/Shashwat-Gupta57/Notes-Plus): read
+[CONTRIBUTING.md](https://github.com/Shashwat-Gupta57/Notes-Plus/blob/master/CONTRIBUTING.md) before
+opening a pull request (against `desktop`). Notes+ is free software under the
+[GNU General Public License v3.0](LICENSE).

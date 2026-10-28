@@ -1,14 +1,11 @@
-## Notes+ for Windows 16.4: notes that look like what they say
+## Notes+ for Windows 16.6: your folders everywhere
 
-Pairs with Notes+ 16.4 for Android and Notes+ on the web (notes.talken.in/app).
+Pairs with Notes+ 16.6 for Android and Notes+ on the web (notes.talken.in/app).
 
-### New in 16.4
-- **Text notes are edited as they look**, like WordPad: bold is bold, a heading is big, a list has its bullets, and no `**` or `#` is ever on screen. A format bar sets paragraph style, bold, italic, underline, strike, code, colour, bullets, numbers, tasks and line spacing.
-- **Markdown underneath**: every note is still stored as plain Markdown, the same on Windows, Android and the web, so it reads back exactly as written on any of them.
-- **Type the way you're used to**: "# ", "- ", "1. " or "[] " at the start of a line, or `**bold**`, `*italic*`, `~~strike~~` and `` `code` `` inline, turn into formatting as you type. Enter continues a list; Backspace makes a line plain again.
-- **Italics fixed**: italic and bold italic text now really show.
-- **Repairs notes damaged by the Android 16.1 test build** (characters stored as `&#…;` codes).
+### New in 16.6
+- **Folders and the archive sync across all your devices**, always: no setting to switch on. The first sync after updating sends the folders this PC has, and takes in the ones your other devices filed.
+- Everything from 16.4: text notes edited as they look, like WordPad, stored as Markdown shared with your phone and the web; italics fixed.
 
 ### Install
-1. Download `Notes-Plus-Setup-16.4.exe` below and run it. Already have Notes+? The app offers the update automatically. Your notes are kept intact.
+1. Download `Notes-Plus-Setup-16.6.exe` below and run it. Already have Notes+? The app offers the update automatically. Your notes are kept intact.
 2. If Windows SmartScreen says it doesn't recognise the app, choose **More info → Run anyway**.

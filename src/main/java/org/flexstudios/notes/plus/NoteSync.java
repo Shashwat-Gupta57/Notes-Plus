@@ -60,6 +60,7 @@ final class NoteSync {
     private static final String PREF_LAST_PULL = "notes_last_pull_";
     private static final String PREF_LAST_SYNC = "notes_last_sync_";
     private static final String PREF_LAST_SWEEP = "notes_last_sweep_";
+    private static final String PREF_FILING_SYNCED = "notes_filing_synced_";
     static final String PREF_DRIVE_ERROR = "notes_drive_error";
     private static final long TOMBSTONE_TTL_MS = TimeUnit.DAYS.toMillis(30);
 
@@ -151,6 +152,7 @@ final class NoteSync {
         Prefs.put(PREF_LAST_PULL + uid, null);
         Prefs.put(PREF_LAST_SYNC + uid, null);
         Prefs.put(PREF_LAST_SWEEP + uid, null);
+        Prefs.put(PREF_FILING_SYNCED + uid, null);
         Prefs.put(PREF_DRIVE_ERROR, null);
     }
 
@@ -215,7 +217,10 @@ final class NoteSync {
     }
 
     private static void pull(String uid) throws Exception {
-        long since = Prefs.getLong(PREF_LAST_PULL + uid);
+        // Before 16.5, folders and archive synced only where a setting was on: once, every note is
+        // read again so the filing other devices sent lands here, and this computer's goes up.
+        boolean catchUp = !"true".equals(Prefs.get(PREF_FILING_SYNCED + uid));
+        long since = catchUp ? 0 : Prefs.getLong(PREF_LAST_PULL + uid);
         Object changed = Firebase.get(notesPath(uid), Firebase.query("updatedAt", "startAt", since));
         long newest = since, waiting = Long.MAX_VALUE;
         if (changed instanceof JSONObject all) {
@@ -223,11 +228,35 @@ final class NoteSync {
                 Remote remote = Remote.mine(key, all.optJSONObject(key));
                 if (remote == null) continue;
                 if (!apply(uid, remote, null, null)) waiting = Math.min(waiting, remote.updatedAt);
+                else if (catchUp) mergeFiling(uid, remote);
                 newest = Math.max(newest, remote.updatedAt);
             }
         }
         // A change held back for an open note is fetched again next time.
         Prefs.put(PREF_LAST_PULL + uid, Math.min(newest, waiting));
+        if (catchUp) Prefs.put(PREF_FILING_SYNCED + uid, "true");
+    }
+
+    /**
+     * The catch-up for one note already in step: a folder or archive mark one side has and the
+     * other lacks is kept (online's taken here without a new revision, mine marked to go up);
+     * where both are filed differently, online's wins.
+     */
+    private static void mergeFiling(String uid, Remote remote) {
+        if (remote.deleted) return;
+        NoteStore store = NoteStore.get();
+        NoteEntity n = store.byUuid(remote.uuid);
+        if (n == null || n.isDirty() || n.getGroupId() != null || n.isReceived() || !uid.equals(n.getAccount())) return;
+        String folder = n.getFolder() == null || n.getFolder().isEmpty() ? null : n.getFolder();
+        boolean archived = n.isArchived() || remote.archived;
+        String merged = remote.folder != null ? remote.folder : folder;
+        if (Objects.equals(merged, folder) && archived == n.isArchived()
+                && Objects.equals(merged, remote.folder) && archived == remote.archived) return;
+        n.setFolder(merged);
+        n.setArchived(archived);
+        // Online lacks some of it: send it up (the next push carries the merged filing).
+        n.setDirty(!Objects.equals(merged, remote.folder) || archived != remote.archived);
+        store.update(n);
     }
 
     /**
@@ -522,8 +551,8 @@ final class NoteSync {
         m.put("color", note.getColor());
         m.put("pinned", note.isPinned());
         m.put("edited", note.getTimestamp());
-        // How it's filed is mine alone: never part of a group note, and only shared across devices when opted in.
-        if (note.getGroupId() == null && Account.isSyncFoldersArchive()) {
+        // How it's filed is mine alone: it follows me to every device, never into a group note.
+        if (note.getGroupId() == null) {
             if (note.isArchived()) m.put("archived", true);
             if (note.getFolder() != null && !note.getFolder().isEmpty()) {
                 m.put("folder", note.getFolder().length() > 100 ? note.getFolder().substring(0, 100) : note.getFolder());
@@ -892,7 +921,7 @@ final class NoteSync {
             note.setData(data);
             note.setColor(color);
             note.setPinned(pinned);
-            if (mine && Account.isSyncFoldersArchive()) {
+            if (mine) {
                 note.setArchived(archived);
                 note.setFolder(folder);
             }
@@ -908,7 +937,7 @@ final class NoteSync {
         return Objects.equals(n.getTitle(), r.title) && Objects.equals(n.getContent(), r.content)
                 && Objects.equals(n.getData(), r.data) && n.getColor() == r.color
                 && n.isPinned() == r.pinned && n.getType().equals(r.type)
-                && (!r.mine || !Account.isSyncFoldersArchive() || (n.isArchived() == r.archived && Objects.equals(n.getFolder(), r.folder)));
+                && (!r.mine || (n.isArchived() == r.archived && Objects.equals(n.getFolder(), r.folder)));
     }
 
     // ============================================================== sketches

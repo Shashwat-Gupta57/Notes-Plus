@@ -61,7 +61,7 @@
   const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const FPS = 30;
 
-  /** Each path's length in viewBox units (canvas dashes need real lengths). */
+  /** Each path's length in viewBox units (canvas dashes need real lengths), and points along it. */
   function lengths(ds) {
     const svg = document.createElementNS(NS, 'svg');
     svg.style.cssText = 'position:absolute;width:0;height:0;visibility:hidden';
@@ -70,7 +70,10 @@
       const p = document.createElementNS(NS, 'path');
       p.setAttribute('d', d);
       svg.append(p);
-      return p.getTotalLength();
+      const len = p.getTotalLength();
+      const pts = [];
+      for (let k = 0; k <= 48; k++) { const q = p.getPointAtLength((len * k) / 48); pts.push([q.x, q.y]); }
+      return { len, pts };
     });
     svg.remove();
     return out;
@@ -101,17 +104,18 @@
       const lens = lengths(ds);
       ds.forEach((d, i) => {
         lines.push({
-          path: new Path2D(d), len: lens[i], width: 0.5 + i * 0.03, alpha: 0.1 + i * (0.9 / n),
-          dur: 20 + Math.random() * 10, // 20–30 s like the original
-          // Streaming in from the edge where it starts, one after another, the mirrored fan a beat later.
-          enter: b * 0.25 + i * 0.035 + Math.random() * 0.12,
+          path: new Path2D(d), len: lens[i].len, pts: lens[i].pts, from: 0, width: 0.5 + i * 0.03, alpha: 0.1 + i * (0.9 / n),
+          // Seconds for the snake to run the whole path once (the original's lines drifted over 20–30 s).
+          dur: 9 + Math.random() * 6,
+          // Sliding in from the edge where it starts, one after another, the mirrored fan a beat later.
+          enter: b * 0.3 + i * 0.045 + Math.random() * 0.25,
         });
       });
     });
 
     const ctx = canvas.getContext('2d');
     let w = 0, h = 0, dpr = 1, stroke = null, born = null, running = false, last = 0, visible = true;
-    const ENTER = 2.2; // seconds each line takes to arrive
+    const SNAKE = 0.32; // the bright segment's length, as a share of its path
     // The fan reaches far outside its box and shows through (as the original's 'meet'); the others fill it.
     const fit = () => {
       const r = layer.getBoundingClientRect();
@@ -121,7 +125,13 @@
       canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
       // On a tall, narrow screen the fan is sized by height instead, so it still crosses it.
       const k = shape === 'flow' ? Math.max(Math.min(w / W, h / H), h / (H * 2.2)) : Math.max(w / W, h / H);
-      ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * (w - W * k) / 2, dpr * (h - H * k) / 2);
+      const ox = (w - W * k) / 2, oy = (h - H * k) / 2;
+      ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * ox, dpr * oy);
+      // Where each path first comes on screen: its snake starts just outside that edge.
+      for (const l of lines) {
+        const at = l.pts.findIndex(([x, y]) => x * k + ox >= 0 && x * k + ox <= w && y * k + oy >= 0 && y * k + oy <= h);
+        l.from = at <= 0 ? 0 : (l.len * (at - 1)) / 48;
+      }
       const css = getComputedStyle(layer).color;
       const resolve = c => (c === 'currentColor' ? css : c);
       if (colors.length > 1) {
@@ -141,25 +151,38 @@
       const t = born === null ? 0 : (now - born) / 1000;
       for (const l of lines) {
         ctx.lineWidth = l.width;
-        const since = t - l.enter;
-        if (!still && since < ENTER) {
-          // Arriving: drawn from its start (off the side) towards its end, brightest midway.
-          if (since <= 0) continue;
-          const e = 1 - Math.pow(1 - since / ENTER, 3);
-          ctx.globalAlpha = l.alpha * (0.3 + 0.5 * Math.sin(Math.PI * e));
-          ctx.setLineDash([l.len * e, l.len]);
-          ctx.lineDashOffset = 0;
+        const seg = l.len * SNAKE, run = l.len + seg;
+        if (still) {
+          ctx.globalAlpha = l.alpha * 0.45;
+          ctx.setLineDash([]);
           ctx.stroke(l.path);
           continue;
         }
-        // Then it slides along its curve and back, breathing (pathOffset 0 → 1 → 0, opacity .3 → .6 → .3),
-        // starting where the arrival left it.
-        const c = still ? 0.25 : ((since - ENTER) % l.dur) / l.dur;
-        const o = c < 0.5 ? c * 2 : 2 - c * 2;
-        ctx.globalAlpha = l.alpha * (0.3 + 0.3 * o);
-        ctx.setLineDash([l.len, l.len]);
-        ctx.lineDashOffset = -o * l.len;
+        const since = t - l.enter;
+        if (since <= 0) continue;
+        // A snake: a bright segment whose head runs along the path at an even pace from just before
+        // its start, so it slides in; when it has left the far end, a fresh one slides in again.
+        const travelled = l.from + (since / l.dur) * run;
+        const first = travelled < run;
+        const head = travelled % run;
+        // It leaves the path behind it, faint: during the first run up to its head, then whole.
+        ctx.globalAlpha = l.alpha * 0.22;
+        if (first) {
+          ctx.setLineDash([Math.max(0, Math.min(l.len, head)), l.len * 2]);
+          ctx.lineDashOffset = 0;
+        } else {
+          ctx.setLineDash([]);
+        }
         ctx.stroke(l.path);
+        // The snake itself in three parts, dim at the tail and bright at the head, breathing slowly.
+        const breathe = 0.75 + 0.25 * Math.sin(since * 0.6 + l.enter * 7);
+        for (let k = 0; k < 3; k++) {
+          const from = head - seg + (seg * k) / 3, part = seg / 3;
+          ctx.globalAlpha = l.alpha * breathe * (0.25 + 0.3 * k);
+          ctx.setLineDash([part, l.len * 3]);
+          ctx.lineDashOffset = -from;
+          ctx.stroke(l.path);
+        }
       }
     };
     const tick = now => {

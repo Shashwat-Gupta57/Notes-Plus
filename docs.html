@@ -211,8 +211,14 @@
       list-style: none;
     }
     .docs-faq summary::-webkit-details-marker { display: none; }
-    .docs-faq summary::after { content: '+'; float: right; color: var(--text-muted); font-weight: 400; }
-    .docs-faq[open] summary::after { content: '–'; }
+    .docs-faq summary::after {
+      content: '+'; float: right; color: var(--text-muted); font-weight: 400; font-size: 1.2em; line-height: 1;
+      transition: transform 0.35s var(--ease-spring), color 0.2s;
+    }
+    .docs-faq.is-open summary::after { transform: rotate(45deg); color: var(--indigo-500); }
+    .docs-faq { transition: border-color 0.25s, background-color 0.25s; }
+    .docs-faq.is-open { border-color: var(--border-accent); }
+    .docs-faq .faq-body { overflow: hidden; }
     .docs-faq p { margin: 0 0 14px; }
     .docs-section-block ol { padding-left: 1.3em; }
     .docs-section-block a { color: var(--indigo-500); }
@@ -627,6 +633,34 @@
   <script src="js/masterpiece.js"></script>
   <script src="js/paths.js" defer></script>
   <script>
+    // FAQ answers slide open and closed instead of jumping.
+    (function () {
+      const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      document.querySelectorAll('.docs-faq').forEach(d => {
+        const summary = d.querySelector('summary');
+        const body = document.createElement('div');
+        body.className = 'faq-body';
+        while (summary.nextSibling) body.append(summary.nextSibling);
+        d.append(body);
+        let anim = null;
+        summary.addEventListener('click', e => {
+          e.preventDefault();
+          const opening = !d.classList.contains('is-open');
+          d.classList.toggle('is-open', opening);
+          if (opening) d.open = true;
+          if (still) { d.open = opening; return; }
+          const from = body.getBoundingClientRect().height;
+          if (anim) anim.cancel();
+          const to = opening ? body.scrollHeight : 0;
+          anim = body.animate(
+            [{ height: from + 'px', opacity: opening ? 0 : 1, transform: opening ? 'translateY(-6px)' : 'none' },
+             { height: to + 'px', opacity: opening ? 1 : 0, transform: opening ? 'none' : 'translateY(-6px)' }],
+            { duration: 340, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+          anim.onfinish = () => { anim = null; if (!opening) d.open = false; };
+        });
+      });
+    })();
+
     // The sidebar follows the section being read.
     (function () {
       const links = [...document.querySelectorAll('.docs-nav-link')];

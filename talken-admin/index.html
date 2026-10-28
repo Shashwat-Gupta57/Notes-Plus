@@ -40,6 +40,11 @@
     /* ---- boot / login ---- */
     #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 16px; }
     /* GlyphMatrix: a grid of slowly mutating glyphs behind the boot screen and the sidebar. */
+    /* Voxel logo behind the event stream (../js/ascii.js). */
+    aside.has-ascii { position: relative; }
+    aside.has-ascii > :not(.np-ascii) { position: relative; z-index: 1; }
+    .np-ascii { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; opacity: 0.22; }
+    .np-ascii canvas { position: absolute; inset: 0; display: block; }
     canvas.glyphs { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; z-index: 0; }
     #boot > :not(.glyphs) { position: relative; z-index: 1; }
     main { position: relative; }
@@ -161,12 +166,13 @@
       <canvas class="glyphs side" id="navGlyphs" aria-hidden="true"></canvas>
       <nav id="nav" class="glow"></nav>
       <section id="view"></section>
-      <aside><h3 class="glow">event stream</h3><div id="log" class="glow"></div></aside>
+      <aside data-ascii data-ascii-src="../res/notes_icon.png" data-ascii-tint="#3dff7c" data-ascii-tint-opacity="85" data-ascii-cell="5" data-ascii-scale="0.55"><h3 class="glow">event stream</h3><div id="log" class="glow"></div></aside>
     </main>
     <footer class="glow"><label>ops@notes+:~$</label><input id="cmd" autocomplete="off" spellcheck="false" placeholder="type help  ·  / to focus"></footer>
   </div>
 
 <script src="../js/telemetry.js" data-quiet></script>
+<script src="../js/ascii.js" defer></script>
 <script type="module">
 // The Notes+ operations panel. Signs in with Google; the database lets in only uids listed at
 // /admins (set by hand in the Firebase console), so nothing here is a secret and nothing can be

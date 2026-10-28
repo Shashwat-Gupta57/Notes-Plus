@@ -1413,3 +1413,11 @@ a {
 }
 ::view-transition-old(root) { z-index: 1; }
 ::view-transition-new(root) { z-index: 2; }
+
+/* --- Voxel ASCII art (js/ascii.js) --- */
+.has-ascii { position: relative; }
+.has-ascii > :not(.np-ascii) { position: relative; z-index: 1; }
+.np-ascii { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; opacity: 0.6; }
+.np-ascii canvas { position: absolute; inset: 0; display: block; }
+[data-theme="light"] .np-ascii { opacity: 0.45; }
+@media (max-width: 760px) { .np-ascii { opacity: 0.3; } }

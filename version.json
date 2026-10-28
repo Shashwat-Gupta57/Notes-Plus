@@ -1,10 +1,13 @@
 {
-  "versionCode": 35,
-  "versionName": "16.4",
+  "versionCode": 36,
+  "versionName": "16.5",
   "forced": false,
-  "changelog": "Notes+ 16.4: text notes are edited as they look, like Word: bold, italic, headings, lists, tasks and colours, with no symbols on screen, stored as the same Markdown on Android, Windows and the web. Repairs notes damaged by the 16.1 test build. Install over this version; don't uninstall first.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-16.4.apk",
-  "sha256": "2e1a89bea043bd0246e77b5b5d27f553b14163bcd1108e40d6f02d13fe34bc23",
+  "changelog": "Notes+ 16.5: formatting stays exactly where you put it (bold, strike, code and colours no longer spill onto the next line), and the format bar shows in full. Includes 16.4's edit-as-it-looks text notes. Install over this version; don't uninstall first.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-16.5.apk",
+  "sha256": "6ed40f16df68e060ecc3a093d6cea422685529d5a446bbd3ddb03d0b2ab14a8a",
+  "web": {
+    "versionName": "16.4"
+  },
   "desktop": {
     "versionName": "16.4",
     "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-16.4.exe",

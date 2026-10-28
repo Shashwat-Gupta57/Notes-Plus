@@ -14,6 +14,7 @@ import javafx.scene.input.TransferMode;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
@@ -46,6 +47,8 @@ final class TextEditorView {
     private final Label status = new Label();
     private final Button notesButton = new Button();
     private final StackPane center = new StackPane();
+    private final VBox renderedBox = new VBox();
+    private boolean isRendered = false;
     private final VBox findBar = new VBox(6);
     private final TextField findField = new TextField(), replaceField = new TextField();
     private final Label findCount = new Label();
@@ -647,7 +650,31 @@ final class TextEditorView {
             );
         });
 
-        HBox fbar = new HBox(4, bold, italic, underline, strike, gap(6), colorBtn, leadingBtn, kerningBtn, gap(6), headBtn, bulletBtn, numBtn);
+        Button toggleRenderBtn = Ui.textButton("👁️ Render View", () -> {});
+        toggleRenderBtn.setOnAction(e -> {
+            isRendered = !isRendered;
+            toggleRenderBtn.setText(isRendered ? "✏️ Edit Mode" : "👁️ Render View");
+            toggleRenderBtn.setStyle(isRendered ? "-fx-background-color: #30D158; -fx-text-fill: white;" : "");
+            if (isRendered) {
+                renderedBox.getChildren().clear();
+                renderedBox.getChildren().add(MarkdownRenderer.render(area.getText(), 15, "#f8fafc", 6));
+                area.setVisible(false);
+                area.setManaged(false);
+                if (!center.getChildren().contains(renderedBox)) center.getChildren().add(renderedBox);
+                renderedBox.setVisible(true);
+                renderedBox.setManaged(true);
+            } else {
+                renderedBox.setVisible(false);
+                renderedBox.setManaged(false);
+                area.setVisible(true);
+                area.setManaged(true);
+            }
+        });
+
+        Region fspring = new Region();
+        HBox.setHgrow(fspring, Priority.ALWAYS);
+
+        HBox fbar = new HBox(4, bold, italic, underline, strike, gap(6), colorBtn, leadingBtn, kerningBtn, gap(6), headBtn, bulletBtn, numBtn, fspring, toggleRenderBtn);
         fbar.setAlignment(Pos.CENTER_LEFT);
         fbar.setPadding(new Insets(2, 8, 4, 8));
         fbar.getStyleClass().add("editor-bar");

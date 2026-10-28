@@ -868,7 +868,17 @@ final class NoteEditorView extends NoteEditor {
             );
         });
 
-        HBox bar = new HBox(4, bold, italic, underline, strike, hgap(6), colorBtn, leadingBtn, kerningBtn, hgap(6), headBtn, bulletBtn, numBtn);
+        Button toggleRenderBtn = Ui.textButton("👁️ Render View", () -> {});
+        toggleRenderBtn.setOnAction(e -> {
+            boolean r = body.toggleRenderMode();
+            toggleRenderBtn.setText(r ? "✏️ Edit Mode" : "👁️ Render View");
+            toggleRenderBtn.setStyle(r ? "-fx-background-color: #30D158; -fx-text-fill: white;" : "");
+        });
+
+        Region spring = new Region();
+        HBox.setHgrow(spring, Priority.ALWAYS);
+
+        HBox bar = new HBox(4, bold, italic, underline, strike, hgap(6), colorBtn, leadingBtn, kerningBtn, hgap(6), headBtn, bulletBtn, numBtn, spring, toggleRenderBtn);
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.setPadding(new Insets(2, 0, 6, 0));
         return bar;

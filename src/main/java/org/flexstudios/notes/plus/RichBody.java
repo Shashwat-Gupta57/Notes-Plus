@@ -60,6 +60,10 @@ final class RichBody extends VBox {
     private Path dir;
     private String prompt = "Start writing";
     private Runnable onChange = () -> {};
+    private final VBox renderedContainer = new VBox();
+    private boolean isRendered = false;
+    private String fontColor = "#f8fafc";
+    private double leading = 6.0;
 
     RichBody(Folder folder, ScrollPane scroll) {
         this.folder = folder;
@@ -109,16 +113,22 @@ final class RichBody extends VBox {
         }
         getChildren().add(text(text.toString()));
         refreshPrompts();
+        if (isRendered) {
+            isRendered = false;
+            toggleRenderMode();
+        }
     }
 
     /** The note's text, pictures as embed lines. */
     String getContent() {
         StringBuilder out = new StringBuilder();
-        for (int i = 0; i < getChildren().size(); i++) {
-            if (i > 0) out.append('\n');
-            Node n = getChildren().get(i);
+        int count = 0;
+        for (Node n : getChildren()) {
+            if (n == renderedContainer) continue;
+            if (count > 0) out.append('\n');
             if (n instanceof TextArea t) out.append(t.getText());
             else if (n instanceof Picture p) out.append("![[").append(p.name).append("]]");
+            count++;
         }
         return out.toString();
     }
@@ -126,7 +136,10 @@ final class RichBody extends VBox {
     /** Only the words, for counting. */
     String words() {
         StringBuilder out = new StringBuilder();
-        for (Node n : getChildren()) if (n instanceof TextArea t) out.append(t.getText()).append('\n');
+        for (Node n : getChildren()) {
+            if (n == renderedContainer) continue;
+            if (n instanceof TextArea t) out.append(t.getText()).append('\n');
+        }
         return out.toString().trim();
     }
 
@@ -563,6 +576,7 @@ final class RichBody extends VBox {
     }
 
     void setLeading(double spacing) {
+        this.leading = spacing;
         for (Node n : getChildren()) {
             if (n instanceof TextArea t) {
                 t.setStyle((t.getStyle() == null ? "" : t.getStyle()) + " -fx-line-spacing: " + spacing + "px;");
@@ -579,10 +593,47 @@ final class RichBody extends VBox {
     }
 
     void setFontColor(String color) {
+        this.fontColor = color;
         for (Node n : getChildren()) {
             if (n instanceof TextArea t) {
                 t.setStyle((t.getStyle() == null ? "" : t.getStyle()) + " -fx-text-fill: " + color + ";");
             }
         }
     }
+    boolean toggleRenderMode() {
+        isRendered = !isRendered;
+        if (isRendered) {
+            renderedContainer.getChildren().clear();
+            renderedContainer.getChildren().add(MarkdownRenderer.render(getContent(), 16, fontColor, leading));
+            renderedContainer.setOnMouseClicked(e -> {
+                if (e.getClickCount() == 2) {
+                    toggleRenderMode();
+                }
+            });
+            for (Node n : getChildren()) {
+                if (n != renderedContainer) {
+                    n.setVisible(false);
+                    n.setManaged(false);
+                }
+            }
+            if (!getChildren().contains(renderedContainer)) {
+                getChildren().add(0, renderedContainer);
+            }
+            renderedContainer.setVisible(true);
+            renderedContainer.setManaged(true);
+        } else {
+            renderedContainer.setVisible(false);
+            renderedContainer.setManaged(false);
+            for (Node n : getChildren()) {
+                if (n != renderedContainer) {
+                    n.setVisible(true);
+                    n.setManaged(true);
+                }
+            }
+        }
+        return isRendered;
+    }
+
+    boolean isRendered() { return isRendered; }
+
 }

@@ -1,17 +1,17 @@
 {
-  "versionCode": 33,
-  "versionName": "16.0",
+  "versionCode": 35,
+  "versionName": "16.4",
   "forced": false,
-  "changelog": "Notes+ 16.0: Built-in feedback and review system across Android and Desktop, rich text styling with kerning/leading controls, PWA installation support, and unified telemetry deletion in Admin Panel.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-16.0.apk",
-  "sha256": "cf877f0c990a8287f7995b169f0f1a2284560e1f751fdb48d8ac65bd27ef3bdf",
+  "changelog": "Notes+ 16.4: text notes are edited as they look, like Word: bold, italic, headings, lists, tasks and colours, with no symbols on screen, stored as the same Markdown on Android, Windows and the web. Repairs notes damaged by the 16.1 test build. Install over this version; don't uninstall first.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-16.4.apk",
+  "sha256": "2e1a89bea043bd0246e77b5b5d27f553b14163bcd1108e40d6f02d13fe34bc23",
   "desktop": {
-    "versionName": "16.0",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-16.0.exe",
-    "sha256": "c3053a493dce75612873851086e37979abdb6d99dc7a37bf46bdf6df569d8691",
-    "size": "76 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-16.0.zip",
-    "zipSha256": "07417e53954fd4f14452f034085104ca7024ebc5d4b059d82bfd82c1e2163d58",
-    "changelog": "Notes+ 16.0 for Windows: 5-star customer feedback system, comprehensive rich text editor with kerning and leading adjustments, and stability upgrades."
+    "versionName": "16.4",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-16.4.exe",
+    "sha256": "21f5df3aa628329b2a8faf1328602359d9c2aae50de2daccdcdb7ab7f25e6e55",
+    "size": "77 MB",
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-16.4.zip",
+    "zipSha256": "f73631f69818fe407b7ef0b5e4ab008df0a16a9670c9b866fc11e5eb8c3e7609",
+    "changelog": "Notes+ 16.4 for Windows: notes edited as they look, like WordPad, with a format bar; italics fixed; stored as Markdown shared with your phone and the web."
   }
 }

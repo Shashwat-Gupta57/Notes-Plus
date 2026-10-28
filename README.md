@@ -17,6 +17,24 @@ hosted for free, existing for free, and so free for everyone who uses it.
 
 ---
 
+<p align="center">
+  <img src="docs/screenshots/windows-notes.webp" alt="Notes+ for Windows: the notes grid with a checklist, a journal day, a mind map and a sketch" width="100%">
+</p>
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/phone-notes.webp" alt="Notes on a phone: cards for a launch plan, a checklist, a journal day and a mind map"></td>
+    <td width="33%"><img src="docs/screenshots/phone-editor.webp" alt="A text note edited as it looks: a heading, bold and italic words, ticked tasks and a quote, with the format bar"></td>
+    <td width="33%"><img src="docs/screenshots/windows-mind-map.webp" alt="A mind map on Windows: a trip to Japan with ideas and a picture">
+      <br><br><img src="docs/screenshots/web-mind-map.webp" alt="The same kind of mind map in the web app"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Your notes, on a phone</sub></td>
+    <td align="center"><sub>Text edited as it looks, saved as Markdown</sub></td>
+    <td align="center"><sub>Mind maps on Windows and the web</sub></td>
+  </tr>
+</table>
+
 ## What it is
 
 Six kinds of note: **text** edited as it looks (like Word, stored as Markdown), **checklists**,

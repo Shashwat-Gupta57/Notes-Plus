@@ -67,6 +67,7 @@ public class NoteEditorActivity extends NoteActivity {
             "😢", "😡", "😴", "🤩", "❤️"};
 
     private EditText title, body;
+    private RichText rich;
     private TextView footer;
     private String type;
 
@@ -98,74 +99,12 @@ public class NoteEditorActivity extends NoteActivity {
         title.setText(note.getTitle());
         title.addTextChangedListener(simpleWatcher(this::markDirty));
         body.addTextChangedListener(simpleWatcher(this::markDirty));
-        body.addTextChangedListener(new android.text.TextWatcher() {
-            private boolean editing = false;
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
-            @Override
-            public void afterTextChanged(android.text.Editable s) {
-                if (editing || s == null) return;
-                int sel = body.getSelectionStart();
-                if (sel <= 0) return;
-                String text = s.toString();
-                int lineStart = text.lastIndexOf('\n', sel - 2) + 1;
-                if (sel >= 2 && text.charAt(sel - 1) == ' ') {
-                    String prefix = text.substring(lineStart, sel);
-                    if ("* ".equals(prefix) || "- ".equals(prefix)) {
-                        editing = true;
-                        s.replace(lineStart, sel, "• ");
-                        editing = false;
-                        return;
-                    }
-                    if (prefix.matches("^\\d+\\s$")) {
-                        editing = true;
-                        String num = prefix.trim();
-                        s.replace(lineStart, sel, num + ". ");
-                        editing = false;
-                        return;
-                    }
-                }
-                if (sel >= 1 && text.charAt(sel - 1) == '\n') {
-                    int prevLineStart = text.lastIndexOf('\n', sel - 2);
-                    prevLineStart = prevLineStart < 0 ? 0 : prevLineStart + 1;
-                    String prevLine = text.substring(prevLineStart, sel - 1);
-                    if (prevLine.matches("^(\\s*)(?:•|[*–-])\\s*$")) {
-                        editing = true;
-                        s.delete(prevLineStart, sel);
-                        editing = false;
-                        return;
-                    }
-                    java.util.regex.Matcher bm = java.util.regex.Pattern.compile("^(\\s*)(?:•|[*–-])\\s+(.+)").matcher(prevLine);
-                    if (bm.matches()) {
-                        editing = true;
-                        String indent = bm.group(1);
-                        s.insert(sel, indent + "• ");
-                        editing = false;
-                        return;
-                    }
-                    if (prevLine.matches("^(\\s*)(\\d+)[.)]\\s*$")) {
-                        editing = true;
-                        s.delete(prevLineStart, sel);
-                        editing = false;
-                        return;
-                    }
-                    java.util.regex.Matcher nm = java.util.regex.Pattern.compile("^(\\s*)(\\d+)([.)])\\s+(.+)").matcher(prevLine);
-                    if (nm.matches()) {
-                        editing = true;
-                        String indent = nm.group(1);
-                        long nextNum = Long.parseLong(nm.group(2)) + 1;
-                        String sep = nm.group(3) + " ";
-                        s.insert(sel, indent + nextNum + sep);
-                        editing = false;
-                        return;
-                    }
-                }
-            }
-        });
         if (NoteData.LIST.equals(type)) setUpList(note);
-        else body.setText(note.getContent());
+        else {
+            rich = new RichText(body, this::markDirty);
+            rich.setMarkdown(note.getContent());
+            setUpFormatBar();
+        }
         if (NoteData.JOURNAL.equals(type)) setUpJournal(note);
 
         title.setHint(NoteData.JOURNAL.equals(type) ? "Give the day a title"
@@ -191,7 +130,7 @@ public class NoteEditorActivity extends NoteActivity {
             note.setContent(text.toString().trim());
             return !kept.isEmpty() || !t.isEmpty();
         }
-        String words = body.getText().toString().trim();
+        String words = (rich != null ? rich.markdown() : body.getText().toString()).trim();
         note.setContent(words);
         if (NoteData.JOURNAL.equals(type)) {
             note.setData(NoteData.journalJson(journal));
@@ -295,7 +234,7 @@ public class NoteEditorActivity extends NoteActivity {
     @Override
     protected void lockForReading() {
         super.lockForReading();
-        for (int id : new int[]{R.id.listAdd, R.id.btnAddMedia}) {
+        for (int id : new int[]{R.id.listAdd, R.id.btnAddMedia, R.id.formatBar}) {
             View v = findViewById(id);
             if (v != null) v.setVisibility(View.GONE);
         }
@@ -651,5 +590,72 @@ public class NoteEditorActivity extends NoteActivity {
                 onChange.run();
             }
         };
+    }
+    /** Line spacing for text notes, this phone only (it is how the words are shown, not part of them). */
+    private static final String PREF_SPACING = "note_line_spacing";
+
+    private void setUpFormatBar() {
+        View bar = findViewById(R.id.formatBar);
+        if (bar == null) return;
+        bar.setVisibility(View.VISIBLE);
+        body.setLineSpacing(0f, SecurityHelper.getAppPrefs(this).getFloat(PREF_SPACING, 1.25f));
+        TextView u = findViewById(R.id.btnFmtUnderline), s = findViewById(R.id.btnFmtStrike);
+        u.setPaintFlags(u.getPaintFlags() | android.graphics.Paint.UNDERLINE_TEXT_FLAG);
+        s.setPaintFlags(s.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
+        findViewById(R.id.btnFmtBold).setOnClickListener(v -> rich.toggle(RichText.BOLD));
+        findViewById(R.id.btnFmtItalic).setOnClickListener(v -> rich.toggle(RichText.ITALIC));
+        u.setOnClickListener(v -> rich.toggle(RichText.UNDERLINE));
+        s.setOnClickListener(v -> rich.toggle(RichText.STRIKE));
+        findViewById(R.id.btnFmtCode).setOnClickListener(v -> rich.toggle(RichText.CODE));
+        findViewById(R.id.btnFmtHeading).setOnClickListener(v -> showHeadingMenu());
+        findViewById(R.id.btnFmtColor).setOnClickListener(v -> showColorMenu());
+        findViewById(R.id.btnFmtSpacing).setOnClickListener(v -> showSpacingMenu());
+        findViewById(R.id.btnFmtBullet).setOnClickListener(v -> rich.block(Markdown.Block.BULLET));
+        findViewById(R.id.btnFmtNumber).setOnClickListener(v -> rich.block(Markdown.Block.NUMBER));
+        findViewById(R.id.btnFmtTask).setOnClickListener(v -> rich.block(Markdown.Block.TASK));
+    }
+
+    private void showHeadingMenu() {
+        String[] names = {"Normal text", "Heading 1", "Heading 2", "Heading 3", "Quote"};
+        Markdown.Block[] kinds = {Markdown.Block.NORMAL, Markdown.Block.H1, Markdown.Block.H2, Markdown.Block.H3, Markdown.Block.QUOTE};
+        Markdown.Block now = rich.blockAt();
+        int checked = 0;
+        for (int i = 0; i < kinds.length; i++) if (kinds[i] == now) checked = i;
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Paragraph style")
+                .setSingleChoiceItems(names, checked, (d, which) -> {
+                    if (kinds[which] == Markdown.Block.NORMAL) {
+                        if (now != Markdown.Block.NORMAL) rich.block(now);
+                    } else if (kinds[which] != now) {
+                        rich.block(kinds[which]);
+                    }
+                    d.dismiss();
+                })
+                .show();
+    }
+
+    private void showColorMenu() {
+        String[] names = {"Default", "Red", "Orange", "Yellow", "Green", "Blue", "Purple", "Grey"};
+        String[] colors = {null, "#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#0A84FF", "#AF52DE", "#8E8E93"};
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Text colour")
+                .setItems(names, (d, which) -> rich.color(colors[which]))
+                .show();
+    }
+
+    private void showSpacingMenu() {
+        String[] names = {"Compact", "Normal", "Relaxed", "Wide"};
+        float[] values = {1.0f, 1.25f, 1.5f, 1.8f};
+        float now = SecurityHelper.getAppPrefs(this).getFloat(PREF_SPACING, 1.25f);
+        int checked = 1;
+        for (int i = 0; i < values.length; i++) if (Math.abs(values[i] - now) < 0.01f) checked = i;
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Line spacing")
+                .setSingleChoiceItems(names, checked, (d, which) -> {
+                    SecurityHelper.getAppPrefs(this).edit().putFloat(PREF_SPACING, values[which]).apply();
+                    body.setLineSpacing(0f, values[which]);
+                    d.dismiss();
+                })
+                .show();
     }
 }

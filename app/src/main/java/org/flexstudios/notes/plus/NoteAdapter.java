@@ -235,7 +235,7 @@ public class NoteAdapter extends ListAdapter<NoteEntity, RecyclerView.ViewHolder
     }
 
     private void bindText(Card c, NoteEntity note) {
-        String body = note.getContent() == null ? "" : note.getContent();
+        String body = Markdown.plain(Markdown.repair(note.getContent()));
         c.body.setText(body);
         c.body.setVisibility(body.isEmpty() ? View.GONE : View.VISIBLE);
         if (c.title.getVisibility() == View.GONE && body.isEmpty()) {
@@ -314,7 +314,7 @@ public class NoteAdapter extends ListAdapter<NoteEntity, RecyclerView.ViewHolder
                 c.meta.setText(journal.media.size() + " photos & videos");
             }
         }
-        String body = note.getContent() == null ? "" : note.getContent();
+        String body = Markdown.plain(Markdown.repair(note.getContent()));
         c.body.setText(body);
         c.body.setMaxLines(journal.media.isEmpty() ? 6 : 3);
         c.body.setVisibility(body.isEmpty() ? View.GONE : View.VISIBLE);

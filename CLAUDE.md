@@ -62,7 +62,9 @@ through `ThumbnailStore` / `VaultCrypto.mediaDataSource`.
 **Notes app** — `NoteData` defines every note type (Text, List, Journal, Mind map, Sketch,
 Audio), its JSON and its folder. Editors extend `NoteActivity`, which loads, saves on pause
 (only when changed), discards abandoned new notes, and owns pin / colour / delete:
-`NoteEditorActivity` (text, list, journal), `MindMapActivity` (+ `MindMapView`, also the card
+`NoteEditorActivity` (text, list, journal; text and journal words are edited as they look through
+`RichText` and kept as Markdown, `Markdown`, the same format as the desktop's `Markdown.java` and the web's
+`md.js`; `Markdown.repair` undoes the HTML entities 16.1 wrote), `MindMapActivity` (+ `MindMapView`, also the card
 preview; an idea may carry a picture from the desktop, `MindNode.image`, drawn above its text with the
 desktop's geometry; `MindNode.sub` is an optional sub-text under the idea; ideas wrap at 180 dp unless the map's
 `wrap` is off, and are never cut short; "Add idea behind" inserts a parent), `SketchActivity` (+ `DrawingView`; strokes in `sketch.json`, card in `sketch.png`),
@@ -312,7 +314,7 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-The build file and `version.json` are both at 14 / "13.0" (released as v13.0.0, with `sha256`).
+The build file is at 35 / "16.4" (not released yet); `version.json` is at 34 / "16.1" (released, with `sha256`).
 From 11.0 the APK is served from Cloudflare R2 (`releases` bucket, public at
 `https://releases.talken.in/android/Notes-Plus-<version>.apk`), not GitHub release assets. The bucket
 keeps only the current APK: upload the new one, push `version.json`, then delete the old object.

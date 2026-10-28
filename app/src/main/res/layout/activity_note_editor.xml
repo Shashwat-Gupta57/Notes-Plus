@@ -215,6 +215,141 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
+    <!-- Rich Formatting Toolbar -->
+    <HorizontalScrollView
+        android:id="@+id/formatBar"
+        android:visibility="gone"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@color/app_surface"
+        android:scrollbars="none"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnFmtBold"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="B"
+                android:textStyle="bold"
+                android:textSize="17sp"
+                android:textColor="@color/text_primary" />
+
+            <Button
+                android:id="@+id/btnFmtItalic"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="I"
+                android:textStyle="italic"
+                android:textSize="17sp"
+                android:textColor="@color/text_primary" />
+
+            <Button
+                android:id="@+id/btnFmtUnderline"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="U"
+                android:textSize="17sp"
+                android:textColor="@color/text_primary" />
+
+            <Button
+                android:id="@+id/btnFmtStrike"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="S"
+                android:textSize="17sp"
+                android:textColor="@color/text_primary" />
+
+            <Button
+                android:id="@+id/btnFmtCode"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="44dp"
+                android:layout_height="40dp"
+                android:fontFamily="monospace"
+                android:text="&lt;/&gt;"
+                android:textSize="13sp"
+                android:textColor="@color/text_primary" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="24dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="@color/divider" />
+
+            <Button
+                android:id="@+id/btnFmtHeading"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="Style"
+                android:textSize="13sp"
+                android:textColor="@color/text_primary" />
+
+            <Button
+                android:id="@+id/btnFmtColor"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="Color"
+                android:textSize="13sp"
+                android:textColor="@color/tile_orange" />
+
+            <Button
+                android:id="@+id/btnFmtSpacing"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="Spacing"
+                android:textSize="13sp"
+                android:textColor="@color/text_secondary" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="24dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="@color/divider" />
+
+            <Button
+                android:id="@+id/btnFmtBullet"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="•"
+                android:textSize="20sp"
+                android:textColor="@color/text_primary" />
+
+            <Button
+                android:id="@+id/btnFmtNumber"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="1."
+                android:textSize="14sp"
+                android:textColor="@color/text_primary" />
+
+            <Button
+                android:id="@+id/btnFmtTask"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="☐"
+                android:textSize="18sp"
+                android:textColor="@color/text_primary" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
     <TextView
         android:id="@+id/editorFooter"
         android:layout_width="match_parent"

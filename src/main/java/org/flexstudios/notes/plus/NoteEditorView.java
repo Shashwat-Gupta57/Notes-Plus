@@ -796,7 +796,10 @@ final class NoteEditorView extends NoteEditor {
     @Override
     protected void lockForReading() {
         super.lockForReading();
-        if (body != null) body.locked = true;
+        if (body != null) {
+            body.locked = true;
+            body.setEditable(false);
+        }
         for (String cls : new String[]{".add-row", ".add-media", ".list-handle"}) {
             for (Node n : root.lookupAll(cls)) {
                 n.setVisible(false);
@@ -825,62 +828,87 @@ final class NoteEditorView extends NoteEditor {
         return r;
     }
 
+    // =============================================================== formatting
+
+    private Button fmtBold, fmtItalic, fmtUnderline, fmtStrike, fmtCode, fmtBullet, fmtNumber, fmtTask, fmtParagraph;
+
+    /**
+     * Word's formatting row: bold, italic, underline, strike, code, colour, the paragraph's kind,
+     * lists, tasks, and line spacing. Every button acts on the text itself (the selection, or what
+     * is typed next); the buttons light up for what the caret is on. Nothing shows a mark.
+     */
     private HBox createFormatBar() {
-        Button bold = Ui.iconButton(Icons.BOLD, 34, 16, "text_secondary", "Bold (Ctrl+B)", () -> body.wrapSelection("**", "**"));
-        Button italic = Ui.iconButton(Icons.ITALIC, 34, 16, "text_secondary", "Italic (Ctrl+I)", () -> body.wrapSelection("*", "*"));
-        Button underline = Ui.iconButton(Icons.UNDERLINE, 34, 16, "text_secondary", "Underline (Ctrl+U)", () -> body.wrapSelection("<u>", "</u>"));
-        Button strike = Ui.iconButton(Icons.STRIKETHROUGH, 34, 16, "text_secondary", "Strikethrough (Ctrl+Shift+X)", () -> body.wrapSelection("~~", "~~"));
+        fmtBold = Ui.iconButton(Icons.BOLD, 34, 18, "text_secondary", "Bold (Ctrl+B)", body::toggleBold);
+        fmtItalic = Ui.iconButton(Icons.ITALIC, 34, 18, "text_secondary", "Italic (Ctrl+I)", body::toggleItalic);
+        fmtUnderline = Ui.iconButton(Icons.UNDERLINE, 34, 18, "text_secondary", "Underline (Ctrl+U)", body::toggleUnderline);
+        fmtStrike = Ui.iconButton(Icons.STRIKETHROUGH, 34, 18, "text_secondary", "Strikethrough (Ctrl+Shift+X)", body::toggleStrike);
+        fmtCode = formatText("{ }", "Code", body::toggleCode);
 
-        Button colorBtn = Ui.iconButton(Icons.PALETTE, 34, 16, "text_secondary", "Font / Text Color", () -> {});
+        Button colorBtn = Ui.iconButton(Icons.PALETTE, 34, 18, "text_secondary", "Text colour", () -> {});
         colorBtn.setOnAction(e -> {
-            List<String> colors = List.of("Default", "Gold / Amber (#FFCC00)", "Electric Blue (#0A84FF)", "Emerald Green (#30D158)", "Vivid Purple (#BF5AF2)", "Crimson Red (#FF453A)");
-            List<String> hexes = List.of("-fx-text-inner-color", "#FFCC00", "#0A84FF", "#30D158", "#BF5AF2", "#FF453A");
+            List<String> names = List.of("Automatic", "Yellow", "Orange", "Red", "Pink", "Purple", "Blue", "Teal", "Green", "Grey");
+            List<String> hexes = java.util.Arrays.asList(null, "#E6A700", "#FF9500", "#FF3B30", "#FF2D55", "#AF52DE", "#007AFF", "#30B0C7", "#34C759", "#8E8E93");
             List<Runnable> acts = new ArrayList<>();
-            for (String hx : hexes) acts.add(() -> { body.setFontColor(hx); markDirty(); });
-            Ui.menu(colorBtn, colors, acts);
+            for (String hx : hexes) acts.add(() -> body.color(hx));
+            Ui.menu(colorBtn, names, acts);
         });
 
-        Button leadingBtn = Ui.iconButton(Icons.FORMAT_LINE_SPACING, 34, 16, "text_secondary", "Line Spacing (Leading)", () -> {});
-        leadingBtn.setOnAction(e -> {
-            List<String> opts = List.of("Compact (2px)", "Normal (5px)", "Relaxed (8px)", "Spacious (12px)");
-            List<Double> vals = List.of(2.0, 5.0, 8.0, 12.0);
-            List<Runnable> acts = new ArrayList<>();
-            for (Double v : vals) acts.add(() -> { body.setLeading(v); markDirty(); });
-            Ui.menu(leadingBtn, opts, acts);
-        });
+        fmtParagraph = formatText("Normal text", "Paragraph style (Ctrl+Alt+1, 2, 3; Ctrl+Alt+0 for normal)", () -> {});
+        fmtParagraph.setMinWidth(112);
+        fmtParagraph.setOnAction(e -> Ui.menu(fmtParagraph,
+                List.of("Normal text", "Heading 1", "Heading 2", "Heading 3", "Quote"),
+                List.of(() -> body.block(Markdown.Block.NORMAL), () -> body.block(Markdown.Block.H1),
+                        () -> body.block(Markdown.Block.H2), () -> body.block(Markdown.Block.H3), () -> body.block(Markdown.Block.QUOTE))));
+        fmtBullet = formatText("•  List", "Bulleted list (Ctrl+Shift+L, or type \"- \")", () -> body.block(Markdown.Block.BULLET));
+        fmtNumber = formatText("1.  List", "Numbered list (type \"1. \")", () -> body.block(Markdown.Block.NUMBER));
+        fmtTask = formatText("☐  Tasks", "Tick boxes (type \"[] \")", () -> body.block(Markdown.Block.TASK));
 
-        Button kerningBtn = Ui.iconButton(Icons.FORMAT_LETTER_SPACING, 34, 16, "text_secondary", "Letter Spacing (Kerning)", () -> {});
-        kerningBtn.setOnAction(e -> {
-            List<String> opts = List.of("Tight (-0.5px)", "Normal (0px)", "Wide (1px)", "Expanded (2px)");
-            List<String> vals = List.of("-0.5px", "0px", "1px", "2px");
-            List<Runnable> acts = new ArrayList<>();
-            for (String v : vals) acts.add(() -> { body.setKerning(v); markDirty(); });
-            Ui.menu(kerningBtn, opts, acts);
-        });
+        Button spacing = Ui.iconButton(Icons.FORMAT_LINE_SPACING, 34, 18, "text_secondary", "Line spacing (for every note, on this computer)", () -> {});
+        spacing.setOnAction(e -> Ui.menu(spacing, List.of("Compact", "Normal", "Relaxed", "Spacious"),
+                List.of(() -> body.lineSpacing(1.5), () -> body.lineSpacing(4.5), () -> body.lineSpacing(9), () -> body.lineSpacing(14))));
 
-        Button bulletBtn = Ui.textButton("• List", () -> body.prefixLines("• "));
-        Button numBtn = Ui.textButton("1. List", () -> body.prefixLines("1. "));
-        Button headBtn = Ui.textButton("Heading", () -> {});
-        headBtn.setOnAction(e -> {
-            Ui.menu(headBtn,
-                List.of("Heading 1 (#)", "Heading 2 (##)", "Heading 3 (###)", "Normal Body"),
-                List.of(() -> body.prefixLines("# "), () -> body.prefixLines("## "), () -> body.prefixLines("### "), () -> body.prefixLines(""))
-            );
-        });
-
-        Button toggleRenderBtn = Ui.textButton("👁️ Render View", () -> {});
-        toggleRenderBtn.setOnAction(e -> {
-            boolean r = body.toggleRenderMode();
-            toggleRenderBtn.setText(r ? "✏️ Edit Mode" : "👁️ Render View");
-            toggleRenderBtn.setStyle(r ? "-fx-background-color: #30D158; -fx-text-fill: white;" : "");
-        });
-
-        Region spring = new Region();
-        HBox.setHgrow(spring, Priority.ALWAYS);
-
-        HBox bar = new HBox(4, bold, italic, underline, strike, hgap(6), colorBtn, leadingBtn, kerningBtn, hgap(6), headBtn, bulletBtn, numBtn, spring, toggleRenderBtn);
+        HBox bar = new HBox(2, fmtParagraph, hgap(8), fmtBold, fmtItalic, fmtUnderline, fmtStrike, fmtCode, colorBtn,
+                hgap(8), fmtBullet, fmtNumber, fmtTask, hgap(8), spacing);
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.setPadding(new Insets(2, 0, 6, 0));
+        bar.getStyleClass().add("format-bar");
+        body.setOnCaret(this::showFormat);
         return bar;
+    }
+
+    private static Button formatText(String text, String tip, Runnable action) {
+        Button b = Ui.textButton(text, action);
+        b.getStyleClass().add("format-text");
+        b.setFocusTraversable(false);
+        Ui.tooltip(b, tip);
+        return b;
+    }
+
+    /** The buttons light up for what the caret is on. */
+    private void showFormat() {
+        RichArea a = body.active();
+        if (a == null || fmtBold == null) return;
+        Markdown.Style s = a.currentStyle();
+        Markdown.Block b = a.currentBlock();
+        on(fmtBold, s != null && s.bold());
+        on(fmtItalic, s != null && s.italic());
+        on(fmtUnderline, s != null && s.underline());
+        on(fmtStrike, s != null && s.strike());
+        on(fmtCode, s != null && s.code());
+        on(fmtBullet, b == Markdown.Block.BULLET);
+        on(fmtNumber, b == Markdown.Block.NUMBER);
+        on(fmtTask, b == Markdown.Block.TASK || b == Markdown.Block.TASK_DONE);
+        fmtParagraph.setText(switch (b) {
+            case H1 -> "Heading 1";
+            case H2 -> "Heading 2";
+            case H3 -> "Heading 3";
+            case QUOTE -> "Quote";
+            default -> "Normal text";
+        });
+    }
+
+    private static void on(Button b, boolean on) {
+        if (on && !b.getStyleClass().contains("format-on")) b.getStyleClass().add("format-on");
+        else if (!on) b.getStyleClass().remove("format-on");
     }
 }

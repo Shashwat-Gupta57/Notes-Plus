@@ -46,6 +46,10 @@ final class Zoom {
     }
 
     private static void walk(Node n, double z) {
+        if (n instanceof RichArea r) {
+            r.zoom(z); // Formatted text scales as a whole: words, headings and bullets together.
+            return;
+        }
         if (n instanceof Labeled || n instanceof TextInputControl) {
             size(n, z);
             return; // Their insides are the control's own.

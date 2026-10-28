@@ -133,7 +133,7 @@ final class NoteCard extends VBox {
         StringBuilder out = new StringBuilder();
         for (String line : content.split("\n", -1)) {
             if (RichBody.EMBED.matcher(line.trim()).matches()) continue;
-            out.append(line).append('\n');
+            out.append(Markdown.plainLine(line)).append('\n');
         }
         return out.toString().trim().replaceAll("\n{3,}", "\n\n");
     }

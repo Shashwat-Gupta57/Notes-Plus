@@ -581,3 +581,16 @@
 .setup-progress { -fx-pref-height: 6; }
 .setup-progress .track { -fx-background-color: -np-divider; -fx-background-radius: 3; -fx-background-insets: 0; }
 .setup-progress .bar { -fx-background-color: -np-brand-yellow; -fx-background-radius: 3; -fx-background-insets: 0; -fx-padding: 3; }
+
+/* =========================================================== formatted notes */
+
+.rich-area { -fx-background-color: transparent; -fx-cursor: text; }
+.rich-area .text { -fx-fill: -np-text-body; }
+.rich-area .caret { -fx-stroke: -np-text-primary; }
+.rich-area .selection { -fx-fill: rgba(10, 132, 255, 0.32); }
+.rich-prompt { -fx-text-fill: -np-text-secondary; }
+.rich-marker { -fx-text-fill: -np-text-secondary; -fx-font-weight: bold; }
+.rich-quote-bar { -fx-background-color: -np-brand-yellow; -fx-background-radius: 2; }
+.rich-check { -fx-cursor: hand; }
+.format-text { -fx-font-size: 13px; -fx-padding: 4 10 4 10; -fx-background-radius: 8; }
+.format-on, .format-on:hover { -fx-background-color: -np-m3-secondary-container; -fx-background-radius: 8; }

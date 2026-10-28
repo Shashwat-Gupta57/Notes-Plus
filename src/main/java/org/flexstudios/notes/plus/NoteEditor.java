@@ -418,6 +418,10 @@ abstract class NoteEditor extends Screen {
     }
 
     static void lock(Node n) {
+        if (n instanceof RichArea r) {
+            r.setEditable(false);
+            return;
+        }
         if (n instanceof javafx.scene.control.TextInputControl t) t.setEditable(false);
         else if (n instanceof javafx.scene.control.CheckBox c) c.setDisable(true);
         if (n instanceof javafx.scene.Parent p) for (Node c : p.getChildrenUnmodifiable()) lock(c);

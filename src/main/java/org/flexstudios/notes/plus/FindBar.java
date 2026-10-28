@@ -134,19 +134,32 @@ final class FindBar extends HBox {
     }
 
     /** A searcher over text fields, in the order given, selecting a match and scrolling to it. */
-    static Searcher inFields(Supplier<List<TextInputControl>> fields, ScrollPane scroll) {
+    /** Something with words to search that isn't a text field: a note's formatted text. */
+    interface Target {
+        String findText();
+
+        /** Selects {@code start..end} and brings it into view. */
+        void showMatch(int start, int end);
+    }
+
+    static Searcher inFields(Supplier<List<Node>> fields, ScrollPane scroll) {
         return new Searcher() {
             @Override
             public List<Match> matches(String needle) {
                 List<Match> out = new ArrayList<>();
-                for (TextInputControl f : fields.get()) {
-                    for (int[] o : occurrences(f.getText(), needle)) out.add(new Match(f, o[0], o[1]));
+                for (Node f : fields.get()) {
+                    String text = f instanceof TextInputControl t ? t.getText() : f instanceof Target t ? t.findText() : null;
+                    for (int[] o : occurrences(text, needle)) out.add(new Match(f, o[0], o[1]));
                 }
                 return out;
             }
 
             @Override
             public void show(Match m) {
+                if (m.target() instanceof Target t) {
+                    t.showMatch(m.start(), m.end());
+                    return;
+                }
                 TextInputControl f = (TextInputControl) m.target();
                 f.selectRange(m.start(), m.end());
                 reveal(f, m.start(), scroll);
@@ -175,17 +188,17 @@ final class FindBar extends HBox {
         });
     }
 
-    /** Text fields under {@code root}, in layout order. */
-    static List<TextInputControl> fieldsUnder(Node root, Function<TextInputControl, Boolean> keep) {
-        List<TextInputControl> out = new ArrayList<>();
+    /** Text fields (and formatted text) under {@code root}, in layout order. */
+    static List<Node> fieldsUnder(Node root, Function<Node, Boolean> keep) {
+        List<Node> out = new ArrayList<>();
         collect(root, keep, out);
         return out;
     }
 
-    private static void collect(Node n, Function<TextInputControl, Boolean> keep, List<TextInputControl> out) {
+    private static void collect(Node n, Function<Node, Boolean> keep, List<Node> out) {
         if (!n.isVisible()) return;
-        if (n instanceof TextInputControl t) {
-            if (keep.apply(t)) out.add(t);
+        if (n instanceof TextInputControl || n instanceof Target) {
+            if (keep.apply(n)) out.add(n);
             return;
         }
         if (n instanceof javafx.scene.Parent p) for (Node c : p.getChildrenUnmodifiable()) collect(c, keep, out);

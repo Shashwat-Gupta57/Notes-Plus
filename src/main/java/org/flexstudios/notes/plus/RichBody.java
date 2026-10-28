@@ -6,7 +6,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TextArea;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
@@ -33,14 +32,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The words of a text or journal note, with pictures between them: paste an image (or drop
- * one) and it lands where the caret was, at its own size (never wider than the page), like
- * Obsidian or Microsoft To Do.
+ * The words of a text or journal note, formatted as they read (see {@link RichArea}), with
+ * pictures between them: paste an image (or drop one) and it lands where the caret was, at its
+ * own size (never wider than the page), like Word or Microsoft To Do.
  *
- * It is a column of blocks: text areas, and pictures between them. In the note's text each
+ * It is a column of blocks: rich text, and pictures between them. In the note's text each
  * picture is a line of its own, {@code ![[IMG_….png]]} (Obsidian's embed), and the file sits
- * in the note's folder, so the content stays plain, searchable text. Backspace at the start of
- * the text after a picture (or Delete before it) removes the picture; so does its right-click.
+ * in the note's folder; everything else is Markdown. Backspace at the start of the text after
+ * a picture (or Delete before it) removes the picture; so does its right-click.
  */
 final class RichBody extends VBox {
 
@@ -48,7 +47,6 @@ final class RichBody extends VBox {
     boolean locked;
 
     static final Pattern EMBED = Pattern.compile("^!\\[\\[([^\\]/\\\\]+)\\]\\]$");
-    private static final double SPACING = 4.5;
 
     /** Asks the editor for the note's folder (creating the note first if need be). */
     interface Folder {
@@ -60,10 +58,8 @@ final class RichBody extends VBox {
     private Path dir;
     private String prompt = "Start writing";
     private Runnable onChange = () -> {};
-    private final VBox renderedContainer = new VBox();
-    private boolean isRendered = false;
-    private String fontColor = "#f8fafc";
-    private double leading = 6.0;
+    private Runnable onCaret = () -> {};
+    private RichArea active;
 
     RichBody(Folder folder, ScrollPane scroll) {
         this.folder = folder;
@@ -83,10 +79,14 @@ final class RichBody extends VBox {
         onChange = r;
     }
 
+    /** Told when the caret moves or the formatting under it changes (the toolbar follows). */
+    void setOnCaret(Runnable r) {
+        onCaret = r;
+    }
+
     void setPrompt(String p) {
         prompt = p;
-        TextArea first = firstText();
-        if (first != null) first.setPromptText(p);
+        refreshPrompts();
     }
 
     // ================================================================ content
@@ -113,22 +113,16 @@ final class RichBody extends VBox {
         }
         getChildren().add(text(text.toString()));
         refreshPrompts();
-        if (isRendered) {
-            isRendered = false;
-            toggleRenderMode();
-        }
     }
 
-    /** The note's text, pictures as embed lines. */
+    /** The note's text as Markdown, pictures as embed lines. */
     String getContent() {
         StringBuilder out = new StringBuilder();
-        int count = 0;
-        for (Node n : getChildren()) {
-            if (n == renderedContainer) continue;
-            if (count > 0) out.append('\n');
-            if (n instanceof TextArea t) out.append(t.getText());
+        for (int i = 0; i < getChildren().size(); i++) {
+            if (i > 0) out.append('\n');
+            Node n = getChildren().get(i);
+            if (n instanceof RichArea a) out.append(a.markdown());
             else if (n instanceof Picture p) out.append("![[").append(p.name).append("]]");
-            count++;
         }
         return out.toString();
     }
@@ -136,10 +130,7 @@ final class RichBody extends VBox {
     /** Only the words, for counting. */
     String words() {
         StringBuilder out = new StringBuilder();
-        for (Node n : getChildren()) {
-            if (n == renderedContainer) continue;
-            if (n instanceof TextArea t) out.append(t.getText()).append('\n');
-        }
+        for (Node n : getChildren()) if (n instanceof RichArea a) out.append(a.getText()).append('\n');
         return out.toString().trim();
     }
 
@@ -149,176 +140,104 @@ final class RichBody extends VBox {
     }
 
     void focusStart() {
-        TextArea first = firstText();
+        RichArea first = firstText();
         if (first != null) {
             first.requestFocus();
-            first.home();
+            first.moveTo(0);
         }
     }
 
     void focusEnd() {
-        TextArea last = null;
-        for (Node n : getChildren()) if (n instanceof TextArea t) last = t;
+        RichArea last = lastText();
         if (last != null) {
             last.requestFocus();
-            last.end();
+            last.moveTo(last.getLength());
         }
     }
 
-    private TextArea firstText() {
-        for (Node n : getChildren()) if (n instanceof TextArea t) return t;
+    private RichArea firstText() {
+        for (Node n : getChildren()) if (n instanceof RichArea a) return a;
         return null;
     }
 
-    /** Only the first text block shows the prompt, and only while the body is empty. */
+    private RichArea lastText() {
+        RichArea last = null;
+        for (Node n : getChildren()) if (n instanceof RichArea a) last = a;
+        return last;
+    }
+
+    /** The block being written in (or the last one): where the toolbar's formatting goes. */
+    RichArea active() {
+        if (active != null && active.getScene() != null && getChildren().contains(active)) return active;
+        return lastText();
+    }
+
+    /** Only the first block shows the prompt, and only while the body is empty. */
     private void refreshPrompts() {
         boolean empty = getChildren().size() == 1;
-        for (Node n : getChildren()) if (n instanceof TextArea t) t.setPromptText(null);
-        TextArea first = firstText();
-        if (first != null && empty) first.setPromptText(prompt);
+        RichArea first = firstText();
+        for (Node n : getChildren()) if (n instanceof RichArea a) a.setPrompt(empty && a == first ? prompt : null);
         // Sections between pictures stay small; the last one is the page's writing room.
         for (int i = 0; i < getChildren().size(); i++) {
-            if (getChildren().get(i) instanceof TextArea t) t.setUserData(i == getChildren().size() - 1 ? 240.0 : 0.0);
+            if (getChildren().get(i) instanceof RichArea a) a.setMinRoom(i == getChildren().size() - 1 ? 240 : 0);
         }
-        for (Node n : getChildren()) if (n instanceof TextArea t) grow(t);
+    }
+
+    /** Makes every block read-only (a note sent to me) or editable again. */
+    void setEditable(boolean editable) {
+        for (Node n : getChildren()) if (n instanceof RichArea a) a.setEditable(editable);
     }
 
     // ================================================================= blocks
 
-    private TextArea text(String value) {
-        TextArea area = new TextArea(value);
-        area.getStyleClass().addAll("bare", "body-input", "lined");
-        area.setStyle("-fx-font-size: 18px;");
-        area.setWrapText(true);
-        area.setUserData(240.0);
-        area.textProperty().addListener((o, a, b) -> {
-            grow(area);
-            onChange.run();
+    private RichArea text(String markdown) {
+        RichArea area = new RichArea(scroll);
+        area.setMarkdown(markdown);
+        area.setEditable(!locked);
+        area.setOnChange(() -> onChange.run());
+        area.setOnCaret(() -> {
+            if (area.isFocused()) active = area;
+            onCaret.run();
         });
-        area.widthProperty().addListener((o, a, b) -> grow(area));
-        area.fontProperty().addListener((o, a, b) -> grow(area));
-        // The measure below can wrap a little differently from the area's own text (padding,
-        // CSS applied late), which cut the last lines off: the real text's height also counts.
-        area.skinProperty().addListener((o, a, b) -> Platform.runLater(() -> Ui.innerText(area, () -> grow(area))));
-        area.focusedProperty().addListener((o, was, is) -> { if (is) activeArea = area; });
+        area.focusedProperty().addListener((o, was, is) -> {
+            if (is) {
+                active = area;
+                onCaret.run();
+            }
+        });
+        area.zoom(Zoom.level());
         area.addEventFilter(KeyEvent.KEY_PRESSED, e -> keys(area, e));
-        Ui.logicalArrows(area);
-        Links.install(area);
-        if (scroll != null) Ui.followCaret(area, scroll);
         return area;
-    }
-
-    private final javafx.scene.text.Text measure = new javafx.scene.text.Text();
-
-    private void grow(TextArea area) {
-        double min = area.getUserData() instanceof Double d ? d : 0;
-        measure.setFont(area.getFont());
-        measure.setLineSpacing(SPACING);
-        measure.setWrappingWidth(Math.max(1, area.getWidth() - 6));
-        String t = area.getText() == null || area.getText().isEmpty() ? "X" : area.getText();
-        measure.setText(t.endsWith("\n") ? t + "X" : t);
-        double h = Math.max(min, Math.ceil(measure.getLayoutBounds().getHeight()) + 6);
-        javafx.scene.text.Text inner = Ui.innerText(area, () -> grow(area));
-        if (inner != null) h = Math.max(h, Math.ceil(inner.getLayoutBounds().getHeight()) + 12);
-        if (Math.abs(h - area.getPrefHeight()) < 0.5) return;
-        area.setMinHeight(h);
-        area.setPrefHeight(h);
-        area.setMaxHeight(h);
     }
 
     private static final KeyCombination PASTE = KeyCombination.keyCombination("Shortcut+V");
     private static final KeyCombination PASTE_INSERT = KeyCombination.keyCombination("Shift+Insert");
 
-    private void keys(TextArea area, KeyEvent e) {
-        if (locked) return;
+    private void keys(RichArea area, KeyEvent e) {
+        if (locked || e.isConsumed()) return;
         int index = getChildren().indexOf(area);
-        if (e.isShortcutDown()) {
-            if (e.getCode() == KeyCode.B) {
-                e.consume();
-                wrapSelection(area, "**", "**");
-                return;
-            } else if (e.getCode() == KeyCode.I) {
-                e.consume();
-                wrapSelection(area, "*", "*");
-                return;
-            } else if (e.getCode() == KeyCode.U) {
-                e.consume();
-                wrapSelection(area, "<u>", "</u>");
-                return;
-            } else if (e.getCode() == KeyCode.X && e.isShiftDown()) {
-                e.consume();
-                wrapSelection(area, "~~", "~~");
-                return;
-            }
-        }
+        boolean none = area.getSelection().getLength() == 0;
         if (PASTE.match(e) || PASTE_INSERT.match(e)) {
             if (pasteImage(area)) e.consume();
-        } else if (e.getCode() == KeyCode.BACK_SPACE && area.getCaretPosition() == 0 && area.getSelection().getLength() == 0
+        } else if (e.getCode() == KeyCode.BACK_SPACE && none && area.getCaretPosition() == 0
                 && index > 0 && getChildren().get(index - 1) instanceof Picture p) {
             e.consume();
             remove(p);
-        } else if (e.getCode() == KeyCode.DELETE && area.getCaretPosition() == area.getLength()
-                && area.getSelection().getLength() == 0
+        } else if (e.getCode() == KeyCode.DELETE && none && area.getCaretPosition() == area.getLength()
                 && index + 1 < getChildren().size() && getChildren().get(index + 1) instanceof Picture p) {
             e.consume();
             remove(p);
-        } else if (e.getCode() == KeyCode.SPACE && area.getSelection().getLength() == 0) {
-            int caret = area.getCaretPosition();
-            String full = area.getText();
-            int lineStart = full.lastIndexOf('\n', caret - 1) + 1;
-            String curLine = full.substring(lineStart, caret);
-            if ("*".equals(curLine) || "-".equals(curLine)) {
-                e.consume();
-                area.replaceText(lineStart, caret, "• ");
-                return;
-            }
-            if (curLine.matches("^\\d+$")) {
-                e.consume();
-                area.replaceText(lineStart, caret, curLine + ". ");
-                return;
-            }
-        } else if (e.getCode() == KeyCode.ENTER && !e.isShiftDown() && area.getSelection().getLength() == 0) {
-            int caret = area.getCaretPosition();
-            String full = area.getText();
-            int lineStart = full.lastIndexOf('\n', caret - 1) + 1;
-            String curLine = full.substring(lineStart, caret);
-            if (curLine.matches("^(\\s*)(?:•|[*–-])\\s*$")) {
-                e.consume();
-                area.deleteText(lineStart, caret);
-                return;
-            }
-            Matcher bulletMatcher = Pattern.compile("^(\\s*)(?:•|[*–-])\\s+(.+)").matcher(curLine);
-            if (bulletMatcher.matches()) {
-                e.consume();
-                String indent = bulletMatcher.group(1);
-                area.insertText(caret, "\n" + indent + "• ");
-                return;
-            }
-            if (curLine.matches("^(\\s*)(\\d+)[.)]\\s*$")) {
-                e.consume();
-                area.deleteText(lineStart, caret);
-                return;
-            }
-            Matcher numMatcher = Pattern.compile("^(\\s*)(\\d+)([.)])\\s+(.+)").matcher(curLine);
-            if (numMatcher.matches()) {
-                e.consume();
-                String indent = numMatcher.group(1);
-                long nextNum = Long.parseLong(numMatcher.group(2)) + 1;
-                String sep = numMatcher.group(3) + " ";
-                area.insertText(caret, "\n" + indent + nextNum + sep);
-                return;
-            }
-        } else if (e.getCode() == KeyCode.UP && !area.getText(0, area.getCaretPosition()).contains("\n") && index > 1) {
+        } else if (e.getCode() == KeyCode.UP && area.getCurrentParagraph() == 0 && index > 1) {
             e.consume();
-            TextArea prev = (TextArea) getChildren().get(index - 2);
+            RichArea prev = (RichArea) getChildren().get(index - 2);
             prev.requestFocus();
-            prev.end();
-        } else if (e.getCode() == KeyCode.DOWN && !area.getText(area.getCaretPosition(), area.getLength()).contains("\n")
+            prev.moveTo(prev.getLength());
+        } else if (e.getCode() == KeyCode.DOWN && area.getCurrentParagraph() == area.getParagraphs().size() - 1
                 && index + 2 < getChildren().size()) {
             e.consume();
-            TextArea next = (TextArea) getChildren().get(index + 2);
+            RichArea next = (RichArea) getChildren().get(index + 2);
             next.requestFocus();
-            next.home();
+            next.moveTo(0);
         }
     }
 
@@ -326,15 +245,15 @@ final class RichBody extends VBox {
     private void remove(Picture p) {
         int i = getChildren().indexOf(p);
         if (i < 1 || i + 1 >= getChildren().size()) return;
-        TextArea before = (TextArea) getChildren().get(i - 1);
-        TextArea after = (TextArea) getChildren().get(i + 1);
+        RichArea before = (RichArea) getChildren().get(i - 1);
+        RichArea after = (RichArea) getChildren().get(i + 1);
         int caret = before.getLength();
-        String joined = before.getText() + (before.getText().isEmpty() || after.getText().isEmpty() ? "" : "\n") + after.getText();
+        String a = before.markdown(), b = after.markdown();
         getChildren().remove(i, i + 2);
-        before.setText(joined);
+        before.setMarkdown(a.isEmpty() || b.isEmpty() ? a + b : a + "\n" + b);
         refreshPrompts();
         before.requestFocus();
-        before.positionCaret(caret);
+        before.moveTo(Math.min(caret, before.getLength()));
         onChange.run();
         // The file goes with the save: until then Undo-by-retyping is not a thing, so delete now.
         Path file = dir == null ? null : dir.resolve(p.name);
@@ -350,17 +269,13 @@ final class RichBody extends VBox {
     // ================================================================ pasting
 
     /** Pastes the clipboard's picture at the caret; false when the clipboard holds no picture. */
-    private boolean pasteImage(TextArea area) {
+    private boolean pasteImage(RichArea area) {
         Clipboard cb = Clipboard.getSystemClipboard();
         File file = cb.hasFiles() ? cb.getFiles().stream().filter(RichBody::isPicture).findFirst().orElse(null) : null;
         Image image = file == null && cb.hasImage() ? cb.getImage() : null;
         if (file == null && image == null) return false;
-        int caret = area.getCaretPosition();
-        if (area.getSelection().getLength() > 0) {
-            caret = area.getSelection().getStart();
-            area.deleteText(area.getSelection());
-        }
-        insert(area, caret, file, image);
+        if (area.getSelection().getLength() > 0) area.replaceSelection("");
+        insert(area, area.getCaretPosition(), file, image);
         return true;
     }
 
@@ -368,9 +283,10 @@ final class RichBody extends VBox {
         List<File> files = new ArrayList<>();
         if (e.getDragboard().hasFiles()) for (File f : e.getDragboard().getFiles()) if (isPicture(f)) files.add(f);
         if (files.isEmpty()) return;
-        TextArea target = null;
-        for (Node n : getChildren()) if (n instanceof TextArea t && t.isFocused()) target = t;
-        if (target == null) target = (TextArea) getChildren().get(getChildren().size() - 1);
+        RichArea target = null;
+        for (Node n : getChildren()) if (n instanceof RichArea a && a.isFocused()) target = a;
+        if (target == null) target = lastText();
+        if (target == null) return;
         int caret = target.isFocused() ? target.getCaretPosition() : target.getLength();
         for (File f : files) insert(target, caret, f, null);
         e.setDropCompleted(true);
@@ -378,7 +294,7 @@ final class RichBody extends VBox {
     }
 
     /** Writes the picture into the note's folder, then splits {@code area} at {@code caret} around it. */
-    private void insert(TextArea area, int caret, File file, Image image) {
+    private void insert(RichArea area, int caret, File file, Image image) {
         String ext = file == null ? ".png" : extension(file.getName());
         String name = "IMG_" + System.currentTimeMillis() + "_" + Integer.toHexString((int) (Math.random() * 0xFFFF)) + ext;
         var buffered = image == null ? null : SwingFXUtils.fromFXImage(image, null);
@@ -402,19 +318,19 @@ final class RichBody extends VBox {
                 int at = getChildren().indexOf(area);
                 if (at < 0) return;
                 int cut = Math.min(caret, area.getLength());
-                String before = area.getText(0, cut), after = area.getText(cut, area.getLength());
+                String before = area.markdown(0, cut), after = area.markdown(cut, area.getLength());
                 // A line break right at the cut belongs to the picture's own line.
                 if (before.endsWith("\n")) before = before.substring(0, before.length() - 1);
                 if (after.startsWith("\n")) after = after.substring(1);
-                area.setText(before);
-                TextArea rest = text(after);
+                area.setMarkdown(before);
+                RichArea rest = text(after);
                 getChildren().add(at + 1, new Picture(name));
                 getChildren().add(at + 2, rest);
                 refreshPrompts();
                 onChange.run();
                 Platform.runLater(() -> {
                     rest.requestFocus();
-                    rest.home();
+                    rest.moveTo(0);
                 });
             });
         });
@@ -506,134 +422,47 @@ final class RichBody extends VBox {
         }
     }
 
-    private TextArea activeArea;
+    // ============================================================= formatting
 
-    TextArea getActiveArea() {
-        if (activeArea != null && activeArea.getScene() != null) return activeArea;
-        for (Node n : getChildren()) {
-            if (n instanceof TextArea t && t.isFocused()) return t;
-        }
-        TextArea last = null;
-        for (Node n : getChildren()) if (n instanceof TextArea t) last = t;
-        return last;
+    void toggleBold() {
+        withActive(a -> a.toggle(Markdown.Style::bold, Markdown.Style::bold));
     }
 
-    void wrapSelection(String before, String after) {
-        TextArea a = getActiveArea();
-        if (a != null) wrapSelection(a, before, after);
+    void toggleItalic() {
+        withActive(a -> a.toggle(Markdown.Style::italic, Markdown.Style::italic));
     }
 
-    static void wrapSelection(TextArea area, String before, String after) {
-        javafx.scene.control.IndexRange sel = area.getSelection();
-        int start = sel.getStart(), end = sel.getEnd();
-        String text = area.getText();
-        if (start != end) {
-            String selected = text.substring(start, end);
-            if (selected.startsWith(before) && selected.endsWith(after) && selected.length() >= before.length() + after.length()) {
-                String unwrapped = selected.substring(before.length(), selected.length() - after.length());
-                area.replaceText(start, end, unwrapped);
-                area.selectRange(start, start + unwrapped.length());
-            } else {
-                area.replaceText(start, end, before + selected + after);
-                area.selectRange(start, start + before.length() + selected.length() + after.length());
-            }
-        } else {
-            area.insertText(start, before + after);
-            area.positionCaret(start + before.length());
-        }
-        area.requestFocus();
+    void toggleUnderline() {
+        withActive(a -> a.toggle(Markdown.Style::underline, Markdown.Style::underline));
     }
 
-    void prefixLines(String prefix) {
-        TextArea area = getActiveArea();
-        if (area == null) return;
-        javafx.scene.control.IndexRange sel = area.getSelection();
-        int start = sel.getStart(), end = sel.getEnd();
-        String text = area.getText();
-        int lineStart = text.lastIndexOf('\n', start - 1) + 1;
-        int lineEnd = text.indexOf('\n', end);
-        if (lineEnd == -1) lineEnd = text.length();
-        String chunk = text.substring(lineStart, lineEnd);
-        String[] lines = chunk.split("\n", -1);
-        boolean allPrefixed = true;
-        for (String l : lines) {
-            if (!l.startsWith(prefix)) { allPrefixed = false; break; }
-        }
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < lines.length; i++) {
-            if (i > 0) sb.append('\n');
-            String l = lines[i];
-            if (allPrefixed && !prefix.isEmpty()) {
-                sb.append(l.substring(prefix.length()));
-            } else {
-                String cleaned = l.replaceFirst("^(?:•\\s*|\\d+[.)]\\s*|- \\[[ x]\\]\\s*|#+\\s*|> )", "");
-                sb.append(prefix).append(cleaned);
-            }
-        }
-        area.replaceText(lineStart, lineEnd, sb.toString());
-        area.selectRange(lineStart, lineStart + sb.length());
-        area.requestFocus();
+    void toggleStrike() {
+        withActive(a -> a.toggle(Markdown.Style::strike, Markdown.Style::strike));
     }
 
-    void setLeading(double spacing) {
-        this.leading = spacing;
-        for (Node n : getChildren()) {
-            if (n instanceof TextArea t) {
-                t.setStyle((t.getStyle() == null ? "" : t.getStyle()) + " -fx-line-spacing: " + spacing + "px;");
-            }
-        }
+    void toggleCode() {
+        withActive(a -> a.toggle(Markdown.Style::code, Markdown.Style::code));
     }
 
-    void setKerning(String kerning) {
-        for (Node n : getChildren()) {
-            if (n instanceof TextArea t) {
-                t.setStyle((t.getStyle() == null ? "" : t.getStyle()) + " -fx-letter-spacing: " + kerning + ";");
-            }
-        }
+    void color(String hex) {
+        withActive(a -> a.color(hex));
     }
 
-    void setFontColor(String color) {
-        this.fontColor = color;
-        for (Node n : getChildren()) {
-            if (n instanceof TextArea t) {
-                t.setStyle((t.getStyle() == null ? "" : t.getStyle()) + " -fx-text-fill: " + color + ";");
-            }
-        }
-    }
-    boolean toggleRenderMode() {
-        isRendered = !isRendered;
-        if (isRendered) {
-            renderedContainer.getChildren().clear();
-            renderedContainer.getChildren().add(MarkdownRenderer.render(getContent(), 16, fontColor, leading));
-            renderedContainer.setOnMouseClicked(e -> {
-                if (e.getClickCount() == 2) {
-                    toggleRenderMode();
-                }
-            });
-            for (Node n : getChildren()) {
-                if (n != renderedContainer) {
-                    n.setVisible(false);
-                    n.setManaged(false);
-                }
-            }
-            if (!getChildren().contains(renderedContainer)) {
-                getChildren().add(0, renderedContainer);
-            }
-            renderedContainer.setVisible(true);
-            renderedContainer.setManaged(true);
-        } else {
-            renderedContainer.setVisible(false);
-            renderedContainer.setManaged(false);
-            for (Node n : getChildren()) {
-                if (n != renderedContainer) {
-                    n.setVisible(true);
-                    n.setManaged(true);
-                }
-            }
-        }
-        return isRendered;
+    void block(Markdown.Block b) {
+        withActive(a -> a.block(b));
     }
 
-    boolean isRendered() { return isRendered; }
+    /** Line spacing for every note: a view choice, like zoom. */
+    void lineSpacing(double px) {
+        RichArea.setLineSpacing(px);
+        for (Node n : getChildren()) if (n instanceof RichArea a) a.restyleParagraphs();
+    }
 
+    private void withActive(Consumer<RichArea> f) {
+        if (locked) return;
+        RichArea a = active();
+        if (a == null) return;
+        f.accept(a);
+        a.requestFocus();
+    }
 }

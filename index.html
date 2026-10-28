@@ -89,8 +89,8 @@
       </h1>
 
       <p class="hero-subtitle">
-        A high-performance workspace engineered with kinetic typography, infinite mind maps,
-        vector sketches, and zero-latency multi-device sync. Behind a discrete gesture:
+        Text that looks the way it reads, checklists, journals, infinite mind maps, sketches and
+        recordings, synced across Android, Windows and the web. Backend Zero: free, open source, no servers. Behind a discrete gesture:
         dual zero-knowledge encrypted vaults for your private media and covert messaging.
       </p>
 
@@ -151,7 +151,7 @@
   </header>
 
   <!-- Interactive Bento Grid: The Six Dimensions -->
-  <section class="bento-section" id="studio">
+  <section class="bento-section" id="studio" data-particles data-particles-quantity="1000" data-particles-depth="0.8" data-particles-opacity="0.55">
     <div class="container">
       <div class="section-header">
         <span class="section-tag">Engineered for Builders</span>
@@ -166,10 +166,10 @@
         <!-- Bento 1 (Large 2-Col): Live Interactive Typography Studio -->
         <div class="bento-card col-span-2">
           <span class="bento-badge">Interactive Note Studio</span>
-          <h3 class="bento-title">Kinetic Typography & Formatting Engine</h3>
+          <h3 class="bento-title">Notes That Look the Way They Read</h3>
           <p class="bento-desc">
-            Directly test the v16.6 styling engine below. Adjust weights, kerning, leading,
-            and vibrant text hues with instant real-time feedback.
+            Bold is bold, a heading is big, a list has its bullets, and no symbol is ever on screen.
+            Play with weight, spacing and colour below; in the apps it's all one format bar, saved as plain Markdown.
           </p>
 
           <div class="studio-widget">
@@ -273,7 +273,7 @@
   </section>
 
   <!-- Interactive 5-Star Feedback Station -->
-  <section class="feedback-section" id="feedback">
+  <section class="feedback-section" id="feedback" data-particles data-particles-quantity="600" data-particles-depth="0.6" data-particles-opacity="0.45" data-particles-color="#a5f3fc,#0e7490">
     <div class="container">
       <div class="section-header">
         <span class="section-tag">Direct Line</span>
@@ -330,24 +330,24 @@
       </div>
 
       <div class="docs-grid">
-        <a href="docs.html#typography" class="docs-card">
+        <a href="docs.html#using" class="docs-card">
           <div class="docs-card-icon">
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
           </div>
-          <h3 class="docs-card-title">Kinetic Typography</h3>
+          <h3 class="docs-card-title">Formatting</h3>
           <p class="docs-card-desc">
-            Explore native visual markdown styling, kerning (letter-spacing), leading (line-spacing) sliders, and keyboard shortcuts.
+            The edit-as-it-looks editor, the format bar, typing shortcuts like # and **, and keyboard shortcuts.
           </p>
-          <span class="docs-card-link">Read Typography Guide →</span>
+          <span class="docs-card-link">Read the guide →</span>
         </a>
 
-        <a href="docs.html#vaults" class="docs-card">
+        <a href="docs.html#private" class="docs-card">
           <div class="docs-card-icon" style="color: var(--purple-500);">
             <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
           </div>
           <h3 class="docs-card-title">Dual Encrypted Vaults</h3>
           <p class="docs-card-desc">
-            Zero-knowledge AES-256-GCM media encryption at rest, discrete gesture triggers, and auto-wipe security safeguards.
+            AES-256-GCM encryption on the device, a lock only you know, and encrypted backups.
           </p>
           <span class="docs-card-link">Read Security Architecture →</span>
         </a>
@@ -487,7 +487,7 @@
     <div class="container">
       <div class="footer-content">
         <div class="footer-copy">
-          <p>© 2026 Shashwat Gupta • Flex Studios. All rights reserved.</p>
+          <p>© 2026 Shashwat Gupta • Flex Studios. Open source under the <a href="https://github.com/Shashwat-Gupta57/Notes-Plus/blob/master/LICENSE" style="text-decoration: underline;">GPL-3.0</a>.</p>
           <p style="font-size: 0.8rem; margin-top: 4px; color: var(--text-muted);">
             No ad trackers. Notes+ v16.6 Production.
           </p>
@@ -508,6 +508,7 @@
   <!-- Scripts -->
   <script src="js/masterpiece.js"></script>
   <script src="js/paths.js" defer></script>
+  <script src="js/particles.js" defer></script>
   <script src="js/version.js"></script>
   <script src="js/telemetry.js"></script>
 </body>

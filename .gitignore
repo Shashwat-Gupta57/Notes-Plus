@@ -1,0 +1,5 @@
+
+# Local tooling, never published
+node_modules/
+package-lock.json
+scratch/

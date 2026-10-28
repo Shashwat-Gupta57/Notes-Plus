@@ -39,6 +39,12 @@
 
     /* ---- boot / login ---- */
     #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 16px; }
+    /* GlyphMatrix: a grid of slowly mutating glyphs behind the boot screen and the sidebar. */
+    canvas.glyphs { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; z-index: 0; }
+    #boot > :not(.glyphs) { position: relative; z-index: 1; }
+    main { position: relative; }
+    canvas.glyphs.side { right: auto; width: var(--nav-w, 170px); opacity: 0.85; }
+    nav { position: relative; z-index: 1; }
     #boot pre { font-family: 'VT323', var(--mono); font-size: clamp(14px, 2.4vw, 22px); line-height: 1; margin: 0; }
     #bootlog { width: min(640px, 100%); min-height: 140px; white-space: pre-wrap; }
     #login { width: min(640px, 100%); display: flex; flex-direction: column; gap: 10px; }
@@ -57,7 +63,7 @@
     header { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--faint); }
     header .brand { font-family: 'VT323', var(--mono); font-size: 26px; letter-spacing: 1px; }
     header .spacer { flex: 1; }
-    main { display: grid; grid-template-columns: 170px 1fr 330px; min-height: 0; }
+    main { display: grid; grid-template-columns: 170px 1fr 330px; min-height: 0; --nav-w: 170px; }
     nav { border-right: 1px solid var(--faint); padding: 10px 0; overflow: auto; }
     nav button { display: block; width: 100%; text-align: left; border: 0; padding: 7px 14px; }
     nav button::before { content: '  '; white-space: pre; }
@@ -117,12 +123,13 @@
     .fb .meta { color: var(--dim); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
     .fb .msg { margin: 6px 0; white-space: pre-wrap; }
 
-    @media (max-width: 1100px) { main { grid-template-columns: 150px 1fr; } aside { display: none; } }
-    @media (max-width: 700px) { main { grid-template-columns: 1fr; } nav { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--faint); padding: 0; } nav button { width: auto; white-space: nowrap; } }
+    @media (max-width: 1100px) { main { grid-template-columns: 150px 1fr; --nav-w: 150px; } aside { display: none; } }
+    @media (max-width: 700px) { main { grid-template-columns: 1fr; } nav { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--faint); padding: 0; } nav button { width: auto; white-space: nowrap; } canvas.glyphs.side { display: none; } }
   </style>
 </head>
 <body>
   <div id="boot">
+    <canvas class="glyphs" id="bootGlyphs" aria-hidden="true"></canvas>
     <pre class="glow">
  ███╗   ██╗ ██████╗ ████████╗███████╗███████╗   ██╗
  ████╗  ██║██╔═══██╗╚══██╔══╝██╔════╝██╔════╝   ██║
@@ -151,6 +158,7 @@
       <button id="logout">logout</button>
     </header>
     <main>
+      <canvas class="glyphs side" id="navGlyphs" aria-hidden="true"></canvas>
       <nav id="nav" class="glow"></nav>
       <section id="view"></section>
       <aside><h3 class="glow">event stream</h3><div id="log" class="glow"></div></aside>
@@ -182,6 +190,59 @@ await A.setPersistence(auth, A.browserSessionPersistence);
 const db = D.getDatabase(fbApp);
 
 const $ = s => document.querySelector(s);
+
+/**
+ * GlyphMatrix (vanilla port): a grid of glyphs where a few cells change each tick, fading toward
+ * the bottom. Stops drawing while the tab is hidden or the canvas is gone.
+ */
+function glyphMatrix(canvas, { glyphs = '01·•+*/\\<>=', cellSize = 14, mutationRate = 0.04, interval = 90, fadeBottom = 0.6, color = '#3dff7c' } = {}) {
+  const ctx = canvas.getContext('2d');
+  const probe = document.createElement('canvas').getContext('2d');
+  probe.fillStyle = '#6B7280'; probe.fillStyle = color; probe.fillRect(0, 0, 1, 1);
+  const [r, g, b, a255] = probe.getImageData(0, 0, 1, 1).data;
+  let cols = 0, rows = 0, cells = [], alphas = [], last = 0;
+  const pick = () => glyphs[Math.floor(Math.random() * glyphs.length)];
+  const resize = () => {
+    const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cols = Math.ceil(w / cellSize); rows = Math.ceil(h / cellSize);
+    cells = Array.from({ length: cols * rows }, pick);
+    alphas = Array.from({ length: cols * rows }, () => 0.05 + Math.random() * 0.35);
+  };
+  const draw = () => {
+    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+    ctx.font = `${cellSize - 2}px 'JetBrains Mono', ui-monospace, monospace`;
+    ctx.textBaseline = 'top';
+    for (let y = 0; y < rows; y++) {
+      const fade = fadeBottom > 0 ? 1 - (y / rows) * fadeBottom : 1;
+      for (let x = 0; x < cols; x++) {
+        const i = y * cols + x;
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alphas[i] * fade * (a255 / 255)})`;
+        ctx.fillText(cells[i], x * cellSize, y * cellSize);
+      }
+    }
+  };
+  const tick = t => {
+    if (!canvas.isConnected) return;
+    if (document.visibilityState === 'visible' && t - last >= interval) {
+      last = t;
+      const total = cols * rows, n = Math.max(1, Math.floor(total * mutationRate));
+      for (let k = 0; k < n; k++) {
+        const i = Math.floor(Math.random() * total);
+        cells[i] = pick();
+        alphas[i] = 0.05 + Math.random() * 0.45;
+      }
+      draw();
+    }
+    requestAnimationFrame(tick);
+  };
+  resize(); draw();
+  new ResizeObserver(() => { resize(); draw(); }).observe(canvas);
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) requestAnimationFrame(tick);
+}
+glyphMatrix($('#bootGlyphs'), { color: 'rgba(61, 255, 124, 0.55)', cellSize: 16, fadeBottom: 0.75 });
+glyphMatrix($('#navGlyphs'), { color: 'rgba(61, 255, 124, 0.35)', cellSize: 13, mutationRate: 0.03, interval: 120, fadeBottom: 0.8 });
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const COLORS = { fg: '#3dff7c', amber: '#ffb43a', cyan: '#5fe8ff', violet: '#c58cff', red: '#ff5a5a', dim: '#1e8f46' };
 

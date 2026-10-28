@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Documentation — Notes+ Cross-Platform Knowledge Base</title>
-  <meta name="description" content="Comprehensive documentation, architecture guides, kinetic typography specifications, encrypted vault internals, and power shortcuts for Notes+.">
+  <meta name="description" content="Notes+ documentation: install on Windows, Android, web, macOS and Linux; every setting on every platform; sync, sharing, releases, FAQ, and how Notes+ runs on Backend Zero.">
   <meta name="theme-color" content="#09090b">
   <meta name="author" content="Shashwat Gupta / Flex Studios">
 
@@ -182,11 +182,46 @@
         display: none;
       }
     }
+    .docs-tagline {
+      margin: 18px 0 22px;
+      padding: 16px 18px;
+      border-radius: 14px;
+      border: 1px solid var(--border-accent);
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(34, 211, 238, 0.06));
+      color: var(--text-secondary);
+    }
+    .docs-tagline strong { color: var(--text-primary); }
+    .docs-tagline a { color: var(--indigo-500); font-weight: 600; }
+    .docs-pill {
+      display: inline-block; padding: 1px 8px; border-radius: 9999px; font-size: 0.78rem; font-weight: 700;
+      background: rgba(245, 158, 11, 0.15); color: var(--amber-500); border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+    .docs-faq {
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      background: var(--bg-card);
+      margin-bottom: 10px;
+      padding: 0 16px;
+    }
+    .docs-faq summary {
+      cursor: pointer;
+      padding: 14px 0;
+      font-weight: 650;
+      color: var(--text-primary);
+      list-style: none;
+    }
+    .docs-faq summary::-webkit-details-marker { display: none; }
+    .docs-faq summary::after { content: '+'; float: right; color: var(--text-muted); font-weight: 400; }
+    .docs-faq[open] summary::after { content: '–'; }
+    .docs-faq p { margin: 0 0 14px; }
+    .docs-section-block ol { padding-left: 1.3em; }
+    .docs-section-block a { color: var(--indigo-500); }
   </style>
 </head>
 <body>
   <!-- Ambient Atmospheric Glow -->
   <div class="ambient-glow" aria-hidden="true"></div>
+  <div class="paths-backdrop" aria-hidden="true" data-paths="flow" data-paths-mirror data-paths-color="#6366f1,#8b5cf6,#22d3ee" data-paths-opacity="0.32"></div>
 
   <!-- Smoothed Floating Top Navbar -->
   <div class="navbar-wrap">
@@ -232,189 +267,288 @@
         <div>
           <div class="docs-nav-group-title">Getting Started</div>
           <ul class="docs-nav-list">
-            <li><a href="#overview" class="docs-nav-link active">Overview & Ecosystem</a></li>
-            <li><a href="#quickstart" class="docs-nav-link">Installation & Setup</a></li>
+            <li><a href="#overview" class="docs-nav-link active">Overview</a></li>
+            <li><a href="#install" class="docs-nav-link">Install (all platforms)</a></li>
+            <li><a href="#using" class="docs-nav-link">Using Notes+</a></li>
+            <li><a href="#settings" class="docs-nav-link">Where every setting is</a></li>
           </ul>
         </div>
 
         <div>
-          <div class="docs-nav-group-title">Features & Architecture</div>
+          <div class="docs-nav-group-title">How It Works</div>
           <ul class="docs-nav-list">
-            <li><a href="#typography" class="docs-nav-link">Kinetic Typography Engine</a></li>
-            <li><a href="#vaults" class="docs-nav-link">Dual Encrypted Vaults</a></li>
-            <li><a href="#mindmaps" class="docs-nav-link">Mind Maps & Vector Ink</a></li>
-            <li><a href="#sync" class="docs-nav-link">Sync & Offline Persistence</a></li>
+            <li><a href="#sync" class="docs-nav-link">Sync, accounts &amp; sharing</a></li>
+            <li><a href="#private" class="docs-nav-link">Private spaces</a></li>
+            <li><a href="#releases" class="docs-nav-link">Releases &amp; updates</a></li>
           </ul>
         </div>
 
         <div>
-          <div class="docs-nav-group-title">Security & References</div>
+          <div class="docs-nav-group-title">Help &amp; Reference</div>
           <ul class="docs-nav-list">
-            <li><a href="#security" class="docs-nav-link">Security & Telemetry Policy</a></li>
-            <li><a href="#shortcuts" class="docs-nav-link">Keyboard Shortcuts Cheat Sheet</a></li>
+            <li><a href="#faq" class="docs-nav-link">FAQ</a></li>
+            <li><a href="#developers" class="docs-nav-link">For developers: Backend Zero</a></li>
+            <li><a href="#security" class="docs-nav-link">Privacy &amp; telemetry</a></li>
+            <li><a href="#shortcuts" class="docs-nav-link">Keyboard shortcuts</a></li>
           </ul>
         </div>
       </aside>
 
       <!-- Documentation Articles -->
       <article class="docs-article">
-        <header class="docs-hero" data-paths="waves" data-paths-color="#6366f1,#8b5cf6,#22d3ee" data-paths-count="30">
+        <header class="docs-hero">
           <div class="hero-pill-badge" style="margin-bottom: 14px;">
             <span class="pulse-dot" aria-hidden="true"></span>
             <span>Notes+ v16.6 Canonical Docs</span>
           </div>
           <h1 class="hero-title" style="font-size: 2.6rem; margin-bottom: 14px;">
-            Developer & User Documentation
+            Notes+ Documentation
           </h1>
-          <p class="hero-subtitle" style="font-size: 1.05rem; margin-bottom: 0;">
-            Everything you need to know about Notes+: from tactile typography and visual markdown rendering to AES-256-GCM zero-knowledge encrypted vaults and distributed offline synchronization.
+          <p class="hero-subtitle" style="font-size: 1.05rem; margin: 0;">
+            How to install Notes+ on every platform, find every setting, and get the most from it, plus answers to common questions and how it all runs on Backend Zero.
           </p>
         </header>
 
-        <!-- Section 1: Overview -->
+        <!-- 1. Overview -->
         <section class="docs-section-block" id="overview">
-          <h2>1. Overview & Ecosystem</h2>
+          <h2>1. Overview</h2>
           <p>
-            <strong>Notes+</strong> is a high-performance, cross-platform productivity and privacy platform. It combines a versatile note-taking canvas with zero-latency multi-device synchronization and dual hidden security vaults.
+            <strong>Notes+</strong> is a notes app for Android, Windows and the web: text notes, checklists, a journal,
+            mind maps, sketches and voice recordings, synced between all your devices when you sign in.
+            It works fully offline and without an account; signing in only adds sync and sharing.
           </p>
-          <p>
-            Unlike traditional monolithic note applications, Notes+ operates under an <strong>offline-first local persistence architecture</strong>:
-          </p>
-          <ul>
-            <li><strong>Windows Desktop:</strong> Java 21 LTS with modular JavaFX 23, bundled JRE via jpackage, SQLite database storage, native IExpress installer.</li>
-            <li><strong>Android:</strong> Native Java 21, SQLite with Android Room ORM, Material 3 tactile components, Credential Manager authentication, and WorkManager background task queues.</li>
-            <li><strong>Web Application & PWA:</strong> Vanilla ES Modules with zero framework overhead, Service Worker caching, and IndexedDB local document persistence.</li>
-          </ul>
-        </section>
-
-        <!-- Section 2: Quick Start -->
-        <section class="docs-section-block" id="quickstart">
-          <h2>2. Installation & Quick Start</h2>
-          <p>
-            You can run Notes+ across Windows, Android, and Web browsers with seamless sync across all your devices:
-          </p>
-          <div class="docs-alert">
-            <strong>Cross-Device Note:</strong> Notes+ account credentials allow all three platforms to synchronize in real time. You can view or edit notes offline on any device, and changes automatically reconcile once an Internet connection is detected.
+          <div class="docs-tagline">
+            <strong>Backend Zero.</strong> Notes+ runs no servers of its own. It is hosted for free, exists for free,
+            and so every bit of it is free for you, and open source under the GPL-3.0.
+            <a href="#developers">How that works →</a>
           </div>
-          <h3>Windows Desktop</h3>
-          <p>
-            Download <a href="download.html" style="color: var(--indigo-500); font-weight: 600;">Notes-Plus-Setup-16.6.exe</a> or the portable standalone archive. The installer includes an embedded, isolated Java 21 runtime—no external Java installation is required.
-          </p>
-          <h3>Android Mobile</h3>
-          <p>
-            Install the release APK (<a href="download.html" style="color: var(--indigo-500); font-weight: 600;">Notes-Plus-16.6.apk</a>). Supports Android 7.0 (Nougat) through Android 15+. Biometric unlock (Fingerprint / Face Unlock) can be enabled inside the Security settings.
-          </p>
-          <h3>Web App (PWA)</h3>
-          <p>
-            Visit <a href="app/" style="color: var(--indigo-500); font-weight: 600;">notes.talken.in/app/</a> in any modern browser (Chrome, Edge, Safari, Firefox). You can install it directly as a standalone Progressive Web App (PWA) on your desktop or phone home screen.
-          </p>
-        </section>
-
-        <!-- Section 3: Kinetic Typography -->
-        <section class="docs-section-block" id="typography">
-          <h2>3. Kinetic Typography & Formatting Engine</h2>
-          <p>
-            Notes+ text notes are edited as they look, like Word or WordPad, while they are stored as plain Markdown that every app reads:
-          </p>
-          <ul>
-            <li><strong>Visual In-Editor Rendering:</strong> Text styled with bold, italic, underline, strikethrough, headings, colors, and lists renders with native visual typography—eliminating raw markdown symbols and asterisks from view.</li>
-            <li><strong>Kerning (Letter Spacing):</strong> Real-time slider adjustment ranging from 0px to +6px (or -0.05 to +0.30 tracking on mobile), providing optimal readability for both compact notes and prominent titles.</li>
-            <li><strong>Leading (Line Spacing):</strong> Dynamic line-height slider ranging from 1.2x to 2.4x for customizable vertical breathing room.</li>
-            <li><strong>Color Palette:</strong> 6 curated vibrant accent hues (Default Ink, Electric Indigo, Cyber Emerald, Cyan Flare, Amber Gold, Rose Coral).</li>
-            <li><strong>Render / Edit Toggle:</strong> Press <kbd>Ctrl+R</kbd> or click the <code>👁️ Render View</code> button to switch between live editing mode and publication-grade rendered typography.</li>
-          </ul>
-        </section>
-
-        <!-- Section 4: Dual Vaults -->
-        <section class="docs-section-block" id="vaults">
-          <h2>4. Dual Zero-Knowledge Encrypted Vaults</h2>
-          <p>
-            Behind a discrete gesture lies dual covert security vaults engineered for utmost privacy:
-          </p>
-          <h3>Secret Media & Photo Vault</h3>
-          <p>
-            Encrypted with authenticated <strong>AES-256-GCM</strong> encryption. Images and videos stored inside the vault are encrypted at rest on the local device before any data is written to disk or synced to the cloud. Decryption keys never leave device volatile memory and are cleared immediately upon vault auto-lock.
-          </p>
-          <h3>Covert Messaging Safe</h3>
-          <p>
-            A dedicated encrypted scratchpad and communication vault protected with independent secondary passkeys, timeout auto-wipes, and decoy camouflage states.
-          </p>
-        </section>
-
-        <!-- Section 5: Sync & Offline Engine -->
-        <section class="docs-section-block" id="sync">
-          <h2>5. Real-Time Sync & Distributed Architecture</h2>
-          <p>
-            Notes+ employs an offline-first synchronization protocol backed by Firebase Realtime Database and local SQLite persistence:
-          </p>
-          <ul>
-            <li><strong>Atomic Increments:</strong> Operational counters and heartbeat telemetry use server-evaluated atomic increments (<code>ServerValue.increment</code>) to prevent concurrency collisions.</li>
-            <li><strong>Conflict Resolution:</strong> Timestamps paired with monotonic revision clocks guarantee deterministic merge ordering. Offline edits are queued in local SQLite tables and batched upon reconnection.</li>
-            <li><strong>Scattered Storage Isolation:</strong> Database records are strictly scoped under authenticated User IDs (<code>stats/users/$uid</code>) with security rules enforcing zero cross-user visibility.</li>
-          </ul>
-        </section>
-
-        <!-- Section 6: Security & Privacy -->
-        <section class="docs-section-block" id="security">
-          <h2>6. Security & Telemetry Disclosure</h2>
-          <p>
-            Notes+ is designed to protect your privacy:
-          </p>
-          <ul>
-            <li><strong>Zero Third-Party Trackers:</strong> No Google Analytics, no Facebook SDKs, and no advertising cookies. The website keeps visit logs (IP address, place, system), described in the privacy policy.</li>
-            <li><strong>Anonymous Daily Telemetry:</strong> Only anonymous system version counters (e.g., verifying whether a client is running v16.6 or Windows) are collected for update eligibility.</li>
-            <li><strong>Full Opt-Out:</strong> Telemetry can be disabled entirely in Settings with a single switch. Account deletion executes a unified purge across database and storage records.</li>
-          </ul>
-        </section>
-
-        <!-- Section 7: Shortcuts -->
-        <section class="docs-section-block" id="shortcuts">
-          <h2>7. Keyboard Shortcuts Cheat Sheet</h2>
-          <p>Use these tactile shortcuts on Windows Desktop and the Web Application:</p>
           <table class="docs-table">
-            <thead>
-              <tr>
-                <th>Action</th>
-                <th>Shortcut</th>
-                <th>Description</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Platform</th><th>How you get it</th><th>Built with</th></tr></thead>
             <tbody>
-              <tr>
-                <td><strong>Toggle Render Mode</strong></td>
-                <td><kbd>Ctrl</kbd> + <kbd>R</kbd></td>
-                <td>Switch between Edit Mode and visual Rendered View</td>
-              </tr>
-              <tr>
-                <td><strong>Bold Text</strong></td>
-                <td><kbd>Ctrl</kbd> + <kbd>B</kbd></td>
-                <td>Wrap selection in bold weight styling</td>
-              </tr>
-              <tr>
-                <td><strong>Italic Text</strong></td>
-                <td><kbd>Ctrl</kbd> + <kbd>I</kbd></td>
-                <td>Apply italic font styling</td>
-              </tr>
-              <tr>
-                <td><strong>Underline Text</strong></td>
-                <td><kbd>Ctrl</kbd> + <kbd>U</kbd></td>
-                <td>Apply underline decoration</td>
-              </tr>
-              <tr>
-                <td><strong>Strikethrough</strong></td>
-                <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd></td>
-                <td>Strike through selected text</td>
-              </tr>
-              <tr>
-                <td><strong>Inline Code</strong></td>
-                <td><kbd>Ctrl</kbd> + <kbd>E</kbd></td>
-                <td>Wrap in monospace code block</td>
-              </tr>
-              <tr>
-                <td><strong>Toggle Site Theme</strong></td>
-                <td><kbd>T</kbd></td>
-                <td>Toggle between Light and Dark aesthetic themes</td>
-              </tr>
+              <tr><td><strong>Android</strong> 7.0+</td><td>APK from the <a href="download.html">download page</a></td><td>Java, Room, Material 3</td></tr>
+              <tr><td><strong>Windows</strong> 10 / 11</td><td>Installer or portable ZIP</td><td>Java 21, JavaFX, SQLite</td></tr>
+              <tr><td><strong>Web</strong> (any modern browser)</td><td><a href="app/">notes.talken.in/app</a>, installable as an app (PWA)</td><td>Plain ES modules, IndexedDB, no framework</td></tr>
+              <tr><td><strong>macOS</strong>, <strong>iPhone / iPad</strong></td><td>The web app, installed to the Dock or Home Screen</td><td>(same as web)</td></tr>
+              <tr><td><strong>Linux</strong></td><td>The web app today; a native build is <span class="docs-pill">pending</span></td><td>(same as web)</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- 2. Install -->
+        <section class="docs-section-block" id="install">
+          <h2>2. Install</h2>
+
+          <h3>Windows</h3>
+          <ol>
+            <li>Download <strong>Notes-Plus-Setup-16.6.exe</strong> from the <a href="download.html">download page</a> and run it. It needs no Java: one is built in.</li>
+            <li>If Windows SmartScreen says it doesn't recognise the app, choose <strong>More info → Run anyway</strong>. (The installer isn't code-signed yet; check its SHA-256 on the download page if you like.)</li>
+            <li>Setup asks about a <strong>Desktop shortcut</strong>, the <strong>Start menu</strong>, and whether Notes+ should be your <strong>Default text editor</strong> for <code>.txt</code> and similar files.</li>
+          </ol>
+          <p>Prefer no installer? The <strong>portable ZIP</strong> runs from any folder: unzip it and open <code>Notes+.exe</code>. Your notes live in <code>%APPDATA%\Notes+</code> either way. To repair or remove Notes+, run Setup again and choose <strong>Repair</strong> or <strong>Uninstall</strong>.</p>
+
+          <h3>Android</h3>
+          <ol>
+            <li>On your phone, open the <a href="download.html">download page</a> and tap <strong>Download APK</strong>.</li>
+            <li>Open the downloaded file. Android asks once to allow installs from your browser: <strong>Settings → Allow from this source</strong>, then go back and tap <strong>Install</strong>.</li>
+            <li>Updates are offered inside the app. <strong>Always install over the existing app; never uninstall first</strong>, or everything stored only on that phone is deleted with it.</li>
+          </ol>
+
+          <h3>Web, and installing it as an app</h3>
+          <p>Open <a href="app/">notes.talken.in/app</a>. Without an account your notes are kept in this browser; sign in to sync them. To install it like an app (its own window, works offline):</p>
+          <ul>
+            <li><strong>Chrome / Edge (Windows, macOS, Linux, ChromeOS):</strong> the install icon at the right of the address bar, or in the app: <strong>Account → Install Web App (PWA)</strong>.</li>
+            <li><strong>Safari on macOS</strong> (Sonoma or later): <strong>File → Add to Dock</strong>.</li>
+            <li><strong>iPhone / iPad:</strong> Safari → <strong>Share</strong> → <strong>Add to Home Screen</strong>.</li>
+            <li><strong>Android:</strong> Chrome menu → <strong>Install app</strong> (or use the native APK).</li>
+          </ul>
+
+          <h3>macOS</h3>
+          <p>There is no native Mac build. Install the web app as above (Chrome, Edge or Safari's <strong>Add to Dock</strong>): it opens in its own window from the Dock and Launchpad, works offline, and syncs with your phone and PC.</p>
+
+          <h3>Linux</h3>
+          <div class="docs-alert"><strong>Native Linux build: pending.</strong> It's on the way. Until then, install the web app from Chrome, Chromium or Edge: it runs in its own window and syncs like the others. When the Linux build ships, it will be on <code>releases.talken.in</code> and on GitHub Releases like every other build.</div>
+        </section>
+
+        <!-- 3. Using -->
+        <section class="docs-section-block" id="using">
+          <h2>3. Using Notes+</h2>
+          <h3>Kinds of note</h3>
+          <p>Tap <strong>+ New</strong> (Android, web) or the new-note button (Windows) and pick one:</p>
+          <ul>
+            <li><strong>Note</strong>: text edited as it looks, like Word or WordPad, with pictures.</li>
+            <li><strong>List</strong>: a checklist; tick items, drag to reorder, add pictures.</li>
+            <li><strong>Journal</strong>: one day, with a date, a mood, words, photos and videos.</li>
+            <li><strong>Mind map</strong>: ideas around one or more central ideas; drag, link, tidy, add pictures and sub-text.</li>
+            <li><strong>Sketch</strong>: freehand drawing.</li>
+            <li><strong>Audio</strong>: a voice recording with its waveform.</li>
+          </ul>
+
+          <h3>A note's options</h3>
+          <p>Open a card's menu: <strong>long-press</strong> it on Android, <strong>right-click</strong> it on Windows and the web (long-press on a touch screen).</p>
+          <table class="docs-table">
+            <thead><tr><th>Option</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td>Pin to top</td><td>Keeps the note first in the grid.</td></tr>
+              <tr><td>Colour</td><td>Tints the card and the editor.</td></tr>
+              <tr><td>Move to folder…</td><td>Files it in a folder (or a new one). Folders show as chips above the grid.</td></tr>
+              <tr><td>Archive</td><td>Hides it from the grid; find it under the <strong>Archived</strong> chip and choose <strong>Unarchive</strong>.</td></tr>
+              <tr><td>Duplicate</td><td>A copy of the note.</td></tr>
+              <tr><td>Send to people…</td><td>Sends a read-only copy to people by @username; they see your edits.</td></tr>
+              <tr><td>Share link…</td><td>A read-only web link anyone can open, words only (no files). Deleting or locking the note takes the link down.</td></tr>
+              <tr><td>Delete</td><td>Removes it from all your devices.</td></tr>
+            </tbody>
+          </table>
+          <p>Inside a note, the <strong>⋮</strong> menu (Android) or the editor's toolbar (Windows, web) also has <strong>Lock</strong> (a PIN, password or pattern for this note alone), <strong>Change lock / Remove lock</strong>, <strong>Share with people</strong> (edit together, up to 20 people), <strong>Wrap text</strong> (lists and mind maps) and <strong>Save a copy</strong> (for a note someone sent you).</p>
+
+          <h3>Folders and the archive</h3>
+          <p>The chips above the grid filter it: <strong>All</strong>, your folders, <strong>Shared with me</strong>, <strong>Archived</strong>, and each kind of note. <strong>New folder</strong> makes one; long-press (Android) or right-click (Windows, web) a folder chip to rename or remove it. Removing a folder keeps its notes. Since 16.6, folders and the archive follow you to every device you're signed in on.</p>
+
+          <h3>Formatting text</h3>
+          <p>Text notes look the way they read: bold is bold, a heading is big, a list has its bullets. Use the format bar (above the keyboard on Android, above the note on Windows and the web): <strong>B I U S</strong>, code, <strong>Style</strong> (normal, heading 1–3, quote), <strong>Colour</strong>, bullets, numbers, tasks, and line spacing. Or just type:</p>
+          <table class="docs-table">
+            <thead><tr><th>Type this</th><th>You get</th></tr></thead>
+            <tbody>
+              <tr><td><code># </code>, <code>## </code>, <code>### </code> at the start of a line</td><td>Heading 1, 2, 3</td></tr>
+              <tr><td><code>- </code> or <code>* </code></td><td>A bulleted list</td></tr>
+              <tr><td><code>1. </code></td><td>A numbered list</td></tr>
+              <tr><td><code>[] </code></td><td>A task with a tick box</td></tr>
+              <tr><td><code>&gt; </code></td><td>A quote</td></tr>
+              <tr><td><code>**bold**</code>, <code>*italic*</code>, <code>~~strike~~</code>, <code>`code`</code></td><td>The formatting, marks hidden</td></tr>
+            </tbody>
+          </table>
+          <p><strong>Enter</strong> continues a list and an empty item ends it; <strong>Backspace</strong> at the start of a list item or heading makes it plain. A heading or quote is a style for the whole line, as in Word. Notes are stored as plain Markdown, the same on every platform.</p>
+        </section>
+
+        <!-- 4. Settings -->
+        <section class="docs-section-block" id="settings">
+          <h2>4. Where every setting is</h2>
+          <p><strong>Open Settings:</strong> tap your <strong>picture or initial at the top right</strong> of the notes screen (Android, Windows and web alike). Signed out, the same place offers sign-in.</p>
+          <table class="docs-table">
+            <thead><tr><th>Setting</th><th>Android</th><th>Windows</th><th>Web</th></tr></thead>
+            <tbody>
+              <tr><td>Sign in / create account</td><td>Account → Continue with Google, or email</td><td>Account → same</td><td>Account → same</td></tr>
+              <tr><td>Verify your email</td><td colspan="3">Tap the link we email you, then <strong>I've tapped the link</strong>. Email accounts sync only once verified.</td></tr>
+              <tr><td>Forgot password</td><td colspan="3">Account → email sign-in → <strong>Forgot password?</strong></td></tr>
+              <tr><td>Sync now</td><td>Account → Sync → Notes → Sync now</td><td>Account → Notes → Sync now</td><td>Account → Notes → Sync now</td></tr>
+              <tr><td>Photos &amp; recordings (Google Drive)</td><td>Account → Photos and recordings</td><td>Account → Photos and recordings</td><td>Account → Pictures and recordings</td></tr>
+              <tr><td>@username</td><td>Account → Profile → Username</td><td>Account → Username</td><td>Account → Username</td></tr>
+              <tr><td>Theme (system, light, dark)</td><td>Account → Notes+ → Theme</td><td>Account → Theme</td><td>Account → Theme</td></tr>
+              <tr><td>How long a locked note stays open</td><td>Account → Locked notes</td><td>Account → Locked notes</td><td>Account → Locked notes</td></tr>
+              <tr><td>Check for updates</td><td>Account → Check for updates (also automatic)</td><td>Account → Check for updates (also automatic)</td><td>Account → Check for updates</td></tr>
+              <tr><td>Feedback &amp; rating</td><td>Account → Send Feedback &amp; Review</td><td>Account → Send Feedback &amp; Review</td><td>Account → Send Feedback &amp; Review</td></tr>
+              <tr><td>Install as an app</td><td>n/a</td><td>n/a</td><td>Account → Install Web App (PWA)</td></tr>
+              <tr><td>App logs (for bug reports)</td><td>Account → App logs</td><td>n/a</td><td>n/a</td></tr>
+              <tr><td>Default text editor</td><td>n/a</td><td>Run Setup → Default text editor</td><td>n/a</td></tr>
+              <tr><td>Sign out</td><td>Account → Sign out</td><td>Account → Sign out</td><td>Account → Sign out</td></tr>
+              <tr><td>Delete account</td><td>Account → Delete account</td><td>Account → Delete account</td><td>Use the phone or PC app</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- 5. Sync -->
+        <section class="docs-section-block" id="sync">
+          <h2>5. Sync, accounts and sharing</h2>
+          <ul>
+            <li><strong>Optional.</strong> Signed out, everything stays on the device. Signing in with Google or email adds sync; your <code>@username</code> is a public handle for sharing, never a login.</li>
+            <li><strong>When it syncs.</strong> Never while you type: when you close a note, when you leave the app, and when you open it. Every device keeps working offline and catches up later.</li>
+            <li><strong>Two devices, one note.</strong> Each change carries a revision number; the database accepts a change only on top of the version it was based on, so nothing is overwritten by accident. If two devices edited the same note, the one that syncs last wins.</li>
+            <li><strong>Files</strong> (photos, videos, recordings) go to <strong>your own Google Drive</strong>, in a <code>Notes-plus</code> folder. The database holds only their list. Connect Drive from Account → Photos and recordings.</li>
+            <li><strong>Sharing:</strong> <em>Share with people</em> makes a group note everyone edits (up to 20); <em>Send to people</em> gives them a read-only copy that follows your edits; <em>Share link</em> publishes a read-only page anyone with the link can open.</li>
+          </ul>
+        </section>
+
+        <!-- 6. Private spaces -->
+        <section class="docs-section-block" id="private">
+          <h2>6. Private spaces</h2>
+          <p>
+            Notes+ also has private, encrypted spaces that open only with a gesture and a lock you choose. They are
+            deliberately not explained step by step here: the less a page says about them, the better they hide.
+            What matters for your safety:
+          </p>
+          <ul>
+            <li>Files in them are encrypted on the device with <strong>AES-256-GCM</strong> under a key kept in the phone's secure hardware store; they never go to the Notes+ database.</li>
+            <li>Their backups (a file you save, or your own Google Drive) are encrypted before they leave the device.</li>
+            <li>Wrong attempts lock the screen for longer and longer, up to an hour.</li>
+          </ul>
+        </section>
+
+        <!-- 7. Releases -->
+        <section class="docs-section-block" id="releases">
+          <h2>7. Releases and updates</h2>
+          <p>Every release is published in two places, each file with its SHA-256 checksum:</p>
+          <ul>
+            <li><strong>releases.talken.in</strong> (Cloudflare R2): what the apps and this site download from.</li>
+            <li><strong><a href="https://github.com/Shashwat-Gupta57/Notes-Plus/releases" target="_blank" rel="noopener">GitHub Releases</a></strong>: the same files, with the release notes and the source they were built from.</li>
+          </ul>
+          <p>The apps learn about a release from <code>version.json</code>: Android checks at most every 12 hours, Windows at start and every few minutes, the web app when it opens. Android verifies the download's checksum and signing key before installing. Android, Windows and the web share one version number.</p>
+          <div class="docs-alert"><strong>Coming:</strong> a native Linux build, published to both places like the others.</div>
+        </section>
+
+        <!-- 8. FAQ -->
+        <section class="docs-section-block" id="faq">
+          <h2>8. FAQ</h2>
+          <details class="docs-faq"><summary>Is Notes+ really free?</summary><p>Yes, with no ads, no subscription and no paid tier. Notes+ runs without servers of its own (see <a href="#developers">Backend Zero</a>), so it costs almost nothing to keep alive. It's open source under the GPL-3.0.</p></details>
+          <details class="docs-faq"><summary>Do I need an account?</summary><p>No. Everything works on one device without one. An account adds sync between devices and sharing.</p></details>
+          <details class="docs-faq"><summary>Where are my notes stored?</summary><p>On your device, always. Signed in, their text also goes to the Notes+ database (Firebase), readable only by your account; photos and recordings go to your own Google Drive.</p></details>
+          <details class="docs-faq"><summary>Can you read my notes?</summary><p>Notes are protected by the database's access rules, not end-to-end encrypted, so the database owner could technically access them. For anything sensitive, use <strong>Lock</strong> on the note: a locked note is encrypted on your device with its PIN, password or pattern before it's saved or synced.</p></details>
+          <details class="docs-faq"><summary>I forgot a locked note's PIN or password.</summary><p>It can't be recovered: the note is encrypted with it, and nobody else has it. That's the point of the lock.</p></details>
+          <details class="docs-faq"><summary>My folders don't show on my other device.</summary><p>Update every device to 16.6 or later. Before 16.6, folders and the archive synced only where an option was on; 16.6 syncs them always and catches up on its first sync.</p></details>
+          <details class="docs-faq"><summary>Windows says it protected my PC (SmartScreen).</summary><p>The installer isn't code-signed yet, so Windows doesn't recognise it. Choose <strong>More info → Run anyway</strong>, and compare the file's SHA-256 with the one on the download page if you want to be sure.</p></details>
+          <details class="docs-faq"><summary>How do I move to a new phone?</summary><p>Sign in on the new phone with the same account: your notes, folders and files come down. Install the APK; don't restore an old one over it.</p></details>
+          <details class="docs-faq"><summary>Does it work on Mac, Linux, iPhone or iPad?</summary><p>Yes, through the web app, installed to the Dock or Home Screen (see <a href="#install">Install</a>). A native Linux build is pending.</p></details>
+          <details class="docs-faq"><summary>Does it work offline?</summary><p>Yes, everywhere. The web app, once opened, keeps working offline too. Changes sync when you're back online.</p></details>
+          <details class="docs-faq"><summary>How do I delete my account and data?</summary><p>Account → <strong>Delete account</strong> on Android or Windows. It removes everything stored online for that account: notes, username, profile and sharing.</p></details>
+          <details class="docs-faq"><summary>I found a bug / I have an idea.</summary><p>Account → <strong>Send Feedback &amp; Review</strong> in any app, or open an issue on <a href="https://github.com/Shashwat-Gupta57/Notes-Plus/issues" target="_blank" rel="noopener">GitHub</a>. On Android, Account → App logs lets you save logs to attach.</p></details>
+        </section>
+
+        <!-- 9. Developers -->
+        <section class="docs-section-block" id="developers">
+          <h2>9. For developers: Backend Zero</h2>
+          <div class="docs-tagline">
+            <strong>No servers. No subscriptions. No compromises.</strong><br>
+            A state-of-the-art, cross-platform notes platform with <em>zero</em> backend code of its own: hosted for free,
+            existing for free, and so free for everyone who uses it. Open source, GPL-3.0.
+          </div>
+          <p>There is no Notes+ server, no API and no Cloud Functions. Every piece is a static file or a managed free tier:</p>
+          <table class="docs-table">
+            <thead><tr><th>Piece</th><th>Runs on</th><th>Cost</th></tr></thead>
+            <tbody>
+              <tr><td>Website and web app</td><td>Static files on GitHub Pages</td><td>₹0</td></tr>
+              <tr><td>Accounts</td><td>Firebase Authentication</td><td>₹0</td></tr>
+              <tr><td>Notes, sharing, sync</td><td>Firebase Realtime Database; the <strong>security rules are the whole backend</strong>: typed, size-capped fields, per-user access, revision checks, atomic username claims</td><td>₹0 (Spark plan)</td></tr>
+              <tr><td>Photos, videos, recordings</td><td>Each user's own Google Drive (<code>drive.file</code> scope)</td><td>₹0, on the user's own quota</td></tr>
+              <tr><td>Downloads and updates</td><td>Cloudflare R2 (<code>releases.talken.in</code>) and GitHub Releases, announced by <code>version.json</code></td><td>₹0 (free tier, no egress fees)</td></tr>
+            </tbody>
+          </table>
+          <p>Clients do all the work: conflict-safe sync with optimistic revisions, client-side encryption for locked notes and private spaces, and the same Markdown note format on Android (Java), Windows (JavaFX) and the web (vanilla JS).</p>
+          <p><strong>Contribute:</strong> the code is on <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener">GitHub</a>: <code>master</code> is Android, <code>desktop</code> is Windows, <code>web</code> is this site and the web app. Read <code>CONTRIBUTING.md</code> before opening a pull request.</p>
+        </section>
+
+        <!-- 10. Privacy -->
+        <section class="docs-section-block" id="security">
+          <h2>10. Privacy and telemetry</h2>
+          <ul>
+            <li><strong>No ad or analytics SDKs</strong> in any app: no Google Analytics, no Facebook SDK, no advertising cookies.</li>
+            <li><strong>Apps</strong> count update checks per day and platform, and signed-in apps keep a small status row (platform, version, theme, last active day) so the developer can see which versions are in use.</li>
+            <li><strong>This website and the web app</strong> keep visit logs (IP address and the place it maps to, system, referrer, time on page), readable only by the administrator. Details in the <a href="privacy.html">privacy policy</a>.</li>
+          </ul>
+        </section>
+
+        <!-- 11. Shortcuts -->
+        <section class="docs-section-block" id="shortcuts">
+          <h2>11. Keyboard shortcuts</h2>
+          <p>In text notes on Windows (and, for bold, italic and underline, on the web):</p>
+          <table class="docs-table">
+            <thead><tr><th>Action</th><th>Shortcut</th></tr></thead>
+            <tbody>
+              <tr><td>Bold / italic / underline</td><td><kbd>Ctrl</kbd> + <kbd>B</kbd> / <kbd>I</kbd> / <kbd>U</kbd></td></tr>
+              <tr><td>Strikethrough</td><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd></td></tr>
+              <tr><td>Bulleted list</td><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>L</kbd></td></tr>
+              <tr><td>Heading 1 / 2 / 3</td><td><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd></td></tr>
+              <tr><td>Normal text</td><td><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>0</kbd></td></tr>
+              <tr><td>Open a link</td><td><kbd>Ctrl</kbd> + click</td></tr>
+              <tr><td>Find in note</td><td><kbd>Ctrl</kbd> + <kbd>F</kbd></td></tr>
+              <tr><td>Toggle this site's theme</td><td><kbd>T</kbd></td></tr>
             </tbody>
           </table>
         </section>
@@ -473,7 +607,7 @@
     <div class="container">
       <div class="footer-content">
         <div class="footer-copy">
-          <p>© 2026 Shashwat Gupta • Flex Studios. All rights reserved.</p>
+          <p>© 2026 Shashwat Gupta • Flex Studios. Open source under the <a href="https://github.com/Shashwat-Gupta57/Notes-Plus/blob/master/LICENSE" style="text-decoration: underline;">GPL-3.0</a>.</p>
           <p style="font-size: 0.8rem; margin-top: 4px; color: var(--text-muted);">
             No ad trackers. Notes+ v16.6 Canonical Docs.
           </p>
@@ -492,6 +626,19 @@
 
   <script src="js/masterpiece.js"></script>
   <script src="js/paths.js" defer></script>
+  <script>
+    // The sidebar follows the section being read.
+    (function () {
+      const links = [...document.querySelectorAll('.docs-nav-link')];
+      const byId = new Map(links.map(l => [l.getAttribute('href').slice(1), l]));
+      const io = new IntersectionObserver(es => {
+        const seen = es.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (!seen || !byId.has(seen.target.id)) return;
+        links.forEach(l => l.classList.toggle('active', l === byId.get(seen.target.id)));
+      }, { rootMargin: '-20% 0px -65% 0px' });
+      document.querySelectorAll('.docs-section-block[id]').forEach(s => io.observe(s));
+    })();
+  </script>
   <script src="js/telemetry.js"></script>
 </body>
 </html>

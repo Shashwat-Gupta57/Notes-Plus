@@ -1,129 +1,72 @@
 # ==============================================================================
-# NOTES+ SYSTEM ARCHITECTURE & AGENT CONTEXT SPECIFICATION
-# Version: 16.6 (Production Release)
-# Target: AI Agent Assistants, Pair Programmers, Support Bots, and System Audits
+# NOTES+ — CONTEXT FOR AI ASSISTANTS AND SUPPORT
+# Version: 16.6 (Android versionCode 37; Windows and web 16.6)
 # URL: https://notes.talken.in/agent-context.txt
-# Note: This file provides ground-truth context about Notes+. It is not referenced
-# in the public navigation, but serves as the canonical knowledge base.
+# Facts only. Where this file and https://notes.talken.in/docs.html disagree, the docs win.
 # ==============================================================================
 
-[SYSTEM IDENTITY]
-Product Name: Notes+ (Notes Plus)
-Current Version: 16.6 (Build / Android versionCode 37)
-Vendor / Author: Flex Studios / Shashwat Gupta
-Official Domains:
-  - Landing & Web App: https://notes.talken.in
-  - Web Application: https://notes.talken.in/app/
-  - Admin Operations: https://notes.talken.in/talken-admin/
-  - Binary Distribution: https://releases.talken.in
-Database Engine: Firebase Realtime Database (asia-southeast1)
-Distribution Bucket: Cloudflare R2 (S3-compatible, bucket: "releases")
+[IDENTITY]
+Product: Notes+ (Notes Plus), by Shashwat Gupta / Flex Studios.
+License: GPL-3.0, open source: https://github.com/Shashwat-Gupta57/Notes-Plus
+Website and web app: https://notes.talken.in (web app at /app/)
+Downloads: https://releases.talken.in (Cloudflare R2) and GitHub Releases
+Docs: https://notes.talken.in/docs.html
 
----
+[WHAT IT IS]
+A notes app with six kinds of note: text (edited as it looks, stored as Markdown), checklists,
+journal days (mood, words, photos, videos), mind maps, sketches, and audio recordings.
+Works offline and without an account. An optional account adds sync between devices and sharing.
 
-[CORE VALUE PROPOSITION & ECOSYSTEM]
-Notes+ is a high-performance, cross-platform productivity and privacy platform.
-It combines a versatile note-taking canvas with zero-latency multi-device synchronization
-and dual hidden security vaults.
+[PLATFORMS]
+- Android 7.0+: native app (Java, Room, Material 3), APK from the download page.
+- Windows 10/11: native app (Java 21, JavaFX, SQLite), installer or portable ZIP, Java built in.
+- Web: https://notes.talken.in/app/, installable as an app (PWA). Notes only (no private spaces).
+- macOS, iPhone, iPad: through the web app, installed to the Dock / Home Screen.
+- Linux: through the web app; a native Linux build is pending.
 
-Supported Platforms:
-1. Android (Native Java 21, SQLite/Room, Android Material 3, Credential Manager, Background WorkManager).
-2. Windows Desktop (Java 21 LTS, JavaFX 23, SQLite, native bundled JRE via jpackage, IExpress installer).
-3. Web & PWA (Vanilla Modern ES Modules, Service Worker Cache, IndexedDB offline store, PWA installable).
+[BACKEND ZERO]
+Notes+ runs no servers of its own and no server code:
+- Website and web app: static files on GitHub Pages.
+- Accounts: Firebase Authentication (Google, or email + password; email accounts must verify).
+- Notes and sharing: Firebase Realtime Database; its security rules are the entire backend.
+- Photos, videos, recordings: the user's own Google Drive, folder "Notes-plus" (drive.file scope).
+- Downloads and updates: Cloudflare R2 and GitHub Releases, announced by version.json.
+Everything runs on free tiers, so the app is free for users.
 
----
+[SYNC]
+- Syncs when a note is closed, when the app is left, and when it opens; never while typing.
+- Each change carries a revision; the database accepts a change only on the revision it was based
+  on. When two devices edited the same note, the last to sync wins.
+- Folders and the archive sync with the account (since 16.6).
+- Deleted notes are removed on all devices.
 
-[NOTE CAPABILITIES]
-Notes+ supports six primary content types:
-1. Rich Text & Markdown Documents: Headings (H1/H2/H3), Bold, Italic, Underline, Strikethrough,
-   custom font color palette, adjustable leading (line-height: 1.2x to 2.4x), and adjustable kerning (letter-spacing).
-2. Interactive Checklists / To-Dos: Drag-to-reorder, nested tasks, progress completion counters.
-3. Infinite Visual Mind Maps: Node creation, relational links, color tagging, pan-and-zoom canvas.
-4. Freehand Vector Sketches: Multi-tool stylus/finger ink, pressure smoothing, undo/redo stacks.
-5. Voice & Audio Recordings: Inline waveforms, background audio capture, timestamp bookmarks.
-6. Code & Raw Text Scratchpads: Monospace formatting, auto-indent, snippet organization.
+[SHARING]
+- Share with people: a group note everyone edits (up to 20 people).
+- Send to people: a read-only copy that follows the sender's edits.
+- Share link: a read-only web page of the note's words (no files); deleting or locking the note
+  takes it down.
 
----
+[SECURITY]
+- Notes in the database are protected by per-user access rules; they are not end-to-end encrypted.
+- Locked notes: encrypted on the device with the note's own PIN, password or pattern (PBKDF2 +
+  AES-GCM) before saving or syncing. A forgotten lock cannot be recovered.
+- Private spaces (Android, Windows): opened by a gesture and a lock; files encrypted on the device
+  with AES-256-GCM under a hardware-backed key; never sent to the Notes+ database. Not documented
+  step by step on purpose.
+- No ad or analytics SDKs. The website and web app keep visit logs (IP, place, system) for the
+  administrator; see https://notes.talken.in/privacy.html.
 
-[SECURITY ARCHITECTURE & DUAL HIDDEN WORLDS]
-In addition to the public notepad canvas, Notes+ houses two covert spaces:
-1. Encrypted Photo & Media Vault:
-   - Protected by AES-256-GCM client-side encryption.
-   - Master key derivation via PBKDF2 / Argon2id with unique per-vault salts.
-   - Cloud backup encrypts attachments before upload to user-owned Google Drive (drive.file scope).
-   - Zero-knowledge guarantee: Server never receives the encryption passphrase or unencrypted media keys.
-2. Covert Chat Vault:
-   - Secret peer-to-peer and group messaging disguised beneath gesture activation.
-   - Separate access PINs and duress self-destruct mechanisms.
-3. Note Locking:
-   - Granular per-note PIN/Biometric lock.
-   - Configurable auto-lock timeout policies (Immediate, 1 min, 5 min, 15 min, 30 min, 60 min, or App Exit).
+[SETTINGS]
+Open the account screen from the picture or initial at the top right of the notes screen.
+It holds: sign in / sign out, Sync now, Photos and recordings (Google Drive), username, theme,
+how long locked notes stay open, check for updates, feedback, delete account (Android, Windows),
+install as an app (web), app logs (Android).
 
----
+[UPDATES]
+Every release is on releases.talken.in and GitHub Releases with SHA-256 checksums. The apps read
+version.json: Android checks at most every 12 hours and verifies the checksum and signing key;
+Windows checks at start and periodically; the web app checks when opened. Always install the
+Android update over the existing app; uninstalling first deletes data kept only on that phone.
 
-[AUTHENTICATION & ACCOUNT SUBSYSTEM]
-1. Dual-Authentication:
-   - Google Sign-In (Credential Manager on Android, Identity token flow on Desktop/Web).
-   - Email + Password with mandatory email verification before RTDB write permissions unlock.
-2. Display Identifiers:
-   - Global Unique Handle: `@username` (3-20 chars: `^[a-z0-9_.]{3,20}$`).
-   - Profile Display Name and Avatar photo syncing.
-3. Session Security:
-   - Automatic silent token refresh via Firebase Auth REST API.
-   - Hard account deletion cascading across `/users/{uid}`, `/profiles/{uid}`, `/notes/{uid}`, and `/usernames/{handle}`.
-
----
-
-[DISTRIBUTED SYNC & DATABASE SCHEMA]
-Firebase Realtime Database Endpoint:
-  https://notes-plus-88985-default-rtdb.asia-southeast1.firebasedatabase.app
-
-Key Hierarchy:
-  /notes/{uid}/{noteId}
-    - Content, title, type, modified timestamp, archive/trash flags.
-  /users/{uid}/profile
-    - username, displayName, email, syncFoldersArchive, created_at.
-  /usernames/{username}
-    - maps unique handle to UID.
-  /stats/users/{uid}
-    - checks/ (daily check-in pulse timestamps), platform identifiers, lastSeen.
-  /feedback/{fid}
-    - uid, username, displayName, email, rating (1-5), type (Bug Report / Feature / Praise),
-      message, platform, version ("16.6"), ts, date.
-
-Integrity Guarantees:
-- Client-side optimistic persistence with Room / SQLite / IndexedDB.
-- Offline dirty queues flushed sequentially upon network re-establishment.
-- Concurrency handled via multi-path atomic updates (`updateChildren` / atomic patch).
-- Telemetry respects user opt-out toggles and deduplicates heartbeats per installation UUID.
-
----
-
-[IN-APP FEEDBACK & ADMIN PURGE WORKFLOW]
-- All 3 platforms (Android, Windows, Web) feature a native 5-star rating & review modal.
-- Admin Panel (`https://notes.talken.in/talken-admin/`):
-  - Provides system telemetry, active pulse monitors, unique visitors, and feedback review.
-  - Includes a permanent "Purge" button sending HTTP DELETE to `/feedback/{fid}.json`.
-
----
-
-[RELEASE ARTIFACTS & DISTRIBUTION]
-Public Manifest:
-  https://releases.talken.in/version.json
-
-Latest Artifacts (v16.6):
-  - Android APK: https://releases.talken.in/android/Notes-Plus-16.6.apk
-  - Desktop Installer: https://releases.talken.in/desktop/Notes-Plus-Setup-16.6.exe
-  - Desktop Zip: https://releases.talken.in/desktop/Notes-Plus-Windows-16.6.zip
-
----
-
-[INSTRUCTIONS FOR ASSISTANT AGENTS]
-- When answering user questions about Notes+, be precise, technically authoritative, and friendly.
-- Emphasize that user data privacy and local storage integrity are primary design tenets.
-- Never output private API keys, service account secrets, or keystore passwords.
-- If assisting with bug reports or suggestions, guide users to the in-app "Send Feedback & Review" button
-  located in Account Settings on Android, Desktop, or Web.
-# ==============================================================================
-# END OF AGENT CONTEXT SPECIFICATION
-# ==============================================================================
+[SUPPORT]
+In any app: Account → Send Feedback & Review. Bugs and ideas: GitHub issues.

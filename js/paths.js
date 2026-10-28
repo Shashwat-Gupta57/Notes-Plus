@@ -96,17 +96,22 @@
 
     const bundles = shape === 'flow' ? (host.hasAttribute('data-paths-mirror') ? [1, -1] : [1]) : [1];
     const lines = [];
-    for (const position of bundles) {
+    bundles.forEach((position, b) => {
       const ds = shape === 'flow' ? flow(n, position) : SHAPES[shape](n);
       const lens = lengths(ds);
       ds.forEach((d, i) => {
-        const dur = 20 + Math.random() * 10; // 20–30 s like the original, each starting elsewhere in its cycle
-        lines.push({ path: new Path2D(d), len: lens[i], width: 0.5 + i * 0.03, alpha: 0.1 + i * (0.9 / n), dur, phase: Math.random() * dur });
+        lines.push({
+          path: new Path2D(d), len: lens[i], width: 0.5 + i * 0.03, alpha: 0.1 + i * (0.9 / n),
+          dur: 20 + Math.random() * 10, // 20–30 s like the original
+          // Streaming in from the edge where it starts, one after another, the mirrored fan a beat later.
+          enter: b * 0.25 + i * 0.035 + Math.random() * 0.12,
+        });
       });
-    }
+    });
 
     const ctx = canvas.getContext('2d');
-    let w = 0, h = 0, dpr = 1, stroke = null, born = performance.now(), running = false, last = 0, visible = true;
+    let w = 0, h = 0, dpr = 1, stroke = null, born = null, running = false, last = 0, visible = true;
+    const ENTER = 2.2; // seconds each line takes to arrive
     // The fan reaches far outside its box and shows through (as the original's 'meet'); the others fill it.
     const fit = () => {
       const r = layer.getBoundingClientRect();
@@ -133,16 +138,26 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.restore();
       ctx.strokeStyle = stroke;
-      const t = (now - born) / 1000;
-      // On arrival each line grows from a third of its length (pathLength 0.3 → 1).
-      const grow = still ? 1 : 0.3 + 0.7 * (1 - Math.pow(1 - Math.min(1, t / 2.4), 3));
+      const t = born === null ? 0 : (now - born) / 1000;
       for (const l of lines) {
-        // Slides along its curve and back, breathing (pathOffset 0 → 1 → 0, opacity .3 → .6 → .3).
-        const c = still ? 0.25 : ((t + l.phase) % l.dur) / l.dur;
+        ctx.lineWidth = l.width;
+        const since = t - l.enter;
+        if (!still && since < ENTER) {
+          // Arriving: drawn from its start (off the side) towards its end, brightest midway.
+          if (since <= 0) continue;
+          const e = 1 - Math.pow(1 - since / ENTER, 3);
+          ctx.globalAlpha = l.alpha * (0.3 + 0.5 * Math.sin(Math.PI * e));
+          ctx.setLineDash([l.len * e, l.len]);
+          ctx.lineDashOffset = 0;
+          ctx.stroke(l.path);
+          continue;
+        }
+        // Then it slides along its curve and back, breathing (pathOffset 0 → 1 → 0, opacity .3 → .6 → .3),
+        // starting where the arrival left it.
+        const c = still ? 0.25 : ((since - ENTER) % l.dur) / l.dur;
         const o = c < 0.5 ? c * 2 : 2 - c * 2;
         ctx.globalAlpha = l.alpha * (0.3 + 0.3 * o);
-        ctx.lineWidth = l.width;
-        ctx.setLineDash([l.len * grow, l.len]);
+        ctx.setLineDash([l.len, l.len]);
         ctx.lineDashOffset = -o * l.len;
         ctx.stroke(l.path);
       }
@@ -154,6 +169,7 @@
     };
     const play = () => {
       const want = visible && !still && document.visibilityState === 'visible';
+      if (want && born === null) born = performance.now(); // The arrival plays when first seen.
       if (want && !running) { running = true; requestAnimationFrame(tick); } else if (!want) running = false;
     };
     fit();

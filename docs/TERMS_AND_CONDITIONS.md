@@ -1,12 +1,12 @@
 # Notes+ Terms and Conditions
-**Version 15.5 | Effective: October 2026**
+**Version 16.6 | Effective: October 2026**
 
 By downloading, installing, accessing, or using Notes+ (the "Application"), you agree to be bound by these Terms and Conditions ("Terms"). If you do not agree, do not use the Application.
 
 ---
 
-### 1. License & Permitted Use
-Flex Studios grants you a personal, non-exclusive, non-transferable, revocable license to use Notes+ on supported Android, Windows, and Web platforms for personal and professional productivity in accordance with these Terms.
+### 1. License
+Notes+ is free and open-source software, licensed under the **GNU General Public License v3.0** (GPL-3.0). You may use, study, share and modify it under the terms of that license: https://github.com/Shashwat-Gupta57/Notes-Plus/blob/master/LICENSE. These Terms cover your use of the hosted services that come with it (accounts, sync, sharing, downloads); they do not limit your rights under the GPL.
 
 ---
 
@@ -21,7 +21,7 @@ Flex Studios grants you a personal, non-exclusive, non-transferable, revocable l
 You agree not to:
 * Attempt to disrupt, overload, or attack synchronization servers or content delivery networks.
 * Use peer-to-peer sending or shared invite links to distribute malicious software, spam, or unlawful material.
-* Modify, reverse engineer, or decompile client binaries in violation of applicable open-source or proprietary licenses.
+* Distribute modified versions of Notes+ in violation of the GPL-3.0 (for example, without making their source available).
 
 ---
 

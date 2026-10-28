@@ -72,7 +72,7 @@ function copyInto(r, note) {
     type: r.type, title: r.title, content: r.content, data: r.data, color: r.color, pinned: r.pinned,
     timestamp: r.edited, rev: r.rev, media: r.media, sketch: r.sketch, dirty: false, deleted: false,
   });
-  if (r.mine && account.isSyncFoldersArchive()) Object.assign(note, { archived: r.archived, folder: r.folder });
+  if (r.mine) Object.assign(note, { archived: r.archived, folder: r.folder });
   return note;
 }
 
@@ -89,11 +89,9 @@ function toRemote(note) {
     type: note.type, title: note.title || '', content: note.content || '', color: note.color || 0,
     pinned: !!note.pinned, edited: note.timestamp,
   });
-  // How it's filed is mine alone, shared across devices when opted in.
-  if (account.isSyncFoldersArchive()) {
-    if (note.archived) m.archived = true;
-    if (note.folder) m.folder = String(note.folder).slice(0, 100);
-  }
+  // How it's filed is mine alone: it follows me to every device, never into a group note.
+  if (note.archived) m.archived = true;
+  if (note.folder) m.folder = String(note.folder).slice(0, 100);
   if (note.data !== null && note.data !== undefined) m.data = note.data;
   if (note.type === SKETCH && note.sketch) m.sketch = note.sketch;
   const media = {};
@@ -112,7 +110,7 @@ function toRemote(note) {
 
 const sameContent = (n, r) => n.type === r.type && (n.title || '') === r.title && (n.content || '') === r.content
   && (n.data || null) === r.data && (n.color || 0) === r.color && !!n.pinned === r.pinned
-  && (!r.mine || !account.isSyncFoldersArchive() || (!!n.archived === r.archived && (n.folder || null) === r.folder));
+  && (!r.mine || (!!n.archived === r.archived && (n.folder || null) === r.folder));
 
 // ------------------------------------------------------------------ the pass
 
@@ -187,7 +185,10 @@ export async function run() {
 
 async function pull(uid) {
   const { db: fdb, D } = account.firebase();
-  const since = Number(localStorage.getItem('np_last_pull_' + uid) || 0);
+  // Before 16.5, folders and archive synced only where a setting was on: once, every note is read
+  // again so the filing other devices sent lands here, and this browser's goes up.
+  const catchUp = localStorage.getItem('np_filing_synced_' + uid) !== '1';
+  const since = catchUp ? 0 : Number(localStorage.getItem('np_last_pull_' + uid) || 0);
   const q = D.query(D.ref(fdb, `users/${uid}/notes`), D.orderByChild('updatedAt'), D.startAt(Math.max(0, since - 60000)));
   const snap = await D.get(q);
   let newest = since, waiting = Infinity;
@@ -198,8 +199,28 @@ async function pull(uid) {
     if (!r) continue;
     newest = Math.max(newest, r.updatedAt);
     if (!(await apply(uid, r))) waiting = Math.min(waiting, r.updatedAt);
+    else if (catchUp) await mergeFiling(uid, r);
   }
   localStorage.setItem('np_last_pull_' + uid, String(waiting < Infinity ? Math.min(waiting, newest) : newest));
+  if (catchUp) localStorage.setItem('np_filing_synced_' + uid, '1');
+}
+
+/**
+ * The catch-up for one note already in step: a folder or archive mark one side has and the other
+ * lacks is kept (online's taken here without a new revision, mine marked to go up); where both
+ * are filed differently, online's wins.
+ */
+async function mergeFiling(uid, r) {
+  if (r.deleted) return;
+  const n = await db.getNote(r.uuid);
+  if (!n || n.dirty || n.groupId || n.sharedFrom || (n.account && n.account !== uid)) return;
+  const folder = n.folder || null, archived = !!n.archived || r.archived;
+  const merged = r.folder || folder;
+  if (merged === folder && archived === !!n.archived && merged === r.folder && archived === r.archived) return;
+  n.folder = merged;
+  n.archived = archived;
+  n.dirty = merged !== r.folder || archived !== r.archived;
+  await db.putNote(n);
 }
 
 export function forceClose(uuid, reason) {
@@ -617,5 +638,6 @@ export async function leave(uid, keep) {
     await db.putNote(n, true);
   }
   localStorage.removeItem('np_last_pull_' + uid);
+  localStorage.removeItem('np_filing_synced_' + uid);
   db.changed('notes');
 }

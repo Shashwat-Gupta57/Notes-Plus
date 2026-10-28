@@ -9,7 +9,7 @@ import * as lock from './lock.js';
 import * as theme from './theme.js';
 import { h, icon, iconButton, toast, dialog, prompt, choices, button } from './ui.js';
 
-export const VERSION = '16.4';
+export const VERSION = '16.6';
 
 function row(ic, color, title, sub, onClick, end) {
   return h('button.row', { type: 'button', onClick, disabled: !onClick },
@@ -117,16 +117,7 @@ export function accountScreen(go) {
       card(
         row('cloud', 'tile-blue', 'Notes', syncSub, () => { toast('Syncing…'); sync.run().then(() => render()); },
           h('span.row-action', 'Sync now')),
-        row('photo', 'tile-green', 'Pictures and recordings (Google Drive)', driveSub, () => driveOptions()),
-        row('folder', 'tile-purple', 'Folders and archive',
-          p.syncFoldersArchive ? 'Sync across devices' : 'Stored in this browser only',
-          async () => {
-            const next = !account.isSyncFoldersArchive();
-            await account.setSyncFoldersArchive(next);
-            sync.schedule(200);
-            render();
-          },
-          h('span.row-action', account.isSyncFoldersArchive() ? 'On' : 'Off'))),
+        row('photo', 'tile-green', 'Pictures and recordings (Google Drive)', driveSub, () => driveOptions())),
       header('Profile'),
       card(
         row('person', 'tile-orange', 'Username', p.username ? '@' + p.username : 'Choose one: people find you by it', () => askUsername(p.username)),

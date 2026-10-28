@@ -1,5 +1,5 @@
-// Notes+ Service Worker (PWA v16.4)
-const CACHE_NAME = 'notes-plus-pwa-v16.4';
+// Notes+ Service Worker (PWA v16.6)
+const CACHE_NAME = 'notes-plus-pwa-v16.6';
 
 const SHELL_ASSETS = [
   './',

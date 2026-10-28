@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=16.4">
+  <link rel="stylesheet" href="app.css?v=16.6">
   <script>try { var t = localStorage.getItem('np_theme'); if (t && t !== 'system') document.documentElement.dataset.theme = t; } catch (e) {}</script>
 </head>
 <body>
@@ -34,13 +34,13 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('sw.js?v=16.4', { scope: './' })
+        navigator.serviceWorker.register('sw.js?v=16.6', { scope: './' })
           .then(function(reg) { console.log('[PWA] Service Worker registered with scope:', reg.scope); })
           .catch(function(err) { console.warn('[PWA] Service Worker registration failed:', err); });
       });
     }
   </script>
-  <script type="module" src="js/main.js?v=16.4"></script>
+  <script type="module" src="js/main.js?v=16.6"></script>
   <script src="../js/telemetry.js" defer></script>
 </body>
 </html>

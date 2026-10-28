@@ -510,12 +510,20 @@ final class RichArea extends StyledTextArea<Markdown.Block, Markdown.Style> impl
         double size = BASE_SIZE * zoom;
         switch (b) {
             case BULLET -> {
-                return mark("•", size, size * 1.6, size * 0.1);
+                // A drawn dot, centred on the first line: fonts' bullet glyphs sit high and small.
+                javafx.scene.shape.Circle dot = new javafx.scene.shape.Circle(size * 0.16);
+                dot.getStyleClass().add("rich-dot");
+                StackPane slot = new StackPane(dot);
+                slot.setAlignment(Pos.TOP_CENTER);
+                slot.setMinWidth(size * 1.6);
+                slot.setPrefWidth(size * 1.6);
+                slot.setPadding(new Insets(size * 0.97, 0, 0, 0));
+                return slot;
             }
             case NUMBER -> {
                 int n = 1;
                 for (int p = par - 1; p >= 0 && getParagraph(p).getParagraphStyle() == Markdown.Block.NUMBER; p--) n++;
-                return mark(n + ".", size, size * 1.9, size * 0.2);
+                return mark(n + ".", size, size * 1.9, size * 0.5);
             }
             case TASK, TASK_DONE -> {
                 boolean done = b == Markdown.Block.TASK_DONE;
@@ -533,7 +541,7 @@ final class RichArea extends StyledTextArea<Markdown.Block, Markdown.Style> impl
                 slot.setMinWidth(size * 1.7);
                 slot.setPrefWidth(size * 1.7);
                 slot.setAlignment(Pos.TOP_LEFT);
-                slot.setPadding(new Insets(size * 0.32, 0, 0, size * 0.25));
+                slot.setPadding(new Insets(size * 0.5, 0, 0, size * 0.25));
                 slot.setStyle("-fx-cursor: hand;");
                 slot.setOnMouseClicked(e -> {
                     if (!isEditable()) return;

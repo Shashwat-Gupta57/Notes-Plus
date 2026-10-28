@@ -7,6 +7,12 @@
 
 /* --- Design Tokens & Theme Engine --- */
 :root {
+  /* Spacing and shape tokens (used by the docs cards and sections; were never defined). */
+  --space-md: 16px;
+  --space-xl: 28px;
+  --space-3xl: 96px;
+  --radius-xl: 22px;
+  --shadow-lg: 0 18px 40px -12px rgba(0, 0, 0, 0.45);
   --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
@@ -1442,3 +1448,56 @@ a {
 .np-ascii-inline { display: grid; place-items: center; pointer-events: none; }
 .np-ascii-inline canvas { display: block; }
 @media (max-width: 640px) { .dock-item.dock-logo { width: 48px; height: 48px; margin: 0; } }
+
+
+/* =========================================================================
+   Phones and small tablets
+   ========================================================================= */
+html, body { overflow-x: clip; }
+img, video, canvas, svg { max-width: 100%; }
+
+@media (max-width: 768px) {
+  :root { --space-3xl: 64px; --space-xl: 22px; }
+  /* Room under the content for the floating dock. */
+  body { padding-bottom: 96px; }
+  .container { padding-left: 18px; padding-right: 18px; }
+
+  /* Top bar: brand, theme and the app button, all fitting. */
+  .navbar-wrap { padding: 10px 10px 0; }
+  .navbar { gap: 8px; padding: 6px 6px 6px 12px; }
+  .navbar .btn-tactile { padding: 8px 14px; font-size: 0.82rem; white-space: nowrap; }
+  .nav-actions { gap: 6px; }
+
+  /* Hero. */
+  .hero-section { padding: 108px 0 48px; }
+  .hero-title { font-size: clamp(2.1rem, 9.5vw, 2.8rem); }
+  .hero-subtitle { font-size: 1rem; }
+  .hero-pill-badge { font-size: 0.78rem; padding: 6px 12px; max-width: 100%; }
+  .hero-ctas { flex-direction: column; align-items: stretch; gap: 10px; }
+  .hero-ctas .btn-tactile { justify-content: center; width: 100%; }
+
+  /* Platform tabs scroll sideways instead of running off the screen. */
+  .showcase-nav {
+    display: flex; max-width: 100%; overflow-x: auto; scrollbar-width: none;
+    -webkit-overflow-scrolling: touch; justify-content: flex-start;
+  }
+  .showcase-nav::-webkit-scrollbar { display: none; }
+  .showcase-tab { flex: none; white-space: nowrap; }
+
+  /* Section headings. */
+  .section-title { font-size: clamp(1.7rem, 7.5vw, 2.2rem); }
+
+  /* Footer: copy on top, links wrapping underneath. */
+  .footer-content { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .footer-links { flex-wrap: wrap; gap: 10px 18px; }
+  .footer-links a { white-space: nowrap; }
+
+  /* Dock: fits a phone. */
+  .floating-dock { gap: 4px; padding: 6px 8px; max-width: calc(100vw - 20px); }
+  .dock-separator { display: none; }
+}
+
+@media (max-width: 380px) {
+  .navbar .brand-text, .nav-brand > span:not(.brand-icon-wrap) { display: none; }
+  .dock-item { width: 34px; height: 34px; }
+}

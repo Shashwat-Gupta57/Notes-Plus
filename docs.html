@@ -174,13 +174,46 @@
       box-shadow: 0 1px 2px rgba(0,0,0,0.15);
       color: var(--text-primary);
     }
+    .docs-article { min-width: 0; }
     @media (max-width: 900px) {
       .docs-page-layout {
         grid-template-columns: 1fr;
+        gap: 18px;
+        padding-top: 92px;
       }
+      /* The sidebar becomes a strip of sections under the top bar, scrolling sideways. */
       .docs-sidebar {
-        display: none;
+        position: sticky;
+        top: 70px;
+        z-index: 20;
+        height: auto;
+        display: flex;
+        flex-direction: row;
+        gap: 6px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        padding: 8px;
+        margin: 0 -6px;
+        border-radius: 16px;
+        background: var(--nav-bg);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--border-subtle);
       }
+      .docs-sidebar::-webkit-scrollbar { display: none; }
+      .docs-sidebar > div { display: contents; }
+      .docs-nav-group-title { display: none; }
+      .docs-nav-list { display: flex; flex-direction: row; gap: 6px; margin: 0; padding: 0; }
+      .docs-nav-list li { flex: none; }
+      .docs-nav-link { white-space: nowrap; padding: 6px 12px; font-size: 0.85rem; }
+      /* Wide tables scroll inside themselves instead of widening the page. */
+      .docs-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; font-size: 0.85rem; }
+      .docs-table th, .docs-table td { min-width: 110px; }
+      .docs-hero .hero-title { font-size: 2rem !important; }
+      .docs-section-block { scroll-margin-top: 140px; }
+      .docs-section-block h2 { font-size: 1.45rem; }
+      .docs-article code { overflow-wrap: anywhere; }
     }
     .docs-tagline {
       margin: 18px 0 22px;
@@ -671,6 +704,9 @@
         const seen = es.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
         if (!seen || !byId.has(seen.target.id)) return;
         links.forEach(l => l.classList.toggle('active', l === byId.get(seen.target.id)));
+        // On phones the sidebar is a sideways strip: keep the current section's chip in view.
+        const bar = document.querySelector('.docs-sidebar'), on = byId.get(seen.target.id);
+        if (bar && bar.scrollWidth > bar.clientWidth) bar.scrollTo({ left: on.offsetLeft - bar.clientWidth / 2 + on.offsetWidth / 2, behavior: 'smooth' });
       }, { rootMargin: '-20% 0px -65% 0px' });
       document.querySelectorAll('.docs-section-block[id]').forEach(s => io.observe(s));
     })();

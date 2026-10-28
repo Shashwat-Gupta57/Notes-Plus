@@ -43,8 +43,8 @@
     /* Voxel logo behind the event stream (../js/ascii.js). */
     aside.has-ascii { position: relative; }
     aside.has-ascii > :not(.np-ascii) { position: relative; z-index: 1; }
-    .np-ascii { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; opacity: 0.22; }
-    .np-ascii canvas { position: absolute; inset: 0; display: block; }
+    .np-ascii { position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%); pointer-events: none; z-index: 0; opacity: 0.25; }
+    .np-ascii canvas { display: block; }
     canvas.glyphs { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; z-index: 0; }
     #boot > :not(.glyphs) { position: relative; z-index: 1; }
     main { position: relative; }
@@ -166,7 +166,7 @@
       <canvas class="glyphs side" id="navGlyphs" aria-hidden="true"></canvas>
       <nav id="nav" class="glow"></nav>
       <section id="view"></section>
-      <aside data-ascii data-ascii-src="../res/notes_icon.png" data-ascii-tint="#3dff7c" data-ascii-tint-opacity="85" data-ascii-cell="5" data-ascii-scale="0.55"><h3 class="glow">event stream</h3><div id="log" class="glow"></div></aside>
+      <aside data-ascii data-ascii-src="../res/notes_icon.png" data-ascii-tint="#3dff7c" data-ascii-tint-opacity="85" data-ascii-cell="5" data-ascii-fit="center" data-ascii-size="240"><h3 class="glow">event stream</h3><div id="log" class="glow"></div></aside>
     </main>
     <footer class="glow"><label>ops@notes+:~$</label><input id="cmd" autocomplete="off" spellcheck="false" placeholder="type help  ·  / to focus"></footer>
   </div>

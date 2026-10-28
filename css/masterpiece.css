@@ -1319,7 +1319,7 @@ a {
   position: relative;
 }
 /* The content stays above the lines (explicit layers: isolation + a negative z-index hid text in Chrome). */
-.has-paths > :not(.np-paths) {
+.has-paths > :not(.np-paths):not(.np-particles):not(.np-ascii) {
   position: relative;
   z-index: 1;
 }
@@ -1368,7 +1368,7 @@ a {
 .has-particles {
   position: relative;
 }
-.has-particles > :not(.np-particles) {
+.has-particles > :not(.np-paths):not(.np-particles):not(.np-ascii) {
   position: relative;
   z-index: 1;
 }
@@ -1416,8 +1416,14 @@ a {
 
 /* --- Voxel ASCII art (js/ascii.js) --- */
 .has-ascii { position: relative; }
-.has-ascii > :not(.np-ascii) { position: relative; z-index: 1; }
-.np-ascii { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; opacity: 0.6; }
-.np-ascii canvas { position: absolute; inset: 0; display: block; }
-[data-theme="light"] .np-ascii { opacity: 0.45; }
-@media (max-width: 760px) { .np-ascii { opacity: 0.3; } }
+.has-ascii > :not(.np-paths):not(.np-particles):not(.np-ascii) { position: relative; z-index: 1; }
+/* A compact emblem beside the content, sitting with the lines (not instead of them). */
+.np-ascii { position: absolute; top: 50%; transform: translateY(-50%); pointer-events: none; z-index: 0; opacity: 0.55; }
+.np-ascii-right { right: 3%; }
+.np-ascii-left { left: 3%; }
+.np-ascii-center { left: 50%; transform: translate(-50%, -50%); }
+.np-ascii-top { top: 3%; transform: none; }
+.np-ascii-center.np-ascii-top { transform: translateX(-50%); }
+.np-ascii canvas { display: block; }
+[data-theme="light"] .np-ascii { opacity: 0.4; }
+@media (max-width: 760px) { .np-ascii { opacity: 0.22; } }

@@ -9,11 +9,15 @@
 //   data-ascii-src     the picture (same origin)
 //   data-ascii-tint    the tint colour (multiplied in at data-ascii-tint-opacity, default 48)
 //   data-ascii-cell    cell size in px (default 6)
-//   data-ascii-fit     where the picture sits: center (default), right, left
-//   data-ascii-scale   the picture's size as a share of the box height (default 0.9)
+//   data-ascii-fit     where the emblem sits in its section: right (default), left, center
+//   data-ascii-size    the emblem's largest size in px (default 420; never more than ~42% of
+//                      the section's width or 85% of its height)
+//   data-ascii-y       top: beside the section's heading instead of its middle
+//   data-ascii-scale   the picture's size inside the emblem (default 0.9)
 //   data-ascii-bg      a solid background colour drawn at 88% (default none: see-through)
 //
-// Redrawn at 12 fps for the flicker, paused off screen, still for reduced motion.
+// The blocks are drawn once into a cached image; each frame only copies it and dims a few random
+// blocks (the flicker), at 12 fps, paused off screen, still for reduced motion.
 
 (function () {
   const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -29,14 +33,15 @@
   function art(host) {
     if (host.querySelector(':scope > .np-ascii')) return;
     const cell = Math.max(3, parseInt(host.dataset.asciiCell, 10) || 6);
-    const fit = host.dataset.asciiFit || 'center';
+    const fit = host.dataset.asciiFit || 'right';
+    const maxSize = parseInt(host.dataset.asciiSize, 10) || 420;
     const scale = parseFloat(host.dataset.asciiScale || '0.9');
     const tint = hex(host.dataset.asciiTint);
     const tintOp = (parseFloat(host.dataset.asciiTintOpacity) || P.tintOpacity * 100) / 100;
     const bg = host.dataset.asciiBg || null;
 
     const layer = document.createElement('div');
-    layer.className = 'np-ascii';
+    layer.className = 'np-ascii np-ascii-' + fit + (host.dataset.asciiY === 'top' ? ' np-ascii-top' : '');
     layer.setAttribute('aria-hidden', 'true');
     const canvas = document.createElement('canvas');
     layer.append(canvas);
@@ -46,15 +51,19 @@
 
     const img = new Image();
     img.src = host.dataset.asciiSrc;
-    let cells = [], cols = 0, rows = 0, w = 1, h = 1, dpr = 1, running = false, last = 0, visible = true, seed = 1;
+    let cells = [], cols = 0, rows = 0, w = 1, h = 1, dpr = 1, running = false, last = 0, visible = true;
+    const base = document.createElement('canvas'), bctx = base.getContext('2d');
 
     /** Samples the picture into cells: ink (0–1, edges emphasised) and colour (tinted). */
     const sample = () => {
       if (!img.complete || !img.naturalWidth) return;
-      const r = layer.getBoundingClientRect();
+      // The emblem: a square no bigger than its cap, beside the section's content.
+      const hr = host.getBoundingClientRect();
+      const size = Math.max(80, Math.round(Math.min(maxSize, hr.height * 0.85, hr.width * (fit === 'center' ? 0.8 : 0.42))));
+      layer.style.width = layer.style.height = size + 'px';
       dpr = Math.min(2, window.devicePixelRatio || 1);
-      w = Math.max(1, Math.round(r.width)); h = Math.max(1, Math.round(r.height));
-      canvas.width = w * dpr; canvas.height = h * dpr;
+      w = h = size;
+      canvas.width = base.width = w * dpr; canvas.height = base.height = h * dpr;
       canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
       cols = Math.ceil(w / cell); rows = Math.ceil(h / cell);
       // Step 1: the picture into a grid-sized canvas (one pixel per cell = the cell's average).
@@ -63,7 +72,7 @@
       const o = off.getContext('2d', { willReadFrequently: true });
       const side = rows * scale, ratio = img.naturalWidth / img.naturalHeight;
       const dw = side * ratio, dh = side;
-      const dx = fit === 'right' ? cols - dw - cols * 0.06 : fit === 'left' ? cols * 0.06 : (cols - dw) / 2;
+      const dx = (cols - dw) / 2;
       o.drawImage(img, dx, (rows - dh) / 2, dw, dh);
       const px = o.getImageData(0, 0, cols, rows).data;
       // Step 2: ink per cell. Inverted luminance, with colour counting as ink too (so a yellow
@@ -90,11 +99,12 @@
         const lift = 0.55 + 0.45 * v; // brighter where there's more ink
         cells.push({ x, y, v, r: Math.min(255, mix(0) * lift + 40), g: Math.min(255, mix(1) * lift + 40), b: Math.min(255, mix(2) * lift + 60), ph: Math.random() * 6.28 });
       }
+      bake();
       paint(performance.now());
     };
 
     /** One block: a top face, a left face and a right face, lit from the top left. */
-    const cube = (cx, cy, s, r, g, b, a) => {
+    const cube = (ctx, cx, cy, s, r, g, b, a) => {
       const hw = s / 2, q = s / 4;
       ctx.globalAlpha = a;
       ctx.fillStyle = `rgb(${Math.min(255, r * 1.25)},${Math.min(255, g * 1.25)},${Math.min(255, b * 1.25)})`;
@@ -105,30 +115,40 @@
       ctx.beginPath(); ctx.moveTo(cx + hw, cy); ctx.lineTo(cx, cy + q); ctx.lineTo(cx, cy + q + hw); ctx.lineTo(cx + hw, cy + hw); ctx.fill();
     };
 
-    const paint = now => {
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, w, h);
-      if (bg) { ctx.globalAlpha = P.bgOpacity; ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h); }
-      const t = now / 1000;
-      seed = (seed * 16807) % 2147483647;
+    /** Every block, drawn once into the cached image, with the vignette. */
+    const bake = () => {
+      bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      bctx.clearRect(0, 0, w, h);
+      if (bg) { bctx.globalAlpha = P.bgOpacity; bctx.fillStyle = bg; bctx.fillRect(0, 0, w, h); }
       for (const c of cells) {
-        // Flicker: each block's brightness jumps a little, now and then a lot.
-        let f = 1;
-        if (!still) {
-          const n = Math.sin(t * 9 + c.ph * 3 + c.x * 0.7) * Math.sin(t * 13 + c.ph);
-          f = 1 - P.flicker * 0.5 * (n > 0.85 ? 1 : Math.abs(n) * 0.35);
-        }
         const s = cell * (0.45 + 0.55 * c.v);
-        cube(c.x * cell + cell / 2, c.y * cell + cell / 2 - s / 4, s, c.r, c.g, c.b, Math.max(0.05, c.v * f));
+        cube(bctx, c.x * cell + cell / 2, c.y * cell + cell / 2 - s / 4, s, c.r, c.g, c.b, Math.max(0.05, c.v));
       }
-      // Vignette.
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = 'destination-out';
-      const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.hypot(w, h) / 2);
+      bctx.globalAlpha = 1;
+      bctx.globalCompositeOperation = 'destination-out';
+      const vg = bctx.createRadialGradient(w / 2, h / 2, w * 0.28, w / 2, h / 2, w * 0.72);
       vg.addColorStop(0, 'rgba(0,0,0,0)');
-      vg.addColorStop(1, `rgba(0,0,0,${P.vignette * 2})`);
-      ctx.fillStyle = vg;
-      ctx.fillRect(0, 0, w, h);
+      vg.addColorStop(1, `rgba(0,0,0,${Math.min(1, P.vignette * 2.4)})`);
+      bctx.fillStyle = vg;
+      bctx.fillRect(0, 0, w, h);
+      bctx.globalCompositeOperation = 'source-over';
+    };
+
+    /** A frame: the cached blocks, with a few of them flickering dim. */
+    const paint = () => {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(base, 0, 0);
+      if (still || !cells.length) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.globalCompositeOperation = 'destination-out';
+      const n = Math.ceil(cells.length * 0.03 * P.flicker * 1.6);
+      for (let k = 0; k < n; k++) {
+        const c = cells[(Math.random() * cells.length) | 0];
+        ctx.globalAlpha = 0.25 + Math.random() * 0.5;
+        ctx.fillRect(c.x * cell, c.y * cell - cell * 0.25, cell, cell * 1.25);
+      }
+      ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
     };
     const tick = now => {
@@ -141,7 +161,7 @@
       if (want && !running) { running = true; requestAnimationFrame(tick); } else if (!want) running = false;
     };
     img.onload = sample;
-    new ResizeObserver(sample).observe(layer);
+    new ResizeObserver(sample).observe(host);
     document.addEventListener('visibilitychange', play);
     if ('IntersectionObserver' in window) new IntersectionObserver(es => { visible = es[0].isIntersecting; play(); }).observe(layer);
     else play();

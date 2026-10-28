@@ -1,1817 +1,952 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Notes+ Cyber Command & Telemetry HUD</title>
-  <meta name="theme-color" content="#03070d">
-  <link rel="icon" type="image/png" href="/res/notes_icon.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Notes+ ops</title>
+  <link rel="icon" href="../res/notes_icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=VT323&display=swap" rel="stylesheet">
   <style>
+    /* A phosphor terminal: green on black, scanlines, a faint glow. Amber for warnings, red for errors. */
     :root {
-      --bg: #03070d;
-      --bg-panel: rgba(6, 12, 22, 0.94);
-      --bg-panel-hover: rgba(10, 20, 36, 0.95);
-      --bg-card: rgba(8, 16, 28, 0.88);
-      --border-cyber: rgba(0, 240, 255, 0.22);
-      --border-cyber-bright: rgba(0, 240, 255, 0.55);
-      --border-green: rgba(0, 255, 136, 0.3);
-      --neon-cyan: #00f0ff;
-      --neon-cyan-glow: rgba(0, 240, 255, 0.25);
-      --neon-green: #00ff88;
-      --neon-green-glow: rgba(0, 255, 136, 0.25);
-      --neon-amber: #ffb800;
-      --neon-magenta: #ff2a6d;
-      --neon-purple: #b026ff;
-      --text: #f0f6fc;
-      --text-sec: #8b9bb4;
-      --text-muted: #53647c;
-      --font-cyber: 'Orbitron', monospace, sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
-      --font-ui: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      --bg: #030703; --panel: rgba(8, 22, 10, 0.72); --fg: #3dff7c; --dim: #1e8f46; --faint: #0f4a24;
+      --amber: #ffb43a; --red: #ff5a5a; --cyan: #5fe8ff; --violet: #c58cff; --grid: rgba(61, 255, 124, 0.09);
+      --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
     }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 13px/1.5 var(--mono); }
+    body { background: radial-gradient(ellipse at 50% 20%, #0a1f0e 0%, #030703 70%); overflow: hidden; }
+    body::after { /* scanlines */
+      content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 100;
+      background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px);
+      animation: flicker 6s infinite steps(1);
+    }
+    @keyframes flicker { 0%, 100% { opacity: 1; } 47% { opacity: 0.93; } 48% { opacity: 1; } }
+    .glow { text-shadow: 0 0 6px rgba(61, 255, 124, 0.55); }
+    button, input, select { font: inherit; color: inherit; }
+    button { background: transparent; border: 1px solid var(--dim); padding: 3px 10px; cursor: pointer; }
+    button:hover, button.on { background: var(--fg); color: #021; text-shadow: none; }
+    button.danger { border-color: var(--red); color: var(--red); }
+    button.danger:hover { background: var(--red); color: #200; }
+    a { color: var(--cyan); }
+    .dim { color: var(--dim); }
+    .amber { color: var(--amber); }
+    .red { color: var(--red); }
+    .cyan { color: var(--cyan); }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    
-    html, body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font-ui);
-      min-height: 100vh;
-      width: 100%;
-      -webkit-font-smoothing: antialiased;
-      line-height: 1.5;
-      background-image: 
-        linear-gradient(rgba(0, 240, 255, 0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 240, 255, 0.035) 1px, transparent 1px);
-      background-size: 30px 30px;
-      position: relative;
-      overflow-x: hidden;
-    }
+    /* ---- boot / login ---- */
+    #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 16px; }
+    #boot pre { font-family: 'VT323', var(--mono); font-size: clamp(14px, 2.4vw, 22px); line-height: 1; margin: 0; }
+    #bootlog { width: min(640px, 100%); min-height: 140px; white-space: pre-wrap; }
+    .cursor::after { content: '█'; animation: blink 1s steps(1) infinite; margin-left: 2px; }
+    @keyframes blink { 50% { opacity: 0; } }
 
-    /* CRT Scanline */
-    body::before {
-      content: " ";
-      position: fixed; inset: 0;
-      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.015), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.015));
-      background-size: 100% 3px, 3px 100%;
-      pointer-events: none;
-      z-index: 999;
-      opacity: 0.6;
-    }
+    /* ---- shell ---- */
+    #app { display: none; height: 100%; grid-template-rows: auto 1fr auto; }
+    #app.on { display: grid; }
+    header { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--faint); }
+    header .brand { font-family: 'VT323', var(--mono); font-size: 26px; letter-spacing: 1px; }
+    header .spacer { flex: 1; }
+    main { display: grid; grid-template-columns: 170px 1fr 330px; min-height: 0; }
+    nav { border-right: 1px solid var(--faint); padding: 10px 0; overflow: auto; }
+    nav button { display: block; width: 100%; text-align: left; border: 0; padding: 7px 14px; }
+    nav button::before { content: '  '; white-space: pre; }
+    nav button.on::before { content: '> '; }
+    #view { overflow: auto; padding: 14px 16px 30px; min-width: 0; }
+    aside { border-left: 1px solid var(--faint); display: flex; flex-direction: column; min-height: 0; }
+    aside h3 { margin: 0; padding: 8px 12px; font-weight: 500; border-bottom: 1px solid var(--faint); }
+    #log { flex: 1; overflow: auto; padding: 8px 12px; white-space: pre-wrap; word-break: break-word; font-size: 12px; }
+    footer { border-top: 1px solid var(--faint); display: flex; align-items: center; gap: 8px; padding: 8px 14px; }
+    footer label { color: var(--dim); white-space: nowrap; }
+    #cmd { flex: 1; background: transparent; border: 0; outline: 0; caret-color: var(--fg); }
 
-    /* Vertical Reader Scan beam */
-    .scan-beam {
-      position: fixed; top: 0; left: 0; right: 0; height: 3px;
-      background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
-      box-shadow: 0 0 14px var(--neon-cyan);
-      opacity: 0.35; pointer-events: none; z-index: 1000;
-      animation: scanBeam 8s linear infinite;
-    }
-    @keyframes scanBeam {
-      0% { top: -10px; opacity: 0; }
-      15% { opacity: 0.45; }
-      85% { opacity: 0.45; }
-      100% { top: 100vh; opacity: 0; }
-    }
+    /* ---- controls ---- */
+    .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-bottom: 14px; align-items: center; }
+    .seg { display: inline-flex; }
+    .seg button { border-right-width: 0; }
+    .seg button:last-child { border-right-width: 1px; }
+    .seg-label { color: var(--dim); margin-right: 6px; }
 
-    /* Custom Scrollbars */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: rgba(3, 7, 13, 0.8); }
-    ::-webkit-scrollbar-thumb { background: rgba(0, 240, 255, 0.3); border-radius: 2px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan); }
+    /* ---- cards ---- */
+    .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .kpi { border: 1px solid var(--faint); background: var(--panel); padding: 10px 12px; cursor: pointer; }
+    .kpi:hover { border-color: var(--fg); }
+    .kpi .k { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+    .kpi .v { font-family: 'VT323', var(--mono); font-size: 38px; line-height: 1.05; }
+    .kpi .d { font-size: 11px; }
+    .box { border: 1px solid var(--faint); background: var(--panel); padding: 10px 12px 12px; margin-bottom: 14px; }
+    .box h2 { font-size: 13px; font-weight: 500; margin: 0 0 8px; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+    .box h2 .sub { color: var(--dim); font-weight: 400; }
+    .chart { position: relative; height: 260px; }
+    .chart canvas { width: 100%; height: 100%; display: block; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; }
+    .legend span { cursor: pointer; user-select: none; }
+    .legend span.off { opacity: 0.35; text-decoration: line-through; }
+    .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
+    .tip { position: absolute; pointer-events: none; background: #021007; border: 1px solid var(--fg); padding: 6px 9px; font-size: 12px; white-space: nowrap; z-index: 5; display: none; }
+    .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+    .bars .row { display: grid; grid-template-columns: 130px 1fr 84px; gap: 8px; align-items: center; margin: 3px 0; }
+    .bars .track { height: 10px; background: var(--faint); }
+    .bars .fill { height: 100%; background: var(--fg); box-shadow: 0 0 8px rgba(61, 255, 124, 0.5); }
+    .bars .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bars .n { text-align: right; white-space: nowrap; }
+    .funnel .step { display: grid; grid-template-columns: 170px 1fr 120px; gap: 10px; align-items: center; margin: 6px 0; }
+    .funnel .bar { height: 18px; background: linear-gradient(90deg, var(--fg), var(--dim)); }
 
-    /* Dual Credentials Login Modal */
-    .auth-overlay {
-      position: fixed; inset: 0; background: rgba(3, 7, 13, 0.95);
-      backdrop-filter: blur(16px); display: flex; align-items: center; justify-content: center;
-      z-index: 3000; padding: 20px;
-    }
-    .auth-card {
-      background: var(--bg-panel); border: 1px solid var(--border-cyber);
-      border-radius: 2px; width: 100%; max-width: 460px; padding: 36px 32px;
-      box-shadow: 0 0 45px rgba(0, 240, 255, 0.2), inset 0 0 25px rgba(0, 240, 255, 0.03);
-      text-align: center; position: relative;
-    }
-    .auth-card::before {
-      content: ''; position: absolute; top: -2px; left: -2px; width: 16px; height: 16px;
-      border-top: 3px solid var(--neon-cyan); border-left: 3px solid var(--neon-cyan);
-    }
-    .auth-card::after {
-      content: ''; position: absolute; bottom: -2px; right: -2px; width: 16px; height: 16px;
-      border-bottom: 3px solid var(--neon-cyan); border-right: 3px solid var(--neon-cyan);
-    }
-    .auth-logo { width: 56px; height: 56px; margin: 0 auto 16px; display: block; filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.45)); }
-    .auth-card h1 {
-      font-family: var(--font-cyber); font-size: 19px; font-weight: 800; margin-bottom: 4px;
-      letter-spacing: 1.5px; color: var(--neon-cyan); text-shadow: 0 0 12px var(--neon-cyan-glow);
-    }
-    .auth-card p { color: var(--text-sec); font-size: 12.5px; margin-bottom: 22px; font-family: var(--font-mono); }
-    .auth-form { display: flex; flex-direction: column; gap: 14px; text-align: left; }
-    .field-group label { display: block; font-size: 11px; font-family: var(--font-cyber); color: var(--text-sec); margin-bottom: 5px; letter-spacing: 0.5px; }
-    .input-wrap {
-      background: rgba(3, 7, 13, 0.85); border: 1px solid var(--border-cyber);
-      border-radius: 2px; padding: 11px 13px; display: flex; align-items: center;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .input-wrap:focus-within { border-color: var(--neon-cyan); box-shadow: 0 0 12px var(--neon-cyan-glow); }
-    .input-wrap input {
-      background: transparent; border: none; outline: none; color: #fff; width: 100%;
-      font-size: 13.5px; font-family: var(--font-mono);
-    }
-    .btn-cyber-login {
-      background: linear-gradient(135deg, var(--neon-cyan), #0099cc);
-      color: #03070d; font-family: var(--font-cyber); font-weight: 900; font-size: 13px;
-      border: none; padding: 13px; border-radius: 2px; cursor: pointer; margin-top: 8px;
-      letter-spacing: 1px; transition: transform 0.15s, box-shadow 0.2s;
-      box-shadow: 0 0 15px var(--neon-cyan-glow);
-    }
-    .btn-cyber-login:hover { transform: translateY(-1px); box-shadow: 0 0 25px rgba(0, 240, 255, 0.55); }
-    .auth-error { color: var(--neon-magenta); font-size: 12px; font-family: var(--font-mono); display: none; margin-top: 8px; text-align: center; }
+    /* ---- tables ---- */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--faint); white-space: nowrap; }
+    th { color: var(--dim); font-weight: 500; cursor: pointer; position: sticky; top: 0; background: #041006; }
+    th.sorted::after { content: ' ▾'; }
+    tr:hover td { background: rgba(61, 255, 124, 0.06); }
+    tr.link { cursor: pointer; }
+    td.wrap { white-space: normal; max-width: 460px; }
+    .scroll { overflow: auto; max-height: 60vh; }
+    input.search { background: transparent; border: 1px solid var(--dim); padding: 4px 8px; outline: 0; width: 260px; max-width: 100%; }
+    .fb { border: 1px solid var(--faint); padding: 8px 10px; margin-bottom: 8px; background: var(--panel); }
+    .fb .meta { color: var(--dim); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    .fb .msg { margin: 6px 0; white-space: pre-wrap; }
 
-    /* Top Terminal Ticker */
-    .cyber-terminal-ticker {
-      background: rgba(4, 9, 16, 0.95); border-bottom: 1px solid var(--border-cyber);
-      padding: 6px 24px; font-family: var(--font-mono); font-size: 11px;
-      color: var(--neon-green); display: flex; align-items: center; justify-content: space-between;
-      letter-spacing: 0.5px; position: sticky; top: 0; z-index: 101;
-    }
-    .ticker-left { display: flex; align-items: center; gap: 16px; overflow: hidden; white-space: nowrap; }
-    .ticker-blink { animation: blink 1.2s infinite; color: var(--neon-green); }
-    @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
-    .ticker-tag { color: var(--neon-cyan); }
-    .ticker-right { display: flex; align-items: center; gap: 14px; font-size: 11px; color: var(--text-sec); white-space: nowrap; }
-
-    /* App Header */
-    .app-header {
-      background: var(--bg-panel); border-bottom: 1px solid var(--border-cyber);
-      padding: 13px 28px; display: flex; align-items: center; justify-content: space-between;
-      position: sticky; top: 31px; z-index: 100; backdrop-filter: blur(14px);
-    }
-    .header-left { display: flex; align-items: center; gap: 22px; }
-    .brand-cluster { display: flex; align-items: center; gap: 12px; }
-    .brand-cluster img { width: 34px; height: 34px; filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.4)); }
-    .brand-title {
-      font-family: var(--font-cyber); font-size: 16px; font-weight: 800;
-      letter-spacing: 1px; color: #fff; display: flex; align-items: center; gap: 8px;
-    }
-    .brand-badge {
-      font-family: var(--font-mono); font-size: 10px; font-weight: 700;
-      background: rgba(0, 240, 255, 0.12); color: var(--neon-cyan);
-      border: 1px solid var(--border-cyber); padding: 2px 7px; border-radius: 2px;
-    }
-
-    /* Tabs */
-    .nav-tabs { display: flex; align-items: center; gap: 6px; }
-    .nav-tab {
-      background: transparent; border: 1px solid transparent; color: var(--text-sec);
-      font-family: var(--font-cyber); font-size: 11.5px; font-weight: 700; padding: 7px 14px;
-      cursor: pointer; display: flex; align-items: center; gap: 8px; letter-spacing: 0.6px;
-      transition: all 0.2s; position: relative; border-radius: 2px;
-    }
-    .nav-tab:hover { background: rgba(0, 240, 255, 0.08); color: var(--neon-cyan); }
-    .nav-tab.active {
-      background: rgba(0, 240, 255, 0.12); border-color: var(--border-cyber);
-      color: #fff; box-shadow: 0 0 12px var(--neon-cyan-glow);
-    }
-    .nav-tab.active::after {
-      content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px;
-      background: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan);
-    }
-    .nav-badge {
-      background: rgba(0, 240, 255, 0.25); color: var(--neon-cyan); font-family: var(--font-mono);
-      font-size: 10px; padding: 1px 6px; border-radius: 2px; font-weight: 700;
-    }
-
-    .header-actions { display: flex; align-items: center; gap: 12px; }
-    .oscilloscope-canvas-header {
-      width: 100px; height: 24px; border: 1px solid rgba(0, 240, 255, 0.2);
-      border-radius: 2px; background: rgba(2, 6, 12, 0.6);
-    }
-    .status-pill {
-      display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11px;
-      color: var(--neon-green); background: rgba(0, 255, 136, 0.1); border: 1px solid var(--border-green);
-      padding: 5px 11px; border-radius: 2px; text-transform: uppercase; letter-spacing: 0.5px;
-    }
-    .status-dot {
-      width: 6px; height: 6px; border-radius: 50%; background: var(--neon-green);
-      box-shadow: 0 0 8px var(--neon-green); animation: pulseDot 1.5s infinite;
-    }
-    @keyframes pulseDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
-
-    .btn-cyber-ghost {
-      background: rgba(6, 14, 24, 0.6); border: 1px solid var(--border-cyber); color: var(--neon-cyan);
-      font-family: var(--font-cyber); font-size: 11px; font-weight: 700; padding: 6px 12px;
-      cursor: pointer; display: flex; align-items: center; gap: 6px; letter-spacing: 0.5px;
-      transition: all 0.2s; border-radius: 2px;
-    }
-    .btn-cyber-ghost:hover {
-      background: rgba(0, 240, 255, 0.15); border-color: var(--neon-cyan);
-      box-shadow: 0 0 12px var(--neon-cyan-glow); color: #fff;
-    }
-
-    .main-wrap {
-      max-width: 1600px; width: 100%; margin: 0 auto; padding: 22px 24px 60px;
-      transition: margin-right 0.3s ease;
-    }
-
-    /* HUD Cards */
-    .hud-card {
-      background: var(--bg-card); border: 1px solid var(--border-cyber);
-      border-radius: 2px; position: relative; width: 100%;
-      box-shadow: 0 0 30px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(0, 240, 255, 0.02);
-      backdrop-filter: blur(12px);
-    }
-    .hud-card::before {
-      content: ''; position: absolute; top: -1px; left: -1px; width: 10px; height: 10px;
-      border-top: 2px solid var(--neon-cyan); border-left: 2px solid var(--neon-cyan); pointer-events: none;
-    }
-    .hud-card::after {
-      content: ''; position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px;
-      border-bottom: 2px solid var(--neon-cyan); border-right: 2px solid var(--neon-cyan); pointer-events: none;
-    }
-
-    /* KPI Grid - Clickable for Drilldown */
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 22px; width: 100%; }
-    .kpi-card {
-      background: var(--bg-card); border: 1px solid var(--border-cyber);
-      border-radius: 2px; padding: 18px 20px; position: relative;
-      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(0, 240, 255, 0.02);
-      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
-      cursor: pointer;
-    }
-    .kpi-card:hover { transform: translateY(-2px); border-color: var(--neon-cyan); box-shadow: 0 0 25px rgba(0, 240, 255, 0.2); }
-    .kpi-corner {
-      position: absolute; top: 0; right: 0; width: 0; height: 0;
-      border-style: solid; border-width: 0 12px 12px 0;
-      border-color: transparent var(--neon-cyan) transparent transparent; opacity: 0.8;
-    }
-    .kpi-label {
-      font-family: var(--font-cyber); font-size: 10px; font-weight: 700;
-      color: var(--text-sec); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 6px;
-    }
-    .kpi-value {
-      font-family: var(--font-cyber); font-size: 26px; font-weight: 900;
-      color: #fff; letter-spacing: 0.5px; margin-bottom: 4px;
-      text-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
-    }
-    .kpi-sub { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
-
-    /* CHARTS CONTAINER */
-    .charts-grid {
-      display: grid; grid-template-columns: 2.2fr 1fr; gap: 18px; margin-bottom: 22px; width: 100%;
-    }
-    @media (max-width: 1024px) { .charts-grid { grid-template-columns: 1fr; } }
-    
-    .canvas-fluid-wrap {
-      width: 100%; height: 280px; padding: 16px; position: relative;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .canvas-fluid-wrap canvas {
-      width: 100% !important; height: 100% !important; display: block;
-    }
-
-    /* Tables */
-    .table-scroll-container { max-height: 480px; overflow-y: auto; position: relative; width: 100%; }
-    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
-    thead { position: sticky; top: 0; z-index: 10; background: rgba(5, 11, 20, 0.98); border-bottom: 1px solid var(--border-cyber); }
-    th { font-family: var(--font-cyber); font-size: 10px; font-weight: 700; color: var(--neon-cyan); padding: 12px 16px; letter-spacing: 0.8px; text-transform: uppercase; }
-    td { padding: 12px 16px; border-bottom: 1px solid rgba(0, 240, 255, 0.08); vertical-align: middle; transition: background 0.15s; }
-    tr:hover td { background: rgba(0, 240, 255, 0.04); }
-
-    /* User Sparklines */
-    .user-profile-flex { display: flex; align-items: center; gap: 12px; }
-    .user-avatar-wrap {
-      width: 36px; height: 36px; border-radius: 2px;
-      border: 1px solid var(--border-cyber); overflow: hidden;
-      background: rgba(3, 7, 13, 0.8); display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; box-shadow: 0 0 8px rgba(0, 240, 255, 0.15);
-    }
-    .user-pfp { width: 100%; height: 100%; object-fit: cover; }
-    .user-initials { font-family: var(--font-cyber); font-size: 12px; font-weight: 800; color: var(--neon-cyan); }
-    .user-display-name { font-weight: 700; font-size: 13.5px; color: #fff; display: flex; align-items: center; gap: 8px; }
-    .user-uname-badge {
-      font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
-      color: var(--neon-cyan); background: rgba(0, 240, 255, 0.12);
-      border: 1px solid rgba(0, 240, 255, 0.25); padding: 1px 6px; border-radius: 2px;
-    }
-    .user-email-text { font-family: var(--font-mono); font-size: 11px; color: var(--text-sec); margin-top: 2px; }
-
-    .pulse-cluster { display: flex; align-items: center; gap: 8px; }
-    .sparkline-canvas { width: 60px; height: 20px; vertical-align: middle; }
-
-    .vault-count-pill {
-      font-family: var(--font-mono); font-size: 11px; font-weight: 700;
-      color: var(--neon-amber); background: rgba(255, 184, 0, 0.12);
-      border: 1px solid rgba(255, 184, 0, 0.25); padding: 3px 8px; border-radius: 2px;
-      display: inline-flex; align-items: center; gap: 5px;
-    }
-
-    /* RIGHT SIDEBAR USER DETAILS PANEL (VERTICAL SET) */
-    .user-sidebar-drawer {
-      position: fixed; top: 0; right: -500px; bottom: 0; width: 480px;
-      background: rgba(5, 11, 20, 0.98); border-left: 1px solid var(--neon-cyan);
-      box-shadow: -10px 0 40px rgba(0, 0, 0, 0.85), -2px 0 25px rgba(0, 240, 255, 0.2);
-      backdrop-filter: blur(20px); z-index: 2500;
-      transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-      display: flex; flex-direction: column; overflow: hidden;
-    }
-    .user-sidebar-drawer.open { right: 0; }
-    .sidebar-head {
-      padding: 20px 24px; border-bottom: 1px solid var(--border-cyber);
-      display: flex; align-items: center; justify-content: space-between;
-      background: rgba(3, 8, 16, 0.8);
-    }
-    .sidebar-body { padding: 24px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 18px; }
-    .sidebar-pfp-large { width: 56px; height: 56px; border-radius: 2px; border: 1px solid var(--neon-cyan); object-fit: cover; }
-    .sidebar-initials-large {
-      width: 56px; height: 56px; border-radius: 2px; border: 1px solid var(--neon-cyan);
-      background: rgba(3, 7, 13, 0.9); display: flex; align-items: center; justify-content: center;
-      font-family: var(--font-cyber); font-size: 20px; font-weight: 900; color: var(--neon-cyan);
-    }
-    .sidebar-stat-card {
-      background: rgba(3, 8, 16, 0.75); border: 1px solid var(--border-cyber);
-      padding: 12px 14px; border-radius: 2px;
-    }
-    .sidebar-stat-card label {
-      font-family: var(--font-cyber); font-size: 9.5px; color: var(--neon-cyan);
-      text-transform: uppercase; letter-spacing: 0.6px; display: block; margin-bottom: 4px;
-    }
-    .sidebar-stat-card div { font-family: var(--font-mono); font-size: 13px; color: #fff; word-break: break-all; }
-    
-    .status-badge-flag {
-      display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-cyber);
-      font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 2px;
-    }
-    .flag-yes { background: rgba(0, 255, 136, 0.15); color: var(--neon-green); border: 1px solid rgba(0, 255, 136, 0.3); }
-    .flag-no { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.1); }
-
-    /* DRILLDOWN MODAL / DRAWER */
-    .drilldown-item {
-      background: rgba(3, 8, 16, 0.85); border: 1px solid var(--border-cyber);
-      padding: 12px 14px; border-radius: 2px; margin-bottom: 10px;
-    }
-    .drilldown-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
-    .drilldown-title { font-family: var(--font-cyber); font-size: 12px; color: #fff; }
-    .drilldown-meta { font-family: var(--font-mono); font-size: 11px; color: var(--text-sec); }
-
-    /* FEEDBACK & REVIEWS HUB */
-    .feedback-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; margin-top: 18px; width: 100%; }
-    .feedback-card {
-      background: var(--bg-card); border: 1px solid var(--border-cyber);
-      border-radius: 2px; padding: 18px 20px; position: relative;
-      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-    }
-    .feedback-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
-    .star-rating { color: var(--neon-amber); font-size: 14px; letter-spacing: 2px; }
-    .feedback-msg { font-size: 13px; color: #e2e8f0; line-height: 1.6; margin-bottom: 14px; background: rgba(2, 6, 12, 0.5); padding: 10px 12px; border-radius: 2px; }
-    .feedback-meta { font-family: var(--font-mono); font-size: 11px; color: var(--text-sec); display: flex; align-items: center; justify-content: space-between; }
+    @media (max-width: 1100px) { main { grid-template-columns: 150px 1fr; } aside { display: none; } }
+    @media (max-width: 700px) { main { grid-template-columns: 1fr; } nav { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--faint); padding: 0; } nav button { width: auto; white-space: nowrap; } }
   </style>
 </head>
 <body>
-  <!-- Vertical Reader Scan Beam (Auto-refresh triggered on animation iteration) -->
-  <div class="scan-beam" id="scanBeamTrigger"></div>
-
-  <!-- Hacker Terminal Ticker -->
-  <div class="cyber-terminal-ticker">
-    <div class="ticker-left">
-      <span class="ticker-blink">●</span>
-      <span>SYS.MONITOR // <span class="ticker-tag">PROTOCOL_SECURE_v15.8</span></span>
-      <span>ENCRYPTION: <span style="color: #fff;">AES-256-GCM ZERO-KNOWLEDGE</span></span>
-      <span>DAEMON: <span style="color: var(--neon-cyan);">VERTICAL SCAN SWEEP (8S REFRESH)</span></span>
-      <span>NODE: <span style="color: #fff;">ASIA-SE-1 (FIREBASE_RTDB)</span></span>
-    </div>
-    <div class="ticker-right">
-      <span id="tickerClock">--:--:-- UTC</span>
-      <span style="color: var(--neon-green);">STATUS: 100% ONLINE</span>
-    </div>
+  <div id="boot">
+    <pre class="glow">
+ ███╗   ██╗ ██████╗ ████████╗███████╗███████╗   ██╗
+ ████╗  ██║██╔═══██╗╚══██╔══╝██╔════╝██╔════╝   ██║
+ ██╔██╗ ██║██║   ██║   ██║   █████╗  ███████╗████████╗
+ ██║╚██╗██║██║   ██║   ██║   ██╔══╝  ╚════██║╚══██╔══╝
+ ██║ ╚████║╚██████╔╝   ██║   ███████╗███████║   ██║
+ ╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝   ╚═╝   ops</pre>
+    <div id="bootlog" class="glow"></div>
+    <div><button id="login" class="glow" hidden>[ authenticate with google ]</button></div>
   </div>
 
-  <div id="appContainer">
-    <!-- Dual Credentials Login Modal (adm-shash-flex-4376 / Notes*Pixlpay@73047) -->
-    <div class="auth-overlay" id="authOverlay" style="display: none;">
-      <div class="auth-card">
-        <img src="/res/notes_icon.png" onerror="this.onerror=null; this.src='../res/notes_icon.png';" class="auth-logo" alt="Notes+">
-        <h1>COMMAND TERMINAL</h1>
-        <p>// IDENTITY CREDENTIALS VERIFICATION REQUIRED //</p>
-        <form class="auth-form" onsubmit="event.preventDefault(); handleLogin();">
-          <div class="field-group">
-            <label>ADMIN USERNAME</label>
-            <div class="input-wrap">
-              <input type="text" id="adminUsername" placeholder="e.g. adm-shash-flex-4376" autocomplete="username" required>
-            </div>
-          </div>
-          <div class="field-group">
-            <label>SECURITY PASSPHRASE</label>
-            <div class="input-wrap">
-              <input type="password" id="adminPassword" placeholder="Enter secure passphrase..." autocomplete="current-password" required>
-            </div>
-          </div>
-          <button type="submit" class="btn-cyber-login">VERIFY & UNLOCK HUD</button>
-          <div class="auth-error" id="authError">ACCESS DENIED: INVALID USERNAME OR PASSPHRASE</div>
-        </form>
-      </div>
-    </div>
-
-    <!-- App Header -->
-    <header class="app-header">
-      <div class="header-left">
-        <div class="brand-cluster">
-          <img src="/res/notes_icon.png" onerror="this.onerror=null; this.src='../res/notes_icon.png';" alt="Notes+">
-          <div class="brand-title">
-            NOTES+ HUD
-            <span class="brand-badge">v15.8 PROD</span>
-          </div>
-        </div>
-
-        <nav class="nav-tabs">
-          <button class="nav-tab active" id="tabOverview" onclick="switchNav('overview')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
-            OVERVIEW
-          </button>
-          <button class="nav-tab" id="tabUsers" onclick="switchNav('users')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            USERS DIRECTORY
-            <span class="nav-badge" id="navUsersBadge">0</span>
-          </button>
-          <button class="nav-tab" id="tabFeedback" onclick="switchNav('feedback')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            FEEDBACK & REVIEWS
-            <span class="nav-badge" id="navFeedbackBadge" style="background: rgba(255, 184, 0, 0.25); color: var(--neon-amber);">0</span>
-          </button>
-        </nav>
-      </div>
-
-      <div class="header-actions">
-        <canvas id="headerOscilloscope" class="oscilloscope-canvas-header"></canvas>
-        <div class="status-pill">
-          <span class="status-dot"></span>
-          <span>8S SWEEP LIVE</span>
-        </div>
-        <button class="btn-cyber-ghost" onclick="refreshData(false)">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-          SYNC
-        </button>
-        <button class="btn-cyber-ghost" onclick="handleLogout()">EXIT</button>
-      </div>
+  <div id="app">
+    <header class="glow">
+      <span class="brand">NOTES+ // OPS</span>
+      <span class="dim" id="who"></span>
+      <span class="spacer"></span>
+      <span class="dim">range</span><span id="hdr-range"></span>
+      <span class="dim">utc</span><span id="clock"></span>
+      <span class="dim">synced</span><span id="synced">—</span>
+      <button id="refresh">refresh</button>
+      <button id="logout">logout</button>
     </header>
-
-    <main class="main-wrap" id="mainContainer">
-      <!-- ============================================== SECTION: OVERVIEW -->
-      <div id="sectionOverview">
-        <!-- Clickable KPI Cards for Detailed Drilldown -->
-        <section class="kpi-grid">
-          <div class="kpi-card" onclick="openKpiDrilldown('activeAdminIps')">
-            <div class="kpi-corner" style="border-color: var(--neon-green);"></div>
-            <div class="kpi-label">ACTIVE ADMIN HUDS ↗</div>
-            <div class="kpi-value" id="kpiActiveAdminIps" style="color: var(--neon-green); font-size: 22px;">1 Active</div>
-            <div class="kpi-sub" id="kpiActiveAdminSub">Click to view active admin sessions</div>
-          </div>
-          <div class="kpi-card" onclick="openKpiDrilldown('uniqueVisitors')">
-            <div class="kpi-corner" style="border-color: var(--neon-cyan);"></div>
-            <div class="kpi-label">UNIQUE SITE VISITORS ↗</div>
-            <div class="kpi-value" id="kpiUniqueVisitors" style="color: var(--neon-cyan); font-size: 22px;">0</div>
-            <div class="kpi-sub">Click to inspect visitor IPs & hits</div>
-          </div>
-          <div class="kpi-card" onclick="openKpiDrilldown('lifetimeAdminIps')">
-            <div class="kpi-corner" style="border-color: var(--neon-amber);"></div>
-            <div class="kpi-label">LIFETIME ADMIN IPS ↗</div>
-            <div class="kpi-value" id="kpiLifetimeAdminIps" style="color: var(--neon-amber); font-size: 22px;">1 Authorized</div>
-            <div class="kpi-sub">Click to view authorized IPs history</div>
-          </div>
-          <div class="kpi-card" onclick="openKpiDrilldown('accounts')">
-            <div class="kpi-corner" style="border-color: var(--neon-purple);"></div>
-            <div class="kpi-label">REGISTERED ACCOUNTS ↗</div>
-            <div class="kpi-value" id="kpiAccounts" style="font-size: 22px;">0</div>
-            <div class="kpi-sub">Click to view verified user accounts</div>
-          </div>
-        </section>
-
-        <!-- Standard Platform KPIs -->
-        <section class="kpi-grid">
-          <div class="kpi-card" onclick="openKpiDrilldown('dau')">
-            <div class="kpi-corner" style="border-color: var(--neon-green);"></div>
-            <div class="kpi-label">DAILY ACTIVE (DAU) ↗</div>
-            <div class="kpi-value" id="kpiDau" style="color: var(--neon-green);">0</div>
-            <div class="kpi-sub">Active sessions today (Click to list)</div>
-          </div>
-          <div class="kpi-card" onclick="openKpiDrilldown('mau')">
-            <div class="kpi-corner" style="border-color: var(--neon-purple);"></div>
-            <div class="kpi-label">MONTHLY ACTIVE (MAU) ↗</div>
-            <div class="kpi-value" id="kpiMau">0</div>
-            <div class="kpi-sub">Unique active devices (30D)</div>
-          </div>
-          <div class="kpi-card" onclick="openKpiDrilldown('visits')">
-            <div class="kpi-corner"></div>
-            <div class="kpi-label">WEB TRAFFIC TODAY ↗</div>
-            <div class="kpi-value" id="kpiVisits">0</div>
-            <div class="kpi-sub">notes.talken.in requests (Click breakdown)</div>
-          </div>
-          <div class="kpi-card" onclick="openKpiDrilldown('downloads')">
-            <div class="kpi-corner" style="border-color: var(--neon-amber);"></div>
-            <div class="kpi-label">APP DOWNLOADS ↗</div>
-            <div class="kpi-value" id="kpiDownloads" style="color: var(--neon-amber);">0</div>
-            <div class="kpi-sub">APK & Windows Setup (Click to view)</div>
-          </div>
-          <div class="kpi-card" onclick="openKpiDrilldown('conversion')">
-            <div class="kpi-corner" style="border-color: var(--neon-cyan);"></div>
-            <div class="kpi-label">CONVERSION RATIO ↗</div>
-            <div class="kpi-value" id="kpiConversion">0%</div>
-            <div class="kpi-sub">Web visits to downloads funnel</div>
-          </div>
-        </section>
-
-        <!-- Fluid Analytics Charts with Real Numerical Reference Scale & Axis Labels -->
-        <section class="charts-grid">
-          <div class="hud-card">
-            <div class="card-head" style="padding: 16px 20px; border-bottom: 1px solid var(--border-cyber); display: flex; align-items: center; justify-content: space-between;">
-              <h2 style="font-family: var(--font-cyber); font-size: 13px; color: var(--neon-cyan); letter-spacing: 1px;">
-                ACTIVITY & TRAFFIC TREND (DAILY WEB VISITS)
-              </h2>
-              <div style="font-family: var(--font-mono); font-size: 11px; color: var(--neon-green); display: flex; align-items: center; gap: 8px;">
-                <span>● REAL DATA</span>
-                <span style="color: var(--text-sec);">SCALE: 0 TO <span id="trendMaxLabel">50</span> VISITS</span>
-              </div>
-            </div>
-            <div class="canvas-fluid-wrap" id="trendContainer">
-              <canvas id="trendChart"></canvas>
-            </div>
-          </div>
-
-          <div class="hud-card">
-            <div class="card-head" style="padding: 16px 20px; border-bottom: 1px solid var(--border-cyber); display: flex; align-items: center; justify-content: space-between;">
-              <h2 style="font-family: var(--font-cyber); font-size: 13px; color: var(--neon-cyan); letter-spacing: 1px;">
-                PLATFORM DISTRIBUTION
-              </h2>
-            </div>
-            <div class="canvas-fluid-wrap" id="platformContainer">
-              <canvas id="platformChart"></canvas>
-            </div>
-          </div>
-        </section>
-
-        <!-- 600s Heartbeat Check Telemetry Summary -->
-        <section class="hud-card" style="margin-bottom: 22px;">
-          <div class="card-head" style="padding: 16px 20px; border-bottom: 1px solid var(--border-cyber); display: flex; align-items: center; justify-content: space-between;">
-            <h2 style="font-family: var(--font-cyber); font-size: 13px; color: var(--neon-cyan); letter-spacing: 1px;">
-              600S UPDATE HEARTBEAT & USAGE TELEMETRY (TODAY)
-            </h2>
-            <span style="font-family: var(--font-mono); font-size: 11px; color: var(--neon-green);">
-              AUTO-REFRESHED ON SCAN BEAM
-            </span>
-          </div>
-          <div style="padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
-            <div class="kpi-card" style="background: rgba(3, 8, 16, 0.7);" onclick="openKpiDrilldown('checksAndroid')">
-              <div class="kpi-label">ANDROID CHECKS ↗</div>
-              <div class="kpi-value" id="checksAndroid" style="color: var(--neon-green); font-size: 22px;">0</div>
-              <div class="kpi-sub">Every 600s heartbeat</div>
-            </div>
-            <div class="kpi-card" style="background: rgba(3, 8, 16, 0.7);" onclick="openKpiDrilldown('checksWindows')">
-              <div class="kpi-label">WINDOWS CHECKS ↗</div>
-              <div class="kpi-value" id="checksWindows" style="color: var(--neon-cyan); font-size: 22px;">0</div>
-              <div class="kpi-sub">Desktop daemon pings</div>
-            </div>
-            <div class="kpi-card" style="background: rgba(3, 8, 16, 0.7);" onclick="openKpiDrilldown('checksWeb')">
-              <div class="kpi-label">WEB DESKTOP CHECKS ↗</div>
-              <div class="kpi-value" id="checksWeb" style="color: var(--neon-amber); font-size: 22px;">0</div>
-              <div class="kpi-sub">Browser session checks</div>
-            </div>
-            <div class="kpi-card" style="background: rgba(3, 8, 16, 0.7);" onclick="openKpiDrilldown('checksTotalTime')">
-              <div class="kpi-label">EST. ACTIVE USAGE TIME ↗</div>
-              <div class="kpi-value" id="checksTotalTime" style="color: #fff; font-size: 22px;">0h 0m</div>
-              <div class="kpi-sub">Total checks × 10 min</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Live Telemetry Stream with IP Address and Infinite Auto-Scroll -->
-        <section class="hud-card">
-          <div class="card-head" style="padding: 16px 20px; border-bottom: 1px solid var(--border-cyber); display: flex; align-items: center; justify-content: space-between;">
-            <h2 style="font-family: var(--font-cyber); font-size: 13px; color: var(--neon-cyan); letter-spacing: 1px;">
-              LIVE AGGREGATE TELEMETRY STREAM
-            </h2>
-            <div style="font-family: var(--font-mono); font-size: 11px; color: var(--neon-cyan);">
-              [BUFFER: AUTOSCROLL EXPANDABLE]
-            </div>
-          </div>
-          <div class="table-scroll-container" id="streamScrollWrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>TIMESTAMP</th>
-                  <th>IP ADDRESS</th>
-                  <th>EVENT TYPE</th>
-                  <th>PLATFORM</th>
-                  <th>TARGET RESOURCE</th>
-                  <th>STATUS</th>
-                </tr>
-              </thead>
-              <tbody id="telemetryStream"></tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-
-      <!-- ============================================== SECTION: USERS DIRECTORY -->
-      <div id="sectionUsers" style="display: none;">
-        <!-- Users KPI Cards -->
-        <section class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-corner" style="border-color: var(--neon-cyan);"></div>
-            <div class="kpi-label">REGISTERED USERS</div>
-            <div class="kpi-value" id="kpiUsersTotal">0</div>
-            <div class="kpi-sub">Total user profiles in RTDB</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-corner" style="border-color: var(--neon-green);"></div>
-            <div class="kpi-label">ACTIVE TODAY</div>
-            <div class="kpi-value" id="kpiUsersActive" style="color: var(--neon-green);">0</div>
-            <div class="kpi-sub">Checked in last 24h</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-corner" style="border-color: var(--neon-amber);"></div>
-            <div class="kpi-label">CLAIMED USERNAMES</div>
-            <div class="kpi-value" id="kpiUsersUsernames" style="color: var(--neon-amber);">0</div>
-            <div class="kpi-sub">Public @handles registered</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-corner" style="border-color: var(--neon-purple);"></div>
-            <div class="kpi-label">ENCRYPTED VAULTS</div>
-            <div class="kpi-value" id="kpiUsersVaults">0</div>
-            <div class="kpi-sub">Total private vaults created</div>
-          </div>
-        </section>
-
-        <!-- Users Directory Table -->
-        <section class="hud-card">
-          <div class="card-head" style="padding: 16px 20px; border-bottom: 1px solid var(--border-cyber); display: flex; align-items: center; justify-content: space-between;">
-            <h2 style="font-family: var(--font-cyber); font-size: 13px; color: var(--neon-cyan); letter-spacing: 1px;">
-              AUTHENTICATED USERS DIRECTORY
-            </h2>
-            <div style="font-family: var(--font-mono); font-size: 11px; color: var(--neon-cyan);">
-              [CLICK USER ROW TO OPEN RIGHT SIDEBAR]
-            </div>
-          </div>
-
-          <!-- Filter & Search Bar -->
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--border-cyber); background: rgba(3, 8, 16, 0.6); flex-wrap: wrap;">
-            <div class="input-wrap" style="min-width: 280px; padding: 8px 12px;">
-              <input type="text" id="userSearchInput" placeholder="Filter by name, @username, UID, email..." oninput="handleUserSearch()">
-            </div>
-            <div style="display: flex; gap: 6px;">
-              <button class="filter-chip active" onclick="setUserFilter('all', this)" style="background: var(--neon-cyan); color: #03070d; font-family: var(--font-cyber); font-size: 10px; font-weight: 800; padding: 6px 12px; border: none; cursor: pointer;">ALL USERS</button>
-              <button class="filter-chip" onclick="setUserFilter('active', this)" style="background: rgba(5, 11, 20, 0.8); border: 1px solid var(--border-cyber); color: var(--text-sec); font-family: var(--font-cyber); font-size: 10px; padding: 6px 12px; cursor: pointer;">ACTIVE TODAY</button>
-              <button class="filter-chip" onclick="setUserFilter('handles', this)" style="background: rgba(5, 11, 20, 0.8); border: 1px solid var(--border-cyber); color: var(--text-sec); font-family: var(--font-cyber); font-size: 10px; padding: 6px 12px; cursor: pointer;">WITH @HANDLE</button>
-            </div>
-          </div>
-
-          <div class="table-scroll-container" id="usersScrollWrap">
-            <table>
-              <thead>
-                <tr>
-                  <th style="padding-left: 20px;">USER IDENTITY</th>
-                  <th>AUTHENTICATED EMAIL</th>
-                  <th>PULSE ACTIVITY</th>
-                  <th>VAULTS</th>
-                  <th>ENVIRONMENT</th>
-                  <th>STATUS</th>
-                  <th style="text-align: right; padding-right: 20px;">VIEW</th>
-                </tr>
-              </thead>
-              <tbody id="usersTableBody"></tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-
-      <!-- ============================================== SECTION: FEEDBACK & REVIEWS -->
-      <div id="sectionFeedback" style="display: none;">
-        <!-- Feedback KPIs -->
-        <section class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-corner" style="border-color: var(--neon-amber);"></div>
-            <div class="kpi-label">TOTAL REVIEWS & FEEDBACK</div>
-            <div class="kpi-value" id="kpiFeedbackTotal">0</div>
-            <div class="kpi-sub">Customer submissions across platforms</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-corner" style="border-color: var(--neon-green);"></div>
-            <div class="kpi-label">AVERAGE SATISFACTION</div>
-            <div class="kpi-value" id="kpiFeedbackAvg" style="color: var(--neon-green);">0.0 ★</div>
-            <div class="kpi-sub">5-star rating aggregate</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-corner" style="border-color: var(--neon-magenta);"></div>
-            <div class="kpi-label">BUG REPORTS</div>
-            <div class="kpi-value" id="kpiFeedbackBugs" style="color: var(--neon-magenta);">0</div>
-            <div class="kpi-sub">Flagged issues for triage</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-corner" style="border-color: var(--neon-cyan);"></div>
-            <div class="kpi-label">FEATURE SUGGESTIONS</div>
-            <div class="kpi-value" id="kpiFeedbackSuggestions" style="color: var(--neon-cyan);">0</div>
-            <div class="kpi-sub">Community feature requests</div>
-          </div>
-        </section>
-
-        <!-- Feedback Stream Grid (Zero Mock/Fake Data) -->
-        <section class="hud-card" style="padding: 20px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
-            <h2 style="font-family: var(--font-cyber); font-size: 13px; color: var(--neon-cyan); letter-spacing: 1px;">
-              LIVE CUSTOMER FEEDBACK & 5-STAR REVIEWS
-            </h2>
-            <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-sec);">
-              [REAL-TIME SUBMISSIONS FROM APP USERS ONLY]
-            </div>
-          </div>
-          <div class="feedback-grid" id="feedbackGridContainer"></div>
-        </section>
-      </div>
+    <main>
+      <nav id="nav" class="glow"></nav>
+      <section id="view"></section>
+      <aside><h3 class="glow">event stream</h3><div id="log" class="glow"></div></aside>
     </main>
+    <footer class="glow"><label>ops@notes+:~$</label><input id="cmd" autocomplete="off" spellcheck="false" placeholder="type help  ·  / to focus"></footer>
   </div>
 
-  <!-- RIGHT SIDEBAR USER DETAILS PANEL & KPI DRILLDOWN DRAWER -->
-  <aside class="user-sidebar-drawer" id="userSidebarDrawer">
-    <div class="sidebar-head">
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <div id="sideAvatarSlot"></div>
-        <div>
-          <h2 id="sideDisplayName" style="font-family: var(--font-cyber); font-size: 15px; color: #fff; margin-bottom: 2px;">User Profile</h2>
-          <div id="sideUsername" style="font-family: var(--font-mono); font-size: 11.5px; color: var(--neon-cyan);">@username</div>
-        </div>
-      </div>
-      <button class="btn-cyber-ghost" onclick="closeUserSidebar()" style="padding: 4px 10px;">✕ CLOSE</button>
-    </div>
+<script src="../js/telemetry.js" data-quiet></script>
+<script type="module">
+// The Notes+ operations panel. Signs in with Google; the database lets in only uids listed at
+// /admins (set by hand in the Firebase console), so nothing here is a secret and nothing can be
+// bypassed from the browser. Reads only aggregate counters, per-user stats rows and feedback:
+// never a note.
+//
+// Every chart has a real scale (labelled axis, nice ticks, linear or log), can be grouped by
+// day, week or month, and compares the chosen range with the one before it.
 
-    <!-- User Profile View in Sidebar -->
-    <div class="sidebar-body" id="sideUserView">
-      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <span class="status-badge-flag flag-yes" id="sideFlagDrive">DRIVE: LINKED</span>
-        <span class="status-badge-flag flag-yes" id="sideFlagFolder">FOLDER SYNC: ACTIVE</span>
-        <span class="status-badge-flag flag-yes" id="sideFlagVerified">EMAIL VERIFIED</span>
-      </div>
+const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
+const CONFIG = {
+  apiKey: 'AIzaSyAPJ5EG0CzDI--yJY9yAVDArzUn3v1tEss',
+  authDomain: 'notes-plus-88985.firebaseapp.com',
+  databaseURL: 'https://notes-plus-88985-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId: 'notes-plus-88985',
+};
+const [appM, A, D] = await Promise.all([import(SDK + 'firebase-app.js'), import(SDK + 'firebase-auth.js'), import(SDK + 'firebase-database.js')]);
+const fbApp = appM.initializeApp(CONFIG, 'ops');
+const auth = A.getAuth(fbApp);
+await A.setPersistence(auth, A.browserSessionPersistence);
+const db = D.getDatabase(fbApp);
 
-      <div class="sidebar-stat-card">
-        <label>AUTHENTICATED EMAIL</label>
-        <div id="sideEmail">--</div>
-        <div id="sideEmailNote" style="font-family: var(--font-mono); font-size: 10.5px; color: var(--neon-amber); margin-top: 4px; display: none;"></div>
-      </div>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const COLORS = { fg: '#3dff7c', amber: '#ffb43a', cyan: '#5fe8ff', violet: '#c58cff', red: '#ff5a5a', dim: '#1e8f46' };
 
-      <div class="sidebar-stat-card">
-        <label>FIREBASE UID KEY</label>
-        <div id="sideUid" style="cursor: pointer;" onclick="copyToClipboard(this.textContent, this)" title="Click to copy UID">--</div>
-      </div>
+// ----------------------------------------------------------------- state
+const state = { range: '30d', group: 'day', scale: 'linear', avg: true, view: 'overview', userQuery: '', userSort: 'last', fbType: 'all', evQuery: '' };
+try { Object.assign(state, JSON.parse(localStorage.getItem('np_ops') || '{}')); } catch { /* defaults */ }
+const save = () => { try { localStorage.setItem('np_ops', JSON.stringify(state)); } catch { /* fine */ } };
+let data = null;
+const hidden = new Set(); // legend toggles, by series name
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-        <div class="sidebar-stat-card">
-          <label>ENCRYPTED VAULTS</label>
-          <div id="sideVaultCount" style="color: var(--neon-amber); font-weight: 800;">0</div>
-        </div>
-        <div class="sidebar-stat-card">
-          <label>TOTAL PULSE PINGS</label>
-          <div id="sideTotalChecks" style="color: var(--neon-green); font-weight: 800;">0</div>
-        </div>
-      </div>
+// ------------------------------------------------------------------ dates
+const DAY = 86400000;
+const iso = t => new Date(t).toISOString().slice(0, 10);
+const todayIso = () => iso(Date.now());
+function rangeDays() {
+  if (state.range === 'all') {
+    const first = data && data.firstDay ? Date.parse(data.firstDay) : Date.now() - 29 * DAY;
+    return Math.max(1, Math.round((Date.parse(todayIso()) - first) / DAY) + 1);
+  }
+  return parseInt(state.range, 10);
+}
+/** The days of the chosen range (oldest first), and the same number of days before it. */
+function days(offsetPeriods = 0) {
+  const n = rangeDays(), end = Date.parse(todayIso()) - offsetPeriods * n * DAY;
+  return Array.from({ length: n }, (_, i) => iso(end - (n - 1 - i) * DAY));
+}
+function bucketOf(d) {
+  if (state.group === 'month') return d.slice(0, 7);
+  if (state.group === 'week') {
+    const t = Date.parse(d), dow = (new Date(t).getUTCDay() + 6) % 7; // Monday first
+    return iso(t - dow * DAY);
+  }
+  return d;
+}
+function buckets(ds) {
+  const order = [], map = new Map();
+  for (const d of ds) {
+    const b = bucketOf(d);
+    if (!map.has(b)) { map.set(b, []); order.push(b); }
+    map.get(b).push(d);
+  }
+  return order.map(b => ({ key: b, days: map.get(b) }));
+}
+const label = b => state.group === 'month' ? new Date(b + '-01T00:00:00Z').toLocaleDateString('en-GB', { month: 'short', year: '2-digit', timeZone: 'UTC' })
+  : new Date(b + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }) + (state.group === 'week' ? ' wk' : '');
 
-      <div class="sidebar-stat-card">
-        <label>CLIENT ENVIRONMENT</label>
-        <div id="sidePlatform">--</div>
-      </div>
+// ------------------------------------------------------------------- data
+async function load() {
+  const t0 = performance.now();
+  logLine('fetching /stats /feedback /usernames …', 'dim');
+  const [stats, feedback, usernames] = await Promise.all([
+    D.get(D.ref(db, 'stats')).then(s => s.val() || {}),
+    D.get(D.ref(db, 'feedback')).then(s => s.val() || {}),
+    D.get(D.ref(db, 'usernames')).then(s => s.val() || {}),
+  ]);
+  const byUid = {};
+  for (const [name, uid] of Object.entries(usernames)) byUid[uid] = name;
+  const web = stats.web || {};
+  const users = Object.entries(stats.users || {}).map(([uid, u]) => ({ uid, username: byUid[uid] || u.username || '', ...u }));
+  // Active people a day: the web app's marks, and every app that checked in (a user's daily checks).
+  const active = {};
+  const mark = (d, k) => { (active[d] = active[d] || new Set()).add(k); };
+  for (const [d, ids] of Object.entries(stats.activeUsers || {})) for (const k of Object.keys(ids || {})) mark(d, k);
+  for (const u of users) for (const d of Object.keys(u.checks || {})) mark(d, 'u_' + u.uid.slice(0, 8));
+  const allDays = [...Object.keys(web.visits || {}), ...Object.keys(stats.checks || {}), ...Object.keys(active)].sort();
+  data = {
+    visits: web.visits || {}, page: web.downloads_page || {},
+    dlAndroid: (web.downloads || {}).android || {}, dlWindows: (web.downloads || {}).windows || {},
+    checks: stats.checks || {}, active, users,
+    signups: users.reduce((m, u) => { if (u.createdAt) { const d = iso(u.createdAt); m[d] = (m[d] || 0) + 1; } return m; }, {}),
+    events: Object.entries(stats.events || {}).map(([id, e]) => ({ id, ...e })).sort((a, b) => (b.ts || 0) - (a.ts || 0)),
+    access: Object.values(stats.adminAccess || {}).sort((a, b) => (b.ts || 0) - (a.ts || 0)),
+    feedback: Object.entries(feedback).map(([id, f]) => ({ id, ...f })).sort((a, b) => (b.ts || 0) - (a.ts || 0)),
+    firstDay: allDays[0],
+  };
+  const ms = Math.round(performance.now() - t0);
+  logLine(`ok · ${users.length} users · ${data.feedback.length} feedback · ${data.events.length} events · ${ms} ms`);
+  $('#synced').textContent = new Date().toISOString().slice(11, 19);
+  streamEvents();
+  render();
+}
 
-      <div class="sidebar-stat-card">
-        <label>TODAY'S USAGE ESTIMATE</label>
-        <div id="sideTodayUsage">0 checks (~0 hours active)</div>
-      </div>
+/** Per-bucket sums of a {date: n} map (counters). */
+const sum = (map, bs) => bs.map(b => b.days.reduce((s, d) => s + (Number(map[d]) || 0), 0));
+const total = (map, ds) => ds.reduce((s, d) => s + (Number(map[d]) || 0), 0);
+const checksOf = (p, d) => Number((data.checks[d] || {})[p]) || 0;
+/** Distinct active people per bucket (a week bucket is that week's WAU, a month its MAU). */
+const uniques = bs => bs.map(b => { const s = new Set(); for (const d of b.days) for (const k of data.active[d] || []) s.add(k); return s.size; });
+function rolling(ds, n) {
+  return ds.map((d, i) => { const s = new Set(); for (let k = Math.max(0, i - n + 1); k <= i; k++) for (const x of data.active[ds[k]] || []) s.add(x); return s.size; });
+}
+function uniqueIn(ds) { const s = new Set(); for (const d of ds) for (const x of data.active[d] || []) s.add(x); return s.size; }
+function movingAvg(vals, n = 7) { return vals.map((_, i) => { const a = vals.slice(Math.max(0, i - n + 1), i + 1); return a.reduce((s, v) => s + v, 0) / a.length; }); }
 
-      <div class="sidebar-stat-card">
-        <label>ACCOUNT REGISTRATION DATE</label>
-        <div id="sideCreatedAt">--</div>
-      </div>
+// ----------------------------------------------------------------- charts
+function niceStep(raw) {
+  const mag = 10 ** Math.floor(Math.log10(raw)), n = raw / mag;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
+}
+const fmt = v => (Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : Math.abs(v) >= 1e3 ? (v / 1e3).toFixed(1).replace(/\.0$/, '') + 'k'
+  : Number.isInteger(v) ? String(v) : v.toFixed(1));
 
-      <div>
-        <label style="font-family: var(--font-cyber); font-size: 10px; color: var(--neon-cyan); letter-spacing: 0.5px; display: block; margin-bottom: 6px;">
-          RAW PROFILE RECORD SNAPSHOT
-        </label>
-        <pre id="sideRawJson" style="background: rgba(2, 5, 10, 0.95); border: 1px solid var(--border-cyber); padding: 12px; border-radius: 2px; font-family: var(--font-mono); font-size: 11px; color: var(--neon-green); max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
-      </div>
-    </div>
+/**
+ * A chart with a real scale: labelled y ticks at round numbers (linear) or powers of ten (log),
+ * date labels, a hover readout of every series. series: [{name, color, values, kind: line|bar, stack?, dash?}]
+ */
+function chart(box, labels, series, opts = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'chart';
+  const cv = document.createElement('canvas');
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  wrap.append(cv, tip);
+  const legend = document.createElement('div');
+  legend.className = 'legend';
+  box.append(wrap, legend);
+  for (const s of series) {
+    if (s.noLegend) continue;
+    const l = document.createElement('span');
+    l.innerHTML = `<i style="background:${s.color}"></i>${esc(s.name)}`;
+    if (hidden.has(s.name)) l.className = 'off';
+    l.onclick = () => { hidden.has(s.name) ? hidden.delete(s.name) : hidden.add(s.name); render(); };
+    legend.append(l);
+  }
+  const shown = series.filter(s => !hidden.has(s.name));
+  const log = state.scale === 'log';
+  let hover = -1;
 
-    <!-- Generic KPI Drilldown View in Sidebar -->
-    <div class="sidebar-body" id="sideDrilldownView" style="display: none;">
-      <div id="drilldownContentSlot"></div>
-    </div>
-  </aside>
-
-  <script>
-    const CRED_USER = 'adm-shash-flex-4376';
-    const CRED_PASS = 'Notes*Pixlpay@73047';
-    const DB_BASE = 'https://notes-plus-88985-default-rtdb.asia-southeast1.firebasedatabase.app';
-
-    let currentNav = 'overview';
-    let cachedStats = null;
-    let cachedUsersList = [];
-    let filteredUsersList = [];
-    let userFilter = 'all';
-    let userSearchQuery = '';
-    let cachedFeedbacks = [];
-    let currentClientIp = '';
-    let cachedAdminSessions = {};
-    let cachedAdminLogins = {};
-
-    function updateClock() {
-      const now = new Date();
-      document.getElementById('tickerClock').textContent = now.toUTCString().slice(17, 25) + ' UTC';
+  function draw() {
+    const dpr = window.devicePixelRatio || 1, W = wrap.clientWidth, H = wrap.clientHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, H);
+    g.font = '11px JetBrains Mono, monospace';
+    const L = 52, R = 10, T = 10, B = 26, pw = W - L - R, ph = H - T - B, n = labels.length;
+    // The domain: stacked bars add up; everything else is its own height.
+    let max = 0;
+    for (let i = 0; i < n; i++) {
+      let stack = 0;
+      for (const s of shown) {
+        const v = s.values[i] || 0;
+        if (s.stack) stack += v; else max = Math.max(max, v);
+      }
+      max = Math.max(max, stack);
     }
-    setInterval(updateClock, 1000);
-    updateClock();
-
-    async function initClientIp() {
-      try {
-        const res = await fetch('https://api.ipify.org?format=json').then(r => r.json());
-        if (res && res.ip) {
-          currentClientIp = res.ip;
-          document.getElementById('kpiActiveAdminSub').textContent = `Your IP: ${currentClientIp}`;
-          recordAdminSession(currentClientIp);
+    let ticks, y;
+    if (log) {
+      const top = Math.max(1, Math.ceil(Math.log10(Math.max(1, max)) + 0.0001));
+      ticks = Array.from({ length: top + 1 }, (_, k) => 10 ** k);
+      y = v => T + ph - (v <= 0 ? 0 : (Math.log10(Math.max(1, v)) / top) * ph);
+    } else {
+      const step = Math.max(opts.integer === false ? niceStep(Math.max(max, 1e-9) / 5) : 1, niceStep(Math.max(max, 1) / 5));
+      const hi = Math.max(step, Math.ceil(max / step) * step);
+      ticks = [];
+      for (let v = 0; v <= hi + step / 2; v += step) ticks.push(+v.toFixed(6));
+      y = v => T + ph - (v / hi) * ph;
+    }
+    // Grid and y labels.
+    g.strokeStyle = 'rgba(61,255,124,0.10)';
+    g.fillStyle = COLORS.dim;
+    g.textAlign = 'right';
+    g.textBaseline = 'middle';
+    for (const t of ticks) {
+      const yy = Math.round(y(t)) + 0.5;
+      g.beginPath(); g.moveTo(L, yy); g.lineTo(W - R, yy); g.stroke();
+      g.fillText(fmt(t) + (opts.suffix || ''), L - 6, yy);
+    }
+    if (log) { g.save(); g.fillStyle = COLORS.amber; g.textAlign = 'left'; g.fillText('log', 4, T + 4); g.restore(); }
+    // X labels, thinned to fit.
+    const slot = pw / Math.max(1, n), every = Math.max(1, Math.ceil(60 / slot));
+    g.textAlign = 'center';
+    g.textBaseline = 'top';
+    for (let i = 0; i < n; i += every) g.fillText(labels[i], L + slot * (i + 0.5), T + ph + 7);
+    g.strokeStyle = 'rgba(61,255,124,0.35)';
+    g.beginPath(); g.moveTo(L, T + ph + 0.5); g.lineTo(W - R, T + ph + 0.5); g.stroke();
+    // Bars (stacked ones on each other), then lines.
+    const bars = shown.filter(s => s.kind === 'bar');
+    const stacked = bars.filter(s => s.stack), loose = bars.filter(s => !s.stack);
+    const groups = (stacked.length ? 1 : 0) + loose.length, bw = Math.max(1, Math.min(28, slot * 0.72) / Math.max(1, groups));
+    for (let i = 0; i < n; i++) {
+      const x0 = L + slot * (i + 0.5) - (bw * groups) / 2;
+      let base = 0, gi = 0;
+      if (stacked.length) {
+        for (const s of stacked) {
+          const v = s.values[i] || 0;
+          if (v > 0) { g.fillStyle = s.color; g.globalAlpha = hover === i ? 1 : 0.8; g.fillRect(x0, y(base + v), bw - 1, y(base) - y(base + v)); }
+          base += v;
         }
-      } catch (_) {
-        currentClientIp = '103.217.84.12';
-        document.getElementById('kpiActiveAdminSub').textContent = `Session IP: 103.217.84.12`;
+        gi++;
+      }
+      for (const s of loose) {
+        const v = s.values[i] || 0;
+        if (v > 0) { g.fillStyle = s.color; g.globalAlpha = hover === i ? 1 : 0.8; g.fillRect(x0 + gi * bw, y(v), bw - 1, y(0) - y(v)); }
+        gi++;
       }
     }
-
-    function recordAdminSession(ip) {
-      if (!ip) return;
-      const cleanIp = ip.replace(/\./g, '_');
-      fetch(`${DB_BASE}/stats/adminSessions/${cleanIp}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip, lastActive: Date.now() })
-      }).catch(() => {});
+    g.globalAlpha = 1;
+    for (const s of shown.filter(x => x.kind !== 'bar')) {
+      g.strokeStyle = s.color;
+      g.lineWidth = s.dash ? 1.2 : 1.8;
+      g.setLineDash(s.dash ? [4, 4] : []);
+      g.shadowColor = s.color; g.shadowBlur = s.dash ? 0 : 6;
+      g.beginPath();
+      s.values.forEach((v, i) => { const xx = L + slot * (i + 0.5), yy = y(v || 0); i ? g.lineTo(xx, yy) : g.moveTo(xx, yy); });
+      g.stroke();
+      g.shadowBlur = 0;
+      if (n <= 45 && !s.dash) { g.fillStyle = s.color; s.values.forEach((v, i) => { g.fillRect(L + slot * (i + 0.5) - 1.5, y(v || 0) - 1.5, 3, 3); }); }
     }
-
-    setInterval(() => {
-      if (sessionStorage.getItem('np_admin_auth') === 'granted' && currentClientIp) {
-        recordAdminSession(currentClientIp);
-      }
-    }, 25000);
-
-    async function checkAuth() {
-      const auth = sessionStorage.getItem('np_admin_auth');
-      const overlay = document.getElementById('authOverlay');
-      if (auth === 'granted') {
-        overlay.style.display = 'none';
-        refreshData(false);
-      } else {
-        overlay.style.display = 'flex';
-        document.getElementById('adminUsername').focus();
-      }
+    g.setLineDash([]);
+    if (hover >= 0) {
+      const xx = Math.round(L + slot * (hover + 0.5)) + 0.5;
+      g.strokeStyle = 'rgba(61,255,124,0.5)';
+      g.beginPath(); g.moveTo(xx, T); g.lineTo(xx, T + ph); g.stroke();
     }
-
-    async function handleLogin() {
-      const u = document.getElementById('adminUsername').value.trim();
-      const p = document.getElementById('adminPassword').value;
-      if ((u === CRED_USER && p === CRED_PASS) || (u === 'admin' && p === 'admin') || p === 'Notes*Pixlpay@73047') {
-        sessionStorage.setItem('np_admin_auth', 'granted');
-        document.getElementById('authOverlay').style.display = 'none';
-
-        if (currentClientIp) {
-          const cleanIp = currentClientIp.replace(/\./g, '_');
-          fetch(`${DB_BASE}/stats/adminLogins/${cleanIp}.json`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip: currentClientIp, lastLogin: Date.now() })
-          }).catch(() => {});
-        }
-
-        refreshData(false);
-      } else {
-        document.getElementById('authError').style.display = 'block';
-      }
-    }
-
-    function handleLogout() {
-      sessionStorage.removeItem('np_admin_auth');
-      location.reload();
-    }
-
-    const scanBeam = document.getElementById('scanBeamTrigger');
-    if (scanBeam) {
-      scanBeam.addEventListener('animationiteration', () => {
-        refreshData(true);
-      });
-    }
-
-    function switchNav(nav) {
-      currentNav = nav;
-      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-      if (nav === 'overview') document.getElementById('tabOverview').classList.add('active');
-      if (nav === 'users') document.getElementById('tabUsers').classList.add('active');
-      if (nav === 'feedback') document.getElementById('tabFeedback').classList.add('active');
-
-      document.getElementById('sectionOverview').style.display = nav === 'overview' ? 'block' : 'none';
-      document.getElementById('sectionUsers').style.display = nav === 'users' ? 'block' : 'none';
-      document.getElementById('sectionFeedback').style.display = nav === 'feedback' ? 'block' : 'none';
-
-      if (nav === 'overview') {
-        setTimeout(() => {
-          drawTrendChart();
-          drawPlatformChart();
-        }, 50);
-      }
-      if (nav === 'users') renderUsersTable();
-      if (nav === 'feedback') renderFeedbackView();
-    }
-
-    async function fetchStats() {
-      try {
-        const [statsRes, usersDirRes, usernamesRes, profilesRes, feedbackRes, adminSessionsRes, adminLoginsRes] = await Promise.all([
-          fetch(`${DB_BASE}/stats.json`).then(r => r.json()).catch(() => null),
-          fetch(`${DB_BASE}/stats/users.json`).then(r => r.json()).catch(() => null),
-          fetch(`${DB_BASE}/usernames.json`).then(r => r.json()).catch(() => null),
-          fetch(`${DB_BASE}/profiles.json`).then(r => r.json()).catch(() => null),
-          fetch(`${DB_BASE}/feedback.json`).then(r => r.json()).catch(() => null),
-          fetch(`${DB_BASE}/stats/adminSessions.json`).then(r => r.json()).catch(() => null),
-          fetch(`${DB_BASE}/stats/adminLogins.json`).then(r => r.json()).catch(() => null)
-        ]);
-        return {
-          stats: statsRes || {},
-          usersDir: usersDirRes || {},
-          usernames: usernamesRes || {},
-          profiles: profilesRes || {},
-          feedback: feedbackRes || {},
-          adminSessions: adminSessionsRes || {},
-          adminLogins: adminLoginsRes || {}
-        };
-      } catch (e) {
-        return { stats: {}, usersDir: {}, usernames: {}, profiles: {}, feedback: {} };
-      }
-    }
-
-    async function refreshData(isSilent = false) {
-      const { stats, usersDir, usernames, profiles, feedback, adminSessions, adminLogins } = await fetchStats();
-      cachedStats = stats;
-      cachedAdminSessions = adminSessions || {};
-      cachedAdminLogins = adminLogins || {};
-
-      const usersByUid = new Map();
-
-      if (usersDir && typeof usersDir === 'object' && !usersDir.error) {
-        Object.values(usersDir).forEach(u => {
-          if (u && u.uid) usersByUid.set(u.uid, { ...u });
-        });
-      }
-
-      if (usernames && typeof usernames === 'object' && !usernames.error) {
-        Object.entries(usernames).forEach(([name, uid]) => {
-          if (!uid || typeof uid !== 'string') return;
-          const existing = usersByUid.get(uid) || {
-            uid, displayName: name, username: name, photoUrl: '', email: '',
-            createdAt: Date.now(), lastActive: null, platform: 'Notes+ Account', checks: {}
-          };
-          existing.username = name;
-          usersByUid.set(uid, existing);
-        });
-      }
-
-      if (profiles && typeof profiles === 'object' && !profiles.error) {
-        Object.entries(profiles).forEach(([uid, pData]) => {
-          if (!uid || !pData) return;
-          const photoUrl = (pData.photo && pData.photo.url) ? pData.photo.url : '';
-          if (photoUrl) {
-            const existing = usersByUid.get(uid) || {
-              uid, displayName: 'Notes+ User', username: null, photoUrl, email: '',
-              createdAt: Date.now(), lastActive: null, platform: 'Notes+ Account', checks: {}
-            };
-            existing.photoUrl = photoUrl;
-            usersByUid.set(uid, existing);
-          }
-        });
-      }
-
-      cachedUsersList = Array.from(usersByUid.values());
-
-      const uidsToInspect = Array.from(usersByUid.keys()).filter(id => !id.includes(' ')).slice(0, 50);
-      if (uidsToInspect.length > 0) {
-        Promise.all(uidsToInspect.map(async id => {
-          try {
-            const [prof, userNotes] = await Promise.all([
-              fetch(`${DB_BASE}/users/${id}/profile.json`).then(r => r.json()).catch(() => null),
-              fetch(`${DB_BASE}/users/${id}/notes.json?shallow=true`).then(r => r.json()).catch(() => null)
-            ]);
-            const u = usersByUid.get(id);
-            if (u && prof && typeof prof === 'object') {
-              if (prof.displayName) u.displayName = prof.displayName;
-              if (prof.username) u.username = prof.username;
-              if (prof.photoUrl && !u.photoUrl) u.photoUrl = prof.photoUrl;
-              if (prof.createdAt) u.createdAt = prof.createdAt;
-              if (prof.driveEmail) u.driveEmail = prof.driveEmail;
-              if (prof.email) u.email = prof.email;
-              if (!u.email && u.driveEmail) u.email = u.driveEmail;
-              u.syncFoldersArchive = !!prof.syncFoldersArchive;
-            }
-            if (u) {
-              u.vaultCount = (userNotes && typeof userNotes === 'object') ? Object.keys(userNotes).length : 1;
-            }
-          } catch (_) {}
-        })).then(() => {
-          cachedUsersList = Array.from(usersByUid.values());
-          renderUsersTable();
-        });
-      }
-
-      const today = new Date().toISOString().slice(0, 10);
-      const accountsCount = cachedUsersList.length;
-
-      // 1. Calculate Active Admin Sessions
-      let activeAdminCount = 1;
-      if (adminSessions && typeof adminSessions === 'object') {
-        const active = Object.values(adminSessions).filter(s => s && s.lastActive && (Date.now() - s.lastActive < 60000));
-        activeAdminCount = Math.max(active.length, 1);
-      }
-      document.getElementById('kpiActiveAdminIps').textContent = `${activeAdminCount} Active`;
-
-      // 2. Real Unique Visitors Count (zero fake data)
-      const uniqueIpSet = new Set();
-      if (stats?.events && typeof stats.events === 'object') {
-        Object.values(stats.events).forEach(e => { if (e && e.ip) uniqueIpSet.add(e.ip); });
-      }
-      document.getElementById('kpiUniqueVisitors').textContent = `${Math.max(uniqueIpSet.size, 1)} Unique IPs`;
-
-      // 3. Real Lifetime Admin IPs Count
-      let lifetimeAdminCount = 1;
-      if (adminLogins && typeof adminLogins === 'object') {
-        lifetimeAdminCount = Math.max(Object.keys(adminLogins).length, 1);
-      }
-      document.getElementById('kpiLifetimeAdminIps').textContent = `${lifetimeAdminCount} Authorized`;
-
-      // Standard Platform KPIs
-      let dauToday = 0;
-      if (stats && stats.activeUsers && stats.activeUsers[today]) {
-        dauToday = Object.keys(stats.activeUsers[today]).length;
-      }
-      document.getElementById('kpiAccounts').textContent = accountsCount.toLocaleString();
-      document.getElementById('kpiDau').textContent = Math.max(dauToday, accountsCount > 0 ? 1 : 0).toLocaleString();
-      document.getElementById('kpiMau').textContent = accountsCount.toLocaleString();
-      const visitsToday = (stats?.web?.visits?.[today] || 0);
-      document.getElementById('kpiVisits').textContent = visitsToday.toLocaleString();
-      const apkToday = (stats?.web?.downloads?.android?.[today] || 0);
-      const exeToday = (stats?.web?.downloads?.windows?.[today] || 0);
-      const downloadsToday = apkToday + exeToday;
-      document.getElementById('kpiDownloads').textContent = downloadsToday.toLocaleString();
-      const conv = visitsToday > 0 ? Math.round((downloadsToday / visitsToday) * 100) : 0;
-      document.getElementById('kpiConversion').textContent = conv + '%';
-      document.getElementById('navUsersBadge').textContent = accountsCount.toLocaleString();
-
-      // Today's 600s Heartbeat Check Telemetry
-      const checksAndroid = (stats?.checks?.[today]?.android) || 0;
-      const checksWindows = (stats?.checks?.[today]?.windows) || 0;
-      const checksWeb = (stats?.checks?.[today]?.web) || 0;
-      const totalChecksToday = checksAndroid + checksWindows + checksWeb;
-      const totalActiveMinutes = totalChecksToday * 10;
-      document.getElementById('checksAndroid').textContent = checksAndroid.toLocaleString();
-      document.getElementById('checksWindows').textContent = checksWindows.toLocaleString();
-      document.getElementById('checksWeb').textContent = checksWeb.toLocaleString();
-      document.getElementById('checksTotalTime').textContent = `${Math.floor(totalActiveMinutes / 60)}h ${totalActiveMinutes % 60}m`;
-
-      // Users Section KPIs
-      document.getElementById('kpiUsersTotal').textContent = accountsCount.toLocaleString();
-      document.getElementById('kpiUsersActive').textContent = cachedUsersList.filter(u => u.lastActiveDate === today || (u.checks && u.checks[today])).length;
-      document.getElementById('kpiUsersUsernames').textContent = cachedUsersList.filter(u => u.username).length;
-      let totalVaults = 0;
-      cachedUsersList.forEach(u => { totalVaults += (u.vaultCount || 1); });
-      document.getElementById('kpiUsersVaults').textContent = Math.max(totalVaults, accountsCount).toLocaleString();
-
-      // Feedback Data (NO FAKE DATA)
-      parseFeedback(feedback);
-
-      initStream(stats);
-      drawTrendChart();
-      drawPlatformChart(apkToday, exeToday, visitsToday);
-      renderUsersTable();
-    }
-
-    // ============================================== REAL ANALYTICS CHART WITH Y-AXIS & X-AXIS SCALES
-    function drawTrendChart() {
-      const cvs = document.getElementById('trendChart');
-      if (!cvs) return;
-      const container = cvs.parentElement;
-      const w = container.clientWidth;
-      const h = container.clientHeight;
-      if (w <= 0 || h <= 0) return;
-
-      cvs.width = w * window.devicePixelRatio;
-      cvs.height = h * window.devicePixelRatio;
-      const ctx = cvs.getContext('2d');
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-      ctx.clearRect(0, 0, w, h);
-
-      // 1. Build real historical timeline data for the past 7 days
-      const days = [];
-      const labels = [];
-      const values = [];
-      const today = new Date();
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(today);
-        d.setDate(d.getDate() - i);
-        const iso = d.toISOString().slice(0, 10);
-        const shortDate = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-        days.push(iso);
-        labels.push(i === 0 ? 'Today' : shortDate);
-        const count = (cachedStats?.web?.visits?.[iso]) || (i === 0 ? (cachedStats?.web?.visits?.[iso] || 12) : Math.max(2, (12 - i * 2)));
-        values.push(count);
-      }
-
-      // 2. Dynamic Max Value calculation for Y-Axis
-      const peakVal = Math.max(...values, 10);
-      const maxVal = Math.ceil(peakVal * 1.25);
-      document.getElementById('trendMaxLabel').textContent = maxVal;
-
-      const padLeft = 50;
-      const padRight = 30;
-      const padTop = 20;
-      const padBottom = 35;
-      const chartW = w - padLeft - padRight;
-      const chartH = h - padTop - padBottom;
-      const stepX = chartW / (values.length - 1);
-
-      // 3. Draw Y-Axis Horizontal Grid Lines & Reference Values
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'middle';
-      ctx.font = '10px "JetBrains Mono", monospace';
-      const yTicks = 4;
-      for (let i = 0; i <= yTicks; i++) {
-        const yVal = Math.round((maxVal / yTicks) * i);
-        const y = (h - padBottom) - (i / yTicks) * chartH;
-
-        // Grid line
-        ctx.strokeStyle = 'rgba(0, 240, 255, 0.08)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(padLeft, y);
-        ctx.lineTo(w - padRight, y);
-        ctx.stroke();
-
-        // Reference Value Label
-        ctx.fillStyle = 'var(--text-sec)';
-        ctx.fillText(yVal, padLeft - 10, y);
-      }
-
-      // 4. Draw X-Axis Date Labels & Ticks
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      labels.forEach((lbl, i) => {
-        const x = padLeft + (i * stepX);
-        const y = h - padBottom + 8;
-        ctx.fillStyle = i === labels.length - 1 ? 'var(--neon-cyan)' : 'var(--text-sec)';
-        ctx.fillText(lbl, x, y);
-      });
-
-      // 5. Draw Trend Line
-      ctx.strokeStyle = '#00f0ff';
-      ctx.lineWidth = 2.5;
-      ctx.shadowColor = '#00f0ff';
-      ctx.shadowBlur = 10;
-      ctx.beginPath();
-      values.forEach((val, i) => {
-        const x = padLeft + (i * stepX);
-        const y = (h - padBottom) - (val / maxVal) * chartH;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      // 6. Draw Gradient Area Fill
-      ctx.lineTo(padLeft + chartW, h - padBottom);
-      ctx.lineTo(padLeft, h - padBottom);
-      ctx.closePath();
-      const grad = ctx.createLinearGradient(0, padTop, 0, h - padBottom);
-      grad.addColorStop(0, 'rgba(0, 240, 255, 0.28)');
-      grad.addColorStop(1, 'rgba(0, 240, 255, 0.0)');
-      ctx.fillStyle = grad;
-      ctx.fill();
-
-      // 7. Draw Circular Reference Nodes & Number Pills on each point
-      values.forEach((val, i) => {
-        const x = padLeft + (i * stepX);
-        const y = (h - padBottom) - (val / maxVal) * chartH;
-
-        // Circle node
-        ctx.fillStyle = '#03070d';
-        ctx.strokeStyle = '#00f0ff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(x, y, 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // Value text above node
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 10px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(val, x, y - 10);
-      });
-    }
-
-    function drawPlatformChart(apk = 0, exe = 0, web = 0) {
-      const cvs = document.getElementById('platformChart');
-      if (!cvs) return;
-      const container = cvs.parentElement;
-      const w = container.clientWidth;
-      const h = container.clientHeight;
-      if (w <= 0 || h <= 0) return;
-
-      cvs.width = w * window.devicePixelRatio;
-      cvs.height = h * window.devicePixelRatio;
-      const ctx = cvs.getContext('2d');
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-      ctx.clearRect(0, 0, w, h);
-
-      const cx = w / 2, cy = h / 2, r = Math.min(cx, cy) - 22;
-      const data = [
-        { label: 'Android APK', val: apk || 2, color: '#00ff88' },
-        { label: 'Windows Setup', val: exe || 3, color: '#00f0ff' },
-        { label: 'Web Browser', val: web || 8, color: '#ffb800' }
-      ];
-
-      let start = -Math.PI / 2;
-      const total = data.reduce((a, b) => a + b.val, 0);
-      data.forEach(d => {
-        const slice = (d.val / total) * Math.PI * 2;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, start, start + slice);
-        ctx.arc(cx, cy, r - 20, start + slice, start, true);
-        ctx.closePath();
-        ctx.fillStyle = d.color;
-        ctx.shadowColor = d.color;
-        ctx.shadowBlur = 8;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        start += slice;
-      });
-    }
-
-    window.addEventListener('resize', () => {
-      drawTrendChart();
-      drawPlatformChart();
-    });
-    if (window.ResizeObserver) {
-      const ro = new ResizeObserver(() => {
-        drawTrendChart();
-        drawPlatformChart();
-      });
-      const tWrap = document.getElementById('trendContainer');
-      const pWrap = document.getElementById('platformContainer');
-      if (tWrap) ro.observe(tWrap);
-      if (pWrap) ro.observe(pWrap);
-    }
-
-    // ============================================== STREAM & USERS DIRECTORY
-    function initStream(stats) {
-      const localEvents = JSON.parse(localStorage.getItem('np_telemetry_events_v1') || '[]');
-      let fbEvents = (stats && stats.events && typeof stats.events === 'object') ? Object.values(stats.events) : [];
-      let all = [...fbEvents, ...localEvents].sort((a, b) => (b.ts || 0) - (a.ts || 0));
-
-      const tbody = document.getElementById('telemetryStream');
-      if (all.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted); font-family: var(--font-mono);">
-              NO TELEMETRY EVENTS RECORDED YET TODAY
-            </td>
-          </tr>
-        `;
-        return;
-      }
-
-      tbody.innerHTML = all.slice(0, 30).map(e => `
-        <tr>
-          <td><code style="color: var(--text-sec); font-family: var(--font-mono); font-size: 11.5px;">${e.time || 'Just now'}</code></td>
-          <td><span class="user-uname-badge" style="color: var(--neon-cyan);"><span style="color: var(--neon-green);">●</span> ${e.ip || '103.217.84.12'}</span></td>
-          <td><span class="user-uname-badge" style="background: rgba(0, 255, 136, 0.15); color: var(--neon-green);">${e.type || 'Event'}</span></td>
-          <td style="font-family: var(--font-mono); font-size: 12px; color: var(--text-sec);">${e.platform || 'Client'}</td>
-          <td><code style="color: var(--neon-cyan); font-family: var(--font-mono); font-size: 11.5px;">${e.res || 'System'}</code></td>
-          <td><span style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--neon-green);">200 OK</span></td>
-        </tr>
-      `).join('');
-    }
-
-    function setUserFilter(filter, btn) {
-      userFilter = filter;
-      document.querySelectorAll('.filter-chip').forEach(b => {
-        b.style.background = 'rgba(5, 11, 20, 0.8)';
-        b.style.color = 'var(--text-sec)';
-      });
-      btn.style.background = 'var(--neon-cyan)';
-      btn.style.color = '#03070d';
-      renderUsersTable();
-    }
-
-    function handleUserSearch() {
-      userSearchQuery = document.getElementById('userSearchInput').value.toLowerCase().trim();
-      renderUsersTable();
-    }
-
-    function renderUsersTable() {
-      const today = new Date().toISOString().slice(0, 10);
-      filteredUsersList = cachedUsersList.filter(u => {
-        if (userFilter === 'active' && !(u.lastActiveDate === today || (u.checks && u.checks[today]))) return false;
-        if (userFilter === 'handles' && !u.username) return false;
-        if (userSearchQuery) {
-          const matchName = (u.displayName || '').toLowerCase().includes(userSearchQuery);
-          const matchUname = (u.username || '').toLowerCase().includes(userSearchQuery);
-          const matchUid = (u.uid || '').toLowerCase().includes(userSearchQuery);
-          const matchEmail = (u.email || u.driveEmail || '').toLowerCase().includes(userSearchQuery);
-          if (!matchName && !matchUname && !matchUid && !matchEmail) return false;
-        }
-        return true;
-      });
-
-      const tbody = document.getElementById('usersTableBody');
-      tbody.innerHTML = filteredUsersList.map(u => {
-        const safeName = escapeHtml(u.displayName || 'Notes+ User');
-        const safeUname = u.username ? escapeHtml(u.username) : '';
-        const safeUid = escapeHtml(u.uid || '');
-        const initials = getInitials(u.displayName || u.username);
-        const hasPhoto = u.photoUrl && u.photoUrl.startsWith('http');
-        const todayChecks = (u.checks && u.checks[today]) ? u.checks[today] : 0;
-        const totalChecks = u.totalChecks || todayChecks;
-        const vaults = u.vaultCount || 1;
-
-        const isToday = u.lastActiveDate === today || todayChecks > 0;
-        const statusHtml = isToday
-          ? `<span class="user-uname-badge" style="background: rgba(0, 255, 136, 0.15); color: var(--neon-green);">ACTIVE TODAY</span>`
-          : `<span class="user-uname-badge" style="background: rgba(255, 255, 255, 0.05); color: var(--text-muted);">RECENT</span>`;
-
-        let emailDisplay = u.email || u.driveEmail;
-        let emailHtml = emailDisplay 
-          ? `<span style="font-family: var(--font-mono); font-size: 12px; color: #fff;">${escapeHtml(emailDisplay)}</span>`
-          : `<span style="font-family: var(--font-mono); font-size: 11px; color: var(--neon-amber);" title="Signed up with email/password. Syncs to RTDB on next app login.">Auth-Only (Email/Pass)</span>`;
-
-        const avatarHtml = hasPhoto
-          ? `<img class="user-pfp" src="${u.photoUrl}" alt="${safeName}" onerror="this.onerror=null; this.outerHTML='<div class=\'user-initials\'>${initials}</div>'">`
-          : `<div class="user-initials">${initials}</div>`;
-
-        return `
-          <tr style="cursor: pointer;" onclick="openUserSidebar('${safeUid}')">
-            <td style="padding-left: 20px;">
-              <div class="user-profile-flex">
-                <div class="user-avatar-wrap">${avatarHtml}</div>
-                <div>
-                  <div class="user-display-name">
-                    ${safeName}
-                    ${safeUname ? `<span class="user-uname-badge">@${safeUname}</span>` : ''}
-                  </div>
-                  <div class="user-email-text">${u.platform || 'Notes+ Client'}</div>
-                </div>
-              </div>
-            </td>
-            <td>${emailHtml}</td>
-            <td>
-              <div class="pulse-cluster">
-                <canvas class="sparkline-canvas" id="spark_${safeUid}"></canvas>
-                <div style="font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--neon-green);">
-                  ${todayChecks} today <span style="color: var(--text-muted); font-size: 10px;">(${totalChecks} total)</span>
-                </div>
-              </div>
-            </td>
-            <td>
-              <span class="vault-count-pill">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                ${vaults} ${vaults === 1 ? 'vault' : 'vaults'}
-              </span>
-            </td>
-            <td>
-              <span class="user-uname-badge" style="background: rgba(3, 8, 16, 0.8);">
-                ${escapeHtml(u.os || 'Windows/Android')} (v15.8)
-              </span>
-            </td>
-            <td>${statusHtml}</td>
-            <td style="text-align: right; padding-right: 20px;">
-              <button class="btn-cyber-ghost" onclick="event.stopPropagation(); openUserSidebar('${safeUid}')">
-                INSPECT ▶
-              </button>
-            </td>
-          </tr>
-        `;
-      }).join('');
-
-      setTimeout(drawSparklines, 50);
-    }
-
-    function drawSparklines() {
-      filteredUsersList.forEach(u => {
-        const cvs = document.getElementById(`spark_${u.uid}`);
-        if (!cvs) return;
-        const ctx = cvs.getContext('2d');
-        const w = cvs.width = 60;
-        const h = cvs.height = 20;
-        ctx.clearRect(0, 0, w, h);
-        ctx.strokeStyle = '#00ff88';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        const pts = [12, 16, 8, 14, 5, 12, 4];
-        pts.forEach((y, i) => {
-          const x = (i / (pts.length - 1)) * w;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-      });
-    }
-
-    // ============================================== RIGHT SIDEBAR: USER VIEW & KPI DRILLDOWNS
-    function openUserSidebar(uid) {
-      document.getElementById('sideUserView').style.display = 'flex';
-      document.getElementById('sideDrilldownView').style.display = 'none';
-
-      const u = cachedUsersList.find(x => x.uid === uid) || {};
-      const initials = getInitials(u.displayName || u.username);
-      const hasPhoto = u.photoUrl && u.photoUrl.startsWith('http');
-      const today = new Date().toISOString().slice(0, 10);
-      const todayChecks = (u.checks && u.checks[today]) ? u.checks[today] : 0;
-      const totalChecks = u.totalChecks || todayChecks;
-      const vaults = u.vaultCount || 1;
-
-      const avatarSlot = document.getElementById('sideAvatarSlot');
-      if (hasPhoto) {
-        avatarSlot.innerHTML = `<img class="sidebar-pfp-large" src="${u.photoUrl}" alt="PFP" onerror="this.onerror=null; this.outerHTML='<div class=\'sidebar-initials-large\'>${initials}</div>'">`;
-      } else {
-        avatarSlot.innerHTML = `<div class="sidebar-initials-large">${initials}</div>`;
-      }
-
-      document.getElementById('sideDisplayName').textContent = u.displayName || 'Notes+ User';
-      document.getElementById('sideUsername').textContent = u.username ? `@${u.username}` : 'No username set';
-      document.getElementById('sideUid').textContent = u.uid || '--';
-      document.getElementById('sidePlatform').textContent = `${u.platform || 'Notes+ Client'} (${u.os || 'Windows/Android'} v15.8)`;
-      document.getElementById('sideVaultCount').textContent = `${vaults} Encrypted Vaults`;
-      document.getElementById('sideTotalChecks').textContent = `${totalChecks} Pulse Heartbeats`;
-      document.getElementById('sideTodayUsage').textContent = `${todayChecks} checks (~${Math.round(todayChecks * 10 / 60 * 10) / 10} hours active today)`;
-      document.getElementById('sideCreatedAt').textContent = u.createdAt ? new Date(u.createdAt).toLocaleString() : 'Recent';
-
-      const resolvedEmail = u.email || u.driveEmail;
-      const emailNote = document.getElementById('sideEmailNote');
-      if (resolvedEmail) {
-        document.getElementById('sideEmail').textContent = resolvedEmail + (u.driveEmail && !u.email ? ' (via Google Drive)' : '');
-        emailNote.style.display = 'none';
-      } else {
-        document.getElementById('sideEmail').textContent = 'Stored in Firebase Auth';
-        emailNote.textContent = 'Account signed up with email/password. Email will sync to RTDB automatically upon next app sign-in.';
-        emailNote.style.display = 'block';
-      }
-
-      const flagDrive = document.getElementById('sideFlagDrive');
-      const hasDrive = !!(u.driveEmail || (u.email && u.email.includes('@')));
-      flagDrive.className = 'status-badge-flag ' + (hasDrive ? 'flag-yes' : 'flag-no');
-      flagDrive.textContent = hasDrive ? 'DRIVE: CONNECTED' : 'DRIVE: NOT LINKED';
-
-      const flagFolder = document.getElementById('sideFlagFolder');
-      flagFolder.className = 'status-badge-flag ' + (u.syncFoldersArchive ? 'flag-yes' : 'flag-no');
-      flagFolder.textContent = u.syncFoldersArchive ? 'FOLDER ARCHIVE: ON' : 'FOLDER ARCHIVE: OFF';
-
-      const flagVerified = document.getElementById('sideFlagVerified');
-      flagVerified.className = 'status-badge-flag flag-yes';
-      flagVerified.textContent = 'ACCOUNT: VERIFIED';
-
-      const snapshot = { ...u };
-      if (!snapshot.email && snapshot.driveEmail) snapshot.email = snapshot.driveEmail;
-      document.getElementById('sideRawJson').textContent = JSON.stringify(snapshot, null, 2);
-
-      document.getElementById('userSidebarDrawer').classList.add('open');
-      document.getElementById('mainContainer').style.marginRight = '480px';
-    }
-
-    // ============================================== KPI DRILLDOWN DRAWER (CLICK TO INSPECT)
-    function openKpiDrilldown(metric) {
-      document.getElementById('sideUserView').style.display = 'none';
-      document.getElementById('sideDrilldownView').style.display = 'flex';
-
-      const avatarSlot = document.getElementById('sideAvatarSlot');
-      avatarSlot.innerHTML = `<div class="sidebar-initials-large" style="background: rgba(0,240,255,0.15); color: var(--neon-cyan);">HUD</div>`;
-
-      let title = 'Metric Drilldown';
-      let subtitle = '// DETAILED TELEMETRY INSPECTION //';
-      let html = '';
-
-      if (metric === 'activeAdminIps') {
-        title = 'Active Admin Sessions';
-        subtitle = 'Current IP addresses accessing Admin HUD';
-        const sessions = Object.values(cachedAdminSessions || {});
-        html = `
-          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--neon-green); margin-bottom: 12px;">
-            TOTAL ACTIVE SESSIONS: ${Math.max(sessions.length, 1)}
-          </div>
-          ${sessions.length > 0 ? sessions.map(s => `
-            <div class="drilldown-item">
-              <div class="drilldown-head">
-                <span class="drilldown-title">${escapeHtml(s.ip || 'Admin IP')}</span>
-                <span class="status-badge-flag flag-yes">ACTIVE NOW</span>
-              </div>
-              <div class="drilldown-meta">Last Heartbeat: ${new Date(s.lastActive || Date.now()).toLocaleTimeString()}</div>
-            </div>
-          `).join('') : `
-            <div class="drilldown-item">
-              <div class="drilldown-head">
-                <span class="drilldown-title">${currentClientIp || 'Current Session'}</span>
-                <span class="status-badge-flag flag-yes">ACTIVE NOW</span>
-              </div>
-              <div class="drilldown-meta">Active Admin Session</div>
-            </div>
-          `}
-        `;
-      } else if (metric === 'uniqueVisitors') {
-        title = 'Unique Site Visitors';
-        subtitle = 'All distinct visitor IPs recorded';
-        const events = cachedStats?.events ? Object.values(cachedStats.events) : [];
-        const ipMap = new Map();
-        events.forEach(e => {
-          if (!e.ip) return;
-          const prev = ipMap.get(e.ip) || { ip: e.ip, count: 0, lastEvent: e.type, lastTime: e.time, platform: e.platform };
-          prev.count++;
-          ipMap.set(e.ip, prev);
-        });
-        const ipList = Array.from(ipMap.values());
-        html = `
-          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--neon-cyan); margin-bottom: 12px;">
-            TOTAL DISTINCT VISITOR IPS: ${ipList.length || 1}
-          </div>
-          ${ipList.length > 0 ? ipList.map(item => `
-            <div class="drilldown-item">
-              <div class="drilldown-head">
-                <span class="drilldown-title">${escapeHtml(item.ip)}</span>
-                <span class="user-uname-badge">${item.count} requests</span>
-              </div>
-              <div class="drilldown-meta">${item.platform || 'Client'} · Last: ${item.lastEvent || 'Visit'} (${item.lastTime || 'Today'})</div>
-            </div>
-          `).join('') : `
-            <div class="drilldown-item">
-              <div class="drilldown-head">
-                <span class="drilldown-title">${currentClientIp || '103.217.84.12'}</span>
-                <span class="user-uname-badge">1 visit</span>
-              </div>
-              <div class="drilldown-meta">Web Desktop · notes.talken.in/</div>
-            </div>
-          `}
-        `;
-      } else if (metric === 'lifetimeAdminIps') {
-        title = 'Lifetime Admin Access IPs';
-        subtitle = 'All IP addresses authorized to unlock HUD';
-        const logins = Object.values(cachedAdminLogins || {});
-        html = `
-          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--neon-amber); margin-bottom: 12px;">
-            TOTAL DISTINCT AUTHORIZED IPS: ${Math.max(logins.length, 1)}
-          </div>
-          ${logins.length > 0 ? logins.map(l => `
-            <div class="drilldown-item">
-              <div class="drilldown-head">
-                <span class="drilldown-title">${escapeHtml(l.ip || 'Admin IP')}</span>
-                <span class="status-badge-flag flag-yes">AUTHORIZED</span>
-              </div>
-              <div class="drilldown-meta">Last Unlocked: ${new Date(l.lastLogin || Date.now()).toLocaleString()}</div>
-            </div>
-          `).join('') : `
-            <div class="drilldown-item">
-              <div class="drilldown-head">
-                <span class="drilldown-title">${currentClientIp || '103.217.84.12'}</span>
-                <span class="status-badge-flag flag-yes">AUTHORIZED</span>
-              </div>
-              <div class="drilldown-meta">Primary Authorized Admin Session</div>
-            </div>
-          `}
-        `;
-      } else if (metric === 'accounts' || metric === 'dau' || metric === 'mau') {
-        title = metric === 'accounts' ? 'All Registered Accounts' : (metric === 'dau' ? 'Daily Active Users (DAU)' : 'Monthly Active (MAU)');
-        subtitle = `Listing ${cachedUsersList.length} verified platform user accounts`;
-        html = `
-          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--neon-green); margin-bottom: 12px;">
-            TOTAL REGISTERED ACCOUNTS: ${cachedUsersList.length}
-          </div>
-          ${cachedUsersList.map(u => `
-            <div class="drilldown-item" style="cursor: pointer;" onclick="openUserSidebar('${escapeHtml(u.uid)}')">
-              <div class="drilldown-head">
-                <span class="drilldown-title">${escapeHtml(u.displayName || 'Notes+ User')} ${u.username ? `(@${escapeHtml(u.username)})` : ''}</span>
-                <span class="user-uname-badge">${u.platform || 'Client'}</span>
-              </div>
-              <div class="drilldown-meta">Email: ${escapeHtml(u.email || u.driveEmail || 'Auth-Only')}</div>
-              <div class="drilldown-meta" style="font-size: 10px; color: var(--text-muted); margin-top: 3px;">UID: ${escapeHtml(u.uid)}</div>
-            </div>
-          `).join('')}
-        `;
-      } else if (metric === 'visits' || metric === 'downloads' || metric === 'conversion') {
-        title = 'Traffic & Conversion Breakdown';
-        const today = new Date().toISOString().slice(0, 10);
-        const visits = (cachedStats?.web?.visits?.[today] || 0);
-        const apk = (cachedStats?.web?.downloads?.android?.[today] || 0);
-        const exe = (cachedStats?.web?.downloads?.windows?.[today] || 0);
-        html = `
-          <div class="sidebar-stat-card" style="margin-bottom: 12px;">
-            <label>TODAY WEB LANDING HITS</label>
-            <div style="color: var(--neon-cyan);">${visits} visits</div>
-          </div>
-          <div class="sidebar-stat-card" style="margin-bottom: 12px;">
-            <label>ANDROID APK DOWNLOADS</label>
-            <div style="color: var(--neon-green);">${apk} downloads</div>
-          </div>
-          <div class="sidebar-stat-card" style="margin-bottom: 12px;">
-            <label>WINDOWS SETUP EXE DOWNLOADS</label>
-            <div style="color: var(--neon-amber);">${exe} downloads</div>
-          </div>
-          <div class="sidebar-stat-card">
-            <label>OVERALL DOWNLOAD CONVERSION</label>
-            <div style="color: #fff;">${visits > 0 ? Math.round(((apk + exe) / visits) * 100) : 0}%</div>
-          </div>
-        `;
-      } else {
-        title = '600s Heartbeat Check Telemetry';
-        const today = new Date().toISOString().slice(0, 10);
-        html = `
-          <div class="sidebar-stat-card" style="margin-bottom: 12px;">
-            <label>ANDROID HEARTBEAT CHECKS</label>
-            <div style="color: var(--neon-green);">${cachedStats?.checks?.[today]?.android || 0} checks</div>
-          </div>
-          <div class="sidebar-stat-card" style="margin-bottom: 12px;">
-            <label>WINDOWS DESKTOP CHECKS</label>
-            <div style="color: var(--neon-cyan);">${cachedStats?.checks?.[today]?.windows || 0} checks</div>
-          </div>
-          <div class="sidebar-stat-card" style="margin-bottom: 12px;">
-            <label>WEB DESKTOP CHECKS</label>
-            <div style="color: var(--neon-amber);">${cachedStats?.checks?.[today]?.web || 0} checks</div>
-          </div>
-        `;
-      }
-
-      document.getElementById('sideDisplayName').textContent = title;
-      document.getElementById('sideUsername').textContent = subtitle;
-      document.getElementById('drilldownContentSlot').innerHTML = html;
-
-      document.getElementById('userSidebarDrawer').classList.add('open');
-      document.getElementById('mainContainer').style.marginRight = '480px';
-    }
-
-    function closeUserSidebar() {
-      document.getElementById('userSidebarDrawer').classList.remove('open');
-      document.getElementById('mainContainer').style.marginRight = '0';
-    }
-
-    // ============================================== REAL FEEDBACK (ZERO FAKE DATA)
-    function parseFeedback(feedbackData) {
-      let fbList = [];
-      if (feedbackData && typeof feedbackData === 'object' && !feedbackData.error) {
-        fbList = Object.entries(feedbackData).map(([id, val]) => ({ id, ...val }));
-      }
-      
-      cachedFeedbacks = fbList;
-      document.getElementById('kpiFeedbackTotal').textContent = fbList.length;
-      document.getElementById('navFeedbackBadge').textContent = fbList.length;
-
-      if (fbList.length === 0) {
-        document.getElementById('kpiFeedbackAvg').textContent = '0.0 ★';
-        document.getElementById('kpiFeedbackBugs').textContent = 0;
-        document.getElementById('kpiFeedbackSuggestions').textContent = 0;
-      } else {
-        let totalRating = 0, bugs = 0, suggestions = 0;
-        fbList.forEach(f => {
-          totalRating += (f.rating || 5);
-          if (f.type && f.type.toLowerCase().includes('bug')) bugs++;
-          if (f.type && f.type.toLowerCase().includes('suggest')) suggestions++;
-        });
-        const avg = Math.round((totalRating / fbList.length) * 10) / 10;
-        document.getElementById('kpiFeedbackAvg').textContent = `${avg} ★`;
-        document.getElementById('kpiFeedbackBugs').textContent = bugs;
-        document.getElementById('kpiFeedbackSuggestions').textContent = suggestions;
-      }
-
-      renderFeedbackView();
-    }
-
-    function renderFeedbackView() {
-      const container = document.getElementById('feedbackGridContainer');
-      if (!container) return;
-
-      if (cachedFeedbacks.length === 0) {
-        container.innerHTML = `
-          <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-muted); font-family: var(--font-mono);">
-            <div style="font-size: 15px; color: var(--neon-cyan); margin-bottom: 8px; font-weight: 700;">NO CUSTOMER FEEDBACK SUBMITTED YET</div>
-            <div style="font-size: 12px; color: var(--text-sec); max-width: 500px; margin: 0 auto;">
-              Real customer reviews, bug reports, and suggestions submitted from the app will appear here in real time. Zero mock data.
-            </div>
-          </div>
-        `;
-        return;
-      }
-
-      container.innerHTML = cachedFeedbacks.map(f => {
-        const stars = '★'.repeat(f.rating || 5) + '☆'.repeat(5 - (f.rating || 5));
-        const isBug = f.type && f.type.toLowerCase().includes('bug');
-        const tagColor = isBug ? 'var(--neon-magenta)' : 'var(--neon-cyan)';
-        const tagBg = isBug ? 'rgba(255, 42, 109, 0.15)' : 'rgba(0, 240, 255, 0.15)';
-
-        return `
-          <div class="feedback-card">
-            <div class="feedback-head">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="user-uname-badge">@${escapeHtml(f.username || 'user')}</span>
-                <span style="font-family: var(--font-cyber); font-size: 10px; padding: 2px 7px; border-radius: 2px; color: ${tagColor}; background: ${tagBg};">
-                  ${escapeHtml(f.type || 'Review')}
-                </span>
-              </div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <div class="star-rating">${stars}</div>
-                <button class="cyber-btn" style="padding: 2px 8px; font-size: 10px; color: var(--neon-magenta); border: 1px solid var(--neon-magenta); background: rgba(255, 42, 109, 0.1); cursor: pointer;" onclick="deleteFeedback('${escapeHtml(f.id)}')">PURGE</button>
-              </div>
-            </div>
-            <div class="feedback-msg">"${escapeHtml(f.message || '')}"</div>
-            <div class="feedback-meta">
-              <span>${escapeHtml(f.platform || 'Notes+ App')}</span>
-              <span>${escapeHtml(f.date || 'Recent')}</span>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    window.deleteFeedback = async function(fid) {
-      if (!fid) return;
-      if (!confirm('Permanently purge this feedback record (' + fid + ') from RTDB?')) return;
-      try {
-        const DB_URL = 'https://notes-plus-88985-default-rtdb.asia-southeast1.firebasedatabase.app';
-        const res = await fetch(`${DB_URL}/feedback/${fid}.json`, { method: 'DELETE' });
-        if (res.ok) {
-          cachedFeedbacks = cachedFeedbacks.filter(f => f.id !== fid);
-          const reconstructed = {};
-          cachedFeedbacks.forEach(f => { reconstructed[f.id] = f; });
-          parseFeedback(reconstructed);
-          alert('Feedback purged successfully.');
-        } else {
-          alert('Error deleting feedback: HTTP ' + res.status);
-        }
-      } catch (e) {
-        alert('Network error: ' + e.message);
-      }
+    return { L, slot, n };
+  }
+  let geo = draw();
+  cv.onmousemove = e => {
+    const r = cv.getBoundingClientRect(), i = Math.floor((e.clientX - r.left - geo.L) / geo.slot);
+    if (i < 0 || i >= geo.n) { cv.onmouseleave(); return; }
+    if (i !== hover) { hover = i; geo = draw(); }
+    tip.innerHTML = `<b>${esc(labels[i])}</b><br>` + shown.map(s => `<span style="color:${s.color}">■</span> ${esc(s.name)}: ${fmt(s.values[i] || 0)}${opts.suffix || ''}`).join('<br>');
+    tip.style.display = 'block';
+    const x = e.clientX - r.left + 14;
+    tip.style.left = Math.min(x, r.width - tip.offsetWidth - 4) + 'px';
+    tip.style.top = Math.max(4, e.clientY - r.top - tip.offsetHeight - 10) + 'px';
+  };
+  cv.onmouseleave = () => { hover = -1; tip.style.display = 'none'; geo = draw(); };
+  new ResizeObserver(() => { geo = draw(); }).observe(wrap);
+}
+
+function box(title, sub) {
+  const b = document.createElement('div');
+  b.className = 'box';
+  b.innerHTML = `<h2 class="glow">${esc(title)}${sub ? `<span class="sub">${sub}</span>` : ''}</h2>`;
+  return b;
+}
+
+/** "▲ 12% vs previous 30 days", or nothing for "all". */
+function delta(now, before) {
+  if (state.range === 'all') return '<span class="dim">all time</span>';
+  if (!before) return now ? '<span class="cyan">new</span>' : '<span class="dim">—</span>';
+  const p = Math.round(((now - before) / before) * 100);
+  return `<span class="${p >= 0 ? '' : 'red'}">${p >= 0 ? '▲' : '▼'} ${Math.abs(p)}%</span> <span class="dim">vs prev ${rangeDays()}d (${fmt(before)})</span>`;
+}
+
+// ------------------------------------------------------------------ views
+const VIEWS = {
+  overview: 'overview', traffic: 'traffic', active: 'active users', apps: 'app check-ins', funnel: 'funnel',
+  visitors: 'visitors · IPs', people: 'people', feedback: 'feedback', events: 'events', access: 'access log',
+};
+
+function controls() {
+  const seg = (name, key, opts) => `<span><span class="seg-label">${name}</span><span class="seg">${opts.map(o =>
+    `<button data-k="${key}" data-v="${o}" class="${state[key] === o ? 'on' : ''}">${o}</button>`).join('')}</span></span>`;
+  const c = document.createElement('div');
+  c.className = 'controls glow';
+  c.innerHTML = seg('range', 'range', ['7d', '14d', '30d', '90d', '365d', 'all']) + seg('group', 'group', ['day', 'week', 'month'])
+    + seg('scale', 'scale', ['linear', 'log']) + `<span><span class="seg-label">7d avg</span><span class="seg"><button data-k="avg" data-v="1" class="${state.avg ? 'on' : ''}">${state.avg ? 'on' : 'off'}</button></span></span>`
+    + `<span><button data-export="1">export csv</button></span>`;
+  c.onclick = e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.export) { exportCsv(); return; }
+    const k = b.dataset.k;
+    if (k === 'avg') state.avg = !state.avg; else state[k] = b.dataset.v;
+    save();
+    logLine(`set ${k} ${k === 'avg' ? (state.avg ? 'on' : 'off') : state[k]}`, 'dim');
+    render();
+  };
+  return c;
+}
+
+function render() {
+  if (!data) return;
+  $('#hdr-range').textContent = `${state.range} · ${state.group} · ${state.scale}`;
+  const nav = $('#nav');
+  nav.innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button data-view="${k}" class="${state.view === k ? 'on' : ''}">${v}</button>`).join('');
+  nav.onclick = e => { const b = e.target.closest('button'); if (b) go(b.dataset.view); };
+  const view = $('#view');
+  view.innerHTML = '';
+  if (['overview', 'traffic', 'active', 'apps', 'funnel', 'visitors'].includes(state.view)) view.append(controls());
+  ({ overview, traffic, active, apps, funnel, visitors, people, feedback, events, access })[state.view](view);
+}
+
+function go(v) {
+  if (!VIEWS[v]) { logLine(`no such view: ${v}`, 'red'); return; }
+  state.view = v;
+  save();
+  render();
+}
+
+/** A count in full, with thousands separators: tiles show the exact number. */
+const full = v => Math.round(v).toLocaleString('en-US');
+
+function kpi(view, k, v, d, target) {
+  const el = document.createElement('div');
+  el.className = 'kpi glow';
+  el.innerHTML = `<div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div>`;
+  if (target) el.onclick = () => go(target);
+  view.append(el);
+}
+
+function overview(view) {
+  const ds = days(), prev = days(1);
+  const visits = total(data.visits, ds), visitsPrev = total(data.visits, prev);
+  const dl = total(data.dlAndroid, ds) + total(data.dlWindows, ds), dlPrev = total(data.dlAndroid, prev) + total(data.dlWindows, prev);
+  const mau = uniqueIn(ds.slice(-30)), mauPrev = uniqueIn(prev.slice(-30));
+  const dauAvg = ds.reduce((s, d) => s + (data.active[d] ? data.active[d].size : 0), 0) / ds.length;
+  const dauAvgPrev = prev.reduce((s, d) => s + (data.active[d] ? data.active[d].size : 0), 0) / prev.length;
+  const checks = ds.reduce((s, d) => s + checksOf('android', d) + checksOf('windows', d) + checksOf('web', d), 0);
+  const checksPrev = prev.reduce((s, d) => s + checksOf('android', d) + checksOf('windows', d) + checksOf('web', d), 0);
+  const signups = total(data.signups, ds), signupsPrev = total(data.signups, prev);
+  const ratings = data.feedback.filter(f => f.rating > 0);
+  const avgRating = ratings.length ? ratings.reduce((s, f) => s + Number(f.rating), 0) / ratings.length : 0;
+  const kp = document.createElement('div');
+  kp.className = 'kpis';
+  kpi(kp, 'site visits', full(visits), delta(visits, visitsPrev), 'traffic');
+  const vis = inRange(data.events).filter(e => VISIT.has(e.type)), visPrev = inRange(data.events, 1).filter(e => VISIT.has(e.type));
+  const u = l => new Set(l.map(who).filter(Boolean)).size;
+  kpi(kp, 'unique visitors', full(u(vis)), delta(u(vis), u(visPrev)), 'visitors');
+  kpi(kp, 'downloads', full(dl), delta(dl, dlPrev), 'funnel');
+  kpi(kp, 'visit → download', visits ? Math.round((dl / visits) * 100) + '%' : '—', `<span class="dim">of visits in range</span>`, 'funnel');
+  kpi(kp, 'avg daily active', dauAvg.toFixed(1), delta(dauAvg, dauAvgPrev), 'active');
+  kpi(kp, 'active, last 30d', full(mau), delta(mau, mauPrev), 'active');
+  kpi(kp, 'stickiness', mau ? Math.round((dauAvg / mau) * 100) + '%' : '—', '<span class="dim">avg DAU ÷ MAU</span>', 'active');
+  kpi(kp, 'app check-ins', full(checks), delta(checks, checksPrev), 'apps');
+  kpi(kp, 'new people', full(signups), delta(signups, signupsPrev), 'people');
+  kpi(kp, 'people, all time', full(data.users.length), `<span class="dim">with a stats row</span>`, 'people');
+  kpi(kp, 'feedback', full(data.feedback.length), ratings.length ? `<span class="amber">${'★'.repeat(Math.round(avgRating))}</span> ${avgRating.toFixed(1)} avg` : '<span class="dim">no ratings</span>', 'feedback');
+  view.append(kp);
+  const two = document.createElement('div');
+  two.className = 'two';
+  view.append(two);
+  const bs = buckets(ds), labels = bs.map(b => label(b.key));
+  const t = box('traffic', 'visits and downloads');
+  two.append(t);
+  chart(t, labels, [
+    { name: 'site visits', color: COLORS.fg, values: sum(data.visits, bs), kind: 'line' },
+    { name: 'android downloads', color: COLORS.amber, values: sum(data.dlAndroid, bs), kind: 'bar', stack: true },
+    { name: 'windows downloads', color: COLORS.cyan, values: sum(data.dlWindows, bs), kind: 'bar', stack: true },
+  ]);
+  const a = box('active people', state.group === 'day' ? 'per day' : `distinct per ${state.group}`);
+  two.append(a);
+  chart(a, labels, [{ name: 'active', color: COLORS.fg, values: uniques(bs), kind: 'bar' }]);
+}
+
+function traffic(view) {
+  const ds = days(), bs = buckets(ds), labels = bs.map(b => label(b.key));
+  const visits = sum(data.visits, bs);
+  const b1 = box('site visits', `once per browser session a day · ${fmt(total(data.visits, ds))} in range`);
+  view.append(b1);
+  const s = [{ name: 'site visits', color: COLORS.fg, values: visits, kind: 'line' },
+    { name: 'download page', color: COLORS.violet, values: sum(data.page, bs), kind: 'line' }];
+  if (state.avg && state.group === 'day') s.push({ name: '7-day avg', color: COLORS.dim, values: movingAvg(visits), kind: 'line', dash: true });
+  chart(b1, labels, s);
+  const b2 = box('downloads by platform', `${fmt(total(data.dlAndroid, ds))} android · ${fmt(total(data.dlWindows, ds))} windows`);
+  view.append(b2);
+  chart(b2, labels, [
+    { name: 'android', color: COLORS.amber, values: sum(data.dlAndroid, bs), kind: 'bar', stack: true },
+    { name: 'windows', color: COLORS.cyan, values: sum(data.dlWindows, bs), kind: 'bar', stack: true },
+  ]);
+}
+
+function active(view) {
+  const ds = days(), bs = buckets(ds), labels = bs.map(b => label(b.key));
+  const b1 = box('active people', state.group === 'day' ? 'DAU, with rolling WAU and MAU' : `distinct people per ${state.group}`);
+  view.append(b1);
+  const series = [{ name: state.group === 'day' ? 'DAU' : state.group === 'week' ? 'WAU' : 'MAU', color: COLORS.fg, values: uniques(bs), kind: 'bar' }];
+  if (state.group === 'day') {
+    series.push({ name: 'WAU (rolling 7d)', color: COLORS.amber, values: rolling(ds, 7), kind: 'line' });
+    series.push({ name: 'MAU (rolling 30d)', color: COLORS.cyan, values: rolling(ds, 30), kind: 'line' });
+  }
+  chart(b1, labels, series);
+  const b2 = box('stickiness', 'DAU ÷ rolling MAU · how often people come back');
+  view.append(b2);
+  const dau = ds.map(d => (data.active[d] ? data.active[d].size : 0)), mau = rolling(ds, 30);
+  const stick = ds.map((_, i) => (mau[i] ? (dau[i] / mau[i]) * 100 : 0));
+  const sb = state.group === 'day' ? stick : bs.map(b => { const idx = b.days.map(d => ds.indexOf(d)); return idx.reduce((s, i) => s + stick[i], 0) / idx.length; });
+  chart(b2, labels, [{ name: 'stickiness', color: COLORS.violet, values: sb, kind: 'line' }], { suffix: '%', integer: false });
+  const b3 = box('new people', 'stats rows by first seen');
+  view.append(b3);
+  chart(b3, labels, [{ name: 'new', color: COLORS.amber, values: sum(data.signups, bs), kind: 'bar' }]);
+}
+
+function apps(view) {
+  const ds = days(), bs = buckets(ds), labels = bs.map(b => label(b.key));
+  const per = p => bs.map(b => b.days.reduce((s, d) => s + checksOf(p, d), 0));
+  const b1 = box('app check-ins', 'update checks per platform (each app start, and periodically)');
+  view.append(b1);
+  chart(b1, labels, [
+    { name: 'android', color: COLORS.amber, values: per('android'), kind: 'bar', stack: true },
+    { name: 'windows', color: COLORS.cyan, values: per('windows'), kind: 'bar', stack: true },
+    { name: 'web', color: COLORS.fg, values: per('web'), kind: 'bar', stack: true },
+  ]);
+  const two = document.createElement('div');
+  two.className = 'two';
+  view.append(two);
+  const within = new Set(ds);
+  const recent = data.users.filter(u => u.lastActiveDate && within.has(u.lastActiveDate));
+  two.append(breakdown('versions in use', recent, u => (u.platform || '?') + ' ' + (u.version || '?')));
+  two.append(breakdown('platform', recent, u => u.platform || 'unknown'));
+  two.append(breakdown('operating system', recent, u => u.os || 'unknown'));
+  two.append(breakdown('theme', recent, u => u.theme || 'unknown'));
+}
+
+/** Counts of {@code key(u)} over people, as bars, biggest first. */
+function breakdown(title, people, key, sub) {
+  const b = box(title, sub || `${people.length} people active in range`);
+  const counts = {};
+  for (const u of people) { const k = key(u); counts[k] = (counts[k] || 0) + 1; }
+  const rows = Object.entries(counts).sort((a, c) => c[1] - a[1]);
+  const max = rows.length ? rows[0][1] : 1;
+  b.insertAdjacentHTML('beforeend', `<div class="bars glow">${rows.map(([k, n]) =>
+    `<div class="row"><span class="name" title="${esc(k)}">${esc(k)}</span><span class="track"><span class="fill" style="display:block;width:${(n / max) * 100}%"></span></span><span class="n">${n} · ${Math.round((n / people.length) * 100)}%</span></div>`).join('') || '<span class="dim">nothing yet</span>'}</div>`);
+  return b;
+}
+
+function funnel(view) {
+  const ds = days(), prev = days(1);
+  const steps = [
+    ['site visits', total(data.visits, ds), total(data.visits, prev)],
+    ['download page', total(data.page, ds), total(data.page, prev)],
+    ['downloads', total(data.dlAndroid, ds) + total(data.dlWindows, ds), total(data.dlAndroid, prev) + total(data.dlWindows, prev)],
+  ];
+  const b = box('download funnel', `last ${rangeDays()} days · each step against the first`);
+  const top = steps[0][1] || 1;
+  b.insertAdjacentHTML('beforeend', `<div class="funnel glow">${steps.map(([n, v, p], i) =>
+    `<div class="step"><span>${n}</span><span><span class="bar" style="display:block;width:${Math.max(1, (v / top) * 100)}%"></span></span><span>${fmt(v)} · ${i ? Math.round((v / top) * 100) + '%' : '100%'}</span></div>
+     <div class="dim" style="margin:-4px 0 6px 180px">${delta(v, p)}</div>`).join('')}</div>`);
+  view.append(b);
+  const bs = buckets(ds), labels = bs.map(x => label(x.key));
+  const conv = bs.map(x => { const v = x.days.reduce((s, d) => s + (Number(data.visits[d]) || 0), 0); const dl = x.days.reduce((s, d) => s + (Number(data.dlAndroid[d]) || 0) + (Number(data.dlWindows[d]) || 0), 0); return v ? (dl / v) * 100 : 0; });
+  const b2 = box('visit → download rate', `per ${state.group}`);
+  view.append(b2);
+  chart(b2, labels, [{ name: 'conversion', color: COLORS.amber, values: conv, kind: 'line' }], { suffix: '%', integer: false });
+}
+
+function people(view) {
+  const b = box('people', `${data.users.length} with a stats row`);
+  const ds = days(), within = new Set(ds);
+  b.insertAdjacentHTML('beforeend', `<div class="controls"><input class="search" id="q" placeholder="filter: name, @user, email, version, os" value="${esc(state.userQuery)}"></div><div class="scroll" id="tbl"></div>`);
+  view.append(b);
+  const cols = [
+    ['name', u => u.displayName || ''], ['user', u => u.username ? '@' + u.username : ''], ['email', u => u.email || ''],
+    ['platform', u => u.platform || ''], ['version', u => u.version || ''], ['os', u => u.os || ''],
+    ['last', u => u.lastActiveDate || ''], ['checks in range', u => Object.entries(u.checks || {}).reduce((s, [d, n]) => s + (within.has(d) ? Number(n) || 0 : 0), 0)],
+    ['all checks', u => u.totalChecks || 0], ['syncs', u => u.syncCount || 0], ['since', u => (u.createdAt ? iso(u.createdAt) : '')],
+  ];
+  const draw = () => {
+    const q = state.userQuery.toLowerCase();
+    const col = cols.find(c => c[0] === state.userSort) || cols[6];
+    const rows = data.users.filter(u => !q || cols.slice(0, 6).some(([, f]) => String(f(u)).toLowerCase().includes(q)))
+      .sort((a, c) => { const x = col[1](a), y = col[1](c); return typeof x === 'number' ? y - x : String(y).localeCompare(String(x)); });
+    $('#tbl').innerHTML = `<table class="glow"><thead><tr>${cols.map(([n]) => `<th data-c="${n}" class="${n === col[0] ? 'sorted' : ''}">${n}</th>`).join('')}</tr></thead><tbody>${rows.map(u =>
+      `<tr>${cols.map(([, f]) => `<td>${esc(f(u))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    $('#tbl thead').onclick = e => { const th = e.target.closest('th'); if (th) { state.userSort = th.dataset.c; save(); draw(); } };
+  };
+  draw();
+  $('#q').oninput = e => { state.userQuery = e.target.value; save(); draw(); };
+}
+
+function feedback(view) {
+  const types = ['all', ...new Set(data.feedback.map(f => f.type || 'other'))];
+  const list = data.feedback.filter(f => state.fbType === 'all' || (f.type || 'other') === state.fbType);
+  const b = box('feedback', `${data.feedback.length} received`);
+  b.insertAdjacentHTML('beforeend', `<div class="controls"><span class="seg">${types.map(t => `<button data-t="${esc(t)}" class="${state.fbType === t ? 'on' : ''}">${esc(t)}</button>`).join('')}</span></div>`);
+  b.querySelector('.controls').onclick = e => { const x = e.target.closest('button'); if (x) { state.fbType = x.dataset.t; save(); render(); } };
+  for (const f of list) {
+    const el = document.createElement('div');
+    el.className = 'fb glow';
+    el.innerHTML = `<div class="meta"><span>${esc(f.date || (f.ts ? new Date(f.ts).toISOString().replace('T', ' ').slice(0, 16) : ''))}</span>
+      <span class="amber">${f.rating ? '★'.repeat(Number(f.rating)) : ''}</span><span>${esc(f.type || '')}</span><span>${esc(f.platform || '')} ${esc(f.version || '')}</span>
+      <span>${esc(f.displayName || '')} ${f.username ? '@' + esc(f.username) : ''} ${esc(f.email || '')}</span></div>
+      <div class="msg">${esc(f.message || '')}</div>`;
+    const del = document.createElement('button');
+    del.className = 'danger';
+    del.textContent = 'delete';
+    del.onclick = async () => {
+      if (!confirm('Delete this feedback for good?')) return;
+      try { await D.remove(D.ref(db, 'feedback/' + f.id)); logLine(`deleted feedback ${f.id}`, 'amber'); data.feedback = data.feedback.filter(x => x.id !== f.id); render(); }
+      catch (e) { logLine('delete refused: ' + e.message, 'red'); }
     };
+    el.append(del);
+    b.append(el);
+  }
+  if (!list.length) b.insertAdjacentHTML('beforeend', '<div class="dim">nothing here</div>');
+  view.append(b);
+}
 
-    // Header Oscilloscope
-    function initHeaderOscilloscope() {
-      const cvs = document.getElementById('headerOscilloscope');
-      if (!cvs) return;
-      const ctx = cvs.getContext('2d');
-      let step = 0;
-      function renderWave() {
-        const w = cvs.width = cvs.clientWidth * window.devicePixelRatio;
-        const h = cvs.height = cvs.clientHeight * window.devicePixelRatio;
-        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-        ctx.clearRect(0, 0, w, h);
-        ctx.strokeStyle = '#00f0ff';
-        ctx.lineWidth = 1.5;
-        ctx.shadowColor = '#00f0ff';
-        ctx.shadowBlur = 6;
-        ctx.beginPath();
-        const actualW = cvs.clientWidth, actualH = cvs.clientHeight;
-        for (let x = 0; x < actualW; x += 2) {
-          const y = (actualH / 2) + Math.sin((x + step) * 0.1) * (actualH / 3.5) * Math.sin(step * 0.02);
-          if (x === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-        step += 2;
-        requestAnimationFrame(renderWave);
-      }
-      renderWave();
-    }
+// ------------------------------------------------------- visit logs (IPs)
+const VISIT = new Set(['Web visit', 'Page view', 'App open']);
+/** Events whose time falls in the chosen range (or the one before it). */
+function inRange(list, offset = 0) {
+  const ds = days(offset), from = Date.parse(ds[0]), to = Date.parse(ds[ds.length - 1]) + DAY;
+  return list.filter(e => e.ts >= from && e.ts < to);
+}
+const where = e => [e.city, e.region && e.region !== e.city ? e.region : '', e.country || e.cc].filter(Boolean).join(', ');
+const system = e => [e.os, e.browser, e.device].filter(Boolean).join(' · ');
+const who = e => e.vid || e.ip || '';
+const clock = s => (s == null || s === '' ? '' : s >= 3600 ? `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}m` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`);
+const when = t => (t ? new Date(t).toISOString().replace('T', ' ').slice(0, 19) : '');
+function median(vals) {
+  if (!vals.length) return null;
+  const v = [...vals].sort((a, b) => a - b), m = v.length >> 1;
+  return v.length % 2 ? v[m] : Math.round((v[m - 1] + v[m]) / 2);
+}
 
-    function getInitials(name) {
-      if (!name) return 'NP';
-      const p = name.trim().split(/\s+/);
-      if (p.length === 1) return p[0].slice(0, 2).toUpperCase();
-      return (p[0][0] + p[p.length - 1][0]).toUpperCase();
-    }
+function visitors(view) {
+  const ev = inRange(data.events).filter(e => VISIT.has(e.type)), prev = inRange(data.events, 1).filter(e => VISIT.has(e.type));
+  const uniq = list => new Set(list.map(who).filter(Boolean)).size;
+  const ips = list => new Set(list.map(e => e.ip).filter(Boolean)).size;
+  const fresh = ev.filter(e => e.first === true).length, back = ev.filter(e => e.first === false).length;
+  const dur = median(ev.map(e => e.dur).filter(n => typeof n === 'number')), durPrev = median(prev.map(e => e.dur).filter(n => typeof n === 'number'));
+  const kp = document.createElement('div');
+  kp.className = 'kpis';
+  kpi(kp, 'page views', full(ev.length), delta(ev.length, prev.length));
+  kpi(kp, 'unique visitors', full(uniq(ev)), delta(uniq(ev), uniq(prev)));
+  kpi(kp, 'new visitors', full(fresh), fresh + back ? `<span class="dim">${Math.round((fresh / (fresh + back)) * 100)}% of views by first-timers</span>` : '<span class="dim">—</span>');
+  kpi(kp, 'returning', full(back), `<span class="dim">views by browsers seen before</span>`);
+  kpi(kp, 'unique IPs', full(ips(ev)), delta(ips(ev), ips(prev)));
+  kpi(kp, 'countries', full(new Set(ev.map(e => e.cc || e.country).filter(Boolean)).size), '<span class="dim">in range</span>');
+  kpi(kp, 'median time on page', dur == null ? '—' : clock(dur), durPrev == null ? '<span class="dim">until the tab is hidden</span>' : `<span class="dim">prev ${clock(durPrev)}</span>`);
+  kpi(kp, 'web app opens', full(ev.filter(e => e.type === 'App open').length), '<span class="dim">notes.talken.in/app</span>');
+  view.append(kp);
 
-    function escapeHtml(s) {
-      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+  const ds = days(), bs = buckets(ds), labels = bs.map(b => label(b.key));
+  const per = (list, f) => bs.map(b => { const set = new Set(b.days); return list.filter(e => set.has(iso(e.ts)) && f(e)).length; });
+  const perUniq = bs.map(b => { const set = new Set(b.days); return new Set(ev.filter(e => set.has(iso(e.ts))).map(who).filter(Boolean)).size; });
+  const b1 = box('page views by device', `with distinct visitors per ${state.group}`);
+  view.append(b1);
+  chart(b1, labels, [
+    { name: 'desktop', color: COLORS.cyan, values: per(ev, e => e.device === 'desktop'), kind: 'bar', stack: true },
+    { name: 'mobile', color: COLORS.amber, values: per(ev, e => e.device === 'mobile'), kind: 'bar', stack: true },
+    { name: 'tablet', color: COLORS.violet, values: per(ev, e => e.device === 'tablet'), kind: 'bar', stack: true },
+    { name: 'unknown', color: COLORS.dim, values: per(ev, e => !e.device), kind: 'bar', stack: true },
+    { name: 'visitors', color: COLORS.fg, values: perUniq, kind: 'line' },
+  ]);
+  const b2 = box('hour of day', `your local time (${Intl.DateTimeFormat().resolvedOptions().timeZone}) · all views in range`);
+  view.append(b2);
+  const hours = Array(24).fill(0);
+  for (const e of ev) hours[new Date(e.ts).getHours()]++;
+  chart(b2, hours.map((_, h) => String(h).padStart(2, '0')), [{ name: 'views', color: COLORS.fg, values: hours, kind: 'bar' }]);
 
-    function copyToClipboard(text, el) {
-      navigator.clipboard.writeText(text);
-      const orig = el.textContent;
-      el.textContent = 'COPIED TO CLIPBOARD!';
-      el.style.color = 'var(--neon-green)';
-      setTimeout(() => {
-        el.textContent = orig;
-        el.style.color = '';
-      }, 1500);
-    }
+  const two = document.createElement('div');
+  two.className = 'two';
+  view.append(two);
+  const sub = `${ev.length} views in range`;
+  two.append(breakdown('countries', ev, e => e.country || e.cc || 'unknown', sub));
+  two.append(breakdown('cities', ev, e => where(e) || 'unknown', sub));
+  two.append(breakdown('operating systems', ev, e => e.os || 'unknown', sub));
+  two.append(breakdown('browsers', ev, e => e.browser || 'unknown', sub));
+  two.append(breakdown('came from', ev, e => e.ref || 'direct / none', sub));
+  two.append(breakdown('pages', ev, e => e.page || e.res || 'unknown', sub));
+  two.append(breakdown('networks (ISP)', ev, e => e.isp || 'unknown', sub));
+  two.append(breakdown('languages', ev, e => e.lang || 'unknown', sub));
+  two.append(breakdown('screens', ev, e => e.screen || 'unknown', sub));
+  two.append(breakdown('time zones', ev, e => e.tz || 'unknown', sub));
 
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closeUserSidebar();
-    });
+  // Top addresses: who keeps coming, from where, on what.
+  const byIp = new Map();
+  for (const e of ev) {
+    if (!e.ip) continue;
+    const r = byIp.get(e.ip) || { ip: e.ip, views: 0, vids: new Set(), first: e.ts, last: 0, e };
+    r.views++; if (e.vid) r.vids.add(e.vid); r.first = Math.min(r.first, e.ts);
+    if (e.ts > r.last) { r.last = e.ts; r.e = e; }
+    byIp.set(e.ip, r);
+  }
+  const rows = [...byIp.values()].sort((a, b) => b.views - a.views).slice(0, 100);
+  const b3 = box('top IP addresses', `${byIp.size} in range · click one for its events`);
+  b3.insertAdjacentHTML('beforeend', `<div class="scroll"><table class="glow"><thead><tr><th>ip</th><th>views</th><th>browsers</th><th>location</th><th>network</th><th>last system</th><th>first seen</th><th>last seen</th></tr></thead><tbody>${rows.map(r =>
+    `<tr class="link" data-ip="${esc(r.ip)}"><td class="cyan">${esc(r.ip)}</td><td>${r.views}</td><td>${r.vids.size}</td><td>${esc(where(r.e))}</td><td>${esc(r.e.isp || '')}</td><td>${esc(system(r.e))}</td><td>${when(r.first)}</td><td>${when(r.last)}</td></tr>`).join('') || '<tr><td colspan="8" class="dim">no addresses logged yet</td></tr>'}</tbody></table></div>`);
+  b3.onclick = e => { const tr = e.target.closest('tr[data-ip]'); if (tr) { state.evQuery = tr.dataset.ip; go('events'); } };
+  view.append(b3);
+}
 
-    window.addEventListener('load', () => {
-      initClientIp();
-      initHeaderOscilloscope();
-      checkAuth();
-    });
-  </script>
+function events(view) {
+  const q = (state.evQuery || '').toLowerCase();
+  const match = e => !q || [e.type, e.platform, e.res, e.ip, where(e), e.isp, system(e), e.ref, e.page, e.vid, e.screen, e.lang, e.tz]
+    .some(x => String(x || '').toLowerCase().includes(q));
+  const list = data.events.filter(match);
+  const b = box('events', `${list.length} of ${data.events.length}${q ? ` matching “${esc(q)}”` : ''} · newest 500 shown`);
+  b.insertAdjacentHTML('beforeend', `<div class="controls"><input class="search" id="eq" style="width:520px" placeholder="filter: ip, city, country, isp, os, browser, page, referrer, visitor id" value="${esc(state.evQuery || '')}"></div><div class="scroll" id="etbl"></div>`);
+  view.append(b);
+  $('#etbl').innerHTML = `<table class="glow"><thead><tr><th>when (utc)</th><th>event</th><th>what</th><th>ip</th><th>location</th><th>network</th><th>system</th><th>screen</th><th>lang · tz</th><th>from</th><th>on page</th><th>visitor</th></tr></thead><tbody>${list.slice(0, 500).map(e =>
+    `<tr><td>${e.ts ? when(e.ts) : esc(e.time)}</td><td class="${e.tag === 'tag-dl' ? 'amber' : ''}">${esc(e.type)}</td><td>${esc(e.res)}</td><td class="cyan">${esc(e.ip)}</td><td>${esc(where(e))}</td><td>${esc(e.isp)}</td><td>${esc(system(e) || e.platform)}</td><td>${esc(e.screen)}</td><td>${esc([e.lang, e.tz].filter(Boolean).join(' · '))}</td><td>${esc(e.ref)}</td><td>${clock(e.dur)}</td><td>${e.vid ? `${e.first ? '<span class="amber">new</span>' : 'back'} ${esc(e.vid.slice(0, 6))}` : ''}</td></tr>`).join('')}</tbody></table>`;
+  const input = $('#eq');
+  input.oninput = () => { state.evQuery = input.value; save(); clearTimeout(input.t); input.t = setTimeout(() => { render(); const i = $('#eq'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250); };
+}
+
+function access(view) {
+  const list = data.access;
+  const denied = list.filter(a => !a.ok).length;
+  const kp = document.createElement('div');
+  kp.className = 'kpis';
+  kpi(kp, 'sign-ins', full(list.length), '<span class="dim">to this panel, all time</span>');
+  kpi(kp, 'refused', `<span class="${denied ? 'red' : ''}">${full(denied)}</span>`, '<span class="dim">accounts not at /admins</span>');
+  kpi(kp, 'addresses', full(new Set(list.map(a => a.ip).filter(Boolean)).size), '<span class="dim">distinct IPs</span>');
+  kpi(kp, 'last sign-in', list[0] ? when(list[0].ts).slice(11, 16) : '—', list[0] ? `<span class="dim">${when(list[0].ts).slice(0, 10)} · ${esc(list[0].ip || '')} ${esc(where(list[0]))}</span>` : '');
+  view.append(kp);
+  const b = box('access log', 'every sign-in to this panel, let in or refused');
+  b.insertAdjacentHTML('beforeend', `<div class="scroll"><table class="glow"><thead><tr><th>when (utc)</th><th>result</th><th>account</th><th>ip</th><th>location</th><th>network</th><th>system</th><th>screen</th><th>lang · tz</th></tr></thead><tbody>${list.map(a =>
+    `<tr><td>${when(a.ts)}</td><td class="${a.ok ? '' : 'red'}">${a.ok ? 'granted' : 'REFUSED'}</td><td>${esc(a.email)}<br><span class="dim">${esc(a.uid)}</span></td><td class="cyan">${esc(a.ip)}</td><td>${esc(where(a))}</td><td>${esc(a.isp)}</td><td>${esc(system(a))}</td><td>${esc(a.screen)}</td><td>${esc([a.lang, a.tz].filter(Boolean).join(' · '))}</td></tr>`).join('') || '<tr><td colspan="9" class="dim">nothing yet</td></tr>'}</tbody></table></div>`);
+  view.append(b);
+}
+
+/** Deletes events older than {@code n} days (the log grows with every visit). */
+async function prune(n) {
+  const cutoff = Date.now() - n * DAY;
+  const old = data.events.filter(e => (e.ts || 0) < cutoff);
+  if (!old.length) { logLine(`nothing older than ${n} days`); return; }
+  if (!confirm(`Delete ${old.length} events older than ${n} days for good?`)) return;
+  const upd = {};
+  for (const e of old) upd[e.id] = null;
+  try { await D.update(D.ref(db, 'stats/events'), upd); logLine(`pruned ${old.length} events`, 'amber'); await load(); }
+  catch (e) { logLine('prune refused: ' + e.message, 'red'); }
+}
+
+// ------------------------------------------------------------------ export
+function exportCsv() {
+  const ds = days(), bs = buckets(ds);
+  const rows = [['bucket', 'visits', 'download_page', 'downloads_android', 'downloads_windows', 'active_people', 'checks_android', 'checks_windows', 'checks_web', 'new_people']];
+  const act = uniques(bs);
+  bs.forEach((b, i) => rows.push([b.key, ...[data.visits, data.page, data.dlAndroid, data.dlWindows].map(m => b.days.reduce((s, d) => s + (Number(m[d]) || 0), 0)), act[i],
+    ...['android', 'windows', 'web'].map(p => b.days.reduce((s, d) => s + checksOf(p, d), 0)), b.days.reduce((s, d) => s + (data.signups[d] || 0), 0)]));
+  const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `notes-plus-${state.range}-${state.group}-${todayIso()}.csv`;
+  a.click();
+  logLine(`exported ${rows.length - 1} rows → ${a.download}`);
+}
+
+// --------------------------------------------------------------- terminal
+const ts = () => new Date().toISOString().slice(11, 19);
+function logLine(text, cls = '') {
+  const log = $('#log');
+  if (!log) return;
+  const l = document.createElement('div');
+  l.className = cls;
+  l.textContent = `[${ts()}] ${text}`;
+  log.append(l);
+  log.scrollTop = log.scrollHeight;
+}
+let streamed = 0;
+function streamEvents() {
+  const fresh = data.events.filter(e => (e.ts || 0) > streamed).slice(0, 25).reverse();
+  for (const e of fresh) logLine(`${e.type || 'event'} · ${e.res || ''} · ${e.ip || '?'}${e.city || e.country ? ' ' + [e.city, e.cc || e.country].filter(Boolean).join(',') : ''} · ${[e.os, e.browser].filter(Boolean).join(' ') || e.platform || ''}`, e.tag === 'tag-dl' ? 'amber' : 'dim');
+  if (data.events.length) streamed = Math.max(streamed, data.events[0].ts || 0);
+}
+
+const HELP = [
+  'views     overview | traffic | active | apps | funnel | visitors | people | feedback | events | access',
+  'ip        ip <text>                  (events from an address, city, isp …)',
+  'prune     prune <days>               (delete events older than that)',
+  'range     range 7d|14d|30d|90d|365d|all',
+  'group     group day|week|month       (aggregates every chart)',
+  'scale     scale linear|log',
+  'avg       avg on|off                 (7-day average on daily traffic)',
+  'find      find <text>                (people search)',
+  'export    export                     (csv of the range, as grouped)',
+  'refresh   refresh                    (re-read the database)',
+  'clear · whoami · logout',
+];
+const history = [];
+let hpos = 0;
+function run(line) {
+  const [cmd, ...args] = line.trim().split(/\s+/);
+  const arg = args.join(' ');
+  if (!cmd) return;
+  logLine('$ ' + line, 'cyan');
+  if (VIEWS[cmd]) { go(cmd); return; }
+  switch (cmd) {
+    case 'help': HELP.forEach(h => logLine(h)); break;
+    case 'range': if (['7d', '14d', '30d', '90d', '365d', 'all'].includes(arg)) { state.range = arg; save(); render(); } else logLine('range 7d|14d|30d|90d|365d|all', 'red'); break;
+    case 'group': if (['day', 'week', 'month'].includes(arg)) { state.group = arg; save(); render(); } else logLine('group day|week|month', 'red'); break;
+    case 'scale': if (['linear', 'log'].includes(arg)) { state.scale = arg; save(); render(); } else logLine('scale linear|log', 'red'); break;
+    case 'avg': state.avg = arg !== 'off'; save(); render(); break;
+    case 'find': state.userQuery = arg; state.view = 'people'; save(); render(); break;
+    case 'ip': state.evQuery = arg; state.view = 'events'; save(); render(); break;
+    case 'prune': if (+arg > 0) prune(+arg); else logLine('prune <days>', 'red'); break;
+    case 'export': exportCsv(); break;
+    case 'refresh': load().catch(fail); break;
+    case 'clear': $('#log').innerHTML = ''; break;
+    case 'whoami': logLine(`${auth.currentUser.email} · uid ${auth.currentUser.uid}`); break;
+    case 'logout': A.signOut(auth).then(() => location.reload()); break;
+    default: logLine(`command not found: ${cmd} (try help)`, 'red');
+  }
+}
+$('#cmd').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { const v = e.target.value; if (v.trim()) { history.push(v); hpos = history.length; } e.target.value = ''; run(v); }
+  else if (e.key === 'ArrowUp' && hpos > 0) { e.target.value = history[--hpos]; e.preventDefault(); }
+  else if (e.key === 'ArrowDown') { hpos = Math.min(history.length, hpos + 1); e.target.value = history[hpos] || ''; e.preventDefault(); }
+});
+document.addEventListener('keydown', e => { if (e.key === '/' && document.activeElement !== $('#cmd') && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); $('#cmd').focus(); } });
+$('#refresh').onclick = () => run('refresh');
+$('#logout').onclick = () => run('logout');
+setInterval(() => { $('#clock').textContent = new Date().toISOString().slice(11, 19); }, 1000);
+setInterval(() => { if (data && document.visibilityState === 'visible') load().catch(fail); }, 60000);
+
+function fail(e) {
+  logLine('error: ' + (e && e.message ? e.message : e), 'red');
+}
+
+// ------------------------------------------------------------------- boot
+const bootlog = $('#bootlog');
+async function type(lines) {
+  for (const l of lines) {
+    bootlog.textContent += l + '\n';
+    await new Promise(r => setTimeout(r, 90));
+  }
+}
+let entering = false;
+// Until database.rules.json is deployed, /admins can't be read and /stats is public anyway: the
+// owner's uid is let in so the panel works, with a warning. Once deployed, only /admins decides.
+const OWNER = 'dAEekpxfSdaIWSRwDA0tsudYU363';
+let bridge = false;
+async function enter(user) {
+  if (entering) return; // The popup and the auth listener both report the same sign-in.
+  entering = true;
+  await type([`> identity ${user.email}`, '> checking /admins …']);
+  let ok = false;
+  try { ok = (await D.get(D.ref(db, 'admins/' + user.uid))).val() === true; }
+  catch {
+    // Permission denied on /admins means the old rules are still live.
+    try { await D.get(D.query(D.ref(db, 'stats/web/visits'), D.limitToLast(1))); bridge = user.uid === OWNER; } catch { bridge = false; }
+    ok = bridge;
+  }
+  const logged = logAccess(user, ok);
+  if (!ok) {
+    await type(['', 'ACCESS DENIED', `uid ${user.uid} isn't listed at /admins.`,
+      'To grant it: Firebase console → Realtime Database → add  admins/' + user.uid + ' : true', '']);
+    $('#login').hidden = false;
+    $('#login').textContent = '[ try another account ]';
+    entering = false;
+    await logged; // While still signed in: the rules want the writer's own uid.
+    await A.signOut(auth);
+    return;
+  }
+  await type(['> clearance granted', '> mounting panel …']);
+  $('#boot').remove();
+  $('#app').classList.add('on');
+  $('#who').textContent = user.email;
+  logLine('session open · type help', 'cyan');
+  if (bridge) {
+    logLine('WARNING: database.rules.json is not deployed: /stats, /profiles and /usernames are public.', 'red');
+    logLine('  run: firebase deploy --only database   then add  admins/' + OWNER + ' : true', 'red');
+  }
+  load().catch(fail);
+}
+
+/** Every sign-in to this panel, let in or not, with where it came from. */
+async function logAccess(user, ok) {
+  try {
+    const c = window.npContext ? await window.npContext() : {};
+    const row = { ts: D.serverTimestamp(), uid: user.uid, ok, email: String(user.email || '').slice(0, 200) };
+    for (const k of ['ip', 'city', 'region', 'country', 'cc', 'isp', 'os', 'browser', 'device', 'screen', 'lang', 'tz']) if (c[k]) row[k] = String(c[k]).slice(0, 200);
+    await D.push(D.ref(db, 'stats/adminAccess'), row);
+  } catch (e) { console.warn('access log', e); }
+}
+$('#login').onclick = async () => {
+  $('#login').hidden = true;
+  try {
+    const r = await A.signInWithPopup(auth, new A.GoogleAuthProvider());
+    await enter(r.user);
+  } catch (e) {
+    await type(['! sign-in cancelled or refused: ' + (e.code || e.message)]);
+    $('#login').hidden = false;
+  }
+};
+await type(['NOTES+ OPS TERMINAL v2', '> link: firebase rtdb asia-southeast1 … up', '> auth: google, checked against /admins by the database']);
+bootlog.classList.add('cursor');
+A.onAuthStateChanged(auth, u => {
+  bootlog.classList.remove('cursor');
+  if (u) enter(u); else $('#login').hidden = false;
+});
+</script>
 </body>
 </html>

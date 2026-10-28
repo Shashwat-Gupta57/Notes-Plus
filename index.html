@@ -50,7 +50,8 @@
         <a href="#studio" class="nav-link">Studio</a>
         <a href="#features" class="nav-link">Features</a>
         <a href="#vaults" class="nav-link">Vaults</a>
-        <a href="#downloads" class="nav-link">Downloads</a>
+        <a href="#docs" class="nav-link">Docs</a>
+        <a href="download.html" class="nav-link">Downloads</a>
         <a href="#feedback" class="nav-link">Feedback</a>
       </div>
 
@@ -317,6 +318,61 @@
     </div>
   </section>
 
+  <!-- Interactive Docs Hub Section -->
+  <section class="docs-section" id="docs">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Knowledge Base & Guides</span>
+        <h2 class="section-title">Architectural Clarity & Developer Docs</h2>
+        <p class="section-lead">
+          Explore the cryptographic protocols, visual formatting engine, and offline-first distributed sync that power Notes+.
+        </p>
+      </div>
+
+      <div class="docs-grid">
+        <a href="docs.html#typography" class="docs-card">
+          <div class="docs-card-icon">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          </div>
+          <h3 class="docs-card-title">Kinetic Typography</h3>
+          <p class="docs-card-desc">
+            Explore native visual markdown styling, kerning (letter-spacing), leading (line-spacing) sliders, and keyboard shortcuts.
+          </p>
+          <span class="docs-card-link">Read Typography Guide →</span>
+        </a>
+
+        <a href="docs.html#vaults" class="docs-card">
+          <div class="docs-card-icon" style="color: var(--purple-500);">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          </div>
+          <h3 class="docs-card-title">Dual Encrypted Vaults</h3>
+          <p class="docs-card-desc">
+            Zero-knowledge AES-256-GCM media encryption at rest, discrete gesture triggers, and auto-wipe security safeguards.
+          </p>
+          <span class="docs-card-link">Read Security Architecture →</span>
+        </a>
+
+        <a href="docs.html#sync" class="docs-card">
+          <div class="docs-card-icon" style="color: var(--emerald-400);">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+          </div>
+          <h3 class="docs-card-title">Distributed Offline Sync</h3>
+          <p class="docs-card-desc">
+            Local SQLite/Room persistence, atomic increment counters, and cross-platform conflict resolution rules.
+          </p>
+          <span class="docs-card-link">Read Sync Specifications →</span>
+        </a>
+      </div>
+
+      <div style="text-align: center; margin-top: 32px;">
+        <a href="docs.html" class="btn-tactile btn-secondary" style="display: inline-flex; align-items: center; gap: 8px;">
+          <span>Explore Full Documentation & Shortcuts</span>
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
   <!-- Downloads Hub -->
   <section class="downloads-section" id="downloads">
     <div class="container">
@@ -380,33 +436,42 @@
     </div>
   </section>
 
-  <!-- Animated Floating Dock (macOS / iPadOS style) -->
+  <!-- Animated Floating Dock (Room to Breathe & High-Value Destinations) -->
   <div class="floating-dock-wrap">
     <div class="floating-dock" role="toolbar" aria-label="Quick Actions Dock">
-      <a href="#studio" class="dock-item" data-tooltip="Note Studio">
-        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+      <a href="app/" class="dock-item dock-item-primary" data-tooltip="Launch Web App (PWA)">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+        </svg>
       </a>
-      <a href="#features" class="dock-item" data-tooltip="Mind Maps">
-        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+
+      <a href="download.html" class="dock-item" data-tooltip="Downloads Hub">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
       </a>
-      <a href="#vaults" class="dock-item" data-tooltip="Secret Vaults">
-        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+
+      <a href="docs.html" class="dock-item" data-tooltip="Documentation">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+        </svg>
       </a>
+
+      <a href="#feedback" class="dock-item" data-tooltip="Reviews & Feedback">
+        <svg fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+        </svg>
+      </a>
+
+      <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer" class="dock-item" data-tooltip="GitHub Source">
+        <svg fill="currentColor" viewBox="0 0 24 24">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+        </svg>
+      </a>
+
       <div class="dock-separator"></div>
-      <a href="https://releases.talken.in/desktop/Notes-Plus-Setup-16.0.exe" class="dock-item" data-tooltip="Windows (.exe)">
-        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
-      </a>
-      <a href="https://releases.talken.in/android/Notes-Plus-16.0.apk" class="dock-item" data-tooltip="Android APK">
-        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4116 13.8533 8.0805 12 8.0805s-3.5902.3311-5.1367.8692L4.841 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
-      </a>
-      <a href="app/" class="dock-item" data-tooltip="Web App (PWA)">
-        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
-      </a>
-      <div class="dock-separator"></div>
-      <a href="#feedback" class="dock-item" data-tooltip="5-Star Review">
-        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-      </a>
-      <button class="dock-item" data-action="toggle-theme" data-tooltip="Toggle Theme (T)">
+
+      <button class="dock-item" data-action="toggle-theme" data-tooltip="Toggle Theme (T)" aria-label="Toggle Theme">
         <svg class="icon-moon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
         </svg>
@@ -424,12 +489,14 @@
         <div class="footer-copy">
           <p>© 2026 Shashwat Gupta • Flex Studios. All rights reserved.</p>
           <p style="font-size: 0.8rem; margin-top: 4px; color: var(--text-muted);">
-            Engineered with zero third-party telemetry scripts. Notes+ v16.0 Production.
+            No ad trackers. Notes+ v16.0 Production.
           </p>
         </div>
 
         <div class="footer-links">
           <a href="privacy.html">Privacy</a>
+          <a href="docs.html">Docs</a>
+          <a href="download.html">Downloads</a>
           <a href="talken-admin/">Admin</a>
           <a href="app/">PWA Web App</a>
           <a href="https://releases.talken.in/version.json">Manifest</a>

@@ -2,6 +2,8 @@
 // colours, and the JSON each type keeps in a note's `data`. Parsing is lenient: a damaged
 // note opens empty rather than breaking the grid.
 
+import { plainLine, repair } from './md.js';
+
 export const TEXT = 'TEXT', LIST = 'LIST', MINDMAP = 'MINDMAP', JOURNAL = 'JOURNAL', SKETCH = 'SKETCH', AUDIO = 'AUDIO';
 
 export const KINDS = [
@@ -152,7 +154,8 @@ export const PICTURE_LINE = /^!\[\[([^\]\/\\]+)\]\]$/;
 /** The words of a note for its card: picture lines left out. */
 export function plain(content) {
   if (!content) return '';
-  return content.split('\n').filter(l => !PICTURE_LINE.test(l.trim())).join('\n').trim();
+  // The words without their Markdown marks (cards never show ** or #).
+  return repair(content).split('\n').filter(l => !PICTURE_LINE.test(l.trim())).map(plainLine).join('\n').trim();
 }
 
 export function firstPicture(content) {

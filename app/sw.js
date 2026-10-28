@@ -1,5 +1,5 @@
-// Notes+ Service Worker (PWA v16.0)
-const CACHE_NAME = 'notes-plus-pwa-v16.0';
+// Notes+ Service Worker (PWA v16.4)
+const CACHE_NAME = 'notes-plus-pwa-v16.4';
 
 const SHELL_ASSETS = [
   './',
@@ -17,6 +17,8 @@ const SHELL_ASSETS = [
   './js/drive.js',
   './js/editor.js',
   './js/ed-text.js',
+  './js/md.js',
+  './js/rich.js',
   './js/ed-mindmap.js',
   './js/ed-sketch.js',
   './js/ed-audio.js',
@@ -35,7 +37,9 @@ const NETWORK_ONLY_PATTERNS = [
   'googleapis.com',
   'releases.talken.in',
   'version.json',
-  '/feedback'
+  '/feedback',
+  'ipapi.co',
+  'ipify.org'
 ];
 
 self.addEventListener('install', event => {

@@ -5,7 +5,7 @@
 // reads the same everywhere. Pictures come from the button, a paste, or a drop.
 
 import { h, icon, iconButton, toast, choices, dialog } from './ui.js';
-import { object } from './model.js';
+import { richEditor } from './rich.js';
 import { TEXT, LIST, JOURNAL, PICTURE_LINE, todos, todosJson, wraps, journal, journalJson, MOODS, mediaName, isVideo, dayStart } from './model.js';
 
 function autoGrow(ta) {
@@ -28,103 +28,44 @@ function titleField(ctx, placeholder, onEnter) {
 
 const extOf = blob => ((blob.type || '').split('/')[1] || 'png').replace('jpeg', 'jpg').replace(/[^a-z0-9]/g, '') || 'png';
 
-/** Words with pictures between them. */
+/**
+ * Words with pictures between them: blocks of formatted words (rich.js, edited as they look,
+ * kept as Markdown), and pictures, each a line of its own `![[IMG_….png]]`.
+ */
 function richBody(ctx, content, placeholder) {
   const wrap = h('div.rich');
   const blocks = [];
+  let active = null;
+  let onCaret = () => {};
 
-  function textBlock(value) {
-    const ta = autoGrow(h('textarea.para', { rows: 1, readOnly: ctx.readOnly }));
-    ta.value = value;
-    ta.addEventListener('input', () => ctx.changed());
-    ta.addEventListener('focus', () => { activeTa = ta; });
-    ta.addEventListener('keydown', e => {
-      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
-        const k = e.key.toLowerCase();
-        if (k === 'b') { e.preventDefault(); wrapSelection('**', '**'); return; }
-        if (k === 'i') { e.preventDefault(); wrapSelection('*', '*'); return; }
-        if (k === 'u') { e.preventDefault(); wrapSelection('<u>', '</u>'); return; }
-        if (k === 'x' && e.shiftKey) { e.preventDefault(); wrapSelection('~~', '~~'); return; }
-        if (k === 'e') { e.preventDefault(); wrapSelection('`', '`'); return; }
-      }
+  function textBlock(md) {
+    const ed = richEditor({
+      readOnly: ctx.readOnly, placeholder: '',
+      onChange: () => ctx.changed(),
+      onFocus: e => { active = e; onCaret(); },
     });
-    ta.addEventListener('paste', e => {
+    ed.setMarkdown(md);
+    const block = { kind: 'text', node: ed.node, ed, value: () => ed.markdown() };
+    ed.node.addEventListener('paste', e => {
       const files = [...(e.clipboardData ? e.clipboardData.files : [])].filter(f => f.type.startsWith('image/'));
       if (!files.length || ctx.readOnly) return;
       e.preventDefault();
-      files.forEach(f => insertPicture(f, ta));
+      files.forEach(f => insertPicture(f, block));
     });
-    ta.addEventListener('keydown', e => {
-      // Backspace at the start of words right after a picture removes the picture.
-      if (e.key === 'Backspace' && ta.selectionStart === 0 && ta.selectionEnd === 0) {
-        const i = blocks.findIndex(b => b.node === ta);
-        const prev = blocks[i - 1];
-        if (prev && prev.kind === 'pic') {
-          e.preventDefault();
-          removeBlock(prev);
-          return;
-        }
-      }
-      if (ctx.readOnly) return;
-      const start = ta.selectionStart;
-      const end = ta.selectionEnd;
-      if (start !== end) return;
-      const val = ta.value;
-      const lineStart = val.lastIndexOf('\n', start - 1) + 1;
-      const curLine = val.slice(lineStart, start);
-
-      if (e.key === ' ') {
-        if (curLine === '*' || curLine === '-') {
-          e.preventDefault();
-          ta.setRangeText('• ', lineStart, start, 'end');
-          ctx.changed();
-          return;
-        }
-        const numMatch = /^(\d+)$/.exec(curLine);
-        if (numMatch) {
-          e.preventDefault();
-          ta.setRangeText(numMatch[1] + '. ', lineStart, start, 'end');
-          ctx.changed();
-          return;
-        }
-      }
-
-      if (e.key === 'Enter' && !e.shiftKey) {
-        const bulletEmpty = /^(\s*)(?:•|[*–-])\s*$/.exec(curLine);
-        if (bulletEmpty) {
-          e.preventDefault();
-          ta.setRangeText('', lineStart, start, 'end');
-          ctx.changed();
-          return;
-        }
-        const bulletWithText = /^(\s*)(?:•|[*–-])\s+(.+)$/.exec(curLine);
-        if (bulletWithText) {
-          e.preventDefault();
-          const indent = bulletWithText[1];
-          ta.setRangeText('\n' + indent + '• ', start, start, 'end');
-          ctx.changed();
-          return;
-        }
-        const numEmpty = /^(\s*)(\d+)[.)]\s*$/.exec(curLine);
-        if (numEmpty) {
-          e.preventDefault();
-          ta.setRangeText('', lineStart, start, 'end');
-          ctx.changed();
-          return;
-        }
-        const numWithText = /^(\s*)(\d+)([.)])\s+(.+)$/.exec(curLine);
-        if (numWithText) {
-          e.preventDefault();
-          const indent = numWithText[1];
-          const nextNum = parseInt(numWithText[2], 10) + 1;
-          const sep = numWithText[3] + ' ';
-          ta.setRangeText('\n' + indent + nextNum + sep, start, start, 'end');
-          ctx.changed();
-          return;
-        }
-      }
+    ed.node.addEventListener('keydown', e => {
+      // Backspace at the very start, right after a picture, removes the picture.
+      if (e.key !== 'Backspace' || ctx.readOnly) return;
+      const sel = getSelection();
+      if (!sel.isCollapsed || !sel.rangeCount) return;
+      const r = document.createRange();
+      r.selectNodeContents(ed.node);
+      r.setEnd(sel.anchorNode, sel.anchorOffset);
+      if (r.toString().replace(/​/g, '') !== '') return;
+      const i = blocks.indexOf(block);
+      const prev = blocks[i - 1];
+      if (prev && prev.kind === 'pic') { e.preventDefault(); removeBlock(prev); }
     });
-    return { kind: 'text', node: ta, value: () => ta.value };
+    return block;
   }
 
   function picBlock(name) {
@@ -148,13 +89,11 @@ function richBody(ctx, content, placeholder) {
     // Two runs of words now meet: they become one.
     const a = blocks[i - 1], c = blocks[i];
     if (a && c && a.kind === 'text' && c.kind === 'text') {
-      const caret = a.node.value.length;
-      a.node.value = a.node.value + (a.node.value && c.node.value ? '\n' : '') + c.node.value;
+      const x = a.value(), y = c.value();
+      a.ed.setMarkdown(x && y ? x + '\n' + y : x + y);
       blocks.splice(i, 1);
       c.node.remove();
-      a.node._fit();
-      a.node.focus();
-      a.node.setSelectionRange(caret, caret);
+      a.ed.focusEnd();
     }
     ctx.changed();
   }
@@ -162,20 +101,19 @@ function richBody(ctx, content, placeholder) {
   async function insertPicture(blob, at) {
     const name = mediaName('IMG', extOf(blob));
     await ctx.putFile(name, blob);
-    let i = blocks.findIndex(b => b.node === at);
+    let i = blocks.indexOf(at);
     if (i < 0) i = blocks.length - 1;
     const target = blocks[i];
-    const caret = target.kind === 'text' ? target.node.selectionStart : 0;
-    const before = target.kind === 'text' ? target.node.value.slice(0, caret).replace(/\n$/, '') : '';
-    const after = target.kind === 'text' ? target.node.value.slice(caret).replace(/^\n/, '') : '';
-    const pic = picBlock(name), rest = textBlock(after);
+    let after = '';
     if (target.kind === 'text') {
-      target.node.value = before;
-      target.node._fit();
+      const [before, rest] = target.ed.split();
+      after = rest;
+      target.ed.setMarkdown(before);
     }
-    blocks.splice(i + 1, 0, pic, rest);
-    target.node.after(pic.node, rest.node);
-    rest.node.focus();
+    const pic = picBlock(name), next = textBlock(after);
+    blocks.splice(i + 1, 0, pic, next);
+    target.node.after(pic.node, next.node);
+    next.ed.focusStart();
     ctx.changed();
   }
 
@@ -187,16 +125,20 @@ function richBody(ctx, content, placeholder) {
     if (m) { flush(); blocks.push(picBlock(m[1])); } else run.push(line);
   }
   flush();
-  blocks[0].node.placeholder = placeholder;
+  blocks[0].node.dataset.placeholder = placeholder;
   wrap.append(...blocks.map(b => b.node));
 
+  const activeBlock = () => (active ? blocks.find(b => b.ed === active) : null) || blocks[blocks.length - 1];
   wrap.addEventListener('dragover', e => { if (!ctx.readOnly && e.dataTransfer.types.includes('Files')) e.preventDefault(); });
   wrap.addEventListener('drop', e => {
     const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
     if (!files.length || ctx.readOnly) return;
     e.preventDefault();
-    const target = document.activeElement && blocks.some(b => b.node === document.activeElement) ? document.activeElement : blocks[blocks.length - 1].node;
-    files.forEach(f => insertPicture(f, target));
+    files.forEach(f => insertPicture(f, activeBlock()));
+  });
+  document.addEventListener('selectionchange', () => {
+    const sel = getSelection();
+    if (sel.rangeCount && wrap.contains(sel.anchorNode)) onCaret();
   });
 
   return {
@@ -211,17 +153,13 @@ function richBody(ctx, content, placeholder) {
       return parts.join('\n');
     },
     words() {
-      return blocks.filter(b => b.kind === 'text').map(b => b.value()).join(' ').trim().split(/\s+/).filter(Boolean).length;
+      return blocks.filter(b => b.kind === 'text').map(b => b.ed.text()).join(' ').trim().split(/\s+/).filter(Boolean).length;
     },
-    focusEnd() {
-      const last = [...blocks].reverse().find(b => b.kind === 'text');
-      if (last) { last.node.focus(); last.node.setSelectionRange(last.node.value.length, last.node.value.length); }
-    },
-    focusStart() { blocks[0].node.focus(); },
-    addPicture(files) {
-      const target = document.activeElement && blocks.some(b => b.node === document.activeElement) ? document.activeElement : blocks[blocks.length - 1].node;
-      [...files].forEach(f => insertPicture(f, target));
-    },
+    focusEnd() { [...blocks].reverse().find(b => b.kind === 'text').ed.focusEnd(); },
+    focusStart() { blocks.find(b => b.kind === 'text').ed.focusStart(); },
+    addPicture(files) { [...files].forEach(f => insertPicture(f, activeBlock())); },
+    editor: () => active || blocks.find(b => b.kind === 'text').ed,
+    onCaret(f) { onCaret = f; },
   };
 }
 
@@ -247,156 +185,44 @@ function footer(ctx, getExtraText) {
 const editedLine = note => 'Edited ' + new Date(note.timestamp || Date.now())
   .toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
+// ========================================================= formatting
 
-// ========================================================= rich formatting
 const TEXT_COLORS = [
-  { name: 'Default', value: '' },
-  { name: 'Gold / Amber', value: '#F59E0B' },
-  { name: 'Electric Blue', value: '#0A84FF' },
-  { name: 'Emerald Green', value: '#10B981' },
-  { name: 'Vivid Purple', value: '#8B5CF6' },
-  { name: 'Crimson Red', value: '#EF4444' },
-  { name: 'Sunset Orange', value: '#FF9F0A' },
-  { name: 'Slate Gray', value: '#9CA3AF' },
+  ['Automatic', null], ['Yellow', '#E6A700'], ['Orange', '#FF9500'], ['Red', '#FF3B30'], ['Pink', '#FF2D55'],
+  ['Purple', '#AF52DE'], ['Blue', '#007AFF'], ['Teal', '#30B0C7'], ['Green', '#34C759'], ['Grey', '#8E8E93'],
 ];
+const BLOCK_NAMES = { NORMAL: 'Normal text', H1: 'Heading 1', H2: 'Heading 2', H3: 'Heading 3', QUOTE: 'Quote' };
 
-const LEADING_OPTIONS = [
-  { label: 'Compact (1.3x)', val: '1.3' },
-  { label: 'Normal (1.6x)', val: '1.6' },
-  { label: 'Relaxed (1.9x)', val: '1.9' },
-  { label: 'Spacious (2.3x)', val: '2.3' },
-];
-
-const KERNING_OPTIONS = [
-  { label: 'Tight (-0.5px)', val: '-0.5px' },
-  { label: 'Normal (0px)', val: 'normal' },
-  { label: 'Wide (+1px)', val: '1px' },
-  { label: 'Expanded (+2px)', val: '2px' },
-];
-
-const ALIGN_OPTIONS = [
-  { label: 'Left align', val: 'left' },
-  { label: 'Center align', val: 'center' },
-  { label: 'Right align', val: 'right' },
-  { label: 'Justify', val: 'justify' },
-];
-
+/**
+ * Word's formatting row: paragraph style, bold, italic, underline, strike, code, colour, lists,
+ * tasks. Every button acts on the words themselves; the buttons light up for what the caret is on.
+ */
 function formatBar(ctx, body) {
   if (ctx.readOnly) return null;
-  const bar = h('div.format-bar');
-
-  const btn = (title, ic, onClick, textLabel) => {
-    const b = h('button.fmt-btn', { type: 'button', title, onmousedown: e => { e.preventDefault(); onClick(); } },
-      ic ? icon(ic, 18) : null, textLabel || null);
-    return b;
-  };
-
-  // Bold, Italic, Underline, Strikethrough
-  const group1 = h('div.format-group',
-    btn('Bold (Ctrl+B)', 'bold', () => body.wrapSelection('**', '**')),
-    btn('Italic (Ctrl+I)', 'italic', () => body.wrapSelection('*', '*')),
-    btn('Underline (Ctrl+U)', 'underline', () => body.wrapSelection('<u>', '</u>')),
-    btn('Strikethrough (Ctrl+Shift+X)', 'strikethrough', () => body.wrapSelection('~~', '~~'))
-  );
-
-  // Font Color picker
-  const colorBtn = h('button.fmt-dropdown-btn', {
-    type: 'button', title: 'Text Color',
-    onmousedown: e => {
-      e.preventDefault();
-      choices('Font / Text Color', TEXT_COLORS.map(c => ({
-        text: (c.value === (body.getTypography().color || '') ? '✓  ' : '') + c.name,
-        onClick: () => {
-          body.setTypography({ color: c.value });
-          ctx.changed();
-        }
-      })), 'Choose note text color');
-    }
-  }, icon('formatColor', 18), 'Color');
-
-  // Spacing: Leading (Line-height) & Kerning (Letter-spacing)
-  const leadingBtn = h('button.fmt-dropdown-btn', {
-    type: 'button', title: 'Line Spacing (Leading)',
-    onmousedown: e => {
-      e.preventDefault();
-      const cur = body.getTypography().leading || '1.6';
-      choices('Line Spacing (Leading)', LEADING_OPTIONS.map(opt => ({
-        text: (opt.val === cur ? '✓  ' : '') + opt.label,
-        onClick: () => {
-          body.setTypography({ leading: opt.val });
-          ctx.changed();
-        }
-      })), 'Adjust vertical space between lines');
-    }
-  }, icon('formatLineSpacing', 18), 'Leading');
-
-  const kerningBtn = h('button.fmt-dropdown-btn', {
-    type: 'button', title: 'Letter Spacing (Kerning)',
-    onmousedown: e => {
-      e.preventDefault();
-      const cur = body.getTypography().kerning || 'normal';
-      choices('Letter Spacing (Kerning)', KERNING_OPTIONS.map(opt => ({
-        text: (opt.val === cur ? '✓  ' : '') + opt.label,
-        onClick: () => {
-          body.setTypography({ kerning: opt.val });
-          ctx.changed();
-        }
-      })), 'Adjust horizontal character spacing');
-    }
-  }, icon('formatLetterSpacing', 18), 'Kerning');
-
-  // Headings
-  const headingBtn = h('button.fmt-dropdown-btn', {
-    type: 'button', title: 'Headings & Titles',
-    onmousedown: e => {
-      e.preventDefault();
-      choices('Text Heading Style', [
-        { text: 'Heading 1  (#)', onClick: () => body.prefixLines('# ') },
-        { text: 'Heading 2  (##)', onClick: () => body.prefixLines('## ') },
-        { text: 'Heading 3  (###)', onClick: () => body.prefixLines('### ') },
-        { text: 'Normal Body Text', onClick: () => body.prefixLines('') }
-      ]);
-    }
-  }, icon('formatHeading', 18), 'Style');
-
-  // Lists & Quotes
-  const group2 = h('div.format-group',
-    btn('Bullet List', 'formatListBulleted', () => body.prefixLines('• ')),
-    btn('Numbered List', 'formatListNumbered', () => body.prefixLines('1. ')),
-    btn('Checklist', 'check', () => body.prefixLines('- [ ] ')),
-    btn('Blockquote', 'formatQuote', () => body.prefixLines('> ')),
-    btn('Code Block', 'formatCode', () => body.wrapSelection('`', '`'))
-  );
-
-  // Alignment
-  const alignBtn = h('button.fmt-dropdown-btn', {
-    type: 'button', title: 'Text Alignment',
-    onmousedown: e => {
-      e.preventDefault();
-      const cur = body.getTypography().align || 'left';
-      choices('Text Alignment', ALIGN_OPTIONS.map(opt => ({
-        text: (opt.val === cur ? '✓  ' : '') + opt.label,
-        onClick: () => {
-          body.setTypography({ align: opt.val });
-          ctx.changed();
-        }
-      })));
-    }
-  }, icon('formatAlignLeft', 18));
-
-  bar.append(
-    group1,
-    h('div.format-sep'),
-    colorBtn,
-    leadingBtn,
-    kerningBtn,
-    h('div.format-sep'),
-    headingBtn,
-    group2,
-    h('div.format-sep'),
-    alignBtn
-  );
-
+  const btn = (title, ic, onClick, label) =>
+    h('button.fmt-btn', { type: 'button', title, onmousedown: e => { e.preventDefault(); onClick(); } }, ic ? icon(ic, 18) : null, label || null);
+  const ed = () => body.editor();
+  const para = h('button.fmt-dropdown-btn', { type: 'button', title: 'Paragraph style (Ctrl+Alt+1, 2, 3; Ctrl+Alt+0 normal)', onmousedown: e => {
+    e.preventDefault();
+    choices('Paragraph style', Object.entries(BLOCK_NAMES).map(([k, v]) => ({ text: v, onClick: () => ed().setBlock(k) })));
+  } }, 'Normal text');
+  const bold = btn('Bold (Ctrl+B)', 'bold', () => ed().cmd('bold'));
+  const italic = btn('Italic (Ctrl+I)', 'italic', () => ed().cmd('italic'));
+  const underline = btn('Underline (Ctrl+U)', 'underline', () => ed().cmd('underline'));
+  const strike = btn('Strikethrough (Ctrl+Shift+X)', 'strikethrough', () => ed().cmd('strikeThrough'));
+  const code = btn('Code (Ctrl+E)', 'formatCode', () => ed().toggleCode());
+  const color = btn('Text colour', 'palette', () => choices('Text colour', TEXT_COLORS.map(([n, hex]) => ({ text: n, onClick: () => ed().color(hex) }))));
+  const bullets = btn('Bulleted list (Ctrl+Shift+L, or type "- ")', 'formatListBulleted', () => ed().setBlock('BULLET'));
+  const numbers = btn('Numbered list (type "1. ")', 'formatListNumbered', () => ed().setBlock('NUMBER'));
+  const tasks = btn('Tick boxes (type "[] ")', 'check', () => ed().setBlock('TASK'));
+  const bar = h('div.format-bar', para, h('div.format-sep'), h('div.format-group', bold, italic, underline, strike, code, color),
+    h('div.format-sep'), h('div.format-group', bullets, numbers, tasks));
+  body.onCaret(() => {
+    const s = ed().state();
+    for (const [b, on] of [[bold, s.bold], [italic, s.italic], [underline, s.underline], [strike, s.strike],
+      [bullets, s.block === 'BULLET'], [numbers, s.block === 'NUMBER'], [tasks, s.block === 'TASK' || s.block === 'TASK_DONE']]) b.classList.toggle('on', !!on);
+    para.textContent = BLOCK_NAMES[s.block] || 'Normal text';
+  });
   return bar;
 }
 
@@ -407,7 +233,6 @@ export function textEditor(ctx) {
   let body;
   const title = titleField(ctx, 'Title', () => body.focusStart());
   body = richBody(ctx, n.content, 'Note');
-  body.setTypography(object(n.data));
   const toolbar = formatBar(ctx, body);
   const foot = footer(ctx, () => editedLine(ctx.note) + '  ·  ' + body.words() + (body.words() === 1 ? ' word' : ' words'));
   body.node.addEventListener('input', () => foot._update());
@@ -419,9 +244,6 @@ export function textEditor(ctx) {
     collect(note) {
       note.title = title.value.trim();
       note.content = body.value().trim();
-      const current = object(note.data);
-      const typo = body.getTypography();
-      note.data = JSON.stringify({ ...current, ...typo });
       return !!(note.content || note.title);
     },
     focus(isNew) { if (isNew) title.focus(); },

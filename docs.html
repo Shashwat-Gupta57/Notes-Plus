@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentation — Notes+ Cross-Platform Knowledge Base</title>
+  <meta name="description" content="Comprehensive documentation, architecture guides, kinetic typography specifications, encrypted vault internals, and power shortcuts for Notes+.">
+  <meta name="theme-color" content="#09090b">
+  <meta name="author" content="Shashwat Gupta / Flex Studios">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Notes+ Documentation & Knowledge Base">
+  <meta property="og:description" content="In-depth guides to typography, encrypted vaults, multi-device sync, and shortcuts.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://notes.talken.in/docs.html">
+  <meta property="og:image" content="res/notes_icon.png">
+
+  <!-- Icons -->
+  <link rel="icon" type="image/png" href="res/notes_icon.png">
+  <link rel="apple-touch-icon" href="res/apple-touch-icon.png">
+
+  <!-- Zero-Flash Theme Bootstrapper -->
+  <script>
+    try {
+      const saved = localStorage.getItem('np_site_theme');
+      const theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {}
+  </script>
+
+  <link rel="stylesheet" href="css/masterpiece.css">
+  <style>
+    .docs-page-layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 40px;
+      padding: 120px 0 80px;
+      position: relative;
+    }
+    .docs-sidebar {
+      position: sticky;
+      top: 100px;
+      height: calc(100vh - 140px);
+      overflow-y: auto;
+      padding-right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .docs-nav-group-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .docs-nav-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .docs-nav-link {
+      display: block;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: all var(--transition-fast);
+    }
+    .docs-nav-link:hover {
+      color: var(--text-primary);
+      background: var(--bg-pill);
+    }
+    .docs-nav-link.active {
+      color: var(--indigo-500);
+      background: rgba(99, 102, 241, 0.1);
+      font-weight: 600;
+    }
+    .docs-article {
+      max-width: 840px;
+    }
+    .docs-hero {
+      margin-bottom: 40px;
+      padding-bottom: 30px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .docs-section-block {
+      margin-bottom: 56px;
+      scroll-margin-top: 120px;
+    }
+    .docs-section-block h2 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+    }
+    .docs-section-block h3 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin: 24px 0 12px;
+      color: var(--text-primary);
+    }
+    .docs-section-block p {
+      font-size: 1rem;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+    .docs-section-block ul, .docs-section-block ol {
+      padding-left: 24px;
+      margin-bottom: 20px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+    .docs-section-block li {
+      margin-bottom: 8px;
+    }
+    .docs-code-box {
+      background: var(--bg-surface-solid);
+      border: 1px solid var(--border-medium);
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-family: 'JetBrains Mono', monospace, Consolas;
+      font-size: 0.88rem;
+      color: #38bdf8;
+      overflow-x: auto;
+      margin: 16px 0;
+    }
+    .docs-alert {
+      padding: 16px 20px;
+      border-radius: 12px;
+      background: rgba(99, 102, 241, 0.08);
+      border-left: 4px solid var(--indigo-500);
+      margin: 20px 0;
+      font-size: 0.92rem;
+      color: var(--text-secondary);
+    }
+    .docs-alert strong {
+      color: var(--text-primary);
+    }
+    .docs-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 0.9rem;
+    }
+    .docs-table th, .docs-table td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .docs-table th {
+      color: var(--text-primary);
+      font-weight: 700;
+      background: var(--bg-pill);
+    }
+    .docs-table td {
+      color: var(--text-secondary);
+    }
+    kbd {
+      display: inline-block;
+      padding: 2px 6px;
+      font-size: 0.8rem;
+      font-family: inherit;
+      background: var(--bg-pill);
+      border: 1px solid var(--border-medium);
+      border-radius: 6px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+      color: var(--text-primary);
+    }
+    @media (max-width: 900px) {
+      .docs-page-layout {
+        grid-template-columns: 1fr;
+      }
+      .docs-sidebar {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Ambient Atmospheric Glow -->
+  <div class="ambient-glow" aria-hidden="true"></div>
+
+  <!-- Smoothed Floating Top Navbar -->
+  <div class="navbar-wrap">
+    <nav class="navbar" aria-label="Main Navigation">
+      <a href="index.html" class="nav-brand" aria-label="Notes+ Home">
+        <div class="brand-icon-wrap">
+          <img src="res/notes_icon.png" alt="Notes+ Logo" width="26" height="26">
+        </div>
+        <span>Notes<span class="brand-plus">+</span></span>
+      </a>
+
+      <div class="nav-links">
+        <a href="index.html" class="nav-link">Home</a>
+        <a href="index.html#studio" class="nav-link">Studio</a>
+        <a href="index.html#features" class="nav-link">Features</a>
+        <a href="index.html#vaults" class="nav-link">Vaults</a>
+        <a href="docs.html" class="nav-link active">Docs</a>
+        <a href="download.html" class="nav-link">Downloads</a>
+        <a href="index.html#feedback" class="nav-link">Feedback</a>
+      </div>
+
+      <div class="nav-actions">
+        <button class="btn-theme-toggle" data-action="toggle-theme" aria-label="Toggle Light/Dark Theme" title="Toggle Theme (T)">
+          <svg class="icon-moon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+          </svg>
+          <svg class="icon-sun" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+        </button>
+
+        <a href="app/" class="btn-tactile btn-primary" style="padding: 8px 18px; font-size: 0.88rem;">
+          Launch Web App
+        </a>
+      </div>
+    </nav>
+  </div>
+
+  <main class="container">
+    <div class="docs-page-layout">
+      <!-- Sticky Sidebar Navigation -->
+      <aside class="docs-sidebar" aria-label="Documentation Index">
+        <div>
+          <div class="docs-nav-group-title">Getting Started</div>
+          <ul class="docs-nav-list">
+            <li><a href="#overview" class="docs-nav-link active">Overview & Ecosystem</a></li>
+            <li><a href="#quickstart" class="docs-nav-link">Installation & Setup</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="docs-nav-group-title">Features & Architecture</div>
+          <ul class="docs-nav-list">
+            <li><a href="#typography" class="docs-nav-link">Kinetic Typography Engine</a></li>
+            <li><a href="#vaults" class="docs-nav-link">Dual Encrypted Vaults</a></li>
+            <li><a href="#mindmaps" class="docs-nav-link">Mind Maps & Vector Ink</a></li>
+            <li><a href="#sync" class="docs-nav-link">Sync & Offline Persistence</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="docs-nav-group-title">Security & References</div>
+          <ul class="docs-nav-list">
+            <li><a href="#security" class="docs-nav-link">Security & Telemetry Policy</a></li>
+            <li><a href="#shortcuts" class="docs-nav-link">Keyboard Shortcuts Cheat Sheet</a></li>
+          </ul>
+        </div>
+      </aside>
+
+      <!-- Documentation Articles -->
+      <article class="docs-article">
+        <header class="docs-hero">
+          <div class="hero-pill-badge" style="margin-bottom: 14px;">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            <span>Notes+ v16.0 Canonical Docs</span>
+          </div>
+          <h1 class="hero-title" style="font-size: 2.6rem; margin-bottom: 14px;">
+            Developer & User Documentation
+          </h1>
+          <p class="hero-subtitle" style="font-size: 1.05rem; margin-bottom: 0;">
+            Everything you need to know about Notes+: from tactile typography and visual markdown rendering to AES-256-GCM zero-knowledge encrypted vaults and distributed offline synchronization.
+          </p>
+        </header>
+
+        <!-- Section 1: Overview -->
+        <section class="docs-section-block" id="overview">
+          <h2>1. Overview & Ecosystem</h2>
+          <p>
+            <strong>Notes+</strong> is a high-performance, cross-platform productivity and privacy platform. It combines a versatile note-taking canvas with zero-latency multi-device synchronization and dual hidden security vaults.
+          </p>
+          <p>
+            Unlike traditional monolithic note applications, Notes+ operates under an <strong>offline-first local persistence architecture</strong>:
+          </p>
+          <ul>
+            <li><strong>Windows Desktop:</strong> Java 21 LTS with modular JavaFX 23, bundled JRE via jpackage, SQLite database storage, native IExpress installer.</li>
+            <li><strong>Android:</strong> Native Java 21, SQLite with Android Room ORM, Material 3 tactile components, Credential Manager authentication, and WorkManager background task queues.</li>
+            <li><strong>Web Application & PWA:</strong> Vanilla ES Modules with zero framework overhead, Service Worker caching, and IndexedDB local document persistence.</li>
+          </ul>
+        </section>
+
+        <!-- Section 2: Quick Start -->
+        <section class="docs-section-block" id="quickstart">
+          <h2>2. Installation & Quick Start</h2>
+          <p>
+            You can run Notes+ across Windows, Android, and Web browsers with seamless sync across all your devices:
+          </p>
+          <div class="docs-alert">
+            <strong>Cross-Device Note:</strong> Notes+ account credentials allow all three platforms to synchronize in real time. You can view or edit notes offline on any device, and changes automatically reconcile once an Internet connection is detected.
+          </div>
+          <h3>Windows Desktop</h3>
+          <p>
+            Download <a href="download.html" style="color: var(--indigo-500); font-weight: 600;">Notes-Plus-Setup-16.0.exe</a> or the portable standalone archive. The installer includes an embedded, isolated Java 21 runtime—no external Java installation is required.
+          </p>
+          <h3>Android Mobile</h3>
+          <p>
+            Install the release APK (<a href="download.html" style="color: var(--indigo-500); font-weight: 600;">Notes-Plus-16.0.apk</a>). Supports Android 7.0 (Nougat) through Android 15+. Biometric unlock (Fingerprint / Face Unlock) can be enabled inside the Security settings.
+          </p>
+          <h3>Web App (PWA)</h3>
+          <p>
+            Visit <a href="app/" style="color: var(--indigo-500); font-weight: 600;">notes.talken.in/app/</a> in any modern browser (Chrome, Edge, Safari, Firefox). You can install it directly as a standalone Progressive Web App (PWA) on your desktop or phone home screen.
+          </p>
+        </section>
+
+        <!-- Section 3: Kinetic Typography -->
+        <section class="docs-section-block" id="typography">
+          <h2>3. Kinetic Typography & Formatting Engine</h2>
+          <p>
+            Notes+ text notes are edited as they look, like Word or WordPad, while they are stored as plain Markdown that every app reads:
+          </p>
+          <ul>
+            <li><strong>Visual In-Editor Rendering:</strong> Text styled with bold, italic, underline, strikethrough, headings, colors, and lists renders with native visual typography—eliminating raw markdown symbols and asterisks from view.</li>
+            <li><strong>Kerning (Letter Spacing):</strong> Real-time slider adjustment ranging from 0px to +6px (or -0.05 to +0.30 tracking on mobile), providing optimal readability for both compact notes and prominent titles.</li>
+            <li><strong>Leading (Line Spacing):</strong> Dynamic line-height slider ranging from 1.2x to 2.4x for customizable vertical breathing room.</li>
+            <li><strong>Color Palette:</strong> 6 curated vibrant accent hues (Default Ink, Electric Indigo, Cyber Emerald, Cyan Flare, Amber Gold, Rose Coral).</li>
+            <li><strong>Render / Edit Toggle:</strong> Press <kbd>Ctrl+R</kbd> or click the <code>👁️ Render View</code> button to switch between live editing mode and publication-grade rendered typography.</li>
+          </ul>
+        </section>
+
+        <!-- Section 4: Dual Vaults -->
+        <section class="docs-section-block" id="vaults">
+          <h2>4. Dual Zero-Knowledge Encrypted Vaults</h2>
+          <p>
+            Behind a discrete gesture lies dual covert security vaults engineered for utmost privacy:
+          </p>
+          <h3>Secret Media & Photo Vault</h3>
+          <p>
+            Encrypted with authenticated <strong>AES-256-GCM</strong> encryption. Images and videos stored inside the vault are encrypted at rest on the local device before any data is written to disk or synced to the cloud. Decryption keys never leave device volatile memory and are cleared immediately upon vault auto-lock.
+          </p>
+          <h3>Covert Messaging Safe</h3>
+          <p>
+            A dedicated encrypted scratchpad and communication vault protected with independent secondary passkeys, timeout auto-wipes, and decoy camouflage states.
+          </p>
+        </section>
+
+        <!-- Section 5: Sync & Offline Engine -->
+        <section class="docs-section-block" id="sync">
+          <h2>5. Real-Time Sync & Distributed Architecture</h2>
+          <p>
+            Notes+ employs an offline-first synchronization protocol backed by Firebase Realtime Database and local SQLite persistence:
+          </p>
+          <ul>
+            <li><strong>Atomic Increments:</strong> Operational counters and heartbeat telemetry use server-evaluated atomic increments (<code>ServerValue.increment</code>) to prevent concurrency collisions.</li>
+            <li><strong>Conflict Resolution:</strong> Timestamps paired with monotonic revision clocks guarantee deterministic merge ordering. Offline edits are queued in local SQLite tables and batched upon reconnection.</li>
+            <li><strong>Scattered Storage Isolation:</strong> Database records are strictly scoped under authenticated User IDs (<code>stats/users/$uid</code>) with security rules enforcing zero cross-user visibility.</li>
+          </ul>
+        </section>
+
+        <!-- Section 6: Security & Privacy -->
+        <section class="docs-section-block" id="security">
+          <h2>6. Security & Telemetry Disclosure</h2>
+          <p>
+            Notes+ is designed to protect your privacy:
+          </p>
+          <ul>
+            <li><strong>Zero Third-Party Trackers:</strong> No Google Analytics, no Facebook SDKs, and no advertising cookies. The website keeps visit logs (IP address, place, system), described in the privacy policy.</li>
+            <li><strong>Anonymous Daily Telemetry:</strong> Only anonymous system version counters (e.g., verifying whether a client is running v16.0 or Windows) are collected for update eligibility.</li>
+            <li><strong>Full Opt-Out:</strong> Telemetry can be disabled entirely in Settings with a single switch. Account deletion executes a unified purge across database and storage records.</li>
+          </ul>
+        </section>
+
+        <!-- Section 7: Shortcuts -->
+        <section class="docs-section-block" id="shortcuts">
+          <h2>7. Keyboard Shortcuts Cheat Sheet</h2>
+          <p>Use these tactile shortcuts on Windows Desktop and the Web Application:</p>
+          <table class="docs-table">
+            <thead>
+              <tr>
+                <th>Action</th>
+                <th>Shortcut</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Toggle Render Mode</strong></td>
+                <td><kbd>Ctrl</kbd> + <kbd>R</kbd></td>
+                <td>Switch between Edit Mode and visual Rendered View</td>
+              </tr>
+              <tr>
+                <td><strong>Bold Text</strong></td>
+                <td><kbd>Ctrl</kbd> + <kbd>B</kbd></td>
+                <td>Wrap selection in bold weight styling</td>
+              </tr>
+              <tr>
+                <td><strong>Italic Text</strong></td>
+                <td><kbd>Ctrl</kbd> + <kbd>I</kbd></td>
+                <td>Apply italic font styling</td>
+              </tr>
+              <tr>
+                <td><strong>Underline Text</strong></td>
+                <td><kbd>Ctrl</kbd> + <kbd>U</kbd></td>
+                <td>Apply underline decoration</td>
+              </tr>
+              <tr>
+                <td><strong>Strikethrough</strong></td>
+                <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd></td>
+                <td>Strike through selected text</td>
+              </tr>
+              <tr>
+                <td><strong>Inline Code</strong></td>
+                <td><kbd>Ctrl</kbd> + <kbd>E</kbd></td>
+                <td>Wrap in monospace code block</td>
+              </tr>
+              <tr>
+                <td><strong>Toggle Site Theme</strong></td>
+                <td><kbd>T</kbd></td>
+                <td>Toggle between Light and Dark aesthetic themes</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </article>
+    </div>
+  </main>
+
+  <!-- Modern Floating Dock (Room to Breathe & High-Value Destinations) -->
+  <div class="floating-dock-wrap">
+    <div class="floating-dock" role="toolbar" aria-label="Quick Actions Dock">
+      <a href="app/" class="dock-item dock-item-primary" data-tooltip="Launch Web App (PWA)">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+        </svg>
+      </a>
+
+      <a href="download.html" class="dock-item" data-tooltip="Downloads Hub">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+      </a>
+
+      <a href="docs.html" class="dock-item" data-tooltip="Documentation">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+        </svg>
+      </a>
+
+      <a href="index.html#feedback" class="dock-item" data-tooltip="Reviews & Feedback">
+        <svg fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+        </svg>
+      </a>
+
+      <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer" class="dock-item" data-tooltip="GitHub Source">
+        <svg fill="currentColor" viewBox="0 0 24 24">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+        </svg>
+      </a>
+
+      <div class="dock-separator"></div>
+
+      <button class="dock-item" data-action="toggle-theme" data-tooltip="Toggle Theme (T)" aria-label="Toggle Theme">
+        <svg class="icon-moon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+        </svg>
+        <svg class="icon-sun" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-copy">
+          <p>© 2026 Shashwat Gupta • Flex Studios. All rights reserved.</p>
+          <p style="font-size: 0.8rem; margin-top: 4px; color: var(--text-muted);">
+            No ad trackers. Notes+ v16.0 Canonical Docs.
+          </p>
+        </div>
+
+        <div class="footer-links">
+          <a href="privacy.html">Privacy</a>
+          <a href="docs.html">Docs</a>
+          <a href="download.html">Downloads</a>
+          <a href="talken-admin/">Admin</a>
+          <a href="app/">PWA Web App</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/masterpiece.js"></script>
+  <script src="js/telemetry.js"></script>
+</body>
+</html>

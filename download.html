@@ -2,13 +2,236 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="0; url=index.html#downloads">
-  <title>Redirecting to Notes+ Downloads...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Downloads & Releases — Notes+ v16.0</title>
+  <meta name="description" content="Download official, cryptographically verified Notes+ builds for Windows, Android, and Web PWA.">
+  <meta name="theme-color" content="#09090b">
+  <meta name="author" content="Shashwat Gupta / Flex Studios">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Notes+ Downloads & Official Releases">
+  <meta property="og:description" content="Verified Windows, Android, and Web PWA packages powered by Cloudflare R2.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://notes.talken.in/download.html">
+  <meta property="og:image" content="res/notes_icon.png">
+
+  <!-- Icons -->
+  <link rel="icon" type="image/png" href="res/notes_icon.png">
+  <link rel="apple-touch-icon" href="res/apple-touch-icon.png">
+
+  <!-- Zero-Flash Theme Bootstrapper -->
   <script>
-    window.location.replace("index.html#downloads");
+    try {
+      const saved = localStorage.getItem('np_site_theme');
+      const theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {}
   </script>
+
+  <link rel="stylesheet" href="css/masterpiece.css">
+  <style>
+    .dl-page-header {
+      padding: 120px 0 40px;
+      text-align: center;
+    }
+    .dl-page-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-bottom: 80px;
+    }
+    @media (max-width: 960px) {
+      .dl-page-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
-<body style="background: #09090b; color: #f8fafc; font-family: sans-serif; display: grid; place-items: center; height: 100vh;">
-  <p>Redirecting to <a href="index.html#downloads" style="color: #6366f1;">Notes+ v16.0 Downloads</a>...</p>
+<body>
+  <!-- Ambient Atmospheric Glow -->
+  <div class="ambient-glow" aria-hidden="true"></div>
+
+  <!-- Smoothed Floating Top Navbar -->
+  <div class="navbar-wrap">
+    <nav class="navbar" aria-label="Main Navigation">
+      <a href="index.html" class="nav-brand" aria-label="Notes+ Home">
+        <div class="brand-icon-wrap">
+          <img src="res/notes_icon.png" alt="Notes+ Logo" width="26" height="26">
+        </div>
+        <span>Notes<span class="brand-plus">+</span></span>
+      </a>
+
+      <div class="nav-links">
+        <a href="index.html" class="nav-link">Home</a>
+        <a href="index.html#studio" class="nav-link">Studio</a>
+        <a href="index.html#features" class="nav-link">Features</a>
+        <a href="index.html#vaults" class="nav-link">Vaults</a>
+        <a href="docs.html" class="nav-link">Docs</a>
+        <a href="download.html" class="nav-link active">Downloads</a>
+        <a href="index.html#feedback" class="nav-link">Feedback</a>
+      </div>
+
+      <div class="nav-actions">
+        <button class="btn-theme-toggle" data-action="toggle-theme" aria-label="Toggle Light/Dark Theme" title="Toggle Theme (T)">
+          <svg class="icon-moon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+          </svg>
+          <svg class="icon-sun" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+        </button>
+
+        <a href="app/" class="btn-tactile btn-primary" style="padding: 8px 18px; font-size: 0.88rem;">
+          Launch Web App
+        </a>
+      </div>
+    </nav>
+  </div>
+
+  <main class="container">
+    <header class="dl-page-header">
+      <div class="hero-pill-badge" style="margin: 0 auto 16px;">
+        <span class="pulse-dot" aria-hidden="true"></span>
+        <span>Cryptographically Verified Builds</span>
+      </div>
+      <h1 class="hero-title" style="font-size: 2.8rem; margin-bottom: 12px;">
+        Get Notes+ for Your Devices
+      </h1>
+      <p class="hero-subtitle" style="max-width: 650px; margin: 0 auto;">
+        All releases are cryptographically hashed and served from Cloudflare R2 edge locations worldwide.
+      </p>
+    </header>
+
+    <div class="dl-page-grid">
+      <!-- Windows Card -->
+      <div class="dl-card">
+        <div class="dl-icon">
+          <svg width="28" height="28" fill="currentColor" viewBox="0 0 24 24"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+        </div>
+        <h3 class="dl-title">Windows Desktop</h3>
+        <p class="dl-meta"><span data-desktop-version>v16.0</span> • Windows 10 & 11 (64-bit) • 76 MB</p>
+        <p class="bento-desc" style="font-size: 0.88rem; margin: 12px 0;">
+          Full workspace with native Java 21 LTS, offline SQLite persistence, kinetic typography, and encrypted vault storage.
+        </p>
+        <div class="dl-hash-box">
+          <span>SHA-256: c3053a493d...</span>
+          <button class="dl-copy-btn" data-copy-hash="c3053a493dce75612873851086e37979abdb6d99dc7a37bf46bdf6df569d8691">Copy</button>
+        </div>
+        <div class="dl-actions">
+          <a href="https://releases.talken.in/desktop/Notes-Plus-Setup-16.0.exe" class="btn-tactile btn-primary" data-desktop-link>Download Installer (.exe)</a>
+          <a href="https://releases.talken.in/desktop/Notes-Plus-Windows-16.0.zip" class="btn-tactile btn-secondary">Portable ZIP</a>
+        </div>
+      </div>
+
+      <!-- Android Card -->
+      <div class="dl-card">
+        <div class="dl-icon" style="color: var(--emerald-400);">
+          <svg width="28" height="28" fill="currentColor" viewBox="0 0 24 24"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4116 13.8533 8.0805 12 8.0805s-3.5902.3311-5.1367.8692L4.841 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
+        </div>
+        <h3 class="dl-title">Android Mobile</h3>
+        <p class="dl-meta"><span data-version-name>v16.0</span> (Build <span data-version-code>33</span>) • Android 7.0+ • 13.6 MB</p>
+        <p class="bento-desc" style="font-size: 0.88rem; margin: 12px 0;">
+          Room database, kinetic SeekBars for kerning and leading, biometric unlock, and dual encrypted media vault.
+        </p>
+        <div class="dl-hash-box">
+          <span>SHA-256: cf877f0c99...</span>
+          <button class="dl-copy-btn" data-copy-hash="cf877f0c990a8287f7995b169f0f1a2284560e1f751fdb48d8ac65bd27ef3bdf">Copy</button>
+        </div>
+        <div class="dl-actions">
+          <a href="https://releases.talken.in/android/Notes-Plus-16.0.apk" class="btn-tactile btn-primary" data-version-link>Download APK</a>
+        </div>
+      </div>
+
+      <!-- Web PWA Card -->
+      <div class="dl-card">
+        <div class="dl-icon" style="color: var(--cyan-400);">
+          <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+        </div>
+        <h3 class="dl-title">Web App & PWA</h3>
+        <p class="dl-meta">Instant Access • Chrome, Safari, Edge, Firefox</p>
+        <p class="bento-desc" style="font-size: 0.88rem; margin: 12px 0;">
+          Zero installation footprint, offline-ready with service workers, kinetic sliders, and instant synchronization.
+        </p>
+        <div class="dl-hash-box">
+          <span>Zero download • Runs in browser</span>
+        </div>
+        <div class="dl-actions">
+          <a href="app/" class="btn-tactile btn-primary">Open Web App</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modern Floating Dock (Room to Breathe & High-Value Destinations) -->
+  <div class="floating-dock-wrap">
+    <div class="floating-dock" role="toolbar" aria-label="Quick Actions Dock">
+      <a href="app/" class="dock-item dock-item-primary" data-tooltip="Launch Web App (PWA)">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+        </svg>
+      </a>
+
+      <a href="download.html" class="dock-item" data-tooltip="Downloads Hub">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+      </a>
+
+      <a href="docs.html" class="dock-item" data-tooltip="Documentation">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+        </svg>
+      </a>
+
+      <a href="index.html#feedback" class="dock-item" data-tooltip="Reviews & Feedback">
+        <svg fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+        </svg>
+      </a>
+
+      <a href="https://github.com/Shashwat-Gupta57/Notes-Plus" target="_blank" rel="noopener noreferrer" class="dock-item" data-tooltip="GitHub Source">
+        <svg fill="currentColor" viewBox="0 0 24 24">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+        </svg>
+      </a>
+
+      <div class="dock-separator"></div>
+
+      <button class="dock-item" data-action="toggle-theme" data-tooltip="Toggle Theme (T)" aria-label="Toggle Theme">
+        <svg class="icon-moon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+        </svg>
+        <svg class="icon-sun" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-copy">
+          <p>© 2026 Shashwat Gupta • Flex Studios. All rights reserved.</p>
+          <p style="font-size: 0.8rem; margin-top: 4px; color: var(--text-muted);">
+            No ad trackers. Notes+ v16.0 Production.
+          </p>
+        </div>
+
+        <div class="footer-links">
+          <a href="privacy.html">Privacy</a>
+          <a href="docs.html">Docs</a>
+          <a href="download.html">Downloads</a>
+          <a href="talken-admin/">Admin</a>
+          <a href="app/">PWA Web App</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/masterpiece.js"></script>
+  <script src="js/version.js"></script>
+  <script src="js/telemetry.js"></script>
 </body>
 </html>

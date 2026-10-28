@@ -175,28 +175,27 @@ function recordCheckTelemetry(httpDateHeader) {
     // If signed in, update user's daily check count and client diagnostics
     const uid = account.uid();
     if (uid) {
-      const userUrl = `${DB_URL}/stats/users/${uid}.json`;
-      fetch(userUrl)
-        .then(r => r.json())
-        .then(prev => {
-          const u = prev || {};
-          const checks = u.checks || {};
-          checks[today] = (checks[today] || 0) + 1;
-          const patch = {
-            uid,
-            displayName: account.name() || u.displayName || 'Notes+ User',
-            photoUrl: account.photo() || u.photoUrl || '',
-            email: account.email() || u.email || '',
-            platform: 'Web Desktop',
-            version: VERSION,
-            os,
-            theme: themeMode,
-            lastActiveDate: today,
-            checks,
-            totalChecks: (u.totalChecks || 0) + 1
-          };
-          fetch(userUrl, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }).catch(() => {});
-        }).catch(() => {});
+      // Signed in, through the account's own connection: the rules let only me write my row.
+      account.load().then(async ({ db, D }) => {
+        const ref = D.ref(db, `stats/users/${uid}`);
+        const snap = await D.get(ref);
+        const u = snap.exists() ? snap.val() : {};
+        const checks = u.checks || {};
+        checks[today] = (checks[today] || 0) + 1;
+        await D.update(ref, {
+          uid,
+          displayName: account.name() || u.displayName || 'Notes+ User',
+          photoUrl: account.photo() || u.photoUrl || '',
+          email: account.email() || u.email || '',
+          platform: 'Web Desktop',
+          version: VERSION,
+          os,
+          theme: themeMode,
+          lastActiveDate: today,
+          checks,
+          totalChecks: (u.totalChecks || 0) + 1,
+        });
+      }).catch(() => {});
     }
   } catch (_) {}
 }

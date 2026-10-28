@@ -1,20 +1,20 @@
 {
-  "versionCode": 36,
-  "versionName": "16.5",
+  "versionCode": 37,
+  "versionName": "16.6",
   "forced": false,
-  "changelog": "Notes+ 16.5: formatting stays exactly where you put it (bold, strike, code and colours no longer spill onto the next line), and the format bar shows in full. Includes 16.4's edit-as-it-looks text notes. Install over this version; don't uninstall first.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-16.5.apk",
-  "sha256": "6ed40f16df68e060ecc3a093d6cea422685529d5a446bbd3ddb03d0b2ab14a8a",
+  "changelog": "Notes+ 16.6: your folders and archive now sync across all your devices, always. Includes 16.5's formatting fixes and the edit-as-it-looks text notes. Install over this version; don't uninstall first.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-16.6.apk",
+  "sha256": "3a427a54da4ce8956cffc27b3eae74b28997ca170702c6352cfd49a8054baac4",
   "web": {
-    "versionName": "16.4"
+    "versionName": "16.6"
   },
   "desktop": {
-    "versionName": "16.4",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-16.4.exe",
-    "sha256": "21f5df3aa628329b2a8faf1328602359d9c2aae50de2daccdcdb7ab7f25e6e55",
+    "versionName": "16.6",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-16.6.exe",
+    "sha256": "85bf987fcbca10df68224cfb16f5db9a2b84259d1870e6a306429c857c6e34d6",
     "size": "77 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-16.4.zip",
-    "zipSha256": "f73631f69818fe407b7ef0b5e4ab008df0a16a9670c9b866fc11e5eb8c3e7609",
-    "changelog": "Notes+ 16.4 for Windows: notes edited as they look, like WordPad, with a format bar; italics fixed; stored as Markdown shared with your phone and the web."
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-16.6.zip",
+    "zipSha256": "d1ca1c3b034b025ad97f7e951528e7ed27738585ad7c0170bc5ab1d56e6d9bf8",
+    "changelog": "Notes+ 16.6 for Windows: folders and the archive sync across all your devices; text notes edited as they look, like WordPad."
   }
 }

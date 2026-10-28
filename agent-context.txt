@@ -9,7 +9,7 @@
 
 [SYSTEM IDENTITY]
 Product Name: Notes+ (Notes Plus)
-Current Version: 16.4 (Build / Android versionCode 35)
+Current Version: 16.4 (Android 16.5, versionCode 36)
 Vendor / Author: Flex Studios / Shashwat Gupta
 Official Domains:
   - Landing & Web App: https://notes.talken.in
@@ -112,7 +112,7 @@ Public Manifest:
   https://releases.talken.in/version.json
 
 Latest Artifacts (v16.4):
-  - Android APK: https://releases.talken.in/android/Notes-Plus-16.4.apk
+  - Android APK: https://releases.talken.in/android/Notes-Plus-16.5.apk
   - Desktop Installer: https://releases.talken.in/desktop/Notes-Plus-Setup-16.4.exe
   - Desktop Zip: https://releases.talken.in/desktop/Notes-Plus-Windows-16.4.zip
 

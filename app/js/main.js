@@ -219,7 +219,8 @@ export async function checkForWebUpdate(interactive = false) {
       localStorage.setItem('np_last_update_check', String(Date.now()));
       recordCheckTelemetry(res.headers.get('date'));
 
-      const remoteVer = data.versionName;
+      // The web's own release when it differs from Android's (an Android-only fix bumps only Android).
+      const remoteVer = (data.web && data.web.versionName) || data.versionName;
       if (remoteVer && isNewer(remoteVer, VERSION)) {
         if (!updateNotified || interactive) {
           updateNotified = true;

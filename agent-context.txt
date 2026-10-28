@@ -1,6 +1,6 @@
 # ==============================================================================
 # NOTES+ SYSTEM ARCHITECTURE & AGENT CONTEXT SPECIFICATION
-# Version: 16.4 (Production Release)
+# Version: 16.6 (Production Release)
 # Target: AI Agent Assistants, Pair Programmers, Support Bots, and System Audits
 # URL: https://notes.talken.in/agent-context.txt
 # Note: This file provides ground-truth context about Notes+. It is not referenced
@@ -9,7 +9,7 @@
 
 [SYSTEM IDENTITY]
 Product Name: Notes+ (Notes Plus)
-Current Version: 16.4 (Android 16.5, versionCode 36)
+Current Version: 16.6 (Build / Android versionCode 37)
 Vendor / Author: Flex Studios / Shashwat Gupta
 Official Domains:
   - Landing & Web App: https://notes.talken.in
@@ -89,7 +89,7 @@ Key Hierarchy:
     - checks/ (daily check-in pulse timestamps), platform identifiers, lastSeen.
   /feedback/{fid}
     - uid, username, displayName, email, rating (1-5), type (Bug Report / Feature / Praise),
-      message, platform, version ("16.4"), ts, date.
+      message, platform, version ("16.6"), ts, date.
 
 Integrity Guarantees:
 - Client-side optimistic persistence with Room / SQLite / IndexedDB.
@@ -111,10 +111,10 @@ Integrity Guarantees:
 Public Manifest:
   https://releases.talken.in/version.json
 
-Latest Artifacts (v16.4):
-  - Android APK: https://releases.talken.in/android/Notes-Plus-16.5.apk
-  - Desktop Installer: https://releases.talken.in/desktop/Notes-Plus-Setup-16.4.exe
-  - Desktop Zip: https://releases.talken.in/desktop/Notes-Plus-Windows-16.4.zip
+Latest Artifacts (v16.6):
+  - Android APK: https://releases.talken.in/android/Notes-Plus-16.6.apk
+  - Desktop Installer: https://releases.talken.in/desktop/Notes-Plus-Setup-16.6.exe
+  - Desktop Zip: https://releases.talken.in/desktop/Notes-Plus-Windows-16.6.zip
 
 ---
 

@@ -107,16 +107,6 @@ public class AccountActivity extends AppCompatActivity {
             toast("Syncing…");
         });
         findViewById(R.id.rowDrive).setOnClickListener(v -> driveOptions());
-        com.google.android.material.materialswitch.MaterialSwitch switchFA = findViewById(R.id.switchFoldersArchive);
-        if (switchFA != null) {
-            switchFA.setOnCheckedChangeListener((btn, isChecked) -> {
-                if (btn.isPressed()) {
-                    Account.setSyncFoldersArchive(this, isChecked);
-                    showFoldersArchiveStatus(isChecked);
-                }
-            });
-            findViewById(R.id.rowFoldersArchive).setOnClickListener(v -> switchFA.toggle());
-        }
         findViewById(R.id.rowUsername).setOnClickListener(v -> askUsername(false));
         findViewById(R.id.imgAvatar).setOnClickListener(v -> choosePhoto());
         findViewById(R.id.rowSignOut).setOnClickListener(v -> confirmSignOut());
@@ -176,20 +166,9 @@ public class AccountActivity extends AppCompatActivity {
             ((TextView) findViewById(R.id.txtUsername)).setText(p.username == null
                     ? "Choose one so people can find you" : "@" + p.username);
             showPhoto(p.photoUrl);
-            showFoldersArchiveStatus(p.syncFoldersArchive);
         });
         showSyncStatus();
         showDriveStatus();
-        showFoldersArchiveStatus(Account.isSyncFoldersArchive(this));
-    }
-
-    private void showFoldersArchiveStatus(boolean on) {
-        com.google.android.material.materialswitch.MaterialSwitch s = findViewById(R.id.switchFoldersArchive);
-        if (s != null && s.isChecked() != on) s.setChecked(on);
-        TextView tv = findViewById(R.id.txtFoldersArchiveStatus);
-        if (tv != null) {
-            tv.setText(on ? "Sync across devices" : "Stored on this phone only");
-        }
     }
 
     private void showSyncStatus() {

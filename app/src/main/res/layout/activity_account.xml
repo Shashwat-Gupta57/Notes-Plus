@@ -316,19 +316,6 @@
                             <ImageView style="@style/Settings.Chevron" />
                         </LinearLayout>
 
-                        <View style="@style/Settings.Divider" />
-
-                        <LinearLayout android:id="@+id/rowFoldersArchive" style="@style/Settings.Row">
-                            <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_purple" android:src="@drawable/ic_folder" />
-                            <LinearLayout style="@style/Settings.Texts">
-                                <TextView style="@style/Settings.Title" android:text="Folders and archive" />
-                                <TextView android:id="@+id/txtFoldersArchiveStatus" style="@style/Settings.Subtitle" android:text="Stored on this phone only" />
-                            </LinearLayout>
-                            <com.google.android.material.materialswitch.MaterialSwitch
-                                android:id="@+id/switchFoldersArchive"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
-                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 

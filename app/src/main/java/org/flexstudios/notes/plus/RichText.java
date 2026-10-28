@@ -100,7 +100,7 @@ final class RichText implements TextWatcher {
     }
 
     private static void style(android.text.Spannable sp, int a, int b, Markdown.Style st) {
-        int f = Spanned.SPAN_EXCLUSIVE_INCLUSIVE;
+        int f = Spanned.SPAN_EXCLUSIVE_EXCLUSIVE;
         if (st.bold) sp.setSpan(new StyleSpan(Typeface.BOLD), a, b, f);
         if (st.italic) sp.setSpan(new StyleSpan(Typeface.ITALIC), a, b, f);
         if (st.underline) sp.setSpan(new UnderlineSpan(), a, b, f);
@@ -290,7 +290,7 @@ final class RichText implements TextWatcher {
             boolean all = true;
             for (int i = s; i < t; i++) if (!has(e, i, what)) { all = false; break; }
             clear(e, s, t, what);
-            if (!all) e.setSpan(make(what), s, t, Spanned.SPAN_EXCLUSIVE_INCLUSIVE);
+            if (!all) e.setSpan(make(what), s, t, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         onChange.run();
     }
@@ -306,7 +306,7 @@ final class RichText implements TextWatcher {
             if (hex != null) e.setSpan(new ForegroundColorSpan(android.graphics.Color.parseColor(hex)), s, s, Spanned.SPAN_INCLUSIVE_INCLUSIVE);
         } else {
             clear(e, s, t, 0);
-            if (hex != null) e.setSpan(new ForegroundColorSpan(android.graphics.Color.parseColor(hex)), s, t, Spanned.SPAN_EXCLUSIVE_INCLUSIVE);
+            if (hex != null) e.setSpan(new ForegroundColorSpan(android.graphics.Color.parseColor(hex)), s, t, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         onChange.run();
     }
@@ -373,7 +373,7 @@ final class RichText implements TextWatcher {
             int a = e.getSpanStart(s), b = e.getSpanEnd(s);
             e.removeSpan(s);
             if (a < at) e.setSpan(copy(s), a, at, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            if (b > at) e.setSpan(copy(s), at, b, Spanned.SPAN_EXCLUSIVE_INCLUSIVE);
+            if (b > at) e.setSpan(copy(s), at, b, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
     }
 
@@ -384,8 +384,8 @@ final class RichText implements TextWatcher {
             int a = e.getSpanStart(sp), b = e.getSpanEnd(sp);
             if (b <= s || a >= t) continue;
             e.removeSpan(sp);
-            if (a < s) e.setSpan(copy(sp), a, s, Spanned.SPAN_EXCLUSIVE_INCLUSIVE);
-            if (b > t) e.setSpan(copy(sp), t, b, Spanned.SPAN_EXCLUSIVE_INCLUSIVE);
+            if (a < s) e.setSpan(copy(sp), a, s, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            if (b > t) e.setSpan(copy(sp), t, b, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
     }
 
@@ -406,11 +406,43 @@ final class RichText implements TextWatcher {
         while (kinds.size() > lines) kinds.remove(kinds.size() - 1);
     }
 
+    /**
+     * Keeps formatting where it was put: a style never runs across a line break (Enter at the end
+     * of struck words starts a plain line), and only the style being typed into, the one ending at
+     * the caret, grows. Everything else stops at its last character.
+     */
+    private void tidySpans(Editable e) {
+        int caret = edit.getSelectionEnd();
+        for (CharacterStyle s : e.getSpans(0, e.length(), CharacterStyle.class)) {
+            if (!ours(e, s)) continue;
+            int a = e.getSpanStart(s), b = e.getSpanEnd(s), f = e.getSpanFlags(s) & Spanned.SPAN_POINT_MARK_MASK;
+            if (a == b) {
+                if (a != caret) e.removeSpan(s); // A style switched on here, then left unused.
+                continue;
+            }
+            boolean growing = b == caret && (f == Spanned.SPAN_EXCLUSIVE_INCLUSIVE || f == Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+            int nl = android.text.TextUtils.indexOf(e, '\n', a);
+            if (nl >= 0 && nl < b) {
+                e.removeSpan(s);
+                for (int from = a; from < b; ) {
+                    int end = android.text.TextUtils.indexOf(e, '\n', from);
+                    if (end < 0 || end > b) end = b;
+                    if (end > from) e.setSpan(copy(s), from, end, growing && end == caret ? Spanned.SPAN_EXCLUSIVE_INCLUSIVE : Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    from = end + 1;
+                }
+                continue;
+            }
+            int want = growing ? Spanned.SPAN_EXCLUSIVE_INCLUSIVE : Spanned.SPAN_EXCLUSIVE_EXCLUSIVE;
+            if (f != want) e.setSpan(s, a, b, want);
+        }
+    }
+
     /** Lays the paragraph kinds over the text: bullets, numbers, boxes, quote bars, heading sizes. */
     private void applyBlocks() {
         Editable e = edit.getText();
         if (e == null) return;
         normalise(e);
+        tidySpans(e);
         for (Object o : e.getSpans(0, e.length(), BlockSpan.class)) e.removeSpan(o);
         for (Object o : e.getSpans(0, e.length(), HeadingSpan.class)) e.removeSpan(o);
         for (Object o : e.getSpans(0, e.length(), DoneSpan.class)) e.removeSpan(o);

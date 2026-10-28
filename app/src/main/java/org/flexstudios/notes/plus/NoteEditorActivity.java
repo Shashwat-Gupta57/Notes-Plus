@@ -622,7 +622,7 @@ public class NoteEditorActivity extends NoteActivity {
         int checked = 0;
         for (int i = 0; i < kinds.length; i++) if (kinds[i] == now) checked = i;
         new MaterialAlertDialogBuilder(this)
-                .setTitle("Paragraph style")
+                .setTitle("Paragraph style · applies to the whole line")
                 .setSingleChoiceItems(names, checked, (d, which) -> {
                     if (kinds[which] == Markdown.Block.NORMAL) {
                         if (now != Markdown.Block.NORMAL) rich.block(now);

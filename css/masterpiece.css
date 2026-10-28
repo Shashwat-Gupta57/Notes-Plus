@@ -1428,19 +1428,17 @@ a {
 [data-theme="light"] .np-ascii { opacity: 0.4; }
 @media (max-width: 760px) { .np-ascii { opacity: 0.22; } }
 
-/* The dock's home button: the voxel Notes+ logo, bigger than the icons and rising above the dock. */
+/* The dock's home button: the voxel Notes+ logo on its own, no frame, a touch bigger than the icons. */
 .dock-item.dock-logo {
-  width: 76px;
-  height: 76px;
-  margin: -22px 2px -6px;
-  border-radius: 24px;
-  background: radial-gradient(circle at 50% 40%, rgba(30, 111, 255, 0.18), rgba(10, 10, 14, 0.85) 70%);
-  border-color: rgba(99, 102, 241, 0.45);
-  box-shadow: 0 10px 30px rgba(30, 111, 255, 0.25), var(--inner-highlight);
-  overflow: hidden;
+  width: 56px;
+  height: 56px;
+  margin: -4px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
-.dock-item.dock-logo:hover { transform: translateY(-6px) scale(1.1); }
+.dock-item.dock-logo:hover { transform: translateY(-6px) scale(1.12); background: none; box-shadow: none; }
 .np-ascii-inline { display: grid; place-items: center; pointer-events: none; }
 .np-ascii-inline canvas { display: block; }
-[data-theme="light"] .dock-item.dock-logo { background: radial-gradient(circle at 50% 40%, rgba(30, 111, 255, 0.12), rgba(255, 255, 255, 0.9) 70%); }
-@media (max-width: 640px) { .dock-item.dock-logo { width: 60px; height: 60px; margin-top: -16px; } }
+@media (max-width: 640px) { .dock-item.dock-logo { width: 48px; height: 48px; margin: 0; } }

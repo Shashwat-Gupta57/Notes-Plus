@@ -1,0 +1,39 @@
+name: Bug report
+description: Something doesn't work as it should.
+labels: [bug]
+body:
+  - type: dropdown
+    id: app
+    attributes:
+      label: Which app?
+      options: [Android, Windows, Web app, Website]
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Account → About (for example 16.6).
+      placeholder: "16.6"
+    validations: { required: true }
+  - type: input
+    id: device
+    attributes:
+      label: Device and system
+      placeholder: "Pixel 8, Android 15 / Windows 11 / Chrome 141 on macOS"
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you do?
+      description: Steps to make it happen again.
+      placeholder: "1. Open a list\n2. Drag an item\n3. ..."
+    validations: { required: true }
+  - type: textarea
+    id: result
+    attributes:
+      label: What happened, and what did you expect?
+    validations: { required: true }
+  - type: textarea
+    id: logs
+    attributes:
+      label: Screenshots or logs
+      description: On Android, Account → App logs can save a log file to attach. Remove anything private first.

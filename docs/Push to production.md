@@ -1,7 +1,9 @@
 # Push to production
 
 Every Notes+ release ships in four parts: the Android APK, the Windows app, the website (with
-Notes+ on the web), and `version.json`, which tells the other three that a release exists.
+Notes+ on the web), and `version.json`, which tells the other three that a release exists. The
+files are published in **two places, always both**: Cloudflare R2 (`releases.talken.in`, what the
+apps download) and **GitHub Releases** (the same files with notes, for people and for the record).
 Do them **in this order**. Users only hear about a release when `version.json` changes, so
 everything it points to must already be online by then.
 
@@ -195,6 +197,19 @@ python tools/r2put.py - android/Notes-Plus-12.0.apk "" DELETE
 curl -sI https://releases.talken.in/android/Notes-Plus-12.0.apk | head -1   # 404
 ```
 
+## 6b. GitHub Release
+
+Same files, same day, after `version.json` is live (the tag exists by then):
+
+```bash
+cd D:/User/Data/projects/Notes-Plus
+cp app/build/outputs/apk/release/app-release.apk /tmp/Notes-Plus-13.0.apk
+gh release create v13.0.0 /tmp/Notes-Plus-13.0.apk     ../Notes-Plus-Desktop/dist/13.0/Notes-Plus-Setup-13.0.exe     ../Notes-Plus-Desktop/dist/13.0/Notes-Plus-Windows-13.0.zip     --title "Notes+ 13.0" --notes-file release-notes.md --latest
+```
+
+The notes list what's new per platform and the SHA-256 of every file. When the Linux build
+exists, it goes into both R2 (`linux/`) and this release too.
+
 ## 7. After
 
 - Install the APK over the old version on a phone (never uninstall first), and use the updater
@@ -211,7 +226,7 @@ curl -sI https://releases.talken.in/android/Notes-Plus-12.0.apk | head -1   # 40
 - [ ] APK built and its SHA-256 noted
 - [ ] Windows built and its SHA-256s noted
 - [ ] APK on R2, public hash matches
-- [ ] GitHub release `desktop-v…` created
+- [ ] GitHub Release `vX.Y.0` created with the APK, installer and ZIP (and their SHA-256s)
 - [ ] Website pushed to `web`, Pages built
 - [ ] `version.json` pushed (last), tag pushed
 - [ ] `version.json` uploaded to R2 (`releases.talken.in/version.json`): the apps read this one

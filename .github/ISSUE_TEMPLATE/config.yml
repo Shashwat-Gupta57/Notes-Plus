@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation and FAQ
+    url: https://notes.talken.in/docs.html
+    about: How to install, every setting on every platform, and common questions.
+  - name: Report a security problem
+    url: https://github.com/Shashwat-Gupta57/Notes-Plus/security/advisories/new
+    about: Please report vulnerabilities privately, never in a public issue.

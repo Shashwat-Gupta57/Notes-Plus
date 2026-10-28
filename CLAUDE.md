@@ -317,7 +317,9 @@ the installed one, so a stale build file makes every user appear up to date.
 The build file and `version.json` are both at 37 / "16.6" (released as v16.6.0, with `sha256`); desktop and web are 16.6 too (`version.json` has `web.versionName`, which the web app compares with, so an Android-only release doesn't prompt the web).
 16.1 was never published (its APK was never on R2); 16.4 follows 16.0.
 From 11.0 the APK is served from Cloudflare R2 (`releases` bucket, public at
-`https://releases.talken.in/android/Notes-Plus-<version>.apk`), not GitHub release assets. The bucket
+`https://releases.talken.in/android/Notes-Plus-<version>.apk`); from 16.6 every release is also a
+GitHub Release (tag `vX.Y.0`) carrying the same APK, installer and ZIP (`docs/Push to production.md`).
+The apps read `releases.talken.in/version.json` first and GitHub raw second: upload it to R2 too. The bucket
 keeps only the current APK: upload the new one, push `version.json`, then delete the old object.
 Notes+ on the web (the website repo's `web` branch, `app/`) is the notes app only, no vault or chat;
 it reads and writes the same `users/{uid}/notes` shape and the same `NoteLock` envelope, so any

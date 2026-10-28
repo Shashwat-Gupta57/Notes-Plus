@@ -1,0 +1,24 @@
+name: Windows app
+
+on:
+  pull_request:
+    branches: [desktop]
+  push:
+    branches: [desktop]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build and tests
+        run: mvn -B test

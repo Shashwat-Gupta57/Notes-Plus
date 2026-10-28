@@ -41,6 +41,13 @@
     #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 16px; }
     #boot pre { font-family: 'VT323', var(--mono); font-size: clamp(14px, 2.4vw, 22px); line-height: 1; margin: 0; }
     #bootlog { width: min(640px, 100%); min-height: 140px; white-space: pre-wrap; }
+    #login { width: min(640px, 100%); display: flex; flex-direction: column; gap: 10px; }
+    #login[hidden] { display: none; }
+    #login label { display: flex; gap: 12px; align-items: center; color: var(--dim); }
+    #login input { flex: 1; background: transparent; border: 0; border-bottom: 1px solid var(--dim); padding: 4px 2px; outline: 0; font: inherit; color: var(--fg); }
+    #login input:focus { border-bottom-color: var(--fg); }
+    #login button { align-self: flex-start; }
+    #login #google { border: 0; padding: 0; font-size: 12px; }
     .cursor::after { content: '█'; animation: blink 1s steps(1) infinite; margin-left: 2px; }
     @keyframes blink { 50% { opacity: 0; } }
 
@@ -102,7 +109,7 @@
     th { color: var(--dim); font-weight: 500; cursor: pointer; position: sticky; top: 0; background: #041006; }
     th.sorted::after { content: ' ▾'; }
     tr:hover td { background: rgba(61, 255, 124, 0.06); }
-    tr.link { cursor: pointer; }
+    tr.link, .link { cursor: pointer; }
     td.wrap { white-space: normal; max-width: 460px; }
     .scroll { overflow: auto; max-height: 60vh; }
     input.search { background: transparent; border: 1px solid var(--dim); padding: 4px 8px; outline: 0; width: 260px; max-width: 100%; }
@@ -124,7 +131,12 @@
  ██║ ╚████║╚██████╔╝   ██║   ███████╗███████║   ██║
  ╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ╚══════╝╚══════╝   ╚═╝   ops</pre>
     <div id="bootlog" class="glow"></div>
-    <div><button id="login" class="glow" hidden>[ authenticate with google ]</button></div>
+    <form id="login" class="glow" hidden autocomplete="on">
+      <label>user <input id="user" name="username" autocomplete="username" spellcheck="false" autocapitalize="off" required></label>
+      <label>pass <input id="pass" name="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit">[ authenticate ]</button>
+      <button type="button" id="google" class="dim">or sign in with google</button>
+    </form>
   </div>
 
   <div id="app">
@@ -174,7 +186,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 const COLORS = { fg: '#3dff7c', amber: '#ffb43a', cyan: '#5fe8ff', violet: '#c58cff', red: '#ff5a5a', dim: '#1e8f46' };
 
 // ----------------------------------------------------------------- state
-const state = { range: '30d', group: 'day', scale: 'linear', avg: true, view: 'overview', userQuery: '', userSort: 'last', fbType: 'all', evQuery: '' };
+const state = { range: '30d', group: 'day', scale: 'linear', avg: true, view: 'overview', userQuery: '', userSort: 'joined', fbType: 'all', evQuery: '' };
 try { Object.assign(state, JSON.parse(localStorage.getItem('np_ops') || '{}')); } catch { /* defaults */ }
 const save = () => { try { localStorage.setItem('np_ops', JSON.stringify(state)); } catch { /* fine */ } };
 let data = null;
@@ -219,16 +231,25 @@ const label = b => state.group === 'month' ? new Date(b + '-01T00:00:00Z').toLoc
 // ------------------------------------------------------------------- data
 async function load() {
   const t0 = performance.now();
-  logLine('fetching /stats /feedback /usernames …', 'dim');
-  const [stats, feedback, usernames] = await Promise.all([
-    D.get(D.ref(db, 'stats')).then(s => s.val() || {}),
-    D.get(D.ref(db, 'feedback')).then(s => s.val() || {}),
-    D.get(D.ref(db, 'usernames')).then(s => s.val() || {}),
-  ]);
+  logLine('fetching /stats /feedback /usernames /profiles …', 'dim');
+  const read = p => D.get(D.ref(db, p)).then(s => s.val() || {}).catch(e => { logLine(`can't read /${p}: ${e.message}`, 'red'); return {}; });
+  const [stats, feedback, usernames, profiles] = await Promise.all([read('stats'), read('feedback'), read('usernames'), read('profiles')]);
   const byUid = {};
-  for (const [name, uid] of Object.entries(usernames)) byUid[uid] = name;
+  for (const [name, uid] of Object.entries(usernames)) if (typeof uid === 'string') byUid[uid] = name;
   const web = stats.web || {};
-  const users = Object.entries(stats.users || {}).map(([uid, u]) => ({ uid, username: byUid[uid] || u.username || '', ...u }));
+  // Everyone on the platform: every claimed username, every public profile, every app that reported
+  // in, each with its account profile (name, joined, Drive address).
+  const uids = [...new Set([...Object.keys(byUid), ...Object.keys(profiles), ...Object.keys(stats.users || {})])];
+  const accounts = await Promise.all(uids.map(uid => D.get(D.ref(db, `users/${uid}/profile`)).then(s => s.val() || {}).catch(() => ({}))));
+  const users = uids.map((uid, i) => {
+    const st = (stats.users || {})[uid] || {}, pr = accounts[i], pub = profiles[uid] || {};
+    return {
+      ...st, uid, username: byUid[uid] || pr.username || st.username || '',
+      displayName: pr.displayName || st.displayName || '', email: st.email || pr.driveEmail || '',
+      photoUrl: pr.photoUrl || st.photoUrl || (pub.photo && pub.photo.url) || '',
+      createdAt: pr.createdAt || st.createdAt || 0, reported: !!(stats.users || {})[uid],
+    };
+  });
   // Active people a day: the web app's marks, and every app that checked in (a user's daily checks).
   const active = {};
   const mark = (d, k) => { (active[d] = active[d] || new Set()).add(k); };
@@ -241,7 +262,13 @@ async function load() {
     checks: stats.checks || {}, active, users,
     signups: users.reduce((m, u) => { if (u.createdAt) { const d = iso(u.createdAt); m[d] = (m[d] || 0) + 1; } return m; }, {}),
     events: Object.entries(stats.events || {}).map(([id, e]) => ({ id, ...e })).sort((a, b) => (b.ts || 0) - (a.ts || 0)),
-    access: Object.values(stats.adminAccess || {}).sort((a, b) => (b.ts || 0) - (a.ts || 0)),
+    // Panel sign-ins: let in or refused (signed in, not an admin), wrong passwords (from the event
+    // log, since nobody was signed in) and the old panel's per-IP record.
+    access: [
+      ...Object.values(stats.adminAccess || {}).map(a => ({ ...a, result: a.ok ? 'granted' : 'refused' })),
+      ...Object.values(stats.events || {}).filter(e => e.type === 'Admin login failed').map(e => ({ ...e, email: e.res, result: 'wrong password', ok: false })),
+      ...Object.values(stats.adminLogins || {}).filter(a => a && a.ip).map(a => ({ ts: Number(a.lastLogin) || 0, ip: a.ip, email: '(old panel)', result: 'granted', ok: true })),
+    ].sort((a, b) => (b.ts || 0) - (a.ts || 0)),
     feedback: Object.entries(feedback).map(([id, f]) => ({ id, ...f })).sort((a, b) => (b.ts || 0) - (a.ts || 0)),
     firstDay: allDays[0],
   };
@@ -420,7 +447,7 @@ function delta(now, before) {
 // ------------------------------------------------------------------ views
 const VIEWS = {
   overview: 'overview', traffic: 'traffic', active: 'active users', apps: 'app check-ins', funnel: 'funnel',
-  visitors: 'visitors · IPs', people: 'people', feedback: 'feedback', events: 'events', access: 'access log',
+  visitors: 'visitors', ips: 'visitor IPs', people: 'people', feedback: 'feedback', events: 'events', logins: 'admin logins',
 };
 
 function controls() {
@@ -453,7 +480,8 @@ function render() {
   const view = $('#view');
   view.innerHTML = '';
   if (['overview', 'traffic', 'active', 'apps', 'funnel', 'visitors'].includes(state.view)) view.append(controls());
-  ({ overview, traffic, active, apps, funnel, visitors, people, feedback, events, access })[state.view](view);
+  if (!VIEWS[state.view]) state.view = 'overview';
+  ({ overview, traffic, active, apps, funnel, visitors, ips, people, feedback, events, logins })[state.view](view);
 }
 
 function go(v) {
@@ -499,7 +527,7 @@ function overview(view) {
   kpi(kp, 'stickiness', mau ? Math.round((dauAvg / mau) * 100) + '%' : '—', '<span class="dim">avg DAU ÷ MAU</span>', 'active');
   kpi(kp, 'app check-ins', full(checks), delta(checks, checksPrev), 'apps');
   kpi(kp, 'new people', full(signups), delta(signups, signupsPrev), 'people');
-  kpi(kp, 'people, all time', full(data.users.length), `<span class="dim">with a stats row</span>`, 'people');
+  kpi(kp, 'accounts', full(data.users.length), `<span class="dim">everyone on the platform</span>`, 'people');
   kpi(kp, 'feedback', full(data.feedback.length), ratings.length ? `<span class="amber">${'★'.repeat(Math.round(avgRating))}</span> ${avgRating.toFixed(1)} avg` : '<span class="dim">no ratings</span>', 'feedback');
   view.append(kp);
   const two = document.createElement('div');
@@ -610,19 +638,19 @@ function funnel(view) {
 }
 
 function people(view) {
-  const b = box('people', `${data.users.length} with a stats row`);
+  const b = box('people', `${data.users.length} accounts on the platform · ${data.users.filter(u => u.reported).length} have reported from an app`);
   const ds = days(), within = new Set(ds);
   b.insertAdjacentHTML('beforeend', `<div class="controls"><input class="search" id="q" placeholder="filter: name, @user, email, version, os" value="${esc(state.userQuery)}"></div><div class="scroll" id="tbl"></div>`);
   view.append(b);
   const cols = [
-    ['name', u => u.displayName || ''], ['user', u => u.username ? '@' + u.username : ''], ['email', u => u.email || ''],
+    ['name', u => u.displayName || `(unnamed ${u.uid.slice(0, 6)}…)`], ['user', u => u.username ? '@' + u.username : ''], ['email', u => u.email || ''],
     ['platform', u => u.platform || ''], ['version', u => u.version || ''], ['os', u => u.os || ''],
     ['last', u => u.lastActiveDate || ''], ['checks in range', u => Object.entries(u.checks || {}).reduce((s, [d, n]) => s + (within.has(d) ? Number(n) || 0 : 0), 0)],
-    ['all checks', u => u.totalChecks || 0], ['syncs', u => u.syncCount || 0], ['since', u => (u.createdAt ? iso(u.createdAt) : '')],
+    ['all checks', u => u.totalChecks || 0], ['syncs', u => u.syncCount || 0], ['joined', u => (u.createdAt ? iso(u.createdAt) : '')], ['uid', u => u.uid],
   ];
   const draw = () => {
     const q = state.userQuery.toLowerCase();
-    const col = cols.find(c => c[0] === state.userSort) || cols[6];
+    const col = cols.find(c => c[0] === state.userSort) || cols[10];
     const rows = data.users.filter(u => !q || cols.slice(0, 6).some(([, f]) => String(f(u)).toLowerCase().includes(q)))
       .sort((a, c) => { const x = col[1](a), y = col[1](c); return typeof x === 'number' ? y - x : String(y).localeCompare(String(x)); });
     $('#tbl').innerHTML = `<table class="glow"><thead><tr>${cols.map(([n]) => `<th data-c="${n}" class="${n === col[0] ? 'sorted' : ''}">${n}</th>`).join('')}</tr></thead><tbody>${rows.map(u =>
@@ -761,20 +789,138 @@ function events(view) {
   input.oninput = () => { state.evQuery = input.value; save(); clearTimeout(input.t); input.t = setTimeout(() => { render(); const i = $('#eq'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250); };
 }
 
-function access(view) {
+/**
+ * A sortable table into {@code box}: cols are [name, value(row), html?(row)]; clicking a header
+ * sorts by it (numbers and times biggest first), remembered in state[sortKey].
+ */
+function grid(box, cols, rows, sortKey, empty = 'nothing yet') {
+  const holder = document.createElement('div');
+  holder.className = 'scroll';
+  box.append(holder);
+  const draw = () => {
+    const col = cols.find(c => c[0] === state[sortKey]) || cols[0];
+    const sorted = [...rows].sort((a, c) => { const x = col[1](a), y = col[1](c); return typeof x === 'number' ? y - x : String(y).localeCompare(String(x)); });
+    holder.innerHTML = `<table class="glow"><thead><tr>${cols.map(([n]) => `<th data-c="${esc(n)}" class="${n === col[0] ? 'sorted' : ''}">${esc(n)}</th>`).join('')}</tr></thead><tbody>${sorted.map(r =>
+      `<tr>${cols.map(([, f, h]) => `<td>${h ? h(r) : esc(f(r))}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="dim">${empty}</td></tr>`}</tbody></table>`;
+    holder.querySelector('thead').onclick = e => { const th = e.target.closest('th'); if (th) { state[sortKey] = th.dataset.c; save(); draw(); } };
+  };
+  draw();
+}
+const ago = t => {
+  if (!t) return '';
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : Math.round(s / 86400) + ' d ago';
+};
+const stamp = t => (t ? `${when(t)} <span class="dim">${ago(t)}</span>` : '');
+const resultCell = a => `<span class="${a.ok ? '' : 'red'}">${esc(a.result || (a.ok ? 'granted' : 'refused'))}</span>`;
+
+/** Sign-ins to this panel: per address, per account, and every one. All time. */
+function logins(view) {
   const list = data.access;
-  const denied = list.filter(a => !a.ok).length;
+  const good = list.filter(a => a.ok), bad = list.filter(a => !a.ok);
   const kp = document.createElement('div');
   kp.className = 'kpis';
-  kpi(kp, 'sign-ins', full(list.length), '<span class="dim">to this panel, all time</span>');
-  kpi(kp, 'refused', `<span class="${denied ? 'red' : ''}">${full(denied)}</span>`, '<span class="dim">accounts not at /admins</span>');
-  kpi(kp, 'addresses', full(new Set(list.map(a => a.ip).filter(Boolean)).size), '<span class="dim">distinct IPs</span>');
-  kpi(kp, 'last sign-in', list[0] ? when(list[0].ts).slice(11, 16) : '—', list[0] ? `<span class="dim">${when(list[0].ts).slice(0, 10)} · ${esc(list[0].ip || '')} ${esc(where(list[0]))}</span>` : '');
+  kpi(kp, 'admin sign-ins', full(good.length), '<span class="dim">let in, all time</span>');
+  kpi(kp, 'refused', `<span class="${bad.length ? 'red' : ''}">${full(bad.length)}</span>`, `<span class="dim">${list.filter(a => a.result === 'wrong password').length} wrong passwords</span>`);
+  kpi(kp, 'addresses', full(new Set(list.map(a => a.ip).filter(Boolean)).size), '<span class="dim">distinct IPs that tried</span>');
+  kpi(kp, 'accounts', full(new Set(list.map(a => a.email).filter(Boolean)).size), '<span class="dim">that tried</span>');
+  kpi(kp, 'last sign-in', good[0] ? when(good[0].ts).slice(11, 16) : '—', good[0] ? `<span class="dim">${when(good[0].ts).slice(0, 10)} · ${esc(good[0].ip || '')} · ${esc(good[0].email || '')}</span>` : '');
   view.append(kp);
-  const b = box('access log', 'every sign-in to this panel, let in or refused');
-  b.insertAdjacentHTML('beforeend', `<div class="scroll"><table class="glow"><thead><tr><th>when (utc)</th><th>result</th><th>account</th><th>ip</th><th>location</th><th>network</th><th>system</th><th>screen</th><th>lang · tz</th></tr></thead><tbody>${list.map(a =>
-    `<tr><td>${when(a.ts)}</td><td class="${a.ok ? '' : 'red'}">${a.ok ? 'granted' : 'REFUSED'}</td><td>${esc(a.email)}<br><span class="dim">${esc(a.uid)}</span></td><td class="cyan">${esc(a.ip)}</td><td>${esc(where(a))}</td><td>${esc(a.isp)}</td><td>${esc(system(a))}</td><td>${esc(a.screen)}</td><td>${esc([a.lang, a.tz].filter(Boolean).join(' · '))}</td></tr>`).join('') || '<tr><td colspan="9" class="dim">nothing yet</td></tr>'}</tbody></table></div>`);
+
+  // Per address: when it last signed in (and as whom), how often ever, and how many accounts.
+  const byIp = new Map();
+  for (const a of list) {
+    const k = a.ip || '(unknown)';
+    const r = byIp.get(k) || { ip: k, n: 0, ok: 0, bad: 0, accounts: new Set(), last: null, lastOk: null, first: a.ts };
+    r.n++; a.ok ? r.ok++ : r.bad++;
+    if (a.email) r.accounts.add(a.email);
+    if (!r.last || a.ts > r.last.ts) r.last = a;
+    if (a.ok && (!r.lastOk || a.ts > r.lastOk.ts)) r.lastOk = a;
+    r.first = Math.min(r.first || a.ts, a.ts);
+    byIp.set(k, r);
+  }
+  const b1 = box('by IP address', 'every address that ever signed in or tried · click a header to sort');
+  view.append(b1);
+  grid(b1, [
+    ['last sign-in', r => (r.lastOk ? r.lastOk.ts : 0), r => (r.lastOk ? stamp(r.lastOk.ts) + `<br><span class="dim">as ${esc(r.lastOk.email || '')}</span>` : '<span class="dim">never let in</span>')],
+    ['ip', r => r.ip, r => `<span class="cyan">${esc(r.ip)}</span>`],
+    ['sign-ins, ever', r => r.ok],
+    ['accounts, ever', r => r.accounts.size, r => `${r.accounts.size}<br><span class="dim">${esc([...r.accounts].join(', '))}</span>`],
+    ['refused', r => r.bad, r => (r.bad ? `<span class="red">${r.bad}</span>` : '0')],
+    ['last attempt', r => r.last.ts, r => `${stamp(r.last.ts)}<br>${resultCell(r.last)}`],
+    ['first seen', r => r.first || 0, r => when(r.first)],
+    ['location', r => where(r.last)], ['network', r => r.last.isp || ''], ['system', r => system(r.last)],
+  ], [...byIp.values()], 'ipSort');
+
+  // Per account.
+  const byAcct = new Map();
+  for (const a of list) {
+    const k = a.email || a.uid || '(unknown)';
+    const r = byAcct.get(k) || { name: k, uid: a.uid || '', method: a.method || '', ok: 0, bad: 0, ips: new Set(), last: null };
+    a.ok ? r.ok++ : r.bad++;
+    if (a.ip) r.ips.add(a.ip);
+    if (!r.last || a.ts > r.last.ts) r.last = a;
+    byAcct.set(k, r);
+  }
+  const b2 = box('by account', 'who signed in, how often, from how many addresses');
+  view.append(b2);
+  grid(b2, [
+    ['account', r => r.name, r => `${esc(r.name)}<br><span class="dim">${esc(r.uid)}</span>`],
+    ['method', r => r.method],
+    ['sign-ins, ever', r => r.ok],
+    ['refused', r => r.bad, r => (r.bad ? `<span class="red">${r.bad}</span>` : '0')],
+    ['IPs, ever', r => r.ips.size, r => `${r.ips.size}<br><span class="dim">${esc([...r.ips].slice(0, 6).join(', '))}${r.ips.size > 6 ? ' …' : ''}</span>`],
+    ['last', r => r.last.ts, r => `${stamp(r.last.ts)}<br>${resultCell(r.last)} <span class="dim">from ${esc(r.last.ip || '?')}</span>`],
+  ], [...byAcct.values()], 'acctSort');
+
+  const b3 = box('log', 'every attempt, newest first');
+  view.append(b3);
+  grid(b3, [
+    ['when (utc)', a => a.ts || 0, a => stamp(a.ts)], ['result', a => a.result || '', resultCell],
+    ['account', a => a.email || '', a => `${esc(a.email || '')}<br><span class="dim">${esc(a.uid || a.reason || '')}</span>`],
+    ['ip', a => a.ip || '', a => `<span class="cyan">${esc(a.ip || '')}</span>`], ['location', a => where(a)], ['network', a => a.isp || ''],
+    ['system', a => system(a)], ['screen', a => a.screen || ''], ['lang · tz', a => [a.lang, a.tz].filter(Boolean).join(' · ')],
+  ], list, 'logSort');
+}
+
+/** Every address that ever opened the site or the web app, all time. */
+function ips(view) {
+  const ev = data.events.filter(e => e.ip);
+  const map = new Map();
+  for (const e of ev) {
+    const r = map.get(e.ip) || { ip: e.ip, views: 0, dl: 0, app: 0, vids: new Set(), pages: new Set(), first: e.ts, last: null };
+    if (VISIT.has(e.type)) r.views++;
+    if (e.tag === 'tag-dl') r.dl++;
+    if (e.type === 'App open') r.app++;
+    if (e.vid) r.vids.add(e.vid);
+    if (e.page || e.res) r.pages.add(e.page || e.res);
+    r.first = Math.min(r.first || e.ts, e.ts);
+    if (!r.last || e.ts > r.last.ts) r.last = e;
+    map.set(e.ip, r);
+  }
+  const rows = [...map.values()];
+  const q = (state.ipQuery || '').toLowerCase();
+  const shownRows = rows.filter(r => !q || [r.ip, where(r.last), r.last.isp, system(r.last)].some(x => String(x || '').toLowerCase().includes(q)));
+  const kp = document.createElement('div');
+  kp.className = 'kpis';
+  kpi(kp, 'addresses', full(rows.length), '<span class="dim">all time</span>');
+  kpi(kp, 'browsers', full(new Set(ev.map(e => e.vid).filter(Boolean)).size), '<span class="dim">distinct visitor IDs</span>');
+  kpi(kp, 'seen today', full(rows.filter(r => iso(r.last.ts) === todayIso()).length), '<span class="dim">addresses</span>');
+  kpi(kp, 'downloading', full(rows.filter(r => r.dl).length), '<span class="dim">addresses that downloaded</span>');
+  view.append(kp);
+  const b = box('visitor IPs', `${shownRows.length} of ${rows.length} · last seen, lifetime visits, browsers behind each address`);
+  b.insertAdjacentHTML('beforeend', `<div class="controls"><input class="search" id="ipq" style="width:420px" placeholder="filter: ip, city, country, isp, os, browser" value="${esc(state.ipQuery || '')}"></div>`);
   view.append(b);
+  grid(b, [
+    ['last seen', r => r.last.ts, r => stamp(r.last.ts)],
+    ['ip', r => r.ip, r => `<span class="cyan link" data-ip="${esc(r.ip)}">${esc(r.ip)}</span>`],
+    ['visits, ever', r => r.views], ['browsers, ever', r => r.vids.size], ['web app', r => r.app], ['downloads', r => r.dl, r => (r.dl ? `<span class="amber">${r.dl}</span>` : '0')],
+    ['location', r => where(r.last)], ['network', r => r.last.isp || ''], ['last system', r => system(r.last)],
+    ['first seen', r => r.first || 0, r => when(r.first)], ['pages', r => r.pages.size, r => esc([...r.pages].slice(0, 4).join(' '))],
+  ], shownRows, 'ipsSort', 'no addresses logged yet');
+  b.addEventListener('click', e => { const x = e.target.closest('[data-ip]'); if (x) { state.evQuery = x.dataset.ip; go('events'); } });
+  const input = $('#ipq');
+  input.oninput = () => { state.ipQuery = input.value; save(); clearTimeout(input.t); input.t = setTimeout(() => { render(); const i = $('#ipq'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250); };
 }
 
 /** Deletes events older than {@code n} days (the log grows with every visit). */
@@ -823,7 +969,7 @@ function streamEvents() {
 }
 
 const HELP = [
-  'views     overview | traffic | active | apps | funnel | visitors | people | feedback | events | access',
+  'views     overview | traffic | active | apps | funnel | visitors | ips | people | feedback | events | logins',
   'ip        ip <text>                  (events from an address, city, isp …)',
   'prune     prune <days>               (delete events older than that)',
   'range     range 7d|14d|30d|90d|365d|all',
@@ -855,7 +1001,7 @@ function run(line) {
     case 'export': exportCsv(); break;
     case 'refresh': load().catch(fail); break;
     case 'clear': $('#log').innerHTML = ''; break;
-    case 'whoami': logLine(`${auth.currentUser.email} · uid ${auth.currentUser.uid}`); break;
+    case 'whoami': logLine(`${shown(auth.currentUser)} · uid ${auth.currentUser.uid}`); break;
     case 'logout': A.signOut(auth).then(() => location.reload()); break;
     default: logLine(`command not found: ${cmd} (try help)`, 'red');
   }
@@ -884,40 +1030,44 @@ async function type(lines) {
   }
 }
 let entering = false;
-// Until database.rules.json is deployed, /admins can't be read and /stats is public anyway: the
-// owner's uid is let in so the panel works, with a warning. Once deployed, only /admins decides.
-const OWNER = 'dAEekpxfSdaIWSRwDA0tsudYU363';
+// The panel's own accounts are Firebase email/password accounts whose "email" is the username at
+// this domain: the password lives only in Firebase Auth (rate-limited), never in this page.
+const ADMIN_DOMAIN = '@admin.notes.talken.in';
+const shown = u => (u.email || '').endsWith(ADMIN_DOMAIN) ? u.email.slice(0, -ADMIN_DOMAIN.length) : (u.email || u.uid);
+// Until database.rules.json is deployed, /admins can't be read and /stats is public anyway: these
+// uids are let in so the panel works, with a warning. Once deployed, only /admins decides.
+const BRIDGE = ['dAEekpxfSdaIWSRwDA0tsudYU363', 'uQaOODIWWqeeLmQyZSsTrtN6LZS2'];
 let bridge = false;
 async function enter(user) {
-  if (entering) return; // The popup and the auth listener both report the same sign-in.
+  if (entering) return; // The sign-in and the auth listener both report the same user.
   entering = true;
-  await type([`> identity ${user.email}`, '> checking /admins …']);
+  $('#login').hidden = true;
+  await type([`> identity ${shown(user)}`, '> checking /admins …']);
   let ok = false;
   try { ok = (await D.get(D.ref(db, 'admins/' + user.uid))).val() === true; }
   catch {
     // Permission denied on /admins means the old rules are still live.
-    try { await D.get(D.query(D.ref(db, 'stats/web/visits'), D.limitToLast(1))); bridge = user.uid === OWNER; } catch { bridge = false; }
+    try { await D.get(D.query(D.ref(db, 'stats/web/visits'), D.limitToLast(1))); bridge = BRIDGE.includes(user.uid); } catch { bridge = false; }
     ok = bridge;
   }
   const logged = logAccess(user, ok);
   if (!ok) {
     await type(['', 'ACCESS DENIED', `uid ${user.uid} isn't listed at /admins.`,
       'To grant it: Firebase console → Realtime Database → add  admins/' + user.uid + ' : true', '']);
-    $('#login').hidden = false;
-    $('#login').textContent = '[ try another account ]';
     entering = false;
     await logged; // While still signed in: the rules want the writer's own uid.
     await A.signOut(auth);
+    $('#login').hidden = false;
     return;
   }
   await type(['> clearance granted', '> mounting panel …']);
   $('#boot').remove();
   $('#app').classList.add('on');
-  $('#who').textContent = user.email;
+  $('#who').textContent = shown(user);
   logLine('session open · type help', 'cyan');
   if (bridge) {
     logLine('WARNING: database.rules.json is not deployed: /stats, /profiles and /usernames are public.', 'red');
-    logLine('  run: firebase deploy --only database   then add  admins/' + OWNER + ' : true', 'red');
+    logLine('  run: firebase deploy --only database   then add  admins/<uid> : true  for ' + BRIDGE.join(', '), 'red');
   }
   load().catch(fail);
 }
@@ -926,26 +1076,57 @@ async function enter(user) {
 async function logAccess(user, ok) {
   try {
     const c = window.npContext ? await window.npContext() : {};
-    const row = { ts: D.serverTimestamp(), uid: user.uid, ok, email: String(user.email || '').slice(0, 200) };
+    const row = { ts: D.serverTimestamp(), uid: user.uid, ok, email: String(shown(user)).slice(0, 200), method: (user.email || '').endsWith(ADMIN_DOMAIN) ? 'password' : 'google' };
     for (const k of ['ip', 'city', 'region', 'country', 'cc', 'isp', 'os', 'browser', 'device', 'screen', 'lang', 'tz']) if (c[k]) row[k] = String(c[k]).slice(0, 200);
     await D.push(D.ref(db, 'stats/adminAccess'), row);
   } catch (e) { console.warn('access log', e); }
 }
-$('#login').onclick = async () => {
-  $('#login').hidden = true;
+
+/** A wrong username or password: nobody is signed in, so it goes to the public event log. */
+async function logFailure(name, code) {
+  try {
+    const c = window.npContext ? await window.npContext() : {};
+    const row = { ts: Date.now(), type: 'Admin login failed', platform: 'ops panel', res: String(name).slice(0, 60), tag: 'tag-fail', reason: String(code).slice(0, 60) };
+    for (const k of ['ip', 'city', 'region', 'country', 'cc', 'isp', 'os', 'browser', 'device', 'screen', 'lang', 'tz', 'vid']) if (c[k]) row[k] = String(c[k]).slice(0, 200);
+    await fetch(CONFIG.databaseURL + '/stats/events.json', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(row) });
+  } catch { /* offline */ }
+}
+
+let fails = 0;
+$('#login').onsubmit = async e => {
+  e.preventDefault();
+  const name = $('#user').value.trim().toLowerCase(), pass = $('#pass').value;
+  if (!name || !pass) return;
+  const btn = $('#login button[type=submit]');
+  btn.disabled = true;
+  await type([`> authenticate ${name}`]);
+  try {
+    const r = await A.signInWithEmailAndPassword(auth, name + ADMIN_DOMAIN, pass);
+    $('#pass').value = '';
+    await enter(r.user);
+  } catch (err) {
+    fails++;
+    logFailure(name, err.code || err.message);
+    await type([err.code === 'auth/too-many-requests' ? '! locked: too many attempts, try again later' : '! ACCESS DENIED: wrong username or password']);
+    $('#pass').value = '';
+    // Slower with every miss, on top of Firebase's own limit.
+    await new Promise(r => setTimeout(r, Math.min(30000, 1000 * 2 ** Math.min(fails, 5))));
+  }
+  btn.disabled = false;
+};
+$('#google').onclick = async () => {
   try {
     const r = await A.signInWithPopup(auth, new A.GoogleAuthProvider());
     await enter(r.user);
   } catch (e) {
     await type(['! sign-in cancelled or refused: ' + (e.code || e.message)]);
-    $('#login').hidden = false;
   }
 };
-await type(['NOTES+ OPS TERMINAL v2', '> link: firebase rtdb asia-southeast1 … up', '> auth: google, checked against /admins by the database']);
+await type(['NOTES+ OPS TERMINAL v2', '> link: firebase rtdb asia-southeast1 … up', '> auth: username + password, checked against /admins by the database']);
 bootlog.classList.add('cursor');
 A.onAuthStateChanged(auth, u => {
   bootlog.classList.remove('cursor');
-  if (u) enter(u); else $('#login').hidden = false;
+  if (u) enter(u); else { $('#login').hidden = false; $('#user').focus(); }
 });
 </script>
 </body>

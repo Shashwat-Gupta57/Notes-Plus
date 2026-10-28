@@ -174,6 +174,15 @@ git add -A && git commit -m "v13.0" && git tag v13.0.0
 git push origin master && git push origin v13.0.0
 ```
 
+**Then upload the same file to R2.** Every app (Android `Updater`, Windows `Updates` and Setup,
+the web app) reads `https://releases.talken.in/version.json` **first** and GitHub raw only when R2
+fails, so until this copy changes nobody sees the release:
+
+```bash
+python tools/r2put.py version.json version.json application/json
+curl -s https://releases.talken.in/version.json | head -3     # the new versionName
+```
+
 From this moment:
 - phones offer the update (at most 12 hours later)
 - the PC app and Setup offer theirs
@@ -205,4 +214,5 @@ curl -sI https://releases.talken.in/android/Notes-Plus-12.0.apk | head -1   # 40
 - [ ] GitHub release `desktop-v…` created
 - [ ] Website pushed to `web`, Pages built
 - [ ] `version.json` pushed (last), tag pushed
+- [ ] `version.json` uploaded to R2 (`releases.talken.in/version.json`): the apps read this one
 - [ ] Old APK deleted from R2

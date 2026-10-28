@@ -1403,3 +1403,13 @@ a {
   position: relative;
   z-index: 1;
 }
+
+/* Animated theme toggle (masterpiece.js): the new theme is revealed by a growing circle, so the
+   default cross-fade is switched off for the page snapshot. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }

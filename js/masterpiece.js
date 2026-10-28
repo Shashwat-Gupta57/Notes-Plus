@@ -26,10 +26,26 @@
     }
   }
 
-  function toggleTheme() {
+  /**
+   * The new theme spreads out in a circle from where it was asked for (the button, or the
+   * screen's centre for the T key), like Magic UI's animated theme toggler: a View Transition
+   * whose new snapshot is revealed by a growing clip-path. Browsers without View Transitions,
+   * and anyone who asked for less motion, just switch.
+   */
+  function toggleTheme(e) {
     const current = document.documentElement.getAttribute('data-theme') || 'dark';
     const next = current === 'dark' ? 'light' : 'dark';
-    applyTheme(next);
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!document.startViewTransition || still) { applyTheme(next); return; }
+    const btn = e && e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
+    const x = btn ? btn.left + btn.width / 2 : innerWidth / 2, y = btn ? btn.top + btn.height / 2 : innerHeight / 2;
+    const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    const t = document.startViewTransition(() => applyTheme(next));
+    t.ready.then(() => {
+      document.documentElement.animate(
+        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] },
+        { duration: 650, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', pseudoElement: '::view-transition-new(root)' });
+    }).catch(() => {});
   }
 
   // Bind all theme toggles

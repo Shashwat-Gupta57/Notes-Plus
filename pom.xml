@@ -6,7 +6,7 @@
 
     <groupId>org.flexstudios.notes.plus</groupId>
     <artifactId>Notes-Plus-Desktop</artifactId>
-    <version>16.1</version>
+    <version>16.4</version>
     <name>Notes+</name>
 
     <properties>
@@ -32,6 +32,12 @@
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-swing</artifactId>
             <version>${javafx.version}</version>
+        </dependency>
+        <!-- Formatted text in notes, as WordPad shows it (RichBody / RichArea). -->
+        <dependency>
+            <groupId>org.fxmisc.richtext</groupId>
+            <artifactId>richtextfx</artifactId>
+            <version>0.10.9</version>
         </dependency>
         <!-- The same notes table as the phone's Room database. -->
         <dependency>

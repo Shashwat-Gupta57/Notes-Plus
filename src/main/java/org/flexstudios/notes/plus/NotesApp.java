@@ -210,7 +210,7 @@ public class NotesApp extends Application {
     @Override
     public void start(Stage stage) {
         app = this;
-        for (String face : new String[]{"Regular", "Medium", "Bold", "Light"}) {
+        for (String face : new String[]{"Regular", "Medium", "Bold", "Light", "Italic", "BoldItalic"}) {
             try (InputStream in = NotesApp.class.getResourceAsStream("fonts/Roboto-" + face + ".ttf")) {
                 if (in != null) Font.loadFont(in, 14);
             } catch (Exception ignored) {

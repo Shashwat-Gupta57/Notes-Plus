@@ -863,9 +863,44 @@ final class NoteEditorView extends NoteEditor {
         fmtNumber = formatText("1.  List", "Numbered list (type \"1. \")", () -> body.block(Markdown.Block.NUMBER));
         fmtTask = formatText("☐  Tasks", "Tick boxes (type \"[] \")", () -> body.block(Markdown.Block.TASK));
 
-        Button spacing = Ui.iconButton(Icons.FORMAT_LINE_SPACING, 34, 18, "text_secondary", "Line spacing (for every note, on this computer)", () -> {});
-        spacing.setOnAction(e -> Ui.menu(spacing, List.of("Compact", "Normal", "Relaxed", "Spacious"),
-                List.of(() -> body.lineSpacing(1.5), () -> body.lineSpacing(4.5), () -> body.lineSpacing(9), () -> body.lineSpacing(14))));
+        Button spacing = Ui.iconButton(Icons.FORMAT_LINE_SPACING, 34, 18, "text_secondary", "Kerning & Leading Sliders", () -> {});
+        spacing.setOnAction(e -> {
+            VBox box = new VBox(10);
+            box.getStyleClass().add("menu-popup");
+            box.setStyle("-fx-background-color: -color-bg-overlay; -fx-padding: 14px 18px; -fx-background-radius: 12px; -fx-border-color: -color-border-subtle; -fx-border-radius: 12px; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 16, 0, 0, 6);");
+            box.setPrefWidth(240);
+
+            Label titleLbl = new Label("Typography & Spacing");
+            titleLbl.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: -color-fg-primary;");
+
+            double curLeading = RichArea.getLineSpacing();
+            Label leadingLabel = new Label(String.format(Locale.US, "Leading (Line Spacing): %.1f px", curLeading));
+            leadingLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: -color-fg-secondary;");
+            javafx.scene.control.Slider leadingSlider = new javafx.scene.control.Slider(1.0, 16.0, curLeading);
+            leadingSlider.valueProperty().addListener((obs, oldV, newV) -> {
+                body.lineSpacing(newV.doubleValue());
+                leadingLabel.setText(String.format(Locale.US, "Leading (Line Spacing): %.1f px", newV.doubleValue()));
+            });
+
+            double curKerning = RichArea.getKerning();
+            Label kerningLabel = new Label(String.format(Locale.US, "Kerning (Letter Spacing): %.1f px", curKerning));
+            kerningLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: -color-fg-secondary;");
+            javafx.scene.control.Slider kerningSlider = new javafx.scene.control.Slider(0.0, 6.0, curKerning);
+            kerningSlider.valueProperty().addListener((obs, oldV, newV) -> {
+                body.kerning(newV.doubleValue());
+                kerningLabel.setText(String.format(Locale.US, "Kerning (Letter Spacing): %.1f px", newV.doubleValue()));
+            });
+
+            box.getChildren().addAll(titleLbl, leadingLabel, leadingSlider, kerningLabel, kerningSlider);
+
+            javafx.stage.Popup popup = new javafx.stage.Popup();
+            popup.setAutoHide(true);
+            popup.getContent().add(box);
+            javafx.geometry.Bounds bounds = spacing.localToScreen(spacing.getBoundsInLocal());
+            if (bounds != null) {
+                popup.show(spacing.getScene().getWindow(), bounds.getMinX(), bounds.getMaxY() + 4);
+            }
+        });
 
         HBox bar = new HBox(2, fmtParagraph, hgap(8), fmtBold, fmtItalic, fmtUnderline, fmtStrike, fmtCode, colorBtn,
                 hgap(8), fmtBullet, fmtNumber, fmtTask, hgap(8), spacing);

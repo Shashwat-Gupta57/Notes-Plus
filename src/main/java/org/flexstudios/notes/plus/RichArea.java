@@ -53,6 +53,7 @@ final class RichArea extends StyledTextArea<Markdown.Block, Markdown.Style> impl
     private static final double BASE_SIZE = 17;
     /** Space between a paragraph's lines, from the toolbar's "Line spacing" (a view choice). */
     private static double lineSpacing = readSpacing();
+    private static double kerning = readKerning();
 
     private final ScrollPane page;
     private double zoom = 1;
@@ -479,7 +480,7 @@ final class RichArea extends StyledTextArea<Markdown.Block, Markdown.Style> impl
 
     /** How a paragraph looks: its size and weight for headings, a slant for quotes. */
     private static void paragraphStyle(TextFlow flow, Markdown.Block b) {
-        String css = "-fx-line-spacing: " + lineSpacing + "px;" + switch (b) {
+        String css = "-fx-line-spacing: " + lineSpacing + "px;" + (kerning != 0 ? " -fx-letter-spacing: " + kerning + "px;" : "") + switch (b) {
             case H1 -> "-fx-font-size: 1.75em; -fx-font-weight: bold; -fx-padding: 0.45em 0 0.1em 0;";
             case H2 -> "-fx-font-size: 1.4em; -fx-font-weight: bold; -fx-padding: 0.4em 0 0.1em 0;";
             case H3 -> "-fx-font-size: 1.18em; -fx-font-weight: bold; -fx-padding: 0.3em 0 0.05em 0;";
@@ -612,12 +613,34 @@ final class RichArea extends StyledTextArea<Markdown.Block, Markdown.Style> impl
         Prefs.put("note_line_spacing", String.valueOf(px));
     }
 
+    static double getLineSpacing() {
+        return lineSpacing;
+    }
+
     private static double readSpacing() {
         try {
             String v = Prefs.get("note_line_spacing");
             return v == null ? 4.5 : Double.parseDouble(v);
         } catch (Exception e) {
             return 4.5;
+        }
+    }
+
+    static void setKerning(double px) {
+        kerning = px;
+        Prefs.put("note_kerning", String.valueOf(px));
+    }
+
+    static double getKerning() {
+        return kerning;
+    }
+
+    private static double readKerning() {
+        try {
+            String v = Prefs.get("note_kerning");
+            return v == null ? 0.0 : Double.parseDouble(v);
+        } catch (Exception e) {
+            return 0.0;
         }
     }
 

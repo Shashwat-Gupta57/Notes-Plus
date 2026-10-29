@@ -458,6 +458,11 @@ final class RichBody extends VBox {
         for (Node n : getChildren()) if (n instanceof RichArea a) a.restyleParagraphs();
     }
 
+    void kerning(double px) {
+        RichArea.setKerning(px);
+        for (Node n : getChildren()) if (n instanceof RichArea a) a.restyleParagraphs();
+    }
+
     private void withActive(Consumer<RichArea> f) {
         if (locked) return;
         RichArea a = active();

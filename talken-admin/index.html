@@ -56,7 +56,6 @@
     #login input { flex: 1; background: transparent; border: 0; border-bottom: 1px solid var(--dim); padding: 4px 2px; outline: 0; font: inherit; color: var(--fg); }
     #login input:focus { border-bottom-color: var(--fg); }
     #login button { align-self: flex-start; }
-    #login #google { border: 0; padding: 0; font-size: 12px; }
     .cursor::after { content: '█'; animation: blink 1s steps(1) infinite; margin-left: 2px; }
     @keyframes blink { 50% { opacity: 0; } }
 
@@ -145,7 +144,6 @@
       <label>user <input id="user" name="username" autocomplete="username" spellcheck="false" autocapitalize="off" required></label>
       <label>pass <input id="pass" name="password" type="password" autocomplete="current-password" required></label>
       <button type="submit">[ authenticate ]</button>
-      <button type="button" id="google" class="dim">or sign in with google</button>
     </form>
   </div>
 
@@ -172,7 +170,7 @@
 <script src="../js/telemetry.js" data-quiet></script>
 <script src="../js/ascii.js" defer></script>
 <script type="module">
-// The Notes+ operations panel. Signs in with Google; the database lets in only uids listed at
+// The Notes+ operations panel. Signs in with the panel's own username and password; the database lets in only uids listed at
 // /admins (set by hand in the Firebase console), so nothing here is a secret and nothing can be
 // bypassed from the browser. Reads only aggregate counters, per-user stats rows and feedback:
 // never a note.
@@ -1101,7 +1099,7 @@ const ADMIN_DOMAIN = '@admin.notes.talken.in';
 const shown = u => (u.email || '').endsWith(ADMIN_DOMAIN) ? u.email.slice(0, -ADMIN_DOMAIN.length) : (u.email || u.uid);
 // Until database.rules.json is deployed, /admins can't be read and /stats is public anyway: these
 // uids are let in so the panel works, with a warning. Once deployed, only /admins decides.
-const BRIDGE = ['dAEekpxfSdaIWSRwDA0tsudYU363', 'uQaOODIWWqeeLmQyZSsTrtN6LZS2'];
+const BRIDGE = ['uQaOODIWWqeeLmQyZSsTrtN6LZS2'];
 let bridge = false;
 async function enter(user) {
   if (entering) return; // The sign-in and the auth listener both report the same user.
@@ -1179,18 +1177,13 @@ $('#login').onsubmit = async e => {
   }
   btn.disabled = false;
 };
-$('#google').onclick = async () => {
-  try {
-    const r = await A.signInWithPopup(auth, new A.GoogleAuthProvider());
-    await enter(r.user);
-  } catch (e) {
-    await type(['! sign-in cancelled or refused: ' + (e.code || e.message)]);
-  }
-};
 await type(['NOTES+ OPS TERMINAL v2', '> link: firebase rtdb asia-southeast1 … up', '> auth: username + password, checked against /admins by the database']);
 bootlog.classList.add('cursor');
 A.onAuthStateChanged(auth, u => {
   bootlog.classList.remove('cursor');
+  // Only the panel's own username + password accounts get in; any other session (an old Google
+  // sign-in, or a Notes+ account) is ended here.
+  if (u && !(u.email || '').endsWith(ADMIN_DOMAIN)) { A.signOut(auth); return; }
   if (u) enter(u); else { $('#login').hidden = false; $('#user').focus(); }
 });
 </script>

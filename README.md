@@ -16,7 +16,6 @@ python -m http.server 8000      # then http://localhost:8000
 | `index.html`, `download.html`, `docs.html`, `privacy.html` | The website |
 | `css/masterpiece.css`, `js/` | Site styles and scripts (`paths.js`, `particles.js`, `telemetry.js`, `version.js`) |
 | `app/` | Notes+ on the web (PWA): `app/js/` holds the app's modules, `app/sw.js` the offline cache |
-| `talken-admin/` | The operations panel (sign-in required) |
 
 Pushing to `web` publishes the site immediately. Read
 [CONTRIBUTING.md](https://github.com/Shashwat-Gupta57/Notes-Plus/blob/master/CONTRIBUTING.md) before

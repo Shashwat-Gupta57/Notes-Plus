@@ -1,20 +1,17 @@
 {
-  "versionCode": 37,
-  "versionName": "16.6",
+  "versionCode": 38,
+  "versionName": "16.7",
   "forced": false,
-  "changelog": "Notes+ 16.6: your folders and archive now sync across all your devices, always. Includes 16.5's formatting fixes and the edit-as-it-looks text notes. Install over this version; don't uninstall first.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-16.6.apk",
-  "sha256": "3a427a54da4ce8956cffc27b3eae74b28997ca170702c6352cfd49a8054baac4",
-  "web": {
-    "versionName": "16.6"
-  },
+  "changelog": "Notes+ 16.7: Resolved shared note duplication on edit across all platforms. Upgraded kinetic sliders for kerning and leading with real-time in-place rendering.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-16.7.apk",
+  "sha256": "414bed4c26f1c56f5fe4a785129d2f19bdaa1d7031e51e81c322dac6f68dfb2c",
   "desktop": {
-    "versionName": "16.6",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-16.6.exe",
-    "sha256": "85bf987fcbca10df68224cfb16f5db9a2b84259d1870e6a306429c857c6e34d6",
+    "versionName": "16.7",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-16.7.exe",
+    "sha256": "6a4c1a4fe9600eb634bce3f25ec82e1fa63984293b79a2be1bf80f755c2a6d0c",
     "size": "77 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-16.6.zip",
-    "zipSha256": "d1ca1c3b034b025ad97f7e951528e7ed27738585ad7c0170bc5ab1d56e6d9bf8",
-    "changelog": "Notes+ 16.6 for Windows: folders and the archive sync across all your devices; text notes edited as they look, like WordPad."
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-16.7.zip",
+    "zipSha256": "caedede9686b493abf0cc4299540e748e9787602dba369c380efe8f93765e60d",
+    "changelog": "Notes+ 16.7 for Windows: Fixed shared note duplication upon editing, interactive Kerning & Leading typography sliders, and real-time in-place WYSIWYG note rendering."
   }
 }

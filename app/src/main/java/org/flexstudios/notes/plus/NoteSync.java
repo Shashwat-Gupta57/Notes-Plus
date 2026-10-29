@@ -425,19 +425,16 @@ final class NoteSync {
         // A note I shared became a group note: its old place among my own notes no longer counts.
         if (groupId == null && local != null && local.getGroupId() != null) return true;
         if (local != null && !uid.equals(local.getAccount())) {
-            // This phone's own copy of a note it once shared with the account: it keeps its
-            // text, under a new identity, and the account's version comes in beside it.
+            // Associated with the active account under its stable UUID; normal revision resolution handles sync
+            local.setAccount(uid);
             if (sameContent(context, local, remote)) {
-                local.setAccount(uid);
                 local.setRev(remote.rev);
                 local.setDirty(false);
                 local.setMedia(remote.media);
                 dao.update(local);
                 return true;
             }
-            local.setUuid(newUuid());
             dao.update(local);
-            local = null;
         }
         int action = decide(local != null, local != null && OPEN.contains(local.getId()),
                 local != null && local.isDirty(), local == null ? 0 : local.getRev(), remote.rev, remote.deleted);

@@ -1,6 +1,6 @@
 # ==============================================================================
 # NOTES+ — CONTEXT FOR AI ASSISTANTS AND SUPPORT
-# Version: 16.6 (Android versionCode 37; Windows and web 16.6)
+# Version: 16.7 (Android versionCode 37; Windows and web 16.7)
 # URL: https://notes.talken.in/agent-context.txt
 # Facts only. Where this file and https://notes.talken.in/docs.html disagree, the docs win.
 # ==============================================================================
@@ -37,7 +37,7 @@ Everything runs on free tiers, so the app is free for users.
 - Syncs when a note is closed, when the app is left, and when it opens; never while typing.
 - Each change carries a revision; the database accepts a change only on the revision it was based
   on. When two devices edited the same note, the last to sync wins.
-- Folders and the archive sync with the account (since 16.6).
+- Folders and the archive sync with the account (since 16.7).
 - Deleted notes are removed on all devices.
 
 [SHARING]

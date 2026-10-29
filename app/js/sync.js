@@ -254,9 +254,8 @@ async function apply(uid, r) {
   let local = await db.getNote(r.uuid);
   if (local && local.sharedFrom) return true; // A received copy never takes my notes' place.
   if (local && local.account && local.account !== uid) {
-    // Another account's copy kept here: it steps aside under a new identity.
-    await db.purgeNote(local.uuid, true);
-    local = null;
+    local.account = uid;
+    await db.putNote(local, true);
   }
   const action = decide(!!local, !!local && OPEN.has(local.uuid), !!local && local.dirty, local ? local.rev : 0, r.rev, r.deleted);
   switch (action) {

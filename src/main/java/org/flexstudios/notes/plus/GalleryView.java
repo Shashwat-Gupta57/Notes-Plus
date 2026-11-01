@@ -547,7 +547,7 @@ final class GalleryView extends Screen {
         selectionBar.setAlignment(Pos.CENTER);
         Object[][] actions = {
                 {Icons.SHARE, "m3_on_surface", "Share", (Runnable) () -> share(new ArrayList<>(selected))},
-                {Icons.MOVE_TO_GALLERY, "m3_on_surface", "Move back to this computer", (Runnable) () -> moveOut(new ArrayList<>(selected))},
+                {Icons.MOVE_TO_GALLERY, "m3_on_surface", "Restore to this computer", (Runnable) () -> moveOut(new ArrayList<>(selected))},
                 {Icons.ALBUM, "m3_on_surface", "Add to album", (Runnable) () -> chooseAlbum(new ArrayList<>(selected))},
                 {Icons.DELETE, "destructive", "Delete (Del)", (Runnable) () -> deleteWithUndo(new ArrayList<>(selected))}};
         for (Object[] a : actions) {
@@ -642,6 +642,23 @@ final class GalleryView extends Screen {
 
     private void moveOut(List<String> names) {
         if (names.isEmpty()) return;
+        Path defaultDir = VaultMedia.defaultRestoreDir();
+        Ui.dialog().title("Restore " + names.size() + (names.size() == 1 ? " item" : " items"))
+                .message("Where would you like to restore these items?")
+                .items(List.of("Default location (" + defaultDir + ")", "Choose custom folder…"),
+                        List.of(() -> doMoveOut(names, defaultDir), () -> {
+                            DirectoryChooser chooser = new DirectoryChooser();
+                            chooser.setTitle("Select folder to restore into");
+                            Vault.expectExternal();
+                            File dir = chooser.showDialog(NotesApp.stage());
+                            if (dir != null) doMoveOut(names, dir.toPath());
+                        }))
+                .negative("Cancel", null)
+                .width(480)
+                .show();
+    }
+
+    private void doMoveOut(List<String> names, Path targetDir) {
         setSelecting(false);
         VaultStore.load(s -> {
             int moved = 0;
@@ -649,7 +666,7 @@ final class GalleryView extends Screen {
                 VaultStore.Secret secret = s.secret(n);
                 if (secret == null) continue;
                 try {
-                    VaultMedia.moveOut(secret);
+                    VaultMedia.moveOut(secret, targetDir);
                     moved++;
                 } catch (Exception e) {
                     System.getLogger("Vault").log(System.Logger.Level.WARNING, "Move out failed", e);
@@ -657,9 +674,11 @@ final class GalleryView extends Screen {
             }
             return moved;
         }, moved -> {
+            String dirStr = targetDir != null ? targetDir.toString() : VaultMedia.defaultRestoreDir().toString();
+            Ui.toast("Restored " + moved + (moved == 1 ? " item" : " items") + " to " + dirStr);
             Ui.snackbar(moved == names.size()
-                    ? "Moved " + moved + (moved == 1 ? " item" : " items") + " back to this computer"
-                    : "Moved " + moved + " of " + names.size() + " back to this computer", Ui.LONG);
+                    ? "Restored " + moved + (moved == 1 ? " item" : " items") + " to " + dirStr
+                    : "Restored " + moved + " of " + names.size() + " to " + dirStr, Ui.LONG);
             loadGallery(false);
         });
     }

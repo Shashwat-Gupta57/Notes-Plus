@@ -71,17 +71,29 @@ final class VaultMedia {
         return target;
     }
 
+    static Path defaultRestoreDir() {
+        return Path.of(System.getProperty("user.home"), "Pictures", "Notes+");
+    }
+
     /**
      * Puts an item back on the computer (where it came from if that folder still exists,
      * otherwise Pictures\Notes+), then removes it from the vault. Returns where it went.
      */
     static Path moveOut(VaultStore.Secret s) throws IOException {
-        Path dir = null;
-        if (s.originalPath != null) {
+        return moveOut(s, null);
+    }
+
+    /**
+     * Puts an item back on the computer into destinationDir (or fallback to original/default if null),
+     * then removes it from the vault. Returns where it went.
+     */
+    static Path moveOut(VaultStore.Secret s, Path destinationDir) throws IOException {
+        Path dir = destinationDir;
+        if (dir == null && s.originalPath != null) {
             Path parent = Path.of(s.originalPath).getParent();
             if (parent != null && Files.isDirectory(parent)) dir = parent;
         }
-        if (dir == null) dir = Path.of(System.getProperty("user.home"), "Pictures", "Notes+");
+        if (dir == null) dir = defaultRestoreDir();
         Path out = export(s, dir);
         remove(s);
         return out;

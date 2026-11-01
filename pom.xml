@@ -6,7 +6,7 @@
 
     <groupId>org.flexstudios.notes.plus</groupId>
     <artifactId>Notes-Plus-Desktop</artifactId>
-    <version>16.7</version>
+    <version>17.0</version>
     <name>Notes+</name>
 
     <properties>

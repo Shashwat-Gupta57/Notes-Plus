@@ -23,9 +23,11 @@ import javafx.scene.layout.VBox;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
+import javafx.stage.DirectoryChooser;
 import javafx.util.Duration;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.SimpleDateFormat;
@@ -93,7 +95,7 @@ final class ViewerView extends Screen {
                 grow(Ui.iconButton(Icons.SHARE, "white", "Share", this::share)),
                 grow(fav),
                 grow(Ui.iconButton(Icons.ALBUM, "white", "Album", this::chooseAlbum)),
-                grow(Ui.iconButton(Icons.MOVE_TO_GALLERY, "white", "Move back to this computer", this::moveOut)),
+                grow(Ui.iconButton(Icons.MOVE_TO_GALLERY, "white", "Restore to this computer", this::moveOut)),
                 grow(Ui.iconButton(Icons.DELETE, "white", "Delete (Del)", this::delete)));
         actions.setPadding(new Insets(8, 8, 12, 8));
         actions.setMaxWidth(720);
@@ -460,21 +462,40 @@ final class ViewerView extends Screen {
     private void moveOut() {
         VaultStore.Item item = current();
         if (item == null) return;
+        Path defaultDir = VaultMedia.defaultRestoreDir();
+        Ui.dialog().title("Restore item")
+                .message("Where would you like to restore this item?")
+                .items(List.of("Default location (" + defaultDir + ")", "Choose custom folder…"),
+                        List.of(() -> doMoveOut(item, defaultDir), () -> {
+                            DirectoryChooser chooser = new DirectoryChooser();
+                            chooser.setTitle("Select folder to restore into");
+                            Vault.expectExternal();
+                            File dir = chooser.showDialog(NotesApp.stage());
+                            if (dir != null) doMoveOut(item, dir.toPath());
+                        }))
+                .negative("Cancel", null)
+                .width(480)
+                .show();
+    }
+
+    private void doMoveOut(VaultStore.Item item, Path targetDir) {
         int position = index;
         VaultStore.load(s -> {
             try {
                 VaultStore.Secret secret = s.secret(item.fileName());
-                return secret == null ? null : VaultMedia.moveOut(secret);
+                return secret == null ? null : VaultMedia.moveOut(secret, targetDir);
             } catch (Exception e) {
                 return null;
             }
         }, where -> {
             if (where == null) {
-                Ui.toast("Couldn't move it back");
+                Ui.toast("Couldn't restore this item");
                 return;
             }
             removePage(position, item);
-            Ui.snackbar("Moved back to " + where.getParent(), Ui.LONG);
+            String dest = where.getParent() != null ? where.getParent().toString() : targetDir.toString();
+            Ui.toast("Restored to " + dest);
+            Ui.snackbar("Restored to " + dest, Ui.LONG);
         });
     }
 

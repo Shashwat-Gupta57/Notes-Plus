@@ -1,17 +1,17 @@
 {
-  "versionCode": 38,
-  "versionName": "16.7",
+  "versionCode": 39,
+  "versionName": "17.0",
   "forced": false,
-  "changelog": "Notes+ 16.7: Resolved shared note duplication on edit across all platforms. Upgraded kinetic sliders for kerning and leading with real-time in-place rendering.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-16.7.apk",
-  "sha256": "414bed4c26f1c56f5fe4a785129d2f19bdaa1d7031e51e81c322dac6f68dfb2c",
+  "changelog": "Notes+ 17.0: Restoring vault files on Desktop now offers custom destination choices with real-time toast feedback. Drastically boosted Android local backup restore performance with buffered streaming, database write throttling, and batch I/O.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-17.0.apk",
+  "sha256": "152b520978f677754425fb51ed2abaa83da194c0d55906598baf94cbd789176b",
   "desktop": {
-    "versionName": "16.7",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-16.7.exe",
-    "sha256": "6a4c1a4fe9600eb634bce3f25ec82e1fa63984293b79a2be1bf80f755c2a6d0c",
+    "versionName": "17.0",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-17.0.exe",
+    "sha256": "bec18f8d2083d6e3afa594228cf9cdebc49f8edbd3ec15141f4f8676576d5e65",
     "size": "77 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-16.7.zip",
-    "zipSha256": "caedede9686b493abf0cc4299540e748e9787602dba369c380efe8f93765e60d",
-    "changelog": "Notes+ 16.7 for Windows: Fixed shared note duplication upon editing, interactive Kerning & Leading typography sliders, and real-time in-place WYSIWYG note rendering."
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-17.0.zip",
+    "zipSha256": "6c8032356d7cfc3ec4a398af61cd53115140d14a4fe3916a27f7ef3615420995",
+    "changelog": "Notes+ 17.0 for Windows: Restoring vault files now offers custom destination choices with real-time toast feedback."
   }
 }

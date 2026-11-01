@@ -168,12 +168,17 @@ public final class VaultCrypto {
      * replaced, which EncryptedFile refused to do.
      */
     public static void write(Context context, File target, Sink sink) throws Exception {
+        write(context, target, true, sink);
+    }
+
+    public static void write(Context context, File target, boolean sync, Sink sink) throws Exception {
         File part = new File(target.getParentFile(), target.getName() + PART_SUFFIX);
         try {
             FileOutputStream raw = new FileOutputStream(part);
             OutputStream encrypted;
             try {
-                encrypted = device(context).newEncryptingStream(new SyncingOutputStream(raw), aad(target));
+                OutputStream underlying = sync ? new SyncingOutputStream(raw) : raw;
+                encrypted = device(context).newEncryptingStream(underlying, aad(target));
             } catch (Exception e) {
                 raw.close();
                 throw e;

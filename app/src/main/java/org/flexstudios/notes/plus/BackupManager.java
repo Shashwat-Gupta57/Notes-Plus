@@ -186,11 +186,16 @@ public final class BackupManager {
                         File target = resolveInside(vaultDir, name.substring(DIR_MEDIA.length()));
                         if (target.exists()) continue; // Vault file names are write-once.
                         final int number = result.items + 1;
-                        VaultCrypto.write(context, target, out -> {
+                        VaultCrypto.write(context, target, false, out -> {
                             int len;
+                            long lastReport = 0;
                             while ((len = zip.read(buffer)) != -1) {
                                 out.write(buffer, 0, len);
-                                progress.update(counted.count, size, "Restoring item " + number);
+                                long now = System.currentTimeMillis();
+                                if (now - lastReport >= 100 || counted.count >= size) {
+                                    lastReport = now;
+                                    progress.update(counted.count, size, "Restoring item " + number);
+                                }
                                 if (progress.isStopped()) throw new CancellationException("Restore cancelled");
                             }
                         });

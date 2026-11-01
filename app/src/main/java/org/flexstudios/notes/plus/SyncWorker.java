@@ -35,6 +35,8 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -307,13 +309,15 @@ public class SyncWorker extends Worker {
         Context context = getApplicationContext();
         Uri uri = Uri.parse(getInputData().getString(KEY_TARGET));
         notifyProgress("Restoring backup", 0, 0, true);
-        try (InputStream in = context.getContentResolver().openInputStream(uri)) {
-            if (in == null) throw new IOException("Could not open that file");
-            BackupManager.Result result = BackupManager.restore(context, in, sizeOf(context, uri),
-                    password(), getInputData().getBoolean(KEY_REPLACE_LOCAL, false),
-                    jobProgress("Restoring backup"));
-            notifyDone("Backup restored", result.items + " items added");
-            return Result.success(message("Restored " + result.items + " items"));
+        try (InputStream raw = context.getContentResolver().openInputStream(uri)) {
+            if (raw == null) throw new IOException("Could not open that file");
+            try (InputStream in = new BufferedInputStream(raw, 64 * 1024)) {
+                BackupManager.Result result = BackupManager.restore(context, in, sizeOf(context, uri),
+                        password(), getInputData().getBoolean(KEY_REPLACE_LOCAL, false),
+                        jobProgress("Restoring backup"));
+                notifyDone("Backup restored", result.items + " items added");
+                return Result.success(message("Restored " + result.items + " items"));
+            }
         } catch (VaultCrypto.WrongPasswordException e) {
             return Result.failure(new Data.Builder().putBoolean(RESULT_WRONG_PASSWORD, true).build());
         } catch (CancellationException e) {
@@ -329,13 +333,15 @@ public class SyncWorker extends Worker {
         Context context = getApplicationContext();
         Uri uri = Uri.parse(getInputData().getString(KEY_TARGET));
         notifyProgress("Checking backup", 0, 0, true);
-        try (InputStream in = context.getContentResolver().openInputStream(uri)) {
-            if (in == null) throw new IOException("Could not open that file");
-            BackupManager.Result result = BackupManager.verify(context, in, sizeOf(context, uri), password(),
-                    jobProgress("Checking backup"));
-            String summary = result.items + " items, " + GallerySettingsActivity.formatBytes(result.bytes);
-            notifyDone("Backup checked: it's good", summary);
-            return Result.success(message(summary));
+        try (InputStream raw = context.getContentResolver().openInputStream(uri)) {
+            if (raw == null) throw new IOException("Could not open that file");
+            try (InputStream in = new BufferedInputStream(raw, 64 * 1024)) {
+                BackupManager.Result result = BackupManager.verify(context, in, sizeOf(context, uri), password(),
+                        jobProgress("Checking backup"));
+                String summary = result.items + " items, " + GallerySettingsActivity.formatBytes(result.bytes);
+                notifyDone("Backup checked: it's good", summary);
+                return Result.success(message(summary));
+            }
         } catch (VaultCrypto.WrongPasswordException e) {
             return Result.failure(new Data.Builder().putBoolean(RESULT_WRONG_PASSWORD, true).build());
         } catch (CancellationException e) {
@@ -384,9 +390,15 @@ public class SyncWorker extends Worker {
 
     private BackupManager.Progress jobProgress(String title) {
         return new BackupManager.Progress() {
+            private long lastPublish;
+
             @Override
             public void update(long done, long total, String stage) {
-                publish(stage, -1, -1, done, total);
+                long now = System.currentTimeMillis();
+                if (done >= total || now - lastPublish >= 250) {
+                    lastPublish = now;
+                    publish(stage, -1, -1, done, total);
+                }
                 notifyProgress(title, done, total, false);
             }
 
@@ -517,21 +529,21 @@ public class SyncWorker extends Worker {
         if (target.startsWith("content://")) {
             OutputStream out = context.getContentResolver().openOutputStream(Uri.parse(target), "wt");
             if (out == null) throw new IOException("Could not write there");
-            return out;
+            return new BufferedOutputStream(out, 64 * 1024);
         }
         File file = new File(target);
         File parent = file.getParentFile();
         if (parent != null && !parent.exists() && !parent.mkdirs()) throw new IOException("Could not create " + parent);
-        return new FileOutputStream(file);
+        return new BufferedOutputStream(new FileOutputStream(file), 64 * 1024);
     }
 
     private static InputStream openForReading(Context context, String target) throws IOException {
         if (target.startsWith("content://")) {
             InputStream in = context.getContentResolver().openInputStream(Uri.parse(target));
             if (in == null) throw new IOException("Could not read the backup back");
-            return in;
+            return new BufferedInputStream(in, 64 * 1024);
         }
-        return new FileInputStream(target);
+        return new BufferedInputStream(new FileInputStream(target), 64 * 1024);
     }
 
     /** Removes a half-written backup, so a cancelled or failed one is never mistaken for good. */

@@ -1,6 +1,6 @@
 # ==============================================================================
 # NOTES+ — CONTEXT FOR AI ASSISTANTS AND SUPPORT
-# Version: 16.7 (Android versionCode 37; Windows and web 16.7)
+# Version: 17.0 (Android versionCode 39; Windows and web 17.0)
 # URL: https://notes.talken.in/agent-context.txt
 # Facts only. Where this file and https://notes.talken.in/docs.html disagree, the docs win.
 # ==============================================================================

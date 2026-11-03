@@ -247,15 +247,32 @@
 .sheet-item { -fx-cursor: hand; -fx-min-height: 64; -fx-padding: 8 24 8 24; -fx-alignment: center-left; -fx-spacing: 16; }
 .sheet-item:hover { -fx-background-color: -np-m3-hover; }
 
+/* Every dropdown (Ui.menu): a rounded card of rounded rows, each with its icon; what can't be undone
+   stands apart under a line, in red. */
 .menu-popup {
-    -fx-background-color: -np-m3-menu;
-    -fx-background-radius: 4;
-    -fx-padding: 8 0 8 0;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.25), 12, 0.0, 0, 3);
+    -fx-background-color: -np-m3-menu, -np-m3-menu;
+    -fx-background-insets: 0, 0;
+    -fx-background-radius: 14;
+    -fx-border-color: -np-divider;
+    -fx-border-radius: 14;
+    -fx-border-width: 0.6;
+    -fx-padding: 6;
+    -fx-spacing: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.32), 22, 0.0, 0, 6);
 }
-.menu-row { -fx-min-height: 48; -fx-min-width: 168; -fx-padding: 0 16 0 16; -fx-alignment: center-left; -fx-cursor: hand; }
+.menu-row {
+    -fx-min-height: 38;
+    -fx-min-width: 210;
+    -fx-padding: 0 18 0 12;
+    -fx-alignment: center-left;
+    -fx-background-radius: 9;
+    -fx-cursor: hand;
+}
 .menu-row:hover { -fx-background-color: -np-m3-hover; }
-.menu-row .label { -fx-font-size: 16px; }
+.menu-row .label { -fx-font-size: 14.5px; -fx-text-fill: -np-text-primary; }
+.menu-row.danger .label { -fx-text-fill: -np-destructive; }
+.menu-row.danger:hover { -fx-background-color: rgba(255, 59, 48, 0.12); }
+.menu-divider { -fx-min-height: 1; -fx-max-height: 1; -fx-background-color: -np-divider; -fx-opacity: 0.7; }
 
 .outlined-field {
     -fx-background-color: transparent;

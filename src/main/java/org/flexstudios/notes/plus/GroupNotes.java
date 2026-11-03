@@ -88,6 +88,7 @@ final class GroupNotes {
         value.remove("archived");
         value.remove("folder");
         value.remove("template");
+        value.remove("hidden");
         return value;
     }
 

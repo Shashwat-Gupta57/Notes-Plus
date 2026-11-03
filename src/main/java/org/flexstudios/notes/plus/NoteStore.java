@@ -85,7 +85,15 @@ final class NoteStore {
                     // Added by an interrupted earlier start.
                 }
             }
-            s.execute("PRAGMA user_version = 4");
+            if (version < 5) {
+                // Hidden notes.
+                try {
+                    s.execute("ALTER TABLE notes ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0");
+                } catch (SQLException exists) {
+                    // Added by an interrupted earlier start.
+                }
+            }
+            s.execute("PRAGMA user_version = 5");
         }
     }
 
@@ -170,13 +178,13 @@ final class NoteStore {
 
     synchronized int insert(NoteEntity n) {
         String sql = "INSERT INTO notes (title, content, timestamp, type, data, color, pinned, uuid, account, rev, "
-                + "dirty, deleted, media, groupId, groupMembers, sentTo, sentMedia, sharedFrom, archived, folder, template) "
-                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + "dirty, deleted, media, groupId, groupMembers, sentTo, sentMedia, sharedFrom, archived, folder, template, hidden) "
+                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
         try (PreparedStatement p = db.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             bind(p, n.getTitle(), n.getContent(), n.getTimestamp(), n.getType(), n.getData(), n.getColor(),
                     n.isPinned(), n.getUuid(), n.getAccount(), n.getRev(), n.isDirty(), n.isDeleted(), n.getMedia(),
                     n.getGroupId(), n.getGroupMembers(), n.getSentTo(), n.getSentMedia(), n.getSharedFrom(),
-                    n.isArchived(), n.getFolder(), n.isTemplate());
+                    n.isArchived(), n.getFolder(), n.isTemplate(), n.isHidden());
             p.executeUpdate();
             try (ResultSet keys = p.getGeneratedKeys()) {
                 int id = keys.next() ? keys.getInt(1) : 0;
@@ -203,6 +211,10 @@ final class NoteStore {
 
     synchronized void setColor(int id, int color) {
         update("UPDATE notes SET color = ?, dirty = 1 WHERE id = ?", color, id);
+    }
+
+    synchronized void setHidden(int id, boolean hidden) {
+        update("UPDATE notes SET hidden = ?, dirty = 1 WHERE id = ?", hidden, id);
     }
 
     synchronized void setArchived(int id, boolean archived) {
@@ -249,10 +261,10 @@ final class NoteStore {
     synchronized void update(NoteEntity n) {
         update("UPDATE notes SET title = ?, content = ?, timestamp = ?, type = ?, data = ?, color = ?, pinned = ?, "
                         + "uuid = ?, account = ?, rev = ?, dirty = ?, deleted = ?, media = ?, groupId = ?, groupMembers = ?, "
-                        + "sentTo = ?, sentMedia = ?, sharedFrom = ?, archived = ?, folder = ?, template = ? WHERE id = ?", n.getTitle(),
+                        + "sentTo = ?, sentMedia = ?, sharedFrom = ?, archived = ?, folder = ?, template = ?, hidden = ? WHERE id = ?", n.getTitle(),
                 n.getContent(), n.getTimestamp(), n.getType(), n.getData(), n.getColor(), n.isPinned(), n.getUuid(),
                 n.getAccount(), n.getRev(), n.isDirty(), n.isDeleted(), n.getMedia(), n.getGroupId(), n.getGroupMembers(),
-                n.getSentTo(), n.getSentMedia(), n.getSharedFrom(), n.isArchived(), n.getFolder(), n.isTemplate(), n.getId());
+                n.getSentTo(), n.getSentMedia(), n.getSharedFrom(), n.isArchived(), n.getFolder(), n.isTemplate(), n.isHidden(), n.getId());
     }
 
     /** Received notes are someone else's: never pushed from here. */
@@ -396,6 +408,7 @@ final class NoteStore {
         n.setArchived(r.getInt("archived") != 0);
         n.setFolder(r.getString("folder"));
         n.setTemplate(r.getInt("template") != 0);
+        n.setHidden(r.getInt("hidden") != 0);
         return n;
     }
 }

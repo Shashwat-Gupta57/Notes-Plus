@@ -107,7 +107,7 @@ final class Templates {
     /** My templates in a list of notes, by name. */
     static List<NoteEntity> of(List<NoteEntity> notes) {
         List<NoteEntity> out = new ArrayList<>();
-        for (NoteEntity n : notes) if (n.isTemplate() && !n.isDeleted()) out.add(n);
+        for (NoteEntity n : notes) if (n.isTemplate() && !n.isDeleted() && !n.isHidden()) out.add(n);
         out.sort((a, b) -> String.CASE_INSENSITIVE_ORDER.compare(name(a), name(b)));
         return out;
     }

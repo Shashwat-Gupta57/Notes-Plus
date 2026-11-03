@@ -81,7 +81,10 @@ final class Palette {
         NoteStore.load(NoteStore::all, notes -> open(main, notes));
     }
 
-    private static void open(MainView main, List<NoteEntity> notes) {
+    private static void open(MainView main, List<NoteEntity> every) {
+        // Hidden notes never show here: not their titles, folders or templates.
+        List<NoteEntity> notes = new ArrayList<>();
+        for (NoteEntity n : every) if (!n.isHidden()) notes.add(n);
         List<Item> items = new ArrayList<>();
         for (NoteEntity n : notes) {
             if (n.isDeleted()) continue;

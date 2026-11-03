@@ -45,6 +45,10 @@ final class MainView extends Screen {
     private boolean searching;
 
     private List<NoteEntity> allNotes = new ArrayList<>();
+    /** Hidden notes: shown only after the grid is pulled down (scrolled up at the top) and held. */
+    private List<NoteEntity> hiddenNotes = new ArrayList<>();
+    private boolean showingHidden;
+    private long pullStart, pullLast;
     private final Map<Integer, NoteCard> cards = new HashMap<>();
     private String filterType;
     /** The "Shared with me" filter: notes sent to me by others. */
@@ -111,6 +115,7 @@ final class MainView extends Screen {
         // The grid, its empty state, and "New".
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.addEventFilter(javafx.scene.input.ScrollEvent.SCROLL, this::pulled);
         Label emptyIcon = new Label();
         emptyIcon.setGraphic(Ui.icon(Icons.EMPTY_NOTES, 80, "text_secondary"));
         emptyText.getStyleClass().add("secondary");
@@ -164,7 +169,7 @@ final class MainView extends Screen {
     void onResume() {
         Platform.runLater(grid::requestFocus);
         NoteStore.load(NoteStore::all, notes -> {
-            allNotes = notes;
+            setNotes(notes);
             cards.clear();
             applyFilter();
         });
@@ -185,6 +190,9 @@ final class MainView extends Screen {
         } else if (e.getCode() == KeyCode.ESCAPE && searching) {
             e.consume();
             stopSearch();
+        } else if (e.getCode() == KeyCode.ESCAPE && showingHidden) {
+            e.consume();
+            leaveHidden();
         }
     }
 
@@ -307,6 +315,11 @@ final class MainView extends Screen {
     // ================================================================ toolbar
 
     private void showToolbar() {
+        if (showingHidden && !searching) {
+            toolbar.getChildren().setAll(Ui.iconButton(Icons.ARROW_BACK, "text_primary", "Back to your notes (Esc)", this::leaveHidden),
+                    title, Ui.spacer(), Ui.iconButton(Icons.SEARCH, "text_primary", "Search (Ctrl+F)", this::startSearch));
+            return;
+        }
         if (searching) {
             Button close = Ui.iconButton(Icons.ARROW_BACK, "text_primary", "Close search", this::stopSearch);
             Button clear = Ui.iconButton(Icons.CLOSE, "text_secondary", "Clear", () -> search.setText(""));
@@ -480,18 +493,69 @@ final class MainView extends Screen {
 
     private void reload() {
         NoteStore.load(NoteStore::all, notes -> {
-            allNotes = notes;
+            setNotes(notes);
             buildChips();
             applyFilter();
         });
+    }
+
+    /** The notes, with the hidden ones kept apart. */
+    private void setNotes(List<NoteEntity> notes) {
+        List<NoteEntity> shown = new ArrayList<>(), hidden = new ArrayList<>();
+        for (NoteEntity n : notes) (n.isHidden() ? hidden : shown).add(n);
+        allNotes = shown;
+        hiddenNotes = hidden;
+    }
+
+    /** Scrolling up at the very top, kept up for a moment, shows the hidden notes. */
+    private void pulled(javafx.scene.input.ScrollEvent e) {
+        long now = System.currentTimeMillis();
+        if (showingHidden || e.getDeltaY() <= 0 || scroll.getVvalue() > 0.0001) {
+            pullStart = 0;
+            return;
+        }
+        if (pullStart == 0 || now - pullLast > 350) pullStart = now;
+        pullLast = now;
+        if (now - pullStart >= 1200) {
+            pullStart = 0;
+            showHidden();
+        }
+    }
+
+    private final javafx.beans.value.ChangeListener<Boolean> leaveOnBlur = (o, was, is) -> {
+        if (!is) leaveHidden(); // Another app in front: hidden again.
+    };
+
+    private void showHidden() {
+        if (showingHidden) return;
+        showingHidden = true;
+        title.setText("Hidden notes");
+        if (root.getScene() != null && root.getScene().getWindow() != null) root.getScene().getWindow().focusedProperty().addListener(leaveOnBlur);
+        notesTop.getChildren().get(1).setVisible(false);
+        notesTop.getChildren().get(1).setManaged(false);
+        showToolbar();
+        applyFilter();
+    }
+
+    private void leaveHidden() {
+        if (!showingHidden) return;
+        showingHidden = false;
+        title.setText("Notes");
+        if (root.getScene() != null && root.getScene().getWindow() != null) root.getScene().getWindow().focusedProperty().removeListener(leaveOnBlur);
+        notesTop.getChildren().get(1).setVisible(true);
+        notesTop.getChildren().get(1).setManaged(true);
+        showToolbar();
+        applyFilter();
     }
 
     private void applyFilter() {
         List<NoteEntity> shown = new ArrayList<>();
         String q = query.toLowerCase(Locale.getDefault());
         String folder = filterType != null && filterType.startsWith(FOLDER) ? filterType.substring(FOLDER.length()) : null;
-        for (NoteEntity n : allNotes) {
-            if (TEMPLATES.equals(filterType) || n.isTemplate()) {
+        for (NoteEntity n : showingHidden ? hiddenNotes : allNotes) {
+            if (showingHidden) {
+                // Every hidden note, whatever the filter.
+            } else if (TEMPLATES.equals(filterType) || n.isTemplate()) {
                 if (!TEMPLATES.equals(filterType) || !n.isTemplate()) continue; // Templates: only there.
             } else if (ARCHIVED.equals(filterType)) {
                 if (!n.isArchived()) continue;
@@ -512,7 +576,7 @@ final class MainView extends Screen {
 
         // All, not searching: a folder's notes are one tile (opening the folder), before the rest.
         List<Node> nodes = new ArrayList<>();
-        if (filterType == null && q.isEmpty()) {
+        if (filterType == null && q.isEmpty() && !showingHidden) {
             Map<String, List<NoteEntity>> byFolder = new java.util.LinkedHashMap<>();
             for (String f : NoteFolders.all(allNotes)) byFolder.put(f, new ArrayList<>());
             List<NoteEntity> loose = new ArrayList<>();
@@ -562,6 +626,7 @@ final class MainView extends Screen {
 
         emptyState.setVisible(nodes.isEmpty());
         emptyText.setText(!q.isEmpty() ? "Nothing matches “" + query + "”"
+                : showingHidden ? "No hidden notes. Hide a note from its options (right-click) to keep it here."
                 : SHARED.equals(filterType) ? "Nothing shared with you yet. When someone shares or sends you a note, it shows up here."
                 : ARCHIVED.equals(filterType) ? "Nothing archived. Archive a note from its options (right-click) to put it away here."
                 : TEMPLATES.equals(filterType) ? "No templates yet. Save a note as a template from its options (right-click)."
@@ -691,6 +756,18 @@ final class MainView extends Screen {
     private void showNoteOptions(NoteEntity note) {
         String name = note.getTitle() == null || note.getTitle().isEmpty()
                 ? NoteData.kind(note.getType()).label() : note.getTitle();
+        if (showingHidden || note.isHidden()) {
+            // A hidden note: bring it back, or delete it. Nothing else, so nothing about it shows elsewhere.
+            Ui.dialog().title(note.getTitle() == null || note.getTitle().isEmpty() ? NoteData.kind(note.getType()).label() : note.getTitle())
+                    .items(List.of("Unhide", "Delete"), List.of(() -> NoteStore.load(s -> {
+                        s.setHidden(note.getId(), false);
+                        return true;
+                    }, ok -> {
+                        Ui.toast("Back with your notes");
+                        reload();
+                    }), () -> deleteWithUndo(note))).show();
+            return;
+        }
         if (note.isTemplate()) {
             // A template: start a note from it, or look after it. Nothing to file, send or share.
             Ui.dialog().title(Templates.name(note)).items(
@@ -711,6 +788,14 @@ final class MainView extends Screen {
         actions.add(() -> NoteFolders.move(note, NoteFolders.all(allNotes)));
         labels.add(note.isArchived() ? "Unarchive" : "Archive");
         actions.add(() -> NoteFolders.setArchived(note, !note.isArchived()));
+        labels.add("Hide");
+        actions.add(() -> NoteStore.load(s -> {
+            s.setHidden(note.getId(), true);
+            return true;
+        }, ok -> {
+            Ui.toast("Hidden. At the top of your notes, keep scrolling up for a moment to see hidden notes.");
+            reload();
+        }));
         labels.add("Duplicate");
         actions.add(() -> duplicateNote(note));
         if (Templates.canSave(note)) {

@@ -57,7 +57,7 @@ final class NoteLinks {
 
     /** Can be linked to: a titled note that isn't deleted or a template. */
     static boolean linkable(NoteEntity n) {
-        return !n.isDeleted() && !n.isTemplate() && !key(n.getTitle()).isEmpty();
+        return !n.isDeleted() && !n.isTemplate() && !n.isHidden() && !key(n.getTitle()).isEmpty();
     }
 
     /** The note {@code title} opens: the newest linkable one with that title, or null. */
@@ -84,7 +84,8 @@ final class NoteLinks {
                 && resolve(note.getTitle(), notes).getId() == note.getId();
         String uuid = note.getUuid();
         for (NoteEntity n : notes) {
-            if (n.getId() == note.getId() || n.isDeleted()) continue;
+            // A hidden note never shows up on another's "Linked from" row.
+            if (n.getId() == note.getId() || n.isDeleted() || n.isHidden()) continue;
             String words = n.getContent() == null ? "" : n.getContent();
             boolean links = false;
             if (byTitle && words.contains("[[") && words.toLowerCase(Locale.ROOT).contains(k)) {

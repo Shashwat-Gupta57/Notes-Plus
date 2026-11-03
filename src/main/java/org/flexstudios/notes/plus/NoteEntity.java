@@ -47,6 +47,8 @@ public class NoteEntity {
     private String sharedFrom;
     private boolean archived;
     private boolean template;
+    /** Kept off the grid, search and everything else until the notes are pulled down and held. */
+    private boolean hidden;
     private String folder;
 
     public NoteEntity(String title, String content, long timestamp) {
@@ -100,6 +102,8 @@ public class NoteEntity {
     /** One of my notes kept to start new ones from ({@link Templates}). */
     public boolean isTemplate() { return template; }
     public void setTemplate(boolean template) { this.template = template; }
+    public boolean isHidden() { return hidden; }
+    public void setHidden(boolean hidden) { this.hidden = hidden; }
 
     /** Someone else's note, sent to me. */
     boolean isReceived() { return sharedFrom != null; }
@@ -110,7 +114,7 @@ public class NoteEntity {
                 && Objects.equals(data, o.data) && timestamp == o.timestamp
                 && color == o.color && pinned == o.pinned && getType().equals(o.getType())
                 && Objects.equals(groupMembers, o.groupMembers) && archived == o.archived && Objects.equals(folder, o.folder)
-                && template == o.template;
+                && template == o.template && hidden == o.hidden;
     }
 
     /** A detached copy, for handing to the writer thread. */
@@ -135,6 +139,7 @@ public class NoteEntity {
         c.archived = archived;
         c.folder = folder;
         c.template = template;
+        c.hidden = hidden;
         return c;
     }
 }

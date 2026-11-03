@@ -550,16 +550,69 @@ final class Ui {
 
     // ====================================================================== menu
 
+    /** Things that can't be taken back: shown in red, under a line. */
+    private static boolean destructive(String label) {
+        String l = label.toLowerCase(java.util.Locale.ROOT);
+        return l.startsWith("delete") || l.startsWith("remove") || l.startsWith("leave");
+    }
+
+    /** An icon for a menu's item, from what it says; null when none fits. */
+    static Icons.Icon menuIcon(String label) {
+        String l = label.toLowerCase(java.util.Locale.ROOT);
+        if (destructive(label)) return Icons.DELETE;
+        if (l.startsWith("send") || l.startsWith("sent to")) return Icons.SEND;
+        if (l.contains("link")) return l.startsWith("stop") ? Icons.CLOSE : Icons.LINK;
+        if (l.contains("people") || l.startsWith("members")) return Icons.PERSON;
+        if (l.contains("wrap")) return Icons.NOTE_LIST;
+        if (l.startsWith("export")) return Icons.SAVE;
+        if (l.startsWith("change lock")) return Icons.LOCK;
+        if (l.startsWith("decrypt")) return Icons.LOCK_OPEN;
+        if (l.startsWith("show its file")) return Icons.FOLDER_OPEN;
+        if (l.startsWith("save a copy") || l.startsWith("duplicate")) return Icons.FILE_NEW;
+        if (l.startsWith("rename") || l.startsWith("nickname")) return Icons.EDIT;
+        if (l.startsWith("background") || l.startsWith("photo")) return Icons.PHOTO;
+        if (l.startsWith("move")) return Icons.FOLDER;
+        if (l.startsWith("open in")) return Icons.OPEN_IN_NEW;
+        if (l.startsWith("pin") || l.startsWith("unpin")) return Icons.PIN;
+        if (l.startsWith("colour")) return Icons.PALETTE;
+        if (l.contains("archive")) return Icons.ARCHIVE;
+        if (l.contains("template")) return Icons.TEMPLATE;
+        if (l.startsWith("hide") || l.startsWith("unhide")) return Icons.LOCK;
+        return null;
+    }
+
     /** The toolbar's overflow menu, dropping from {@code anchor}'s top-right corner. */
     static void menu(Node anchor, List<String> labels, List<Runnable> actions) {
         VBox box = new VBox();
         box.getStyleClass().add("menu-popup");
         box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         Modal[] self = new Modal[1];
+        boolean icons = false;
+        for (String l : labels) icons |= menuIcon(l) != null;
+        boolean divided = false;
         for (int i = 0; i < labels.size(); i++) {
             int index = i;
-            HBox row = new HBox(new Label(labels.get(i)));
+            String text = labels.get(i);
+            boolean danger = destructive(text);
+            // What can't be undone stands apart, under a line, in red.
+            if (danger && i > 0 && !divided) {
+                Region line = new Region();
+                line.getStyleClass().add("menu-divider");
+                VBox.setMargin(line, new Insets(5, 8, 5, 8));
+                box.getChildren().add(line);
+                divided = true;
+            }
+            Label label = new Label(text);
+            HBox row = new HBox(12);
+            if (icons) {
+                Icons.Icon ic = menuIcon(text);
+                Node mark = ic != null ? icon(ic, 18, danger ? "destructive" : "text_secondary") : new Region();
+                if (ic == null) ((Region) mark).setMinWidth(18);
+                row.getChildren().add(mark);
+            }
+            row.getChildren().add(label);
             row.getStyleClass().add("menu-row");
+            if (danger) row.getStyleClass().add("danger");
             row.setOnMouseClicked(e -> {
                 self[0].dismiss();
                 actions.get(index).run();

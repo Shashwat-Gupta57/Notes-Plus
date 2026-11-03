@@ -68,6 +68,17 @@ class NoteLinksTest {
     }
 
     @Test
+    void hiddenNotesStayOutOfSight() {
+        NoteEntity trip = note(NoteData.TEXT, "Trip", "", null, 5);
+        NoteEntity secret = note(NoteData.TEXT, "Secret", "About [[Trip]]", null, 6);
+        secret.setHidden(true);
+        NoteEntity open = note(NoteData.TEXT, "Open", "About [[Trip]]", null, 1);
+        assertEquals(Arrays.asList(open), NoteLinks.backlinks(trip, Arrays.asList(trip, secret, open)));
+        assertEquals(Arrays.asList("Trip"), NoteLinks.suggestions("", Arrays.asList(trip, secret), 8, 0));
+        assertNull(NoteLinks.resolve("secret", Arrays.asList(trip, secret)));
+    }
+
+    @Test
     void suggestionsStartWithWhatsTyped() {
         List<NoteEntity> notes = Arrays.asList(note(NoteData.TEXT, "Budget 2026", "", null, 1), note(NoteData.TEXT, "Trip budget", "", null, 3),
                 note(NoteData.TEXT, "Budget", "", null, 2), note(NoteData.TEXT, "", "untitled", null, 9));

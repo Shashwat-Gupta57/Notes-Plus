@@ -204,6 +204,10 @@
 .note-card:hover { -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.12), 10, 0.0, 0, 2); }
 .card-title { -fx-font-size: 16px; -fx-font-weight: bold; }
 .card-body { -fx-font-size: 14px; -fx-text-fill: -np-text-body; -fx-line-spacing: 2px; }
+/* Searching: the words typed, marked in a card's title and in a line of its words (NoteCard.showMatch). */
+.card-title-text { -fx-font-size: 16px; -fx-font-weight: bold; -fx-fill: -np-text-primary; -fx-text-fill: -np-text-primary; }
+.card-match-text { -fx-font-size: 13px; -fx-fill: -np-text-body; -fx-text-fill: -np-text-body; }
+.search-hit { -fx-background-color: rgba(255, 204, 0, 0.45); -fx-background-radius: 3; -fx-padding: 0 1 0 1; }
 .card-row { -fx-font-size: 14px; -fx-text-fill: -np-text-body; -fx-padding: 1 0 1 0; }
 .card-row.done { -fx-opacity: 0.5; }
 .card-row.done .text { -fx-strikethrough: true; }

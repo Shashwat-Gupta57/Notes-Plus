@@ -98,6 +98,56 @@ final class NoteCard extends VBox {
 
     // =================================================================== types
 
+    /** Searching: the title's matching letters marked, and a line of the note's words around a match. */
+    void showMatch(List<String> terms) {
+        if (terms.isEmpty()) return;
+        String t = title.getText();
+        if (t != null && !t.isEmpty()) {
+            List<int[]> marks = Search.marks(t, terms);
+            int at = inner.getChildren().indexOf(title);
+            if (!marks.isEmpty() && at >= 0) {
+                // The title as words with the matches marked, in its place.
+                javafx.scene.text.TextFlow flow = marked(t, marks, "card-title-text");
+                inner.getChildren().set(at, flow);
+            }
+        }
+        Search.Snippet s = Search.snippet(note, terms, 110);
+        if (s == null) return;
+        // Words: the piece around the match takes the place of the usual first lines.
+        if (NoteData.TEXT.equals(note.getType()) || NoteData.JOURNAL.equals(note.getType())) {
+            inner.getChildren().removeIf(n -> n.getStyleClass().contains("card-body"));
+        }
+        javafx.scene.text.TextFlow flow = marked(s.text, s.hits, "card-match-text");
+        flow.getStyleClass().add("card-match");
+        VBox.setMargin(flow, new Insets(6, 0, 0, 0));
+        inner.getChildren().add(Math.max(0, inner.getChildren().size() - 1), flow); // Above the footer.
+    }
+
+    /** Words with some of them marked (yellow behind them), as the search marks them. */
+    private static javafx.scene.text.TextFlow marked(String text, List<int[]> hits, String style) {
+        javafx.scene.text.TextFlow flow = new javafx.scene.text.TextFlow();
+        int at = 0;
+        for (int[] h : hits) {
+            if (h[0] < at || h[1] > text.length()) continue;
+            if (h[0] > at) flow.getChildren().add(piece(text.substring(at, h[0]), style, false));
+            flow.getChildren().add(piece(text.substring(h[0], h[1]), style, true));
+            at = h[1];
+        }
+        if (at < text.length()) flow.getChildren().add(piece(text.substring(at), style, false));
+        return flow;
+    }
+
+    private static javafx.scene.Node piece(String text, String style, boolean hit) {
+        if (!hit) {
+            javafx.scene.text.Text t = new javafx.scene.text.Text(text);
+            t.getStyleClass().add(style);
+            return t;
+        }
+        Label l = new Label(text);
+        l.getStyleClass().addAll(style, "search-hit");
+        return l;
+    }
+
     private void addTitle(String fallback) {
         if (title.getText().isEmpty()) {
             if (fallback == null) return;

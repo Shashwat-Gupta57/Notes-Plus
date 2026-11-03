@@ -63,6 +63,8 @@ final class MainView extends Screen {
     private List<String> shownFolders;
     private boolean shownTemplates;
     private String query = "";
+    /** While searching, every note is searched, narrowed by these; the chips become them. */
+    private Search.Filters searchFilters = new Search.Filters();
     private double lastScrollY;
     /** The Editor tab, made the first time it is shown. */
     private TextEditorView editor;
@@ -393,18 +395,94 @@ final class MainView extends Screen {
         if (!searching) {
             searching = true;
             showToolbar();
+            buildSearchChips();
         }
         Platform.runLater(search::requestFocus);
     }
 
     private void stopSearch() {
         searching = false;
+        searchFilters = new Search.Filters();
         search.setText("");
         showToolbar();
+        shownFolders = null;
+        buildChips();
+        applyFilter();
+    }
+
+    /** While searching, the chips narrow the search: type, colour, folder, pictures, dates. */
+    private void buildSearchChips() {
+        Search.Filters f = searchFilters;
+        chips.getChildren().clear();
+        chips.getChildren().add(searchChip(f.type == null ? "Any type" : NoteData.kind(f.type).plural(), f.type != null, Icons.NOTE_TEXT, b -> {
+            List<String> names = new ArrayList<>(List.of("Any type"));
+            List<Runnable> acts = new ArrayList<>(List.of(() -> f.type = null));
+            for (NoteData.Kind k : NoteData.KINDS) {
+                names.add(k.plural());
+                acts.add(() -> f.type = k.type());
+            }
+            choose(b, names, acts);
+        }));
+        chips.getChildren().add(searchChip(f.color < 0 ? "Any colour" : f.color == 0 ? "No colour" : NoteData.COLOR_NAMES[f.color], f.color >= 0, Icons.PALETTE, b -> {
+            List<String> names = new ArrayList<>(List.of("Any colour", "No colour"));
+            List<Runnable> acts = new ArrayList<>(List.of(() -> f.color = -1, () -> f.color = 0));
+            for (int i = 1; i < NoteData.COLOR_NAMES.length; i++) {
+                int c = i;
+                names.add(NoteData.COLOR_NAMES[i]);
+                acts.add(() -> f.color = c);
+            }
+            choose(b, names, acts);
+        }));
+        List<String> folders = NoteFolders.all(allNotes);
+        chips.getChildren().add(searchChip(f.folder == null ? "Any folder" : f.folder.isEmpty() ? "No folder" : f.folder, f.folder != null, Icons.FOLDER, b -> {
+            List<String> names = new ArrayList<>(List.of("Any folder", "No folder"));
+            List<Runnable> acts = new ArrayList<>(List.of(() -> f.folder = null, () -> f.folder = ""));
+            for (String name : folders) {
+                names.add(name);
+                acts.add(() -> f.folder = name);
+            }
+            choose(b, names, acts);
+        }));
+        chips.getChildren().add(searchChip("Has pictures", f.pictures, Icons.PHOTO, b -> {
+            f.pictures = !f.pictures;
+            buildSearchChips();
+            applyFilter();
+        }));
+        chips.getChildren().add(searchChip("Has dates", f.dates, Icons.CLOCK, b -> {
+            f.dates = !f.dates;
+            buildSearchChips();
+            applyFilter();
+        }));
+    }
+
+    private ToggleButton searchChip(String label, boolean on, Icons.Icon icon, java.util.function.Consumer<ToggleButton> onClick) {
+        ToggleButton chip = new ToggleButton(label, Ui.icon(icon, 18, on ? "black" : "text_secondary"));
+        chip.getStyleClass().setAll("chip", "with-icon");
+        chip.setSelected(on);
+        chip.setFocusTraversable(false);
+        chip.setOnAction(e -> {
+            chip.setSelected(on); // What it shows comes from the filters, set by the choice.
+            onClick.accept(chip);
+        });
+        return chip;
+    }
+
+    private void choose(ToggleButton anchor, List<String> names, List<Runnable> acts) {
+        List<Runnable> then = new ArrayList<>();
+        for (Runnable a : acts) then.add(() -> {
+            a.run();
+            buildSearchChips();
+            applyFilter();
+        });
+        Ui.menu(anchor, names, then);
     }
 
     /** All, the folders (right-click: rename or remove), Shared with me, Archived, the types, and "New folder". */
     private void buildChips() {
+        if (searching) {
+            buildSearchChips();
+            return;
+        }
         List<String> folders = NoteFolders.all(allNotes);
         boolean templates = !Templates.of(allNotes).isEmpty();
         if (folders.equals(shownFolders) && templates == shownTemplates) return;
@@ -550,9 +628,13 @@ final class MainView extends Screen {
 
     private void applyFilter() {
         List<NoteEntity> shown = new ArrayList<>();
+        List<String> terms = Search.terms(query);
+        // Searching: every note (archived and templates too), best first, the words marked on the cards.
+        boolean found = searching && !showingHidden && (!terms.isEmpty() || searchFilters.any());
+        if (found) shown = Search.run(allNotes, query, searchFilters);
         String q = query.toLowerCase(Locale.getDefault());
         String folder = filterType != null && filterType.startsWith(FOLDER) ? filterType.substring(FOLDER.length()) : null;
-        for (NoteEntity n : showingHidden ? hiddenNotes : allNotes) {
+        for (NoteEntity n : found ? List.<NoteEntity>of() : showingHidden ? hiddenNotes : allNotes) {
             if (showingHidden) {
                 // Every hidden note, whatever the filter.
             } else if (TEMPLATES.equals(filterType) || n.isTemplate()) {
@@ -576,7 +658,7 @@ final class MainView extends Screen {
 
         // All, not searching: a folder's notes are one tile (opening the folder), before the rest.
         List<Node> nodes = new ArrayList<>();
-        if (filterType == null && q.isEmpty() && !showingHidden) {
+        if (filterType == null && q.isEmpty() && !showingHidden && !found) {
             Map<String, List<NoteEntity>> byFolder = new java.util.LinkedHashMap<>();
             for (String f : NoteFolders.all(allNotes)) byFolder.put(f, new ArrayList<>());
             List<NoteEntity> loose = new ArrayList<>();
@@ -615,8 +697,9 @@ final class MainView extends Screen {
             }
         };
         for (NoteEntity n : shown) {
-            NoteCard card = cards.get(n.getId());
+            NoteCard card = found ? null : cards.get(n.getId());
             if (card == null || !card.note.sameContentAs(n)) card = new NoteCard(n, listener);
+            if (found) card.showMatch(terms);
             next.put(n.getId(), card);
             nodes.add(card);
         }

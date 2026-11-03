@@ -321,6 +321,12 @@ export async function promptPwaInstall() {
 async function boot() {
   route();
   checkForWebUpdate();
+  // Back online: an account that couldn't load offline comes back, and what was saved here syncs.
+  window.addEventListener('online', async () => {
+    await account.restore();
+    if (account.uid()) sync.startLive();
+    sync.schedule(0);
+  });
   await account.restore();
   if (account.uid()) {
     sync.startLive();

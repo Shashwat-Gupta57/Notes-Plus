@@ -32,6 +32,15 @@ export function accountScreen(go) {
   let wasUid = account.uid();
 
   async function render() {
+    if (!navigator.onLine) {
+      // Nothing here needs the network to keep working: say so, then show what can be shown.
+      column.replaceChildren(h('div.offline-note', icon('cloudOff', 20, 'var(--secondary)'),
+        h('span', 'You\'re offline. Notes are saved here and sync when you\'re back online.')));
+      if (!account.signedIn()) column.append(signedOut());
+      else column.append(account.uid() ? await signedIn() : verify());
+      column.append(dedicatedAppsCard(), appCard());
+      return;
+    }
     if (!account.signedIn()) column.replaceChildren(signedOut());
     else if (!account.uid()) column.replaceChildren(verify());
     else column.replaceChildren(await signedIn());

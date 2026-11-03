@@ -62,6 +62,13 @@ export function homeScreen(go) {
   const title = h('h1.toolbar-title', 'Notes');
   const syncing = h('span.syncing', 'Syncing…');
   syncing.hidden = true;
+  // No connection: everything still works here, and syncs once it's back.
+  const offline = h('span.offline-pill', { title: 'Offline. Changes are saved here and sync when you\'re back online.' },
+    icon('cloudOff', 14, 'currentColor'), 'Offline');
+  const showOnline = () => { offline.hidden = navigator.onLine; };
+  showOnline();
+  window.addEventListener('online', showOnline);
+  window.addEventListener('offline', showOnline);
   const search = h('input.search-field', { type: 'search', placeholder: 'Search notes', 'aria-label': 'Search notes' });
   search.addEventListener('input', () => { query = search.value.trim().toLowerCase(); render(); });
   const toolbar = h('div.toolbar');
@@ -82,7 +89,7 @@ export function homeScreen(go) {
           img.src = p.photoUrl;
         }).catch(() => {});
       }
-      toolbar.replaceChildren(h('div.title-wrap', title, syncing), h('div.spacer'),
+      toolbar.replaceChildren(h('div.title-wrap', title, syncing, offline), h('div.spacer'),
         iconButton('search', 'Search (Ctrl+F)', startSearch), accountBtn);
     }
   }
@@ -492,7 +499,7 @@ export function homeScreen(go) {
 
   return {
     el: h('div.home', toolbar, h('div.chips-scroll', chips), banner, gridWrap, fab),
-    leave() { offDb(); offStatus(); offAccount(); },
+    leave() { offDb(); offStatus(); offAccount(); window.removeEventListener('online', showOnline); window.removeEventListener('offline', showOnline); },
     onKey(e) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') { e.preventDefault(); newSheet(); return true; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); startSearch(); return true; }

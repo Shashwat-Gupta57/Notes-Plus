@@ -368,7 +368,7 @@
               <tr><td><strong>Windows</strong> 10 / 11</td><td>Installer or portable ZIP</td><td>Java 21, JavaFX, SQLite</td></tr>
               <tr><td><strong>Web</strong> (any modern browser)</td><td><a href="app/">notes.talken.in/app</a>, installable as an app (PWA)</td><td>Plain ES modules, IndexedDB, no framework</td></tr>
               <tr><td><strong>macOS</strong>, <strong>iPhone / iPad</strong></td><td>The web app, installed to the Dock or Home Screen</td><td>(same as web)</td></tr>
-              <tr><td><strong>Linux</strong></td><td>The web app today; a native build is <span class="docs-pill">pending</span></td><td>(same as web)</td></tr>
+              <tr><td><strong>Linux</strong></td><td>The web app today, installed: its own window, works offline. A native build is <span class="docs-pill">pending</span></td><td>(same as web)</td></tr>
             </tbody>
           </table>
         </section>
@@ -405,7 +405,7 @@
           <p>There is no native Mac build. Install the web app as above (Chrome, Edge or Safari's <strong>Add to Dock</strong>): it opens in its own window from the Dock and Launchpad, works offline, and syncs with your phone and PC.</p>
 
           <h3>Linux</h3>
-          <div class="docs-alert"><strong>Native Linux build: pending.</strong> It's on the way. Until then, install the web app from Chrome, Chromium or Edge: it runs in its own window and syncs like the others. When the Linux build ships, it will be on <code>releases.talken.in</code> and on GitHub Releases like every other build.</div>
+          <div class="docs-alert"><strong>Native Linux build: pending.</strong> It's on the way. Until then, install the web app from Chrome, Chromium or Edge: it runs in its own window, opens and edits with no connection at all once it has been opened online, and syncs like the others when you're back. When the Linux build ships, it will be on <code>releases.talken.in</code> and on GitHub Releases like every other build.</div>
         </section>
 
         <!-- 3. Using -->
@@ -535,7 +535,7 @@
           <details class="docs-faq"><summary>Windows says it protected my PC (SmartScreen).</summary><p>The installer isn't code-signed yet, so Windows doesn't recognise it. Choose <strong>More info → Run anyway</strong>, and compare the file's SHA-256 with the one on the download page if you want to be sure.</p></details>
           <details class="docs-faq"><summary>How do I move to a new phone?</summary><p>Sign in on the new phone with the same account: your notes, folders and files come down. Install the APK; don't restore an old one over it.</p></details>
           <details class="docs-faq"><summary>Does it work on Mac, Linux, iPhone or iPad?</summary><p>Yes, through the web app, installed to the Dock or Home Screen (see <a href="#install">Install</a>). A native Linux build is pending.</p></details>
-          <details class="docs-faq"><summary>Does it work offline?</summary><p>Yes, everywhere. The web app, once opened, keeps working offline too. Changes sync when you're back online.</p></details>
+          <details class="docs-faq"><summary>Does it work offline?</summary><p>Yes, everywhere. The web app, once opened online, opens, searches, edits and makes notes with no connection at all (an "Offline" tag shows at the top), signed in or not. Changes sync by themselves when you're back online.</p></details>
           <details class="docs-faq"><summary>How do I delete my account and data?</summary><p>Account → <strong>Delete account</strong> on Android or Windows. It removes everything stored online for that account: notes, username, profile and sharing.</p></details>
           <details class="docs-faq"><summary>I found a bug / I have an idea.</summary><p>Account → <strong>Send Feedback &amp; Review</strong> in any app, or open an issue on <a href="https://github.com/Shashwat-Gupta57/Notes-Plus/issues" target="_blank" rel="noopener">GitHub</a>. On Android, Account → App logs lets you save logs to attach.</p></details>
         </section>

@@ -51,7 +51,10 @@ export function load() {
         });
       });
       return fb;
-    })();
+    })().catch(e => {
+      loading = null; // Offline at start: tried again when the connection is back.
+      throw e;
+    });
   }
   return loading;
 }

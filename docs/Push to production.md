@@ -34,6 +34,10 @@ The examples use version **13.0**, Android build **14**. Replace them with yours
    - `app/build.gradle.kts`: `versionCode = 14`, `versionName = "13.0"`
    - `Notes-Plus-Desktop/pom.xml`: `<version>13.0</version>`
    - website `app/js/account-ui.js`: `export const VERSION = '13.0';`
+   - website `app/index.html`: the `?v=13.0` on `app.css`, `main.js` and `sw.js`
+   - website `app/sw.js`: `CACHE_NAME` (a new name is what makes installed web apps take the new
+     files; the old cache is deleted when the new service worker starts). Every new file under
+     `app/js/` must be in its `SHELL_ASSETS`, or the web app breaks offline.
    - **Not `version.json` yet**: that is the last step.
 5. **Release notes.** Update the website's "New in …" section (`index.html`, `#new`) and
    `Notes-Plus-Desktop/release/ANNOUNCEMENT.md`.

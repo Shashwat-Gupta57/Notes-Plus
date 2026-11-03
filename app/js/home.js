@@ -10,13 +10,24 @@ import * as drive from './drive.js';
 import { h, icon, iconButton, menu, snackbar, pickColor, dialog, prompt, choices, confirm, toast } from './ui.js';
 import { newNote, KINDS, kind, tint, COLOR_NAMES, PICTURE_LINE, plain, firstPicture, todos, mindMap, journal, recordings, relative, searchable, dayStart, isVideo, TEXT, LIST, MINDMAP, JOURNAL, SKETCH, AUDIO } from './model.js';
 import { drawPreview } from './mindmap-draw.js';
+import * as templates from './templates.js';
+import * as due from './due.js';
 import { drawSketchPreview } from './ed-sketch.js';
 
 const SHARED = 'SHARED';
 // The archive (notes put away, shown nowhere else) and a folder's filter (prefix + name).
 const ARCHIVED = 'ARCHIVED';
 const FOLDER = 'F:';
+const TEMPLATES = 'TEMPLATES';
 let filter = sessionStorage.getItem('np_filter') || null;
+let searchOnOpen = false;
+
+/** Ctrl+K's "Go to" and "Search notes": the grid, next time it shows, on this filter (or searching). */
+export function showHome(type, search = false) {
+  filter = type || null;
+  try { sessionStorage.setItem('np_filter', filter || ''); } catch { /* this visit only */ }
+  searchOnOpen = search;
+}
 
 // Folders are a name on the note, synced with it; an empty one made here is remembered in this
 // browser until a note goes in or it is removed.
@@ -25,6 +36,17 @@ const storeFolders = list => { try { localStorage.setItem('np_folders', JSON.str
 const remember = name => { const l = remembered(); if (!l.some(x => x.toLowerCase() === name.toLowerCase())) { l.push(name); storeFolders(l); } };
 const forget = name => storeFolders(remembered().filter(x => x.toLowerCase() !== name.toLowerCase()));
 const cleanFolder = raw => (raw || '').replace(/\s+/g, ' ').trim().slice(0, 100).trim() || null;
+/**
+ * A list's small clock tag: its most pressing day ("Overdue", "Today 7:30", "Fri", with ↻ when it
+ * repeats), or a plain clock once every dated item is done. Null with no dated items.
+ */
+function clockTag(items, now) {
+  if (!due.anyDated(items)) return null;
+  const u = due.urgent(items, now), s = u ? due.status(u, now) : due.DONE, text = due.tag(items, now);
+  return h('span.due-tag' + (s === due.OVERDUE ? '.overdue' : s === due.TODAY ? '.today' : ''),
+    { title: text ? 'Due ' + text : 'Dated items, all done' }, icon('clock', 11), text);
+}
+
 function allFolders(notes) {
   const seen = new Map();
   for (const n of notes) if (n.folder) seen.set(n.folder.toLowerCase(), n.folder);
@@ -78,11 +100,14 @@ export function homeScreen(go) {
     return c;
   };
   if (!filter) filter = null;
-  let shownFolders = null;
+  let shownFolders = null, shownTemplates = false;
   function buildChips() {
     const folders = allFolders(notes);
-    if (shownFolders && folders.join('\n') === shownFolders.join('\n')) return;
+    const hasTemplates = notes.some(n => n.template);
+    if (shownFolders && folders.join('\n') === shownFolders.join('\n') && hasTemplates === shownTemplates) return;
     shownFolders = folders;
+    shownTemplates = hasTemplates;
+    if (filter === TEMPLATES && !hasTemplates) filter = null; // The last one went.
     if (filter && filter.startsWith(FOLDER) && !folders.includes(filter.slice(FOLDER.length))) filter = null;
     const folderChips = folders.map(f => {
       const c = chip(f, FOLDER + f, 'folder', 'brand');
@@ -96,6 +121,7 @@ export function homeScreen(go) {
     });
     const add = h('button.chip.add-chip', { type: 'button', onClick: () => newFolder(name => setFilter(FOLDER + name)) }, icon('add', 18, 'var(--secondary)'), 'New folder');
     chips.replaceChildren(chip('All', null), ...folderChips, chip('Shared with me', SHARED, 'person', 'tile-teal'),
+      ...(hasTemplates ? [chip('Templates', TEMPLATES, 'template', 'tile-purple')] : []),
       chip('Archived', ARCHIVED, 'archive', 'secondary'), ...KINDS.map(k => chip(k.plural, k.type, k.icon, k.accent)), add);
     paintChips();
   }
@@ -157,6 +183,17 @@ export function homeScreen(go) {
         h('span.kind-icon', { style: { background: `var(--${k.accent})` } }, icon(k.icon, 24, '#fff')),
         h('span.kind-texts', h('b', k.label), h('small', k.description))));
     }
+    // From a template: one row each, under the kinds.
+    const tpls = templates.of(notes);
+    if (tpls.length) {
+      list.appendChild(h('div.kind-heading', 'From a template'));
+      for (const t of tpls) {
+        const k = kind(t.type);
+        list.appendChild(h('button.kind', { type: 'button', onClick: () => { d.close(); newFromTemplate(t); } },
+          h('span.kind-icon', { style: { background: `var(--${k.accent})` } }, icon('template', 24, '#fff')),
+          h('span.kind-texts', h('b', templates.name(t)), h('small', k.label + ' template'))));
+      }
+    }
     d = dialog({ title: 'New', content: list, width: 520 });
   }
 
@@ -193,9 +230,10 @@ export function homeScreen(go) {
 
   function shown() {
     let list = notes;
-    if (filter === ARCHIVED) list = list.filter(n => n.archived);
+    if (filter === TEMPLATES) list = list.filter(n => n.template); // Templates are only under Templates.
+    else if (filter === ARCHIVED) list = list.filter(n => n.archived && !n.template);
     else {
-      list = list.filter(n => !n.archived); // Put away: only under Archived.
+      list = list.filter(n => !n.archived && !n.template); // Put away: only under Archived.
       if (filter && filter.startsWith(FOLDER)) list = list.filter(n => n.folder === filter.slice(FOLDER.length));
       else if (filter === SHARED) list = list.filter(n => n.sharedFrom || n.groupId);
       else if (filter) list = list.filter(n => n.type === filter);
@@ -220,6 +258,7 @@ export function homeScreen(go) {
     empty.querySelector('p').textContent = query ? 'No notes match your search'
       : filter === SHARED ? 'Notes people share or send to you appear here'
       : filter === ARCHIVED ? 'Nothing archived. Archive a note from its options to put it away here.'
+      : filter === TEMPLATES ? 'No templates yet. Save a note as a template from its options.'
       : filter && filter.startsWith(FOLDER) ? `Nothing in “${filter.slice(FOLDER.length)}” yet. Move notes here from their options.`
       : filter ? `No ${kind(filter).plural.toLowerCase()} yet` : 'No notes yet. Tap New to write one.';
   }
@@ -233,6 +272,7 @@ export function homeScreen(go) {
       c.style.background = `var(--${t})`;
       c.style.setProperty('--card-surface', `var(--${t})`);
     }
+    let dueTag = null; // A list's clock tag for the footer.
     const titleEl = n.title ? h('h3.card-title', n.title) : null;
     const addTitle = fallback => { inner.appendChild(titleEl || (fallback ? h('h3.card-title', fallback) : null) || h('span')); };
 
@@ -242,9 +282,12 @@ export function homeScreen(go) {
     } else if (n.type === LIST) {
       addTitle(null);
       const items = todos(n.data);
+      const now = due.today();
+      due.rollover(items, now); // As the editor will show it.
+      dueTag = clockTag(items, now);
       const box = h('div.card-list');
       const isPicture = it => PICTURE_LINE.test((it.text || '').trim());
-      for (const it of items.slice(0, 6)) box.appendChild(h('div.card-item' + (it.done ? '.done' : ''), isPicture(it) ? '🖼  Picture' : (it.done ? '☑  ' : '☐  ') + it.text));
+      for (const it of items.slice(0, 6)) box.appendChild(h('div.card-item' + (it.done ? '.done' : '') + (due.status(it, now) === due.OVERDUE ? '.overdue' : ''), isPicture(it) ? '🖼  Picture' : (it.done ? '☑  ' : '☐  ') + it.text));
       inner.appendChild(box);
       const tasks = items.filter(i => !isPicture(i));
       if (tasks.length) {
@@ -292,7 +335,7 @@ export function homeScreen(go) {
     const when = relative(n.timestamp);
     inner.appendChild(h('div.card-foot', icon(k.icon, 16, `var(--${k.accent})`),
       h('span', n.sharedFrom ? `@${n.sharedFrom}  ·  ${when}` : n.groupId ? `Shared · ${people(n)}  ·  ${when}` : when), h('span.spacer'),
-      n.pinned ? icon('pin', 16, 'var(--brand)') : null));
+      dueTag, n.pinned ? icon('pin', 16, 'var(--brand)') : null));
     c.addEventListener('click', () => go('#/n/' + n.uuid));
     c.addEventListener('keydown', e => { if (e.key === 'Enter') go('#/n/' + n.uuid); });
     c.addEventListener('contextmenu', e => { e.preventDefault(); options(n, c); });
@@ -337,7 +380,26 @@ export function homeScreen(go) {
     return img;
   }
 
+  /** A new note from a template, opened straight away. */
+  async function newFromTemplate(t) {
+    const n = templates.copyOf(t, t.title, false, account.uid());
+    await db.putNote(n);
+    sync.schedule();
+    go('#/n/' + n.uuid);
+  }
+
   function options(n, anchor) {
+    if (n.template) {
+      // A template: start a note from it, or look after it. Nothing to file, send or share.
+      menu(anchor, [
+        { text: 'New note from this', onClick: () => newFromTemplate(n) },
+        { text: 'Rename', onClick: () => prompt({ title: 'Rename template', hint: 'Name', value: templates.name(n), ok: 'Rename',
+          onOk: v => update(n, x => { x.title = v.trim(); x.timestamp = Date.now(); }) }) },
+        { text: 'Colour', onClick: () => pickColor(n.color, i => update(n, x => { x.color = i; }), COLOR_NAMES) },
+        { text: 'Delete', danger: true, onClick: () => deleteWithUndo(n) },
+      ]);
+      return;
+    }
     menu(anchor, [
       { text: n.pinned ? 'Unpin' : 'Pin', onClick: () => update(n, x => { x.pinned = !x.pinned; }) },
       { text: 'Colour', onClick: () => pickColor(n.color, i => update(n, x => { x.color = i; }), COLOR_NAMES) },
@@ -345,6 +407,16 @@ export function homeScreen(go) {
       account.uid() && links.shareable(n) ? { text: 'Share link…', onClick: () => links.sheet(n) } : null,
       { text: n.archived ? 'Unarchive' : 'Archive', onClick: () => { update(n, x => { x.archived = !n.archived; }); toast(n.archived ? 'Back with your notes' : 'Archived. It\'s under the Archived filter.'); } },
       { text: 'Duplicate', onClick: () => duplicateNote(n) },
+      templates.canSave(n) ? { text: 'Save as template…', onClick: () => prompt({
+        title: 'Save as template',
+        message: 'A copy of this note that new notes can start from, under New. Ticks, one-off dates and pictures are left out.',
+        hint: 'Template name', value: n.title || kind(n.type).label, ok: 'Save',
+        onOk: async v => {
+          await db.putNote(templates.copyOf(n, v.trim() || n.title, true, account.uid()));
+          sync.schedule();
+          toast('Saved as a template. Find it under New or the Templates filter.');
+        },
+      }) } : null,
       n.sharedFrom ? null : { text: 'Delete', danger: true, onClick: () => deleteWithUndo(n) },
     ]);
   }
@@ -416,6 +488,7 @@ export function homeScreen(go) {
   const offAccount = account.observe(() => showToolbar());
   showToolbar();
   load();
+  if (searchOnOpen) { searchOnOpen = false; setTimeout(() => startSearch()); }
 
   return {
     el: h('div.home', toolbar, h('div.chips-scroll', chips), banner, gridWrap, fab),

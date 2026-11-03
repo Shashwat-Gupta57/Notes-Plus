@@ -178,7 +178,8 @@ export async function openEditor({ uuid, type }, implFor, go) {
     ctx.changed();
   }, COLOR_NAMES));
   const moreBtn = iconButton('more', 'More', () => showMore());
-  const from = readOnly ? h('span.editor-from', `From @${note.sharedFrom} · read only`) : null;
+  const from = readOnly ? h('span.editor-from', `From @${note.sharedFrom} · read only`)
+    : note.template ? h('span.editor-from', 'Template · new notes start as this') : null;
   const toolbar = h('div.toolbar.editor-toolbar',
     iconButton('back', 'Back (Esc)', () => exitToHome()), from, h('div.spacer'), lockBtn, pinBtn, colorBtn, moreBtn);
   root.append(toolbar, body);

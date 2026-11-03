@@ -64,6 +64,7 @@ function remoteOf(uuid, v, mine = true) {
     sketch: typeof v.sketch === 'string' ? v.sketch : null, color: Number(v.color) || 0, pinned: v.pinned === true,
     edited: Number(v.edited) || Number(v.updatedAt) || Date.now(), media: Object.keys(media).length ? media : null,
     mine, archived: v.archived === true, folder: typeof v.folder === 'string' && v.folder ? v.folder : null,
+    template: v.template === true,
   };
 }
 
@@ -72,7 +73,7 @@ function copyInto(r, note) {
     type: r.type, title: r.title, content: r.content, data: r.data, color: r.color, pinned: r.pinned,
     timestamp: r.edited, rev: r.rev, media: r.media, sketch: r.sketch, dirty: false, deleted: false,
   });
-  if (r.mine) Object.assign(note, { archived: r.archived, folder: r.folder });
+  if (r.mine) Object.assign(note, { archived: r.archived, folder: r.folder, template: r.template });
   return note;
 }
 
@@ -92,6 +93,7 @@ function toRemote(note) {
   // How it's filed is mine alone: it follows me to every device, never into a group note.
   if (note.archived) m.archived = true;
   if (note.folder) m.folder = String(note.folder).slice(0, 100);
+  if (note.template) m.template = true;
   if (note.data !== null && note.data !== undefined) m.data = note.data;
   if (note.type === SKETCH && note.sketch) m.sketch = note.sketch;
   const media = {};
@@ -110,7 +112,7 @@ function toRemote(note) {
 
 const sameContent = (n, r) => n.type === r.type && (n.title || '') === r.title && (n.content || '') === r.content
   && (n.data || null) === r.data && (n.color || 0) === r.color && !!n.pinned === r.pinned
-  && (!r.mine || (!!n.archived === r.archived && (n.folder || null) === r.folder));
+  && (!r.mine || (!!n.archived === r.archived && (n.folder || null) === r.folder && !!n.template === r.template));
 
 // ------------------------------------------------------------------ the pass
 
@@ -480,6 +482,7 @@ async function pushGroup(uid, note, mayRetry) {
   const value = toRemote(note);
   delete value.archived; // How it's filed stays mine.
   delete value.folder;
+  delete value.template;
   const expected = note.rev;
   const result = await D.runTransaction(D.ref(fdb, `groupNotes/${gid}/note`), current => {
     if (current !== null && (typeof current.rev !== 'number' || current.rev !== expected)) return undefined;

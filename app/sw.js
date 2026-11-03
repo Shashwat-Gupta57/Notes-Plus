@@ -1,5 +1,5 @@
 // Notes+ Service Worker (PWA v17.0)
-const CACHE_NAME = 'notes-plus-pwa-v17.0';
+const CACHE_NAME = 'notes-plus-pwa-v17.0-templates';
 
 const SHELL_ASSETS = [
   './',
@@ -17,6 +17,9 @@ const SHELL_ASSETS = [
   './js/drive.js',
   './js/editor.js',
   './js/ed-text.js',
+  './js/due.js',
+  './js/templates.js',
+  './js/palette.js',
   './js/md.js',
   './js/rich.js',
   './js/ed-mindmap.js',

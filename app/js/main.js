@@ -10,7 +10,7 @@
 
 import * as account from './account.js';
 import * as sync from './sync.js';
-import { hasModal, closeTop, toast, dialog, button } from './ui.js';
+import { hasModal, closeTop, toast, dialog, button, h } from './ui.js';
 import { homeScreen } from './home.js';
 import { accountScreen, VERSION } from './account-ui.js';
 import { openEditor } from './editor.js';
@@ -29,7 +29,11 @@ const implFor = type => (type === MINDMAP ? mindMapEditor : type === SKETCH ? sk
   : textEditors[type] || textEditors.TEXT);
 
 /** Shows `screen` in place of the current one, leaving the address as it is. */
+// A screen shown over the notes without a route of its own (the gallery): no Ctrl+K over it.
+let covered = false;
+
 export function present(make) {
+  covered = true;
   routing = routing.then(async () => {
     if (current && current.leave) {
       try { await current.leave(); } catch (e) { console.warn(e); }
@@ -46,6 +50,7 @@ export function go(hash) {
 }
 
 function route() {
+  covered = false;
   routing = routing.then(async () => {
     const hash = location.hash || '#/';
     if (current && current.leave) {
@@ -82,7 +87,39 @@ function route() {
 
 window.addEventListener('hashchange', route);
 
+async function openCommands() {
+  const [{ openPalette }, home, db, templates] = await Promise.all([
+    import('./palette.js'), import('./home.js'), import('./db.js'), import('./templates.js')]);
+  const notes = (await db.allNotes()).filter(n => !n.deleted);
+  const folders = [...new Set(notes.map(n => n.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  openPalette(notes, {
+    folders,
+    open: uuid => go('#/n/' + uuid),
+    create: type => go('#/new/' + type),
+    fromTemplate: async t => {
+      const n = templates.copyOf(t, t.title, false, account.uid());
+      await db.putNote(n);
+      sync.schedule();
+      go('#/n/' + n.uuid);
+    },
+    filter: type => { home.showHome(type); go('#/'); },
+    search: () => { home.showHome(null, true); go('#/'); },
+    account: () => go('#/account'),
+    shortcuts: () => dialog({ title: 'Keyboard shortcuts', width: 440, content: h('div.shortcuts', ...[
+      ['Ctrl+K', 'Search notes and commands'], ['Ctrl+N', 'New note'], ['Ctrl+F', 'Search the grid'],
+      ['Ctrl+Enter', 'Tick a list item'], ['Ctrl+D', 'A list item\'s day'], ['Esc', 'Back'],
+    ].map(([k, what]) => h('div', h('kbd', k), ' ', what))) }),
+  });
+}
+
 document.addEventListener('keydown', e => {
+  // Ctrl+K: notes and commands, on the notes and in a note only.
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K') && !hasModal() && !covered
+      && /^(#\/?|#\/n\/[0-9a-f]{32}|#\/new\/[A-Z]+)?$/.test(location.hash)) {
+    e.preventDefault();
+    openCommands();
+    return;
+  }
   if (hasModal()) {
     if (e.key === 'Escape') { e.preventDefault(); closeTop(); }
     return;

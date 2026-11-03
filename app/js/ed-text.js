@@ -6,14 +6,37 @@
 
 import { h, icon, iconButton, toast, choices, dialog } from './ui.js';
 import { richEditor } from './rich.js';
+import * as due from './due.js';
 import { TEXT, LIST, JOURNAL, PICTURE_LINE, todos, todosJson, wraps, journal, journalJson, MOODS, mediaName, isVideo, dayStart } from './model.js';
 
+// Where the browser can size a field to its text itself (CSS field-sizing), nothing is measured here.
+const SELF_SIZING = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('field-sizing', 'content');
+
 function autoGrow(ta) {
+  if (SELF_SIZING) {
+    ta.classList.add('self-sizing');
+    ta._fit = () => {};
+    return ta;
+  }
   const fit = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
   ta.addEventListener('input', fit);
-  requestAnimationFrame(fit);
+  fitSoon(ta);
   ta._fit = fit;
   return ta;
+}
+
+// New fields are sized together, once a frame: every height reset first, then every height read,
+// then every height set. Fitting each on its own made a 500-item list lay the page out 500 times.
+const toFit = new Set();
+function fitSoon(ta) {
+  if (!toFit.size) requestAnimationFrame(() => {
+    const all = [...toFit];
+    toFit.clear();
+    for (const t of all) t.style.height = 'auto';
+    const heights = all.map(t => t.scrollHeight);
+    all.forEach((t, i) => { t.style.height = heights[i] + 'px'; });
+  });
+  toFit.add(ta);
 }
 
 function titleField(ctx, placeholder, onEnter) {
@@ -333,6 +356,9 @@ export function journalEditor(ctx) {
 export function listEditor(ctx) {
   const n = ctx.note;
   const items = todos(n.data);
+  // Repeating items whose next day has come show unticked; saved with the next edit, if any
+  // (every device works out the same, so nothing needs pushing just for this).
+  due.rollover(items, due.today());
   let wrapItems = wraps(n.data);
   if (!items.length) items.push({ text: '', done: false });
   const title = titleField(ctx, 'List name', () => focusItem(0));
@@ -346,12 +372,15 @@ export function listEditor(ctx) {
   function updateProgress() {
     const real = items.filter(i => i.text.trim() && !pictureOf(i));
     const done = real.filter(i => i.done).length;
-    progress.textContent = !real.length ? 'Nothing yet' : done === real.length ? 'All done 🎉' : `${done} of ${real.length} done`;
+    const late = due.overdue(items, due.today());
+    progress.textContent = (!real.length ? 'Nothing yet' : done === real.length ? 'All done 🎉' : `${done} of ${real.length} done`)
+      + (late ? `  ·  ${late} overdue` : '');
     bar.style.width = (real.length ? (done * 100) / real.length : 0) + '%';
   }
 
   /** Pasted or dropped pictures go in as items at `i` (in place of an empty item there). */
   async function addPictures(files, i) {
+    showAll();
     for (const f of files) {
       const name = mediaName('IMG', extOf(f));
       await ctx.putFile(name, f);
@@ -391,9 +420,26 @@ export function listEditor(ctx) {
     const check = h('button.check' + (item.done ? '.on' : ''), { type: 'button', role: 'checkbox', 'aria-checked': String(item.done), disabled: ctx.readOnly }, icon('check', 16, '#fff'));
     const handle = h('span.handle', { title: 'Drag to reorder' }, icon('noteList', 18));
     const del = ctx.readOnly ? null : h('button.item-remove', { type: 'button', title: 'Delete item' }, icon('close', 18));
-    const el = h('div.item' + (item.done ? '.done' : ''), handle, check, field, del);
+    // Its day under the words, coloured by how near it is; the clock gives it one.
+    const pill = h('button.due-pill', { type: 'button', hidden: true, disabled: ctx.readOnly });
+    const clock = ctx.readOnly ? null : h('button.item-clock', { type: 'button', title: 'Due date (Ctrl+D)', 'aria-label': 'Due date' }, icon('clock', 18));
+    const el = h('div.item' + (item.done ? '.done' : ''), handle, check, h('div.item-col', field, pill), clock, del);
+    const showDue = animate => {
+      const now = due.today(), s = due.status(item, now), was = !pill.hidden;
+      pill.hidden = s === due.NONE;
+      el.classList.toggle('dated', s !== due.NONE);
+      if (s === due.NONE) return;
+      pill.className = 'due-pill' + (s === due.OVERDUE ? ' overdue' : s === due.TODAY ? ' today' : s === due.DONE ? ' done' : '');
+      pill.replaceChildren(icon('clock', 12), due.pill(item, now));
+      if (animate && !was) pill.animate([{ opacity: 0, transform: 'scale(0.6)' }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'ease-out' });
+    };
+    if (!ctx.readOnly) {
+      pill.addEventListener('click', () => openDue(item, pill, showDue));
+      clock.addEventListener('click', () => openDue(item, clock, showDue));
+    }
     const setDone = d => {
-      item.done = d;
+      due.tick(item, d, due.today());
+      showDue(true);
       el.classList.toggle('done', d);
       check.classList.toggle('on', d);
       check.setAttribute('aria-checked', String(d));
@@ -412,6 +458,7 @@ export function listEditor(ctx) {
     field.addEventListener('keydown', e => {
       const i = items.indexOf(item);
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setDone(!item.done); }
+      else if ((e.key === 'd' || e.key === 'D') && (e.ctrlKey || e.metaKey) && !ctx.readOnly) { e.preventDefault(); openDue(item, pill.hidden ? clock : pill, showDue); }
       else if (e.key === 'Enter') { e.preventDefault(); addAt(i + 1); }
       else if (e.key === 'Backspace' && !field.value && items.length > 1) { e.preventDefault(); removeAt(i); focusItem(Math.max(0, i - 1), true); }
       else if (e.key === 'ArrowUp' && !wrapItems) { e.preventDefault(); focusItem(i - 1, true); }
@@ -420,7 +467,90 @@ export function listEditor(ctx) {
     if (del) del.addEventListener('click', () => { removeAt(items.indexOf(item)); if (!items.length) addAt(0); });
     dragByHandle(item, el, handle);
     el._field = field;
+    showDue(false);
     return el;
+  }
+
+  /** An item's day, time and repeat, dropping from its clock or pill: every click applies at once. */
+  function openDue(item, anchor, showDue) {
+    document.querySelectorAll('.due-pop').forEach(p => p._close());
+    const now = due.today(), wd = due.weekday(now);
+    const quick = [[now, 'Today'], [now + 1, 'Tomorrow'], [wd >= 6 ? now : now + (6 - wd), 'This weekend'], [now + (8 - wd), 'Next week']];
+    const TIMES = [null, '09:00', '12:00', '18:00', '21:00'];
+    const KINDS = [[null, 'Never'], ['daily', 'Daily'], ['weekdays', 'Weekdays'], ['weekly', 'Weekly'], ['monthly', 'Monthly']];
+    const apply = fn => { fn(); refresh(); showDue(true); updateProgress(); ctx.changed(); };
+    const chip = (label, onClick) => h('button.chip.due-chip', { type: 'button', onClick }, label);
+
+    const summary = h('div.due-summary');
+    const remove = h('button.due-remove', { type: 'button', onClick: () => { apply(() => due.clear(item)); close(); } }, 'Remove');
+    const dayChips = quick.map(([d, name]) => chip(name, () => apply(() => due.setDay(item, d))));
+    const dateInput = h('input.due-date-input', { type: 'date', tabindex: '-1', 'aria-hidden': 'true' });
+    dateInput.addEventListener('change', () => { const n = due.day(dateInput.value); if (n !== null) apply(() => due.setDay(item, n)); });
+    const pick = chip('Pick a date…', () => {
+      dateInput.value = due.dated(item) ? item.due : due.ymd(now);
+      try { dateInput.showPicker(); } catch { dateInput.focus(); dateInput.click(); }
+    });
+    const timeChips = TIMES.map(t => chip(t ? due.time(t) : 'No time', () => apply(() => {
+      if (t && !due.dated(item)) due.setDay(item, now);
+      if (t) item.time = t; else delete item.time;
+    })));
+    const timeInput = h('input.due-time', { type: 'time', title: 'Another time', 'aria-label': 'Another time' });
+    timeInput.addEventListener('change', () => {
+      if (!/^\d{2}:\d{2}$/.test(timeInput.value) || timeInput.value === item.time) return;
+      apply(() => { if (!due.dated(item)) due.setDay(item, now); item.time = timeInput.value; });
+    });
+    const repeatChips = KINDS.map(([k, name]) => chip(name, () => apply(() => due.setRepeat(item, k, now))));
+    const dayToggles = [...'MTWTFSS'].map((l, i) => h('button.due-day', {
+      type: 'button', title: due.WEEKDAYS[i], 'aria-label': due.WEEKDAYS[i],
+      onClick: () => apply(() => due.toggleWeekday(item, i + 1, now)),
+    }, l));
+    const weekRow = h('div.due-week', dayToggles);
+    const words = (item.text || '').trim();
+    const pop = h('div.due-pop', { role: 'dialog', 'aria-label': 'Due date' },
+      h('div.due-head', icon('clock', 20, 'var(--tile-orange)'), h('span.due-title', words || 'This item'), remove),
+      summary,
+      h('div.due-label', 'Day'), h('div.due-chips', dayChips, h('span.due-pick', pick, dateInput)),
+      h('div.due-label', 'Time'), h('div.due-chips', timeChips, timeInput),
+      h('div.due-label', 'Repeat'), h('div.due-chips', repeatChips), weekRow);
+
+    function refresh() {
+      const isDated = due.dated(item), d = due.day(item.due);
+      summary.textContent = due.summary(item, now);
+      remove.hidden = !isDated;
+      const lit = isDated ? quick.findIndex(([q]) => q === d) : -1; // "Today" before "This weekend" on a Saturday
+      dayChips.forEach((c, i) => c.classList.toggle('on', i === lit));
+      pick.classList.toggle('on', isDated && lit < 0);
+      pick.textContent = isDated && lit < 0 ? due.when(d, now) : 'Pick a date…';
+      let quickTime = false;
+      timeChips.forEach((c, i) => { const on = (TIMES[i] || undefined) === item.time; c.classList.toggle('on', on); quickTime ||= on; });
+      if (document.activeElement !== timeInput) timeInput.value = quickTime ? '' : (item.time || '');
+      const kind = !due.repeats(item) ? null : item.repeat.startsWith('weekly:') ? 'weekly' : item.repeat.startsWith('monthly:') ? 'monthly' : item.repeat;
+      repeatChips.forEach((c, i) => c.classList.toggle('on', KINDS[i][0] === kind));
+      weekRow.hidden = kind !== 'weekly';
+      const on = due.weekDays(item.repeat);
+      dayToggles.forEach((t, i) => { t.classList.toggle('on', on[i + 1]); t.setAttribute('aria-pressed', String(on[i + 1])); });
+    }
+    function close() {
+      pop.remove();
+      document.removeEventListener('mousedown', away, true);
+      document.removeEventListener('keydown', esc, true);
+    }
+    const away = e => { if (!pop.contains(e.target)) close(); };
+    const esc = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } };
+    pop._close = close;
+    refresh();
+    document.body.appendChild(pop);
+    // Beside its clock on a wide screen; a sheet from the bottom on a phone (see app.css).
+    if (window.innerWidth > 640) {
+      const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, ht = pop.offsetHeight;
+      pop.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + 'px';
+      pop.style.top = (r.bottom + 4 + ht <= window.innerHeight - 8 ? r.bottom + 4 : Math.max(8, r.top - ht - 4)) + 'px';
+    }
+    pop.animate([{ opacity: 0, transform: 'scale(0.94)' }, { opacity: 1, transform: 'none' }], { duration: 160, easing: 'ease-out' });
+    setTimeout(() => {
+      document.addEventListener('mousedown', away, true);
+      document.addEventListener('keydown', esc, true);
+    });
   }
 
   /** Drag by the handle: the others make room as it passes their middle. */
@@ -428,6 +558,7 @@ export function listEditor(ctx) {
     handle.addEventListener('pointerdown', e => {
       if (ctx.readOnly) return;
       e.preventDefault();
+      showAll();
       handle.setPointerCapture(e.pointerId);
       el.classList.add('dragging');
       const move = ev => {
@@ -456,12 +587,44 @@ export function listEditor(ctx) {
     });
   }
 
+  // A long list shows its first screen at once and the rest in slices of about 12 ms while the page
+  // is idle, so 500 items open as fast as 20 and nothing freezes on a slow phone. Anything that moves
+  // rows by index shows them all first.
+  const FIRST = 24;
+  let shown = 0, renders = 0;
+  const idle = window.requestIdleCallback ? f => requestIdleCallback(f, { timeout: 200 }) : f => setTimeout(() => f(null), 16);
+
   function render() {
-    rows.replaceChildren(...items.map(row));
+    rows.replaceChildren();
+    shown = 0;
+    addRows(FIRST);
     updateProgress();
+    if (shown < items.length) later(++renders);
+  }
+
+  function addRows(n) {
+    const end = Math.min(items.length, shown + n), frag = document.createDocumentFragment();
+    for (; shown < end; shown++) frag.appendChild(row(items[shown]));
+    rows.appendChild(frag);
+  }
+
+  function later(which) {
+    idle(deadline => {
+      if (which !== renders || shown >= items.length) return; // Started over, or all shown already.
+      const budget = deadline && !deadline.didTimeout ? Math.min(12, Math.max(4, deadline.timeRemaining())) : 8;
+      const until = performance.now() + budget, frag = document.createDocumentFragment();
+      do frag.appendChild(row(items[shown++])); while (shown < items.length && performance.now() < until);
+      rows.appendChild(frag);
+      if (shown < items.length) later(which);
+    });
+  }
+
+  function showAll() {
+    if (shown < items.length) addRows(items.length - shown);
   }
 
   function addAt(i) {
+    showAll();
     const item = { text: '', done: false };
     items.splice(i, 0, item);
     const el = row(item);
@@ -472,6 +635,7 @@ export function listEditor(ctx) {
 
   function removeAt(i) {
     if (i < 0 || i >= items.length) return;
+    showAll();
     items.splice(i, 1);
     rows.children[i].remove();
     updateProgress();
@@ -479,6 +643,7 @@ export function listEditor(ctx) {
   }
 
   function focusItem(i, atEnd) {
+    showAll();
     const el = rows.children[i];
     if (!el) return;
     if (!el._field) { if (i + (atEnd ? -1 : 1) !== i) focusItem(i + (atEnd ? -1 : 1), atEnd); return; }

@@ -54,12 +54,30 @@ export const wraps = json => object(json).wrap !== false;
 // ------------------------------------------------------------------------ list
 
 export function todos(json) {
-  return array(json, 'items').filter(o => o && typeof o === 'object')
-    .map(o => ({ text: typeof o.text === 'string' ? o.text : '', done: o.done === true }));
+  return array(json, 'items').filter(o => o && typeof o === 'object').map(o => {
+    const item = { text: typeof o.text === 'string' ? o.text : '', done: o.done === true };
+    // An item's day, time and repeat (see due.js); kept only when well formed.
+    if (typeof o.due === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.due)) {
+      item.due = o.due;
+      if (typeof o.time === 'string' && /^\d{2}:\d{2}$/.test(o.time)) item.time = o.time;
+      if (typeof o.repeat === 'string' && o.repeat) item.repeat = o.repeat;
+    }
+    return item;
+  });
 }
 
 export function todosJson(items, wrap = true) {
-  const o = { items: items.map(i => ({ text: i.text, done: !!i.done })) };
+  const o = {
+    items: items.map(i => {
+      const out = { text: i.text, done: !!i.done };
+      if (i.due) {
+        out.due = i.due;
+        if (i.time) out.time = i.time;
+        if (i.repeat) out.repeat = i.repeat;
+      }
+      return out;
+    }),
+  };
   if (!wrap) o.wrap = false;
   return JSON.stringify(o);
 }
@@ -180,11 +198,16 @@ export function searchable(note) {
 
 export const dayStart = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
+// Made once: a formatter is slow to make, and a grid of cards asks for hundreds of dates.
+const FORMATS = {};
+const format = (key, options) => (FORMATS[key] ||= new Intl.DateTimeFormat([], options));
+
 export function relative(t) {
   const now = Date.now(), d = new Date(t), today = dayStart(now);
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (t >= today) return time;
+  if (t >= today) return format('time', { hour: '2-digit', minute: '2-digit' }).format(d);
   if (t >= today - 86400000) return 'Yesterday';
-  if (now - t < 6 * 86400000) return d.toLocaleDateString([], { weekday: 'long' });
-  return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+  if (now - t < 6 * 86400000) return format('weekday', { weekday: 'long' }).format(d);
+  return d.getFullYear() === new Date(now).getFullYear()
+    ? format('day', { day: 'numeric', month: 'short' }).format(d)
+    : format('dayYear', { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
 }

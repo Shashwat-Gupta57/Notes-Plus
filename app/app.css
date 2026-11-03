@@ -539,6 +539,9 @@ textarea.field { resize: vertical; min-height: 96px; }
 .list-rows { display: flex; flex-direction: column; }
 .item { display: flex; align-items: flex-start; gap: 6px; padding: 4px 0; border-radius: 12px; }
 .item.dragging { background: var(--hover); }
+/* Rows off screen skip layout and paint, so a long list scrolls like a short one. */
+.list-rows > .item { content-visibility: auto; contain-intrinsic-size: auto 46px; }
+.list-rows > .item.dragging { content-visibility: visible; }
 .handle { display: grid; place-items: center; width: 28px; height: 38px; color: var(--divider); cursor: grab; touch-action: none; flex: none; }
 .check {
   display: grid; place-items: center; width: 22px; height: 22px; margin: 8px 4px 0 0; flex: none;
@@ -918,3 +921,86 @@ input.item-text { white-space: nowrap; text-overflow: ellipsis; }
 .rich-text .task[data-done="1"]::after { content: '✓'; position: absolute; left: 5px; top: 0.12em; color: #fff; font-size: 12px; font-weight: 700; pointer-events: none; }
 .rich-text.empty::before { content: attr(data-placeholder); color: var(--secondary); position: absolute; pointer-events: none; }
 .fmt-btn.on { background: var(--hover); color: var(--brand); }
+
+/* A list item's day: the clock on the row in use, the pill under its words, the picker (ed-text.js
+   openDue), and the clock tag on a list's card (home.js). */
+.item-col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
+.item-col .item-text { width: 100%; }
+.item-clock { visibility: hidden; display: grid; place-items: center; width: 34px; height: 38px; border: 0; background: transparent; color: var(--secondary); cursor: pointer; border-radius: 10px; flex: none; }
+.item-clock:hover { background: var(--hover); }
+.item:hover .item-clock, .item:focus-within .item-clock { visibility: visible; }
+.item.dated .item-clock { display: none; }
+@media (hover: none) { .item-clock { visibility: visible; opacity: 0.55; } }
+.due-pill {
+  display: inline-flex; align-items: center; gap: 4px; margin: -4px 0 6px; padding: 2px 8px 2px 6px;
+  border: 0; border-radius: 10px; font: inherit; font-size: 12.5px; cursor: pointer;
+  color: var(--secondary); background: color-mix(in srgb, var(--secondary) 16%, transparent);
+}
+.due-pill[hidden] { display: none; }
+.due-pill:disabled { cursor: default; }
+.due-pill.today { color: var(--tile-orange); background: color-mix(in srgb, var(--tile-orange) 16%, transparent); }
+.due-pill.overdue { color: var(--destructive); background: color-mix(in srgb, var(--destructive) 14%, transparent); }
+.due-pill.done { opacity: 0.6; }
+.due-tag {
+  display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px 1px 5px; border-radius: 8px;
+  font-size: 11px; white-space: nowrap; color: var(--secondary); background: color-mix(in srgb, var(--secondary) 18%, transparent);
+}
+.due-tag.today { color: var(--tile-orange); background: color-mix(in srgb, var(--tile-orange) 18%, transparent); }
+.due-tag.overdue { color: var(--destructive); background: color-mix(in srgb, var(--destructive) 16%, transparent); }
+.card-item.overdue { color: var(--destructive); }
+.due-pop {
+  position: fixed; z-index: 60; width: 372px; max-width: calc(100vw - 16px); padding: 16px 18px 18px; border-radius: 18px;
+  background: var(--surface); color: var(--text); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.22), inset 0 0 0 1px var(--divider);
+}
+.due-head { display: flex; align-items: center; gap: 10px; }
+.due-title { flex: 1; min-width: 0; font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.due-remove { border: 0; background: transparent; color: var(--destructive); font: inherit; font-size: 14px; cursor: pointer; padding: 6px 8px; border-radius: 8px; }
+.due-remove:hover { background: var(--hover); }
+.due-remove[hidden] { display: none; }
+.due-summary { color: var(--secondary); font-size: 13.5px; margin: 4px 0 0 30px; }
+.due-label { color: var(--secondary); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; margin: 14px 0 6px; }
+.due-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.due-chip { height: 32px; padding: 0 12px; border-radius: 10px; font-size: 14px; box-shadow: inset 0 0 0 1px var(--divider); }
+.due-chip.on { box-shadow: none; }
+.due-pick { position: relative; display: inline-flex; }
+.due-date-input { position: absolute; inset: auto 0 0 0; width: 100%; height: 0; opacity: 0; border: 0; padding: 0; pointer-events: none; }
+.due-time { height: 32px; padding: 0 8px; border: 0; border-radius: 10px; font: inherit; font-size: 14px; color: var(--text);
+  background: var(--bg); box-shadow: inset 0 0 0 1px var(--divider); }
+.due-week { display: flex; gap: 6px; margin-top: 10px; }
+.due-week[hidden] { display: none; }
+.due-day { flex: 1; max-width: 42px; aspect-ratio: 1; border: 0; border-radius: 50%; font: inherit; font-size: 14px; cursor: pointer;
+  color: var(--text); background: var(--bg); box-shadow: inset 0 0 0 1px var(--divider); }
+.due-day.on { background: var(--brand); color: #000; box-shadow: none; }
+@media (max-width: 640px) {
+  .due-pop { left: 0; right: 0; bottom: 0; width: auto; max-width: none; border-radius: 22px 22px 0 0; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+}
+
+/* "From a template" in the New sheet (home.js). */
+.kind-heading { grid-column: 1 / -1; color: var(--secondary); font-size: 13px; margin: 10px 4px 2px; }
+
+/* Ctrl+K (palette.js). */
+.palette-scrim { position: fixed; inset: 0; z-index: 80; background: var(--scrim); display: flex; justify-content: center; align-items: flex-start; padding: 72px 16px 16px; }
+.palette {
+  width: 620px; max-width: 100%; max-height: calc(100vh - 110px); display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 18px; background: var(--surface); color: var(--text); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32), inset 0 0 0 1px var(--divider);
+}
+.palette-field {
+  border: 0; border-bottom: 1px solid var(--divider); outline: none; background: transparent; color: var(--text);
+  font: inherit; font-size: 17px; padding: 16px 18px 14px;
+}
+.palette-rows { overflow-y: auto; padding: 0 6px 6px; min-height: 0; }
+.palette-group { color: var(--secondary); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding: 10px 12px 4px; }
+.palette-row { display: flex; align-items: center; gap: 12px; padding: 7px 10px; border-radius: 10px; cursor: pointer; }
+.palette-row.selected { background: var(--hover); }
+.palette-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; flex: none; }
+.palette-texts { display: flex; flex-direction: column; min-width: 0; }
+.palette-label { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.palette-label b { font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.palette-texts small { color: var(--secondary); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.palette-none { color: var(--secondary); padding: 18px 12px; font-size: 14px; }
+.palette-hint { color: var(--secondary); font-size: 12px; padding: 8px 16px 10px; border-top: 1px solid var(--divider); }
+@media (max-width: 640px) { .palette-scrim { padding-top: 16px; } .palette-hint { display: none; } }
+.shortcuts { display: grid; gap: 8px; font-size: 14.5px; }
+.shortcuts kbd { display: inline-block; min-width: 92px; font: inherit; font-size: 13px; color: var(--secondary); }
+/* Fields that size themselves to their text, where the browser can (ed-text.js autoGrow). */
+textarea.self-sizing { field-sizing: content; min-height: 1lh; }

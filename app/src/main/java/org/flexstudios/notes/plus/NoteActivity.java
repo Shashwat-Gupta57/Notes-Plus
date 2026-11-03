@@ -549,6 +549,7 @@ abstract class NoteActivity extends AppCompatActivity {
                         snapshot.getContent(), snapshot.getData(), snapshot.getColor(), snapshot.isPinned(),
                         snapshot.getTimestamp());
             }
+            if (NoteData.LIST.equals(snapshot.getType())) ChecklistWidget.refresh(getApplicationContext());
             if (renamed) {
                 int changed = renameLinks(live.getId(), renamedFrom, snapshot.getTitle());
                 if (changed > 0) {

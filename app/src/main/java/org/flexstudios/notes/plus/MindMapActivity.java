@@ -345,7 +345,7 @@ public class MindMapActivity extends NoteActivity {
         AppDatabase.IO.execute(() -> {
             List<NoteEntity> all = AppDatabase.getInstance(this).noteDao().getAllDirect();
             List<NoteEntity> others = new ArrayList<>();
-            for (NoteEntity n : all) if (note == null || n.getId() != note.getId()) others.add(n);
+            for (NoteEntity n : all) if ((note == null || n.getId() != note.getId()) && !n.isHidden()) others.add(n); // Hidden notes stay out of sight.
             runOnUiThread(() -> {
                 if (others.isEmpty()) {
                     Toast.makeText(this, "No other notes to link yet", Toast.LENGTH_SHORT).show();

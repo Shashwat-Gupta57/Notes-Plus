@@ -13,6 +13,14 @@
 
     <style name="Theme.Notes" parent="Base.Theme.Notes" />
 
+    <!-- Just a dialog over the home screen (choosing a list widget's list). -->
+    <style name="Theme.Notes.Clear" parent="Theme.Notes">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
     <style name="Widget.App.Button" parent="Widget.Material3.Button">
         <item name="shapeAppearanceOverlay">@style/ShapeAppearance.App.Button.Rounded</item>
     </style>

@@ -25,7 +25,7 @@ No MVVM, no repository layer. Activities talk to Room DAOs directly and hop thre
 executor per click. Media operations go through `VaultMedia`, never re-implemented in a
 screen.
 
-**Persistence** — `AppDatabase` (Room, singleton, version 21, `notes_database`)
+**Persistence** — `AppDatabase` (Room, singleton, version 22, `notes_database`)
 
 | Entity | Table | Notes |
 |---|---|---|
@@ -41,7 +41,7 @@ must match the `@Index`es on `SecretEntity` exactly), 10→11 adds `durationMs`,
 chat tables, 14→15 chat vault sync (`updatedAt`/`dirty`/`deleted`) and conversation `moved`,
 15→16 chat media, nicknames and shared backgrounds, 16→17 chat photos, ID aliases and list
 backgrounds, 17→18 group notes, group chats and message senders, 18→19 sent notes (`sentTo`,
-`sentMedia`, `sharedFrom`), 19→20 `archived` and `folder` (how a note is filed), 20→21 `template`. Only `fallbackToDestructiveMigrationFrom(1)`
+`sentMedia`, `sharedFrom`), 19→20 `archived` and `folder` (how a note is filed), 20→21 `template`, 21→22 `hidden`. Only `fallbackToDestructiveMigrationFrom(1)`
 is on, so a missing migration now crashes instead of wiping the vault — **always add it**.
 `onOpen` seeds vault 1 asynchronously; setup calls `AppDatabase.ensureMainVault` itself so it
 never races the unlock screen.
@@ -186,6 +186,18 @@ files become lists with `📅`/`⏰`/`🔁`), pictures by path, name or data URI
 (`Archived/`, `Templates/`, folders as folders, `attachments/`, locked notes listed in `Not exported.md`)
 that reads back with every type. A note already here (same title and words, pictures ignored) is skipped.
 No `String.join`/`repeat`/`java.util.Base64` in it: Android 7 lacks them.
+
+**Hidden notes** (`NoteEntity.hidden`, synced like `template`, needs its rules line): "Hide" in a note's
+options takes it off the grid, search, folders, templates, link suggestions, backlinks, Ctrl+K and widgets.
+Pulling the grid down at the very top and holding 1.2 s (`MainActivity.showHidden`; desktop: scrolling up at
+the top for a moment; web: either) shows only them, until Back, the up arrow, or leaving the app
+(`onUserLeaveHint`). Not a hidden space: no lock, and nothing about it is in the docs.
+
+**Widgets**: `ChecklistWidget` (+ `ChecklistWidgetService` rows, `ChecklistWidgetConfig` picker) shows one
+list, chosen by uuid in app prefs, ticked from the home screen through `Due.tick` and saved like the app
+(skipped while that list is open in an editor); locked, hidden or deleted lists show only "This list isn't
+available". `NewNoteWidget`: note, list, journal, recording. Both use `widget_*` drawables without theme
+tints (a launcher can't resolve `?attr`), and `ChecklistWidget.refresh` runs after list saves and pulls.
 
 **Filing** (`NoteFolders`): `archived` hides a note everywhere but the Archived filter; `folder` is a
 name (≤ 100) and a folder exists while a note is in it (empty ones made on a device are remembered in
@@ -352,7 +364,7 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-The build file and `version.json` are both at 37 / "16.6" (released as v16.6.0, with `sha256`); desktop and web are 16.6 too (`version.json` has `web.versionName`, which the web app compares with, so an Android-only release doesn't prompt the web).
+The build file is at 40 / "19.0" (desktop `pom.xml` and the web's `VERSION`, `?v=` and `sw.js` cache are 19.0 too), ahead of `version.json`, which stays at 39 / "17.0" until 19.0 is actually published (`version.json` may carry `web.versionName`, which the web app compares with, so an Android-only release doesn't prompt the web).
 16.1 was never published (its APK was never on R2); 16.4 follows 16.0.
 From 11.0 the APK is served from Cloudflare R2 (`releases` bucket, public at
 `https://releases.talken.in/android/Notes-Plus-<version>.apk`); from 16.6 every release is also a

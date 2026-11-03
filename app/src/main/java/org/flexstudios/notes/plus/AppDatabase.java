@@ -12,7 +12,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 import java.util.concurrent.Executors;
 
 @Database(entities = {NoteEntity.class, SecretEntity.class, VaultEntity.class, AlbumEntity.class,
-        ChatStore.Vault.class, ChatStore.Conversation.class, ChatStore.Message.class}, version = 21, exportSchema = false)
+        ChatStore.Vault.class, ChatStore.Conversation.class, ChatStore.Message.class}, version = 22, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static AppDatabase instance;
 
@@ -36,7 +36,7 @@ public abstract class AppDatabase extends RoomDatabase {
                     .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
                             MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
-                            MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
+                            MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
                     .addCallback(new Callback() {
                         @Override
                         public void onOpen(@NonNull SupportSQLiteDatabase db) {
@@ -94,6 +94,14 @@ public abstract class AppDatabase extends RoomDatabase {
      * and every lookup by file name was a full table scan, which is what made opening a vault
      * of thousands of items slow.
      */
+    /** Hidden notes (off the grid until the notes are pulled down and held). */
+    static final Migration MIGRATION_21_22 = new Migration(21, 22) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE `notes` ADD COLUMN `hidden` INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
     /** Templates (one of my notes, kept to start new ones from). */
     static final Migration MIGRATION_20_21 = new Migration(20, 21) {
         @Override

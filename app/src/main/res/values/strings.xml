@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Notes+</string>
+    <string name="widget_checklist_description">A list you can tick from your home screen</string>
+    <string name="widget_new_description">Start a note, a list, a journal day or a recording</string>
 </resources>

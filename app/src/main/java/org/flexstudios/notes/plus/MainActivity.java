@@ -60,6 +60,18 @@ public class MainActivity extends AppCompatActivity {
     private final ExecutorService executor = AppDatabase.IO;
 
     private List<NoteEntity> allNotes = new ArrayList<>();
+    /** Hidden notes: shown only after the grid is pulled down at the top and held, until the app is left. */
+    private List<NoteEntity> hiddenNotes = new ArrayList<>();
+    private boolean showingHidden;
+    /** Back from the hidden notes goes to the notes, not out of the app. */
+    private final androidx.activity.OnBackPressedCallback backFromHidden = new androidx.activity.OnBackPressedCallback(false) {
+        @Override
+        public void handleOnBackPressed() {
+            leaveHidden();
+        }
+    };
+    private float pullStartY = -1;
+    private Runnable pullRunnable;
     private String filterType;
     /** The "Shared with me" filter: notes sent to me by others. */
     private static final String SHARED = "SHARED";
@@ -85,6 +97,7 @@ public class MainActivity extends AppCompatActivity {
         AppTheme.apply(this); // Before the first screen draws: the chosen look.
         super.onCreate(savedInstanceState);
         importExport = new ImportExport(this);
+        getOnBackPressedDispatcher().addCallback(this, backFromHidden);
 
         if (!SecurityHelper.isSetupDone(this)) {
             startActivity(new Intent(this, SetupLockActivity.class));
@@ -144,7 +157,10 @@ public class MainActivity extends AppCompatActivity {
 
         database = AppDatabase.getInstance(this);
         database.noteDao().getAllNotes().observe(this, notes -> {
-            allNotes = notes;
+            List<NoteEntity> shown = new ArrayList<>(), hidden = new ArrayList<>();
+            for (NoteEntity n : notes) (n.isHidden() ? hidden : shown).add(n);
+            allNotes = shown;
+            hiddenNotes = hidden;
             buildFilterChips();
             applyFilter();
         });
@@ -173,6 +189,19 @@ public class MainActivity extends AppCompatActivity {
     // ================================================================ content
 
     private void applyFilter() {
+        if (showingHidden) {
+            // Only the hidden ones, newest first; search still narrows them.
+            List<NoteEntity> hidden = new ArrayList<>();
+            String q = query.toLowerCase(Locale.getDefault());
+            for (NoteEntity n : hiddenNotes) {
+                String hay = ((n.getTitle() == null ? "" : n.getTitle()) + "\n" + (n.getContent() == null ? "" : n.getContent())).toLowerCase(Locale.getDefault());
+                if (q.isEmpty() || hay.contains(q)) hidden.add(n);
+            }
+            adapter.submit(hidden, new java.util.LinkedHashMap<>());
+            emptyState.setVisibility(hidden.isEmpty() ? View.VISIBLE : View.GONE);
+            emptyText.setText("No hidden notes. Hide a note from its options to keep it here.");
+            return;
+        }
         List<NoteEntity> shown = new ArrayList<>();
         String q = query.toLowerCase(Locale.getDefault());
         String folder = filterType != null && filterType.startsWith(FOLDER) ? filterType.substring(FOLDER.length()) : null;
@@ -359,6 +388,24 @@ public class MainActivity extends AppCompatActivity {
                 ? NoteData.kind(note.getType()).label : note.getTitle();
         List<String> labels = new ArrayList<>();
         List<Runnable> actions = new ArrayList<>();
+        if (showingHidden || note.isHidden()) {
+            // A hidden note: open it, or bring it back. Nothing else, so nothing about it shows elsewhere.
+            labels.add("Unhide");
+            actions.add(() -> {
+                executor.execute(() -> {
+                    database.noteDao().setHidden(note.getId(), false);
+                    ChecklistWidget.refresh(this);
+                });
+                Toast.makeText(this, "Back with your notes", Toast.LENGTH_SHORT).show();
+            });
+            labels.add("Delete");
+            actions.add(() -> deleteWithUndo(note));
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle(title)
+                    .setItems(labels.toArray(new String[0]), (d, which) -> actions.get(which).run())
+                    .show();
+            return;
+        }
         if (note.isTemplate()) {
             // A template: start a note from it, or look after it. Nothing to file, send or share.
             labels.add("New note from this");
@@ -385,6 +432,14 @@ public class MainActivity extends AppCompatActivity {
         actions.add(() -> NoteFolders.move(this, note, NoteFolders.all(this, allNotes)));
         labels.add(note.isArchived() ? "Unarchive" : "Archive");
         actions.add(() -> NoteFolders.setArchived(this, note, !note.isArchived()));
+        labels.add("Hide");
+        actions.add(() -> {
+            executor.execute(() -> {
+                database.noteDao().setHidden(note.getId(), true);
+                ChecklistWidget.refresh(this);
+            });
+            Toast.makeText(this, "Hidden. Pull your notes down at the top and hold to see hidden notes.", Toast.LENGTH_LONG).show();
+        });
         labels.add("Duplicate");
         actions.add(() -> duplicateNote(note));
         if (Templates.canSave(note)) {
@@ -561,6 +616,10 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == android.R.id.home && showingHidden) {
+            leaveHidden();
+            return true;
+        }
         if (item.getItemId() == R.id.action_account) {
             startActivity(new Intent(this, AccountActivity.class));
             return true;
@@ -642,11 +701,23 @@ public class MainActivity extends AppCompatActivity {
                         initialTouchX = event.getX();
                         initialTouchY = event.getY();
                         isSecretTriggering = false;
+                        // At the very top, a pull down that's held shows the hidden notes.
+                        pullStartY = rv.canScrollVertically(-1) ? -1 : event.getY();
                         break;
 
                     case MotionEvent.ACTION_MOVE:
                         float dx = initialTouchX - event.getX();
                         float dy = Math.abs(initialTouchY - event.getY());
+                        if (pullStartY >= 0) {
+                            float pulled = event.getY() - pullStartY, dp = getResources().getDisplayMetrics().density;
+                            boolean down = pulled > 110 * dp && Math.abs(event.getX() - initialTouchX) < pulled / 2;
+                            if (down && pullRunnable == null && !showingHidden) {
+                                pullRunnable = MainActivity.this::showHidden;
+                                secretHandler.postDelayed(pullRunnable, 1200);
+                            } else if (!down && pullRunnable != null) {
+                                cancelPull();
+                            }
+                        }
 
                         if (Math.abs(dx) > 50 && Math.abs(dx) > dy * 2 && !isSecretTriggering) {
                             isSecretTriggering = true;
@@ -659,6 +730,7 @@ public class MainActivity extends AppCompatActivity {
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
                         cancelSecretTimer();
+                        cancelPull();
                         break;
                 }
                 return isSecretTriggering;
@@ -674,6 +746,47 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onRequestDisallowInterceptTouchEvent(boolean disallowIntercept) {}
         });
+    }
+
+    private void cancelPull() {
+        if (pullRunnable != null) secretHandler.removeCallbacks(pullRunnable);
+        pullRunnable = null;
+        pullStartY = -1;
+    }
+
+    /** The hidden notes, until Back, the up arrow, or leaving the app. */
+    private void showHidden() {
+        pullRunnable = null;
+        pullStartY = -1;
+        if (showingHidden) return;
+        showingHidden = true;
+        backFromHidden.setEnabled(true);
+        getWindow().getDecorView().performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle("Hidden notes");
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
+        ((View) findViewById(R.id.filterChips).getParent()).setVisibility(View.GONE);
+        applyFilter();
+    }
+
+    private void leaveHidden() {
+        if (!showingHidden) return;
+        showingHidden = false;
+        backFromHidden.setEnabled(false);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle("Notes");
+            getSupportActionBar().setDisplayHomeAsUpEnabled(false);
+        }
+        ((View) findViewById(R.id.filterChips).getParent()).setVisibility(View.VISIBLE);
+        applyFilter();
+    }
+
+    /** Leaving the app (Home, Recents) hides them again; opening one of them doesn't. */
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        leaveHidden();
     }
 
     private void startSecretTimer() {

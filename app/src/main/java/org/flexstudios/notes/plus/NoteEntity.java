@@ -55,6 +55,8 @@ public class NoteEntity {
     private boolean archived;
     private String folder;
     private boolean template;
+    /** Kept off the grid, search and everything else until the notes are pulled down and held. */
+    private boolean hidden;
 
     public NoteEntity(String title, String content, long timestamp) {
         this.title = title;
@@ -106,6 +108,8 @@ public class NoteEntity {
     public void setFolder(String folder) { this.folder = folder; }
     public boolean isTemplate() { return template; }
     public void setTemplate(boolean template) { this.template = template; }
+    public boolean isHidden() { return hidden; }
+    public void setHidden(boolean hidden) { this.hidden = hidden; }
 
     /** Someone else's note, sent to me. */
     boolean isReceived() { return sharedFrom != null; }
@@ -117,6 +121,6 @@ public class NoteEntity {
                 && color == o.color && pinned == o.pinned && getType().equals(o.getType())
                 && java.util.Objects.equals(groupMembers, o.groupMembers)
                 && java.util.Objects.equals(sentTo, o.sentTo) && java.util.Objects.equals(sharedFrom, o.sharedFrom)
-                && archived == o.archived && java.util.Objects.equals(folder, o.folder) && template == o.template;
+                && archived == o.archived && java.util.Objects.equals(folder, o.folder) && template == o.template && hidden == o.hidden;
     }
 }

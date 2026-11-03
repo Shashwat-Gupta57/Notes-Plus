@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The "New" widget: one row of four. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_new_description"
+    android:initialLayout="@layout/widget_new_note"
+    android:minWidth="250dp"
+    android:minHeight="60dp"
+    android:minResizeWidth="180dp"
+    android:resizeMode="horizontal"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

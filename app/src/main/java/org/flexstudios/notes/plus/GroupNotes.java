@@ -100,6 +100,7 @@ final class GroupNotes {
         value.remove("archived"); // How it's filed stays mine.
         value.remove("folder");
         value.remove("template");
+        value.remove("hidden");
         Map<String, Object> update = new HashMap<>();
         update.put("groupNotes/" + gid + "/owner", uid);
         update.put("groupNotes/" + gid + "/size", members.length());

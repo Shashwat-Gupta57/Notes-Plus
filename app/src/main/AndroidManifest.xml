@@ -154,6 +154,44 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- Home-screen widgets: a list to tick, and "New". Notes only. -->
+        <receiver
+            android:name=".ChecklistWidget"
+            android:exported="false"
+            android:label="Notes+ list">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_checklist_info" />
+        </receiver>
+        <receiver
+            android:name=".NewNoteWidget"
+            android:exported="false"
+            android:label="Notes+ new">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_new_note_info" />
+        </receiver>
+        <service
+            android:name=".ChecklistWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+        <!-- Exported: the launcher opens it to choose the widget's list. -->
+        <activity
+            android:name=".ChecklistWidgetConfig"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@style/Theme.Notes.Clear">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <!-- Exported because DownloadManager is another process; it ignores every id but its own. -->
         <receiver android:name=".Updater$DownloadReceiver" android:exported="true">
             <intent-filter>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A home-screen widget's card: the app's surface, rounded like the launcher's own. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/app_surface" />
+    <corners android:radius="24dp" />
+</shape>

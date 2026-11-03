@@ -621,8 +621,8 @@ final class RichText implements TextWatcher {
         private void apply(TextPaint p) {
             p.setTextSize(p.getTextSize() * scale);
             Typeface base = p.getTypeface();
-            int style = (base == null ? 0 : base.getStyle()) | (bold ? Typeface.BOLD : 0) | (italic ? Typeface.ITALIC : 0);
-            p.setTypeface(Typeface.create(base, style));
+            boolean b = bold || (base != null && base.isBold()), i = italic || (base != null && base.isItalic());
+            p.setTypeface(Typeface.create(base, b && i ? Typeface.BOLD_ITALIC : b ? Typeface.BOLD : i ? Typeface.ITALIC : Typeface.NORMAL));
         }
 
         @Override

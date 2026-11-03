@@ -48,6 +48,9 @@ public interface NoteDao {
     @Query("UPDATE notes SET color = :color, dirty = 1 WHERE id = :noteId")
     void setColor(int noteId, int color);
 
+    @Query("UPDATE notes SET hidden = :hidden, dirty = 1 WHERE id = :noteId")
+    void setHidden(int noteId, boolean hidden);
+
     @Query("UPDATE notes SET archived = :archived, dirty = 1 WHERE id = :noteId")
     void setArchived(int noteId, boolean archived);
 

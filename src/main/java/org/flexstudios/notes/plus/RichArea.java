@@ -465,6 +465,15 @@ final class RichArea extends StyledTextArea<Markdown.Block, Markdown.Style> impl
         int at = hit(e.getX(), e.getY()).getInsertionIndex();
         TwoDimensional.Position p = offsetToPosition(at, TwoDimensional.Bias.Forward);
         String line = getParagraph(p.getMajor()).getText();
+        // "[[Title]]": the note it names.
+        Matcher link = NoteLinks.LINK.matcher(line);
+        while (link.find()) {
+            if (p.getMinor() > link.start() && p.getMinor() < link.end()) {
+                NoteEditor.openLink(link.group(1));
+                e.consume();
+                return;
+            }
+        }
         Matcher m = URL.matcher(line);
         while (m.find()) {
             if (p.getMinor() >= m.start() && p.getMinor() <= m.end()) {

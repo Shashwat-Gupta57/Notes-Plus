@@ -357,6 +357,16 @@ public class NotesApp extends Application {
         }
     }
 
+    /** Whether the current window shows a hidden space: links between notes never open over one. */
+    static boolean hiddenSpaceOpen() {
+        return active != null && active.holdsHiddenSpace();
+    }
+
+    /** The note open on top of the current window, or null. */
+    static NoteEditor topEditor() {
+        return active != null && active.top() instanceof NoteEditor ed ? ed : null;
+    }
+
     /** Closes the top screen of the current window (asking it first) and resumes the one below. */
     static void back() {
         back(active);

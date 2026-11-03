@@ -97,6 +97,7 @@ final class NoteEditorView extends NoteEditor {
             }
         });
         body = new RichBody(this::withFolder, scroll);
+        body.setLinkNotes(() -> linkNotes);
         body.setOnChange(this::updateFooter);
 
         footer.getStyleClass().add("secondary");
@@ -587,6 +588,20 @@ final class NoteEditorView extends NoteEditor {
             text.setText(item.text);
             if (text instanceof TextArea area) Ui.autoGrow(area, 0, 0);
             Links.install(text);
+            if (!readOnly) LinkSuggest.attach(text, () -> linkNotes);
+            // Ctrl+click on "[[Title]]" opens that note (the click has put the caret inside it).
+            text.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_CLICKED, e -> {
+                if (!e.isShortcutDown() || text.getText() == null) return;
+                java.util.regex.Matcher link = NoteLinks.LINK.matcher(text.getText());
+                int at = text.getCaretPosition();
+                while (link.find()) {
+                    if (at > link.start() && at < link.end()) {
+                        e.consume();
+                        NoteEditor.openLink(link.group(1));
+                        return;
+                    }
+                }
+            });
             // Its day under the words, coloured by how near it is; click it to change it.
             pill = new Label();
             pill.getStyleClass().add("due-pill");

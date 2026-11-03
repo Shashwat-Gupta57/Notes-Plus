@@ -28,6 +28,10 @@ abstract class NoteEditor extends Screen {
     protected final String type;
     private final int noteId;
     private boolean createdHere;
+    /** Every note, for links: what "[[" offers. Loaded whenever the note shows. */
+    protected volatile List<NoteEntity> linkNotes = List.of();
+    /** The title as last saved: when it changes, the links to it are renamed. */
+    private String linkedTitle;
     private String savedState;
     protected final javafx.beans.property.StringProperty syncStatus = new javafx.beans.property.SimpleStringProperty("Saved");
     private final javafx.animation.PauseTransition inactivityTimer = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(10));
@@ -163,6 +167,7 @@ abstract class NoteEditor extends Screen {
     /** Fills the editor with a loaded note (already decrypted, if it was locked). */
     private void showLoaded(NoteEntity loaded) {
         note = loaded;
+        linkedTitle = loaded.getTitle();
         readOnly = loaded.isReceived();
         NoteSync.OPEN.add(note.getId());
         savedState = state(note);
@@ -170,6 +175,7 @@ abstract class NoteEditor extends Screen {
         showPin();
         showLock();
         onNoteLoaded(note);
+        loadLinks();
         if (!readOnly) markBaseline();
         showing(true);
         if (readOnly) {
@@ -242,6 +248,87 @@ abstract class NoteEditor extends Screen {
     @Override
     void onPause() {
         save(false);
+    }
+
+    @Override
+    void onResume() {
+        loadLinks(); // Back from a linked note: it may link here now, or have a new title.
+    }
+
+    // ================================================================== links
+
+    /** Every note (for "[[") and the notes linking here (the "Linked from" row at the bottom). */
+    protected void loadLinks() {
+        final NoteEntity me = note;
+        final boolean mine = !readOnly;
+        NoteStore.load(NoteStore::all, all -> {
+            linkNotes = all;
+            showBacklinks(me == null || me.getId() <= 0 || !mine ? List.of() : NoteLinks.backlinks(me, all));
+        });
+    }
+
+    private void showBacklinks(List<NoteEntity> from) {
+        if (from.isEmpty()) {
+            root.setBottom(null);
+            return;
+        }
+        HBox row = new HBox(6);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getChildren().add(Ui.label("Linked from", 12, "secondary"));
+        for (NoteEntity n : from) {
+            NoteData.Kind kind = NoteData.kind(n.getType());
+            String title = n.getTitle() == null || n.getTitle().isBlank() ? kind.label() : n.getTitle().trim();
+            Button chip = new Button(title.length() > 40 ? title.substring(0, 40) + "…" : title, Ui.icon(kind.icon(), 15, kind.accent()));
+            chip.getStyleClass().setAll("chip", "with-icon", "backlink");
+            chip.setFocusTraversable(false);
+            chip.setOnAction(e -> NotesApp.open(NoteData.editor(n.getType(), n.getId())));
+            row.getChildren().add(chip);
+        }
+        javafx.scene.control.ScrollPane bar = new javafx.scene.control.ScrollPane(row);
+        bar.setFitToHeight(true);
+        bar.setVbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+        bar.getStyleClass().add("backlinks");
+        root.setBottom(bar);
+    }
+
+    /** Opens the note "[[title]]" leads to, or offers to make it. Never over a hidden space. */
+    static void openLink(String title) {
+        if (NotesApp.hiddenSpaceOpen() || title == null || title.isBlank()) return;
+        NoteStore.load(NoteStore::all, all -> {
+            NoteEntity target = NoteLinks.resolve(title, all);
+            if (target != null) {
+                NotesApp.open(NoteData.editor(target.getType(), target.getId()));
+                return;
+            }
+            Ui.dialog().title("No note called “" + title.trim() + "”").message("Make a note with that title?")
+                    .positive("Create", () -> NoteStore.load(s -> {
+                        NoteEntity made = new NoteEntity(title.trim(), "", System.currentTimeMillis());
+                        made.setType(NoteData.TEXT);
+                        made.setAccount(Account.uid());
+                        made.setRev(0);
+                        made.setDirty(true);
+                        return s.insert(made);
+                    }, id -> NotesApp.open(NoteData.editor(NoteData.TEXT, id))))
+                    .negative("Cancel", null).show();
+        });
+    }
+
+    /**
+     * Every note linking "[[from]]" now links "[[to]]", unless another note still has the old title
+     * (then the links lead there). Received, locked and open notes are left as they are.
+     */
+    private static int renameLinks(NoteStore s, int self, String from, String to) {
+        List<NoteEntity> all = s.all();
+        if (NoteLinks.resolve(from, all) != null) return 0;
+        int changed = 0;
+        for (NoteEntity n : all) {
+            if (n.getId() == self || n.isReceived() || NoteLock.isLocked(n.getData()) || NoteSync.OPEN.contains(n.getId())) continue;
+            String[] next = NoteLinks.renamed(n, from, to);
+            if (next == null) continue;
+            s.saveContent(n.getId(), n.getTitle(), next[0], next[1], n.getColor(), n.isPinned(), System.currentTimeMillis());
+            changed++;
+        }
+        return changed;
     }
 
     /**
@@ -368,6 +455,11 @@ abstract class NoteEditor extends Screen {
         note.setTimestamp(System.currentTimeMillis());
         final NoteEntity snapshot = note.copy();
         final NoteEntity live = note;
+        // A new title: the links to the old one follow it (not for locked notes, whose links can't be seen).
+        final String renamedFrom = linkedTitle;
+        final boolean renamed = lock == null && !NoteLinks.key(renamedFrom).isEmpty()
+                && !NoteLinks.key(snapshot.getTitle()).isEmpty() && !NoteLinks.key(renamedFrom).equals(NoteLinks.key(snapshot.getTitle()));
+        linkedTitle = snapshot.getTitle();
         if (lock != null) {
             try {
                 snapshot.setData(NoteLock.seal(lock, snapshot.getContent(), snapshot.getData()));
@@ -385,6 +477,11 @@ abstract class NoteEditor extends Screen {
             } else {
                 s.saveContent(live.getId(), snapshot.getTitle(), snapshot.getContent(), snapshot.getData(),
                         snapshot.getColor(), snapshot.isPinned(), snapshot.getTimestamp());
+            }
+            if (renamed) {
+                int changed = renameLinks(s, live.getId(), renamedFrom, snapshot.getTitle());
+                if (changed > 0) javafx.application.Platform.runLater(() ->
+                        Ui.toast("Updated links in " + changed + (changed == 1 ? " note" : " notes")));
             }
             if (!leaving) javafx.application.Platform.runLater(() -> syncStatus.set("Saved"));
         });

@@ -55,6 +55,8 @@ final class RichBody extends VBox {
 
     private final Folder folder;
     private final ScrollPane scroll;
+    /** Every note, for "[[": set by the editor. */
+    private java.util.function.Supplier<List<NoteEntity>> linkNotes = List::of;
     private Path dir;
     private String prompt = "Start writing";
     private Runnable onChange = () -> {};
@@ -183,6 +185,11 @@ final class RichBody extends VBox {
         }
     }
 
+    /** Where "[[" finds the notes it offers. */
+    void setLinkNotes(java.util.function.Supplier<List<NoteEntity>> notes) {
+        linkNotes = notes;
+    }
+
     /** Makes every block read-only (a note sent to me) or editable again. */
     void setEditable(boolean editable) {
         for (Node n : getChildren()) if (n instanceof RichArea a) a.setEditable(editable);
@@ -207,6 +214,7 @@ final class RichBody extends VBox {
         });
         area.zoom(Zoom.level());
         area.addEventFilter(KeyEvent.KEY_PRESSED, e -> keys(area, e));
+        LinkSuggest.attach(area, () -> linkNotes.get());
         return area;
     }
 

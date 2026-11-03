@@ -97,6 +97,16 @@ final class Palette {
                     n.isTemplate() ? Icons.TEMPLATE : kind.icon(), kind.accent(), words.length() > 4000 ? words.substring(0, 4000) : words,
                     n.getTimestamp(), () -> go(main, () -> NotesApp.open(NoteData.editor(note.getType(), note.getId())))));
         }
+        // The open note's backlinks: the notes that link to it.
+        NoteEditor open = NotesApp.topEditor();
+        if (open != null && open.note != null && open.note.getId() > 0) {
+            for (NoteEntity b : NoteLinks.backlinks(open.note, notes)) {
+                NoteData.Kind kind = NoteData.kind(b.getType());
+                String t = b.getTitle() == null || b.getTitle().isBlank() ? kind.label() : b.getTitle().trim();
+                items.add(new Item("Linking here", t, "Links to this note", kind.icon(), kind.accent(), "backlink linked",
+                        b.getTimestamp() + 1, () -> go(main, () -> NotesApp.open(NoteData.editor(b.getType(), b.getId())))));
+            }
+        }
         for (NoteData.Kind kind : NoteData.KINDS) {
             items.add(new Item("New", "New " + kind.label().toLowerCase(Locale.getDefault()), kind.description(), kind.icon(), kind.accent(),
                     "", 0, () -> go(main, () -> NotesApp.open(NoteData.editor(kind.type(), -1)))));
@@ -186,6 +196,7 @@ final class Palette {
             List<Object[]> found = new ArrayList<>(); // {item, match, score}
             if (q.isEmpty()) {
                 // Nothing typed: the newest notes, then the ways to start one.
+                items.stream().filter(it -> it.group().equals("Linking here")).forEach(it -> found.add(new Object[]{it, new Match(0, new int[0]), 0}));
                 items.stream().filter(it -> it.group().equals("Notes")).sorted(Comparator.comparingLong(Item::when).reversed())
                         .limit(6).forEach(it -> found.add(new Object[]{it, new Match(0, new int[0]), 0}));
                 items.stream().filter(it -> it.group().equals("New"))

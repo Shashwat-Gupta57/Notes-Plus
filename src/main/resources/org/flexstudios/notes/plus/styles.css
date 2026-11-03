@@ -350,6 +350,19 @@
 .due-tag.today { -fx-text-fill: -np-tile-orange; -fx-background-color: rgba(255, 159, 10, 0.18); }
 .due-tag.overdue { -fx-text-fill: -np-destructive; -fx-background-color: rgba(255, 59, 48, 0.16); }
 .card-row.overdue { -fx-text-fill: -np-destructive; }
+/* Links between notes: the "[[" list (LinkSuggest) and the "Linked from" row (NoteEditor). */
+.link-pop {
+    -fx-background-color: -np-m3-menu;
+    -fx-background-radius: 12;
+    -fx-padding: 6;
+    -fx-min-width: 240;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.28), 16, 0.0, 0, 4);
+}
+.link-pop-row { -fx-padding: 7 12 7 10; -fx-background-radius: 8; -fx-graphic-text-gap: 10; -fx-font-size: 14px; -fx-text-fill: -np-text-primary; -fx-cursor: hand; }
+.link-pop-row:hover, .link-pop-row.selected { -fx-background-color: -np-m3-hover; }
+.backlinks, .backlinks > .viewport { -fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 4 16 6 16; }
+.chip.backlink { -fx-min-height: 28; -fx-pref-height: 28; -fx-font-size: 13px; -fx-border-color: -np-divider; -fx-border-radius: 8; }
+
 /* Ctrl+K (Palette). */
 .palette {
     -fx-background-color: -np-m3-menu;

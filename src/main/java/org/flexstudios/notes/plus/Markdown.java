@@ -249,7 +249,7 @@ final class Markdown {
 
     /** A line without its marks: for cards, word counts and anything that shows plain text. */
     static String plainLine(String line) {
-        Para p = parse(line);
+        Para p = parse(NoteLinks.shown(line));
         String text = p.text();
         return switch (p.block()) {
             case BULLET -> "• " + text;

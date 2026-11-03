@@ -64,7 +64,7 @@ function remoteOf(uuid, v, mine = true) {
     sketch: typeof v.sketch === 'string' ? v.sketch : null, color: Number(v.color) || 0, pinned: v.pinned === true,
     edited: Number(v.edited) || Number(v.updatedAt) || Date.now(), media: Object.keys(media).length ? media : null,
     mine, archived: v.archived === true, folder: typeof v.folder === 'string' && v.folder ? v.folder : null,
-    template: v.template === true,
+    template: v.template === true, hidden: v.hidden === true,
   };
 }
 
@@ -73,7 +73,7 @@ function copyInto(r, note) {
     type: r.type, title: r.title, content: r.content, data: r.data, color: r.color, pinned: r.pinned,
     timestamp: r.edited, rev: r.rev, media: r.media, sketch: r.sketch, dirty: false, deleted: false,
   });
-  if (r.mine) Object.assign(note, { archived: r.archived, folder: r.folder, template: r.template });
+  if (r.mine) Object.assign(note, { archived: r.archived, folder: r.folder, template: r.template, hidden: r.hidden });
   return note;
 }
 
@@ -94,6 +94,7 @@ function toRemote(note) {
   if (note.archived) m.archived = true;
   if (note.folder) m.folder = String(note.folder).slice(0, 100);
   if (note.template) m.template = true;
+  if (note.hidden) m.hidden = true;
   if (note.data !== null && note.data !== undefined) m.data = note.data;
   if (note.type === SKETCH && note.sketch) m.sketch = note.sketch;
   const media = {};
@@ -112,7 +113,7 @@ function toRemote(note) {
 
 const sameContent = (n, r) => n.type === r.type && (n.title || '') === r.title && (n.content || '') === r.content
   && (n.data || null) === r.data && (n.color || 0) === r.color && !!n.pinned === r.pinned
-  && (!r.mine || (!!n.archived === r.archived && (n.folder || null) === r.folder && !!n.template === r.template));
+  && (!r.mine || (!!n.archived === r.archived && (n.folder || null) === r.folder && !!n.template === r.template && !!n.hidden === r.hidden));
 
 // ------------------------------------------------------------------ the pass
 
@@ -483,6 +484,7 @@ async function pushGroup(uid, note, mayRetry) {
   delete value.archived; // How it's filed stays mine.
   delete value.folder;
   delete value.template;
+  delete value.hidden;
   const expected = note.rev;
   const result = await D.runTransaction(D.ref(fdb, `groupNotes/${gid}/note`), current => {
     if (current !== null && (typeof current.rev !== 'number' || current.rev !== expected)) return undefined;

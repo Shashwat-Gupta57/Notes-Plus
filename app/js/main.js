@@ -90,7 +90,7 @@ window.addEventListener('hashchange', route);
 async function openCommands() {
   const [{ openPalette }, home, db, templates] = await Promise.all([
     import('./palette.js'), import('./home.js'), import('./db.js'), import('./templates.js')]);
-  const notes = (await db.allNotes()).filter(n => !n.deleted);
+  const notes = (await db.allNotes()).filter(n => !n.deleted && !n.hidden); // Hidden notes never show here.
   const folders = [...new Set(notes.map(n => n.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   openPalette(notes, {
     folders,

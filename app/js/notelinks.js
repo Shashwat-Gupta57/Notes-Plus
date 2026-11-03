@@ -29,7 +29,7 @@ export function titlesIn(text) {
 /** Words for a card: "[[Trip|the trip]]" reads "the trip", "[[Trip]]" reads "Trip". */
 export const shown = text => (!text || !text.includes('[[') ? text : text.replace(LINK, (all, title, alias) => (alias && alias.length > 1 ? alias.slice(1) : title.trim())));
 
-export const linkable = n => !n.deleted && !n.template && !!key(n.title);
+export const linkable = n => !n.deleted && !n.template && !n.hidden && !!key(n.title);
 
 /** The note `title` opens: the newest linkable one with that title, or null. */
 export function resolve(title, notes) {
@@ -46,7 +46,7 @@ export function backlinks(note, notes) {
   const byTitle = !!target && target.uuid === note.uuid;
   const out = [];
   for (const n of notes) {
-    if (n.uuid === note.uuid || n.deleted) continue;
+    if (n.uuid === note.uuid || n.deleted || n.hidden) continue; // A hidden note never shows on another's row.
     const words = n.content || '';
     let links = byTitle && words.includes('[[') && words.toLowerCase().includes(k) && titlesIn(words).some(t => key(t) === k);
     if (!links && n.type === MINDMAP && n.data && n.data.includes(note.uuid)) {

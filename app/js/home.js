@@ -75,6 +75,11 @@ export function homeScreen(go) {
   const accountBtn = iconButton('person', 'Account', () => go('#/account'));
 
   function showToolbar() {
+    if (showingHidden && !searching) {
+      toolbar.replaceChildren(iconButton('back', 'Back to your notes (Esc)', leaveHidden), h('h1.toolbar-title', 'Hidden notes'),
+        h('div.spacer'), iconButton('search', 'Search (Ctrl+F)', startSearch));
+      return;
+    }
     if (searching) {
       toolbar.replaceChildren(iconButton('back', 'Close search', stopSearch), search,
         iconButton('close', 'Clear', () => { search.value = ''; query = ''; render(); search.focus(); }));
@@ -206,8 +211,12 @@ export function homeScreen(go) {
 
   // ------------------------------------------------------------------ cards
   let notes = [];
+  // Hidden notes: kept apart, shown only after the grid is pulled down at the top and held.
+  let hiddenNotes = [], showingHidden = false;
   async function load() {
-    notes = (await db.allNotes()).filter(n => !n.deleted);
+    const all = (await db.allNotes()).filter(n => !n.deleted);
+    notes = all.filter(n => !n.hidden);
+    hiddenNotes = all.filter(n => n.hidden);
     buildChips();
     render();
     showWaiting();
@@ -236,6 +245,7 @@ export function homeScreen(go) {
   }
 
   function shown() {
+    if (showingHidden) return hiddenNotes.filter(n => !query || searchable(n).includes(query)).sort((a, b) => b.timestamp - a.timestamp);
     let list = notes;
     if (filter === TEMPLATES) list = list.filter(n => n.template); // Templates are only under Templates.
     else if (filter === ARCHIVED) list = list.filter(n => n.archived && !n.template);
@@ -253,7 +263,7 @@ export function homeScreen(go) {
     let list = shown();
     const tiles = [];
     // All, not searching: a folder's notes are one tile (opening the folder), before the rest.
-    if (!filter && !query) {
+    if (!filter && !query && !showingHidden) {
       const byFolder = new Map(allFolders(notes).map(f => [f, []]));
       const loose = [];
       for (const n of list) (n.folder && byFolder.has(n.folder) ? byFolder.get(n.folder) : loose).push(n);
@@ -263,6 +273,7 @@ export function homeScreen(go) {
     grid.replaceChildren(...tiles, ...list.map(card));
     empty.hidden = list.length + tiles.length > 0;
     empty.querySelector('p').textContent = query ? 'No notes match your search'
+      : showingHidden ? 'No hidden notes. Hide a note from its options to keep it here.'
       : filter === SHARED ? 'Notes people share or send to you appear here'
       : filter === ARCHIVED ? 'Nothing archived. Archive a note from its options to put it away here.'
       : filter === TEMPLATES ? 'No templates yet. Save a note as a template from its options.'
@@ -396,6 +407,14 @@ export function homeScreen(go) {
   }
 
   function options(n, anchor) {
+    if (showingHidden || n.hidden) {
+      // A hidden note: bring it back, or delete it. Nothing else, so nothing about it shows elsewhere.
+      menu(anchor, [
+        { text: 'Unhide', onClick: () => { update(n, x => { x.hidden = false; }); toast('Back with your notes'); } },
+        { text: 'Delete', danger: true, onClick: () => deleteWithUndo(n) },
+      ]);
+      return;
+    }
     if (n.template) {
       // A template: start a note from it, or look after it. Nothing to file, send or share.
       menu(anchor, [
@@ -412,6 +431,7 @@ export function homeScreen(go) {
       { text: 'Colour', onClick: () => pickColor(n.color, i => update(n, x => { x.color = i; }), COLOR_NAMES) },
       { text: 'Move to folder…', onClick: () => moveToFolder(n) },
       account.uid() && links.shareable(n) ? { text: 'Share link…', onClick: () => links.sheet(n) } : null,
+      { text: 'Hide', onClick: () => { update(n, x => { x.hidden = true; }); toast('Hidden. Pull your notes down at the top and hold (or keep scrolling up there) to see hidden notes.', 5000); } },
       { text: n.archived ? 'Unarchive' : 'Archive', onClick: () => { update(n, x => { x.archived = !n.archived; }); toast(n.archived ? 'Back with your notes' : 'Archived. It\'s under the Archived filter.'); } },
       { text: 'Duplicate', onClick: () => duplicateNote(n) },
       templates.canSave(n) ? { text: 'Save as template…', onClick: () => prompt({
@@ -490,6 +510,50 @@ export function homeScreen(go) {
   gridWrap.addEventListener('pointerup', endSweep);
   gridWrap.addEventListener('pointercancel', endSweep);
 
+  // Pulled down at the very top and held (touch), or scrolled up there for a moment (mouse, trackpad):
+  // the hidden notes, until Back, Esc, or leaving the page.
+  const chips_row = () => toolbar.nextElementSibling;
+  function showHidden() {
+    if (showingHidden) return;
+    showingHidden = true;
+    if (navigator.vibrate) navigator.vibrate(30);
+    if (chips_row()) chips_row().hidden = true;
+    showToolbar();
+    render();
+  }
+  function leaveHidden() {
+    if (!showingHidden) return;
+    showingHidden = false;
+    if (chips_row()) chips_row().hidden = false;
+    showToolbar();
+    render();
+  }
+  let pull = null;
+  const endPull = () => { if (pull && pull.timer) clearTimeout(pull.timer); pull = null; };
+  gridWrap.addEventListener('touchstart', e => { pull = window.scrollY <= 0 && e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY, timer: null } : null; }, { passive: true });
+  gridWrap.addEventListener('touchmove', e => {
+    if (!pull || showingHidden) return;
+    const dy = e.touches[0].clientY - pull.y, dx = Math.abs(e.touches[0].clientX - pull.x);
+    const down = dy > 110 && dx < dy / 2;
+    if (down && !pull.timer) pull.timer = setTimeout(() => { pull = null; showHidden(); }, 1200);
+    else if (!down && pull.timer) { clearTimeout(pull.timer); pull.timer = null; }
+  }, { passive: true });
+  gridWrap.addEventListener('touchend', endPull);
+  gridWrap.addEventListener('touchcancel', endPull);
+  let wheelStart = 0, wheelLast = 0;
+  const onWheel = e => {
+    const now = Date.now();
+    if (showingHidden || e.deltaY >= 0 || window.scrollY > 0 || hasOverlay()) { wheelStart = 0; return; }
+    if (!wheelStart || now - wheelLast > 350) wheelStart = now;
+    wheelLast = now;
+    if (now - wheelStart >= 1200) { wheelStart = 0; showHidden(); }
+  };
+  const hasOverlay = () => !!document.querySelector('.scrim, .palette-scrim');
+  window.addEventListener('wheel', onWheel, { passive: true });
+  const onHide = () => { if (document.visibilityState === 'hidden') leaveHidden(); };
+  document.addEventListener('visibilitychange', onHide);
+  document.documentElement.classList.add('no-pull-refresh');
+
   const offDb = db.onChange(() => load());
   const offStatus = sync.onStatus(on => { syncing.hidden = !on; });
   const offAccount = account.observe(() => showToolbar());
@@ -499,11 +563,16 @@ export function homeScreen(go) {
 
   return {
     el: h('div.home', toolbar, h('div.chips-scroll', chips), banner, gridWrap, fab),
-    leave() { offDb(); offStatus(); offAccount(); window.removeEventListener('online', showOnline); window.removeEventListener('offline', showOnline); },
+    leave() {
+      offDb(); offStatus(); offAccount(); window.removeEventListener('online', showOnline); window.removeEventListener('offline', showOnline);
+      window.removeEventListener('wheel', onWheel); document.removeEventListener('visibilitychange', onHide);
+      document.documentElement.classList.remove('no-pull-refresh');
+    },
     onKey(e) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') { e.preventDefault(); newSheet(); return true; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); startSearch(); return true; }
       if (e.key === 'Escape' && searching) { stopSearch(); return true; }
+      if (e.key === 'Escape' && showingHidden) { leaveHidden(); return true; }
       return false;
     },
   };

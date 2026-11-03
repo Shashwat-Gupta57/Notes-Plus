@@ -1029,3 +1029,32 @@ textarea.self-sizing { field-sizing: content; min-height: 1lh; }
 .backlink { display: inline-flex; align-items: center; gap: 6px; flex: none; height: 30px; padding: 0 12px 0 8px; border: 0; border-radius: 15px;
   background: var(--surface); color: var(--text); font: inherit; font-size: 13.5px; cursor: pointer; box-shadow: inset 0 0 0 1px var(--divider); }
 .backlink:hover { background: color-mix(in srgb, var(--surface) 85%, var(--text)); }
+
+/* The notes page: no pull-to-refresh (pulling down at the top and holding shows hidden notes). */
+html.no-pull-refresh, html.no-pull-refresh body { overscroll-behavior-y: contain; }
+
+/* ------------------------------------------------------------------ iPhone and iPad, installed
+   The installed app runs edge to edge (viewport-fit=cover, status bar "black-translucent"): its
+   pages start under the status bar. Every bar, popup and full-screen page keeps clear of it, and a
+   band paints the status bar itself, whose clock and battery iOS always draws in white there. */
+:root { --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px); }
+.toolbar {
+  min-height: calc(64px + var(--safe-top));
+  padding-top: calc(8px + var(--safe-top));
+  padding-right: max(12px, env(safe-area-inset-right));
+}
+.format-bar { top: calc(54px + var(--safe-top)); }
+.map-page, .sketch-page { height: calc(100vh - 64px - var(--safe-top)); height: calc(100dvh - 64px - var(--safe-top)); }
+.scrim { padding: calc(16px + var(--safe-top)) 16px calc(16px + var(--safe-bottom)); }
+.dialog { max-height: calc(100vh - 32px - var(--safe-top) - var(--safe-bottom)); }
+.palette-scrim { padding-top: calc(72px + var(--safe-top)); }
+@media (max-width: 640px) { .palette-scrim { padding-top: calc(16px + var(--safe-top)); } }
+.gallery-nav { top: calc(12px + var(--safe-top)); }
+.toast { bottom: calc(28px + var(--safe-bottom)); }
+.snackbar { bottom: calc(24px + var(--safe-bottom)); }
+@media (display-mode: standalone) {
+  body::before {
+    content: ''; position: fixed; top: 0; left: 0; right: 0; height: var(--safe-top);
+    z-index: 1000; pointer-events: none; background: #000;
+  }
+}

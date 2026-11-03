@@ -61,7 +61,7 @@ export function copyOf(from, title, template, uid) {
 }
 
 /** My templates among `notes`, by name. */
-export const of = notes => notes.filter(n => n.template && !n.deleted)
+export const of = notes => notes.filter(n => n.template && !n.deleted && !n.hidden)
   .sort((a, b) => name(a).localeCompare(name(b), undefined, { sensitivity: 'base' }));
 
 export function name(n) {

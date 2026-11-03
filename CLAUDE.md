@@ -169,6 +169,16 @@ journal on today with no mood, no pictures. `template` travels only in my own no
 copies) and needs its line in `database.rules.json`. The desktop and web also have Ctrl+K (`Palette` /
 `palette.js`), never over the hidden spaces.
 
+**Links between notes** (`NoteLinks`, identical on the phone and the desktop, `notelinks.js` on the web,
+kept in step by the same `NoteLinksTest` cases): `[[Title]]` / `[[Title|words]]` kept literally in a note's
+words and list items (never `![[…]]`, which is a picture); matched by title ignoring case, newest note wins;
+templates and untitled notes can't be targets. `RichText` draws them with `LinkSpan`, which is deliberately
+not one of `ours()` so it never reaches the Markdown; a tap shows an Open/Create bar (`NoteActivity.showLink`);
+`LinkSuggest` offers titles after `[[`. `NoteActivity.loadLinks` fills `linkNotes` and the "Linked from"
+row (backlinks also count mind-map ideas linking by uuid); saving a new title renames `[[Old]]` in my other
+notes (`renameLinks`), unless another note still has the old title. The desktop opens links with Ctrl+click
+(no colouring: a style in `RichArea` would be saved); the web draws them with the CSS Highlight API.
+
 **Import / export** (`Interchange`, identical on the phone and the desktop, `interchange.js` on the web,
 kept in step by the same `InterchangeTest` cases; `ImportExport` is each app's pickers): reads Google
 Keep Takeout JSON, Apple Notes `.html`/`.txt`, Markdown folders (front matter, first `# heading`, task-only

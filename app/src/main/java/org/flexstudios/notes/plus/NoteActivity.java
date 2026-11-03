@@ -53,6 +53,11 @@ abstract class NoteActivity extends AppCompatActivity {
     private static final java.util.List<NoteActivity> ACTIVE_EDITORS = new java.util.concurrent.CopyOnWriteArrayList<>();
     /** The key of a locked note while it is open: the editor holds the text, the database only its envelope. */
     private NoteLock.Key lock;
+    /** Every note, for links: what "[[" offers and which links lead somewhere. Loaded on start. */
+    protected volatile java.util.List<NoteEntity> linkNotes = java.util.Collections.emptyList();
+    /** The title as last saved: when it changes, the links to it are renamed. */
+    private String linkedTitle;
+    @Nullable private android.widget.HorizontalScrollView backlinksBar;
 
     protected void markDirty() {
         if (readOnly) return;
@@ -142,6 +147,7 @@ abstract class NoteActivity extends AppCompatActivity {
     /** Fills the editor with a loaded note (already decrypted, if it was locked). */
     private void showLoaded(NoteEntity loaded) {
         note = loaded;
+        linkedTitle = loaded.getTitle();
         readOnly = loaded.isReceived();
         NoteSync.OPEN.add(note.getId());
         savedState = state(note);
@@ -251,6 +257,7 @@ abstract class NoteActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         ACTIVE_EDITORS.add(this);
+        loadLinks(); // Back from a linked note: it may link here now, or have a new title.
     }
 
     @Override
@@ -373,6 +380,126 @@ abstract class NoteActivity extends AppCompatActivity {
     }
 
     /** Saves if anything changed. Safe to call any time on the main thread. */
+    /**
+     * Every note linking "[[from]]" now links "[[to]]", unless another note still has the old title
+     * (then the links lead there). Received and locked notes are left as they are. Off the main thread.
+     */
+    private int renameLinks(int self, String from, String to) {
+        NoteDao dao = AppDatabase.getInstance(this).noteDao();
+        java.util.List<NoteEntity> all = dao.getAllDirect();
+        if (NoteLinks.resolve(from, all) != null) return 0;
+        int changed = 0;
+        for (NoteEntity n : all) {
+            if (n.getId() == self || n.isReceived() || NoteLock.isLocked(n.getData())) continue;
+            String[] next = NoteLinks.renamed(n, from, to);
+            if (next == null) continue;
+            dao.saveContent(n.getId(), n.getTitle(), next[0], next[1], n.getColor(), n.isPinned(), System.currentTimeMillis());
+            changed++;
+        }
+        return changed;
+    }
+
+    /** Every note (for "[[" and the links), and the notes linking here (the "Linked from" row). */
+    protected void loadLinks() {
+        final NoteEntity me = note;
+        final boolean mine = !readOnly;
+        AppDatabase.IO.execute(() -> {
+            java.util.List<NoteEntity> all = AppDatabase.getInstance(this).noteDao().getAllDirect();
+            java.util.List<NoteEntity> from = me == null || me.getId() <= 0 || !mine
+                    ? java.util.Collections.emptyList() : NoteLinks.backlinks(me, all);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                linkNotes = all;
+                showBacklinks(from);
+                onLinksLoaded();
+            });
+        });
+    }
+
+    /** The notes for links have loaded: editors redraw their links. */
+    protected void onLinksLoaded() {}
+
+    /** "Linked from": a row of the notes linking here, above the editor's footer; hidden when none do. */
+    private void showBacklinks(java.util.List<NoteEntity> from) {
+        if (!(root instanceof LinearLayout)) return;
+        LinearLayout page = (LinearLayout) root;
+        if (from.isEmpty()) {
+            if (backlinksBar != null) backlinksBar.setVisibility(View.GONE);
+            return;
+        }
+        float dp = getResources().getDisplayMetrics().density;
+        if (backlinksBar == null) {
+            backlinksBar = new android.widget.HorizontalScrollView(this);
+            backlinksBar.setHorizontalScrollBarEnabled(false);
+            View footer = findViewById(R.id.editorFooter);
+            int at = footer != null && footer.getParent() == page ? page.indexOfChild(footer) : page.getChildCount();
+            page.addView(backlinksBar, at, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        }
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(Math.round(16 * dp), Math.round(6 * dp), Math.round(16 * dp), Math.round(6 * dp));
+        android.widget.TextView label = new android.widget.TextView(this);
+        label.setText("Linked from");
+        label.setTextSize(12);
+        label.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+        label.setPadding(0, 0, Math.round(8 * dp), 0);
+        row.addView(label);
+        for (NoteEntity n : from) {
+            NoteData.Kind kind = NoteData.kind(n.getType());
+            android.widget.TextView chip = new android.widget.TextView(this);
+            String title = n.getTitle() == null || n.getTitle().trim().isEmpty() ? kind.label : n.getTitle().trim();
+            chip.setText(title.length() > 40 ? title.substring(0, 40) + "…" : title);
+            chip.setTextSize(13);
+            chip.setTextColor(ContextCompat.getColor(this, R.color.text_primary));
+            chip.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            chip.setPadding(Math.round(8 * dp), Math.round(5 * dp), Math.round(12 * dp), Math.round(5 * dp));
+            android.graphics.drawable.Drawable icon = ContextCompat.getDrawable(this, kind.icon);
+            if (icon != null) {
+                icon = icon.mutate();
+                icon.setTint(ContextCompat.getColor(this, kind.accent));
+                icon.setBounds(0, 0, Math.round(16 * dp), Math.round(16 * dp));
+                chip.setCompoundDrawablesRelative(icon, null, null, null);
+                chip.setCompoundDrawablePadding(Math.round(6 * dp));
+            }
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setCornerRadius(14 * dp);
+            bg.setColor(ContextCompat.getColor(this, R.color.app_surface));
+            bg.setStroke(Math.round(dp), ContextCompat.getColor(this, R.color.divider));
+            chip.setBackground(bg);
+            chip.setOnClickListener(v -> startActivity(NoteData.editor(this, n.getType(), n.getId())));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.setMarginEnd(Math.round(6 * dp));
+            row.addView(chip, lp);
+        }
+        backlinksBar.removeAllViews();
+        backlinksBar.addView(row);
+        backlinksBar.setVisibility(View.VISIBLE);
+    }
+
+    /** A tapped "[[title]]": a bar to open that note, or to make it when no note has that title. */
+    protected void showLink(String title) {
+        if (root == null) return;
+        NoteEntity target = NoteLinks.resolve(title, linkNotes);
+        String shown = "“" + title.trim() + "”";
+        com.google.android.material.snackbar.Snackbar bar = com.google.android.material.snackbar.Snackbar.make(root,
+                target != null ? shown : "No note called " + shown, com.google.android.material.snackbar.Snackbar.LENGTH_LONG);
+        if (target != null) {
+            bar.setAction("Open", v -> startActivity(NoteData.editor(this, target.getType(), target.getId())));
+        } else if (!readOnly) {
+            bar.setAction("Create", v -> AppDatabase.IO.execute(() -> {
+                NoteEntity made = new NoteEntity(title.trim(), "", System.currentTimeMillis());
+                made.setType(NoteData.TEXT);
+                made.setAccount(Account.uid());
+                made.setRev(0);
+                made.setDirty(true);
+                int id = (int) AppDatabase.getInstance(this).noteDao().insert(made);
+                runOnUiThread(() -> startActivity(NoteData.editor(this, NoteData.TEXT, id)));
+            }));
+        }
+        bar.show();
+    }
+
     protected void save() {
         if (note == null) return;
         if (readOnly) {
@@ -398,6 +525,11 @@ abstract class NoteActivity extends AppCompatActivity {
         note.setTimestamp(System.currentTimeMillis());
         final NoteEntity snapshot = copy(note);
         final NoteEntity live = note;
+        // A new title: the links to the old one follow it (not for locked notes, whose links can't be seen).
+        final String renamedFrom = linkedTitle;
+        final boolean renamed = lock == null && !NoteLinks.key(renamedFrom).isEmpty()
+                && !NoteLinks.key(snapshot.getTitle()).isEmpty() && !NoteLinks.key(renamedFrom).equals(NoteLinks.key(snapshot.getTitle()));
+        linkedTitle = snapshot.getTitle();
         if (lock != null) {
             try {
                 snapshot.setData(NoteLock.seal(lock, snapshot.getContent(), snapshot.getData()));
@@ -416,6 +548,14 @@ abstract class NoteActivity extends AppCompatActivity {
                 AppDatabase.getInstance(this).noteDao().saveContent(live.getId(), snapshot.getTitle(),
                         snapshot.getContent(), snapshot.getData(), snapshot.getColor(), snapshot.isPinned(),
                         snapshot.getTimestamp());
+            }
+            if (renamed) {
+                int changed = renameLinks(live.getId(), renamedFrom, snapshot.getTitle());
+                if (changed > 0) {
+                    android.content.Context app = getApplicationContext();
+                    runOnUiThread(() -> android.widget.Toast.makeText(app, "Updated links in " + changed
+                            + (changed == 1 ? " note" : " notes"), android.widget.Toast.LENGTH_SHORT).show());
+                }
             }
         });
     }

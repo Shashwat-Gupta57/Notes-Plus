@@ -58,6 +58,9 @@ final class RichText implements TextWatcher {
     private String removed = "", inserted = "";
     private boolean lineWasEmpty;
     @Nullable private Markdown.Block nextKind;
+    /** Links ("[[Title]]"): whether one leads to a note, and what a tap on one does. */
+    @Nullable private java.util.function.Predicate<String> linkExists;
+    @Nullable private java.util.function.Consumer<String> linkTapped;
 
     @SuppressLint("ClickableViewAccessibility")
     RichText(EditText edit, Runnable onChange) {
@@ -66,6 +69,10 @@ final class RichText implements TextWatcher {
         this.dp = edit.getResources().getDisplayMetrics().density;
         edit.addTextChangedListener(this);
         edit.setOnTouchListener((v, e) -> {
+            if (e.getAction() == MotionEvent.ACTION_UP && linkTapped != null) {
+                String title = linkAt(e);
+                if (title != null) linkTapped.accept(title); // The caret still goes there: a bar offers to open it.
+            }
             if (e.getAction() != MotionEvent.ACTION_UP || !tapTask(e)) return false;
             MotionEvent cancel = MotionEvent.obtain(e); // Or the press would still turn into a long press.
             cancel.setAction(MotionEvent.ACTION_CANCEL);
@@ -437,10 +444,67 @@ final class RichText implements TextWatcher {
         }
     }
 
+    /** Draws "[[Title]]" as links: blue, or grey when no note has that title; {@code tapped} gets a tapped one's title. */
+    void setLinks(java.util.function.Predicate<String> exists, java.util.function.Consumer<String> tapped) {
+        linkExists = exists;
+        linkTapped = tapped;
+        Editable e = edit.getText();
+        if (e != null) styleLinks(e);
+    }
+
+    /** Draws the links again (the notes they lead to have loaded or changed). */
+    void restyleLinks() {
+        Editable e = edit.getText();
+        if (e != null) styleLinks(e);
+    }
+
+    private void styleLinks(Editable e) {
+        for (LinkSpan s : e.getSpans(0, e.length(), LinkSpan.class)) e.removeSpan(s);
+        if (linkExists == null || android.text.TextUtils.indexOf(e, "[[") < 0) return;
+        Matcher m = NoteLinks.LINK.matcher(e);
+        while (m.find()) {
+            boolean there = linkExists.test(m.group(1));
+            int color = ContextCompat.getColor(edit.getContext(), there ? R.color.accent_blue : R.color.text_secondary);
+            e.setSpan(new LinkSpan(m.group(1).trim(), color, there), m.start(), m.end(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+    }
+
+    /** The title of the link under a tap, or null. */
+    @Nullable
+    private String linkAt(MotionEvent ev) {
+        Editable e = edit.getText();
+        if (e == null || edit.getLayout() == null) return null;
+        int at = edit.getOffsetForPosition(ev.getX(), ev.getY());
+        for (LinkSpan s : e.getSpans(at, at, LinkSpan.class)) {
+            if (e.getSpanStart(s) < at && e.getSpanEnd(s) > at) return s.title;
+        }
+        return null;
+    }
+
+    /** How a link looks. Not one of the styles kept in the Markdown: the "[[ ]]" are the link. */
+    static final class LinkSpan extends CharacterStyle implements android.text.style.UpdateAppearance {
+        final String title;
+        private final int color;
+        private final boolean there;
+
+        LinkSpan(String title, int color, boolean there) {
+            this.title = title;
+            this.color = color;
+            this.there = there;
+        }
+
+        @Override
+        public void updateDrawState(TextPaint tp) {
+            tp.setColor(color);
+            tp.setUnderlineText(there);
+        }
+    }
+
     /** Lays the paragraph kinds over the text: bullets, numbers, boxes, quote bars, heading sizes. */
     private void applyBlocks() {
         Editable e = edit.getText();
         if (e == null) return;
+        styleLinks(e);
         normalise(e);
         tidySpans(e);
         for (Object o : e.getSpans(0, e.length(), BlockSpan.class)) e.removeSpan(o);

@@ -110,6 +110,8 @@ public class NoteEditorActivity extends NoteActivity {
         else {
             rich = new RichText(body, this::markDirty);
             rich.setMarkdown(note.getContent());
+            rich.setLinks(title -> NoteLinks.resolve(title, linkNotes) != null, this::showLink);
+            if (!readOnly) LinkSuggest.attach(body, () -> linkNotes, () -> note == null ? 0 : note.getId());
             setUpFormatBar();
         }
         if (NoteData.JOURNAL.equals(type)) setUpJournal(note);
@@ -119,6 +121,11 @@ public class NoteEditorActivity extends NoteActivity {
         body.addTextChangedListener(simpleWatcher(this::updateFooter));
         updateFooter();
         if (note.getId() <= 0) (NoteData.JOURNAL.equals(type) ? body : title).requestFocus();
+    }
+
+    @Override
+    protected void onLinksLoaded() {
+        if (rich != null) rich.restyleLinks();
     }
 
     @Override
@@ -418,6 +425,7 @@ public class NoteEditorActivity extends NoteActivity {
                 if (!readOnly) {
                     // The clock shows on the item being typed in; once it has a day, its pill takes over.
                     text.setOnFocusChangeListener((f, has) -> showDue(false));
+                    LinkSuggest.attach(text, () -> linkNotes, () -> note == null ? 0 : note.getId());
                     View.OnClickListener open = c -> {
                         if (bound != null) showDueSheet(bound);
                     };

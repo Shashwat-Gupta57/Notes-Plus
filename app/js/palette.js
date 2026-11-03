@@ -86,6 +86,10 @@ export function openPalette(notes, actions) {
     icon: 'palette', accent: 'tile-purple', words: 'appearance dark light colour color', run: () => theme.set(m) }));
   items.push({ group: 'Other', label: 'Search notes', detail: 'Ctrl+F', icon: 'search', accent: 'secondary', words: 'find', run: () => actions.search() });
   items.push({ group: 'Other', label: 'Account', detail: 'Profile, sync, sign in or out', icon: 'person', accent: 'brand', words: 'sign in profile sync', run: () => actions.account() });
+  items.push({ group: 'Other', label: 'Import notes…', detail: 'From Google Keep, Apple Notes or Markdown', icon: 'cloud', accent: 'tile-blue',
+    words: 'keep apple obsidian markdown takeout', run: () => import('./importexport.js').then(m => m.chooseImport()) });
+  items.push({ group: 'Other', label: 'Export all notes…', detail: 'A zip of Markdown', icon: 'cloud', accent: 'tile-blue',
+    words: 'backup markdown zip download', run: () => import('./importexport.js').then(m => m.exportAll()) });
   items.push({ group: 'Other', label: 'Keyboard shortcuts', detail: 'Ctrl+K, Ctrl+N, Ctrl+F…', icon: 'search', accent: 'secondary', words: 'keys help', run: () => actions.shortcuts() });
 
   const field = h('input.palette-field', { type: 'text', placeholder: 'Search notes, or type a command…', 'aria-label': 'Search notes and commands', autocomplete: 'off', spellcheck: false });

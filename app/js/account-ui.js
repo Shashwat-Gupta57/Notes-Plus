@@ -308,6 +308,11 @@ export function accountScreen(go) {
           const { promptPwaInstall } = await import('./main.js');
           promptPwaInstall();
         }),
+        row('cloud', 'tile-blue', 'Import or export notes', 'From Google Keep, Apple Notes or Markdown; all notes to a zip', () =>
+          choices('Import or export notes', [
+            { text: 'Import notes… (Google Keep, Apple Notes, Markdown)', onClick: () => import('./importexport.js').then(m => m.chooseImport()) },
+            { text: 'Export all notes (a zip of Markdown)', onClick: () => import('./importexport.js').then(m => m.exportAll()) },
+          ])),
         row('palette', 'tile-purple', 'Theme', theme.NAMES[Math.max(0, theme.MODES.indexOf(theme.mode()))], () =>
           choices('Theme', theme.MODES.map((m, i) => ({ text: (m === theme.mode() ? '✓  ' : '') + theme.NAMES[i], onClick: () => { theme.set(m); render(); } })))),
         row('info', 'tile-amber', 'Send Feedback & Review', 'Rate 5 stars or report bugs', () => openFeedbackDialog()),

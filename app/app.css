@@ -1058,3 +1058,7 @@ html.no-pull-refresh, html.no-pull-refresh body { overscroll-behavior-y: contain
     z-index: 1000; pointer-events: none; background: #000;
   }
 }
+
+/* Searching: the words typed, marked in a card's title and in a line of its words (home.js markCard). */
+mark.search-hit { background: color-mix(in srgb, var(--brand) 55%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.card-match { margin: 6px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--body); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }

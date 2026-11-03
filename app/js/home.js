@@ -11,6 +11,7 @@ import { h, icon, iconButton, menu, snackbar, pickColor, dialog, prompt, choices
 import { newNote, KINDS, kind, tint, COLOR_NAMES, PICTURE_LINE, plain, firstPicture, todos, mindMap, journal, recordings, relative, searchable, dayStart, isVideo, TEXT, LIST, MINDMAP, JOURNAL, SKETCH, AUDIO } from './model.js';
 import { drawPreview } from './mindmap-draw.js';
 import * as templates from './templates.js';
+import * as search from './search.js';
 import * as due from './due.js';
 import { drawSketchPreview } from './ed-sketch.js';
 
@@ -56,6 +57,9 @@ function allFolders(notes) {
 
 export function homeScreen(go) {
   let query = '';
+  // While searching, every note is searched, narrowed by these; the chips become them.
+  let searchFilters = search.emptyFilters();
+  const searchActive = () => searching && !showingHidden && (!!query || search.anyFilter(searchFilters));
   let searching = false;
   const grid = h('div.grid');
   const empty = h('div.empty', icon('noteText', 72, 'var(--secondary)'), h('p'));
@@ -69,8 +73,8 @@ export function homeScreen(go) {
   showOnline();
   window.addEventListener('online', showOnline);
   window.addEventListener('offline', showOnline);
-  const search = h('input.search-field', { type: 'search', placeholder: 'Search notes', 'aria-label': 'Search notes' });
-  search.addEventListener('input', () => { query = search.value.trim().toLowerCase(); render(); });
+  const searchField = h('input.search-field', { type: 'search', placeholder: 'Search notes', 'aria-label': 'Search notes' });
+  searchField.addEventListener('input', () => { query = searchField.value.trim().toLowerCase(); render(); });
   const toolbar = h('div.toolbar');
   const accountBtn = iconButton('person', 'Account', () => go('#/account'));
 
@@ -81,8 +85,8 @@ export function homeScreen(go) {
       return;
     }
     if (searching) {
-      toolbar.replaceChildren(iconButton('back', 'Close search', stopSearch), search,
-        iconButton('close', 'Clear', () => { search.value = ''; query = ''; render(); search.focus(); }));
+      toolbar.replaceChildren(iconButton('back', 'Close search', stopSearch), searchField,
+        iconButton('close', 'Clear', () => { searchField.value = ''; query = ''; render(); searchField.focus(); }));
     } else {
       accountBtn.replaceChildren(icon('person', 24, account.signedIn() ? 'var(--brand)' : 'currentColor'));
       // Signed in: the account's photo in place of the icon (when it has one the web can show).
@@ -98,8 +102,63 @@ export function homeScreen(go) {
         iconButton('search', 'Search (Ctrl+F)', startSearch), accountBtn);
     }
   }
-  function startSearch() { searching = true; showToolbar(); setTimeout(() => search.focus(), 0); }
-  function stopSearch() { searching = false; search.value = ''; query = ''; showToolbar(); render(); }
+  function startSearch() { searching = true; showToolbar(); buildSearchChips(); setTimeout(() => searchField.focus(), 0); }
+  function stopSearch() {
+    searching = false; searchField.value = ''; query = ''; searchFilters = search.emptyFilters();
+    showToolbar(); shownFolders = null; buildChips(); render();
+  }
+
+  /** While searching, the chips narrow the search: type, colour, folder, pictures, dates. */
+  function buildSearchChips() {
+    const f = searchFilters;
+    const again = () => { buildSearchChips(); render(); };
+    const sChip = (label, on, ic, onClick) => {
+      const c = h('button.chip' + (on ? '.on' : ''), { type: 'button' }, icon(ic, 18, on ? '#000' : 'var(--secondary)'), label);
+      c.addEventListener('click', () => onClick(c));
+      return c;
+    };
+    const k = f.type ? KINDS.find(x => x.type === f.type) : null;
+    chips.replaceChildren(
+      sChip(k ? k.plural : 'Any type', !!k, 'noteText', c => menu(c, [{ text: 'Any type', onClick: () => { f.type = null; again(); } },
+        ...KINDS.map(x => ({ text: x.plural, onClick: () => { f.type = x.type; again(); } }))])),
+      sChip(f.color < 0 ? 'Any colour' : f.color === 0 ? 'No colour' : COLOR_NAMES[f.color], f.color >= 0, 'palette', c => menu(c, [
+        { text: 'Any colour', onClick: () => { f.color = -1; again(); } }, { text: 'No colour', onClick: () => { f.color = 0; again(); } },
+        ...COLOR_NAMES.slice(1).map((name, i) => ({ text: name, onClick: () => { f.color = i + 1; again(); } }))])),
+      sChip(f.folder === null ? 'Any folder' : f.folder === '' ? 'No folder' : f.folder, f.folder !== null, 'folder', c => menu(c, [
+        { text: 'Any folder', onClick: () => { f.folder = null; again(); } }, { text: 'No folder', onClick: () => { f.folder = ''; again(); } },
+        ...allFolders(notes).map(name => ({ text: name, onClick: () => { f.folder = name; again(); } }))])),
+      sChip('Has pictures', f.pictures, 'photo', () => { f.pictures = !f.pictures; again(); }),
+      sChip('Has dates', f.dates, 'clock', () => { f.dates = !f.dates; again(); }));
+  }
+
+  /** Searching: the title's matching letters marked, and a line of the note's words around a match. */
+  function markCard(el, n) {
+    if (!searchActive()) return el;
+    const ts = search.terms(query);
+    if (!ts.length) return el;
+    const markIn = (text, hits) => {
+      const out = [];
+      let at = 0;
+      for (const [a, b] of hits) {
+        if (a < at) continue;
+        if (a > at) out.push(text.slice(at, a));
+        out.push(h('mark.search-hit', text.slice(a, b)));
+        at = b;
+      }
+      out.push(text.slice(at));
+      return out;
+    };
+    const title = el.querySelector('.card-title');
+    if (title && title.textContent) { const hits = search.marks(title.textContent, ts); if (hits.length) title.replaceChildren(...markIn(title.textContent, hits)); }
+    const s = search.snippet(n, ts, 110);
+    if (s) {
+      if (n.type === TEXT || n.type === JOURNAL) el.querySelectorAll('.card-body').forEach(b => b.remove());
+      const foot = el.querySelector('.card-foot');
+      const line = h('p.card-match', ...markIn(s.text, s.hits));
+      if (foot) foot.before(line); else el.querySelector('.card-inner').appendChild(line);
+    }
+    return el;
+  }
 
   // Filter chips: All, the folders (right-click or hold: rename or remove), Shared with me,
   // Archived, the kinds, and "New folder".
@@ -114,6 +173,7 @@ export function homeScreen(go) {
   if (!filter) filter = null;
   let shownFolders = null, shownTemplates = false;
   function buildChips() {
+    if (searching) { buildSearchChips(); return; }
     const folders = allFolders(notes);
     const hasTemplates = notes.some(n => n.template);
     if (shownFolders && folders.join('\n') === shownFolders.join('\n') && hasTemplates === shownTemplates) return;
@@ -245,6 +305,8 @@ export function homeScreen(go) {
   }
 
   function shown() {
+    // Searching: every note (archived and templates too), best first.
+    if (searchActive()) return search.run(notes, query, searchFilters);
     if (showingHidden) return hiddenNotes.filter(n => !query || searchable(n).includes(query)).sort((a, b) => b.timestamp - a.timestamp);
     let list = notes;
     if (filter === TEMPLATES) list = list.filter(n => n.template); // Templates are only under Templates.
@@ -263,14 +325,14 @@ export function homeScreen(go) {
     let list = shown();
     const tiles = [];
     // All, not searching: a folder's notes are one tile (opening the folder), before the rest.
-    if (!filter && !query && !showingHidden) {
+    if (!filter && !query && !showingHidden && !searchActive()) {
       const byFolder = new Map(allFolders(notes).map(f => [f, []]));
       const loose = [];
       for (const n of list) (n.folder && byFolder.has(n.folder) ? byFolder.get(n.folder) : loose).push(n);
       list = loose;
       for (const [f, inside] of byFolder) tiles.push(folderTile(f, inside));
     }
-    grid.replaceChildren(...tiles, ...list.map(card));
+    grid.replaceChildren(...tiles, ...list.map(n => markCard(card(n), n)));
     empty.hidden = list.length + tiles.length > 0;
     empty.querySelector('p').textContent = query ? 'No notes match your search'
       : showingHidden ? 'No hidden notes. Hide a note from its options to keep it here.'

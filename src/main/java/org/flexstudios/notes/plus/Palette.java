@@ -124,6 +124,10 @@ final class Palette {
         }
         items.add(new Item("Other", "Account", Account.signedIn() ? "Profile, sync, sign out" : "Sign in to sync your notes",
                 Icons.PERSON, "brand_yellow", "sign in profile sync", 0, () -> go(main, () -> NotesApp.open(new AccountView()))));
+        items.add(new Item("Other", "Import notes…", "From Google Keep, Apple Notes or Markdown", Icons.SAVE, "tile_blue",
+                "keep apple obsidian markdown takeout", 0, ImportExport::chooseImport));
+        items.add(new Item("Other", "Export all notes…", "A zip of Markdown", Icons.SAVE, "tile_blue",
+                "backup markdown zip download", 0, ImportExport::chooseExport));
         items.add(new Item("Other", "Keyboard shortcuts", "Ctrl+K, Ctrl+N, Ctrl+F…", Icons.SEARCH, "text_secondary",
                 "keys help", 0, Palette::shortcuts));
 

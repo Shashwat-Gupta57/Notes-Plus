@@ -106,6 +106,11 @@ final class AccountView extends Screen {
         Label lockTime = Ui.label(lockTimeLabel(NoteLock.timeoutMinutes()), 13, "secondary");
         Label theme = Ui.label(themeLabel(), 13, "secondary");
         VBox app = card(
+                row(Icons.SAVE, "tile_blue", "Import or export notes",
+                        Ui.label("From Google Keep, Apple Notes or Markdown; all notes to a zip", 13, "secondary"), chevron(),
+                        () -> Ui.dialog().title("Import or export notes").items(
+                                java.util.List.of("Import notes… (Google Keep, Apple Notes, Markdown)", "Export all notes (a zip of Markdown)"),
+                                java.util.List.of(ImportExport::chooseImport, ImportExport::chooseExport)).show()),
                 row(Icons.PALETTE, "tile_purple", "Theme", theme, chevron(), () -> chooseTheme(theme)),
                 row(Icons.LOCK, "tile_orange", "Locked notes", lockTime, chevron(), () -> chooseLockTime(lockTime)),
                 row(Icons.SAVE, "tile_green", "Check for updates", updateStatus, null, () -> checkForUpdate(updateStatus)),

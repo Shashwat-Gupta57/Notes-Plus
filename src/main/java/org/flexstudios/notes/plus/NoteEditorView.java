@@ -11,8 +11,10 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -209,6 +211,9 @@ final class NoteEditorView extends NoteEditor {
     private Node listSection(NoteEntity note) {
         items.clear();
         items.addAll(NoteData.todos(note.getData()));
+        // Repeating items whose next day has come show unticked; saved with the next edit, if any
+        // (every device works out the same, so nothing needs pushing just for this).
+        Due.rollover(items, Due.today());
         wrapItems = NoteData.wraps(note.getData());
         if (items.isEmpty()) items.add(new NoteData.TodoItem("", false));
 
@@ -355,7 +360,9 @@ final class NoteEditorView extends NoteEditor {
             if (item.done) done++;
         }
         boolean all = total > 0 && done == total;
-        listProgress.setText(total == 0 ? "Nothing yet" : all ? "All done" : done + " of " + total + " done");
+        int overdue = Due.overdue(items, Due.today());
+        listProgress.setText((total == 0 ? "Nothing yet" : all ? "All done" : done + " of " + total + " done")
+                + (overdue > 0 ? "  ·  " + overdue + " overdue" : ""));
         listProgress.setGraphic(all ? Emoji.view("🎉", 15) : null);
         listProgress.setContentDisplay(javafx.scene.control.ContentDisplay.RIGHT);
         double from = progress, to = total == 0 ? 0 : (double) done / total;
@@ -365,13 +372,175 @@ final class NoteEditorView extends NoteEditor {
         Ui.animate(300, Interpolator.EASE_OUT, f -> progressFill.setMaxWidth(track.getWidth() * (from + (to - from) * f)));
     }
 
-    /** One list item: drag handle, tick box, the text, and × on hover. */
-    private final class ItemRow extends HBox {
+    // ================================================================== due dates
+
+    /** A list item's day, time and repeat, dropping from its clock or pill. Every click applies at once. */
+    private void showDuePopover(ItemRow row, Node anchor) {
+        NoteData.TodoItem item = row.item;
+        long today = Due.today();
+        int wd = Due.weekday(today);
+        long[] quick = {today, today + 1, wd >= 6 ? today : today + (6 - wd), today + (8 - wd)};
+        String[] quickNames = {"Today", "Tomorrow", "This weekend", "Next week"};
+        String[] times = {null, "09:00", "12:00", "18:00", "21:00"};
+        String[] kinds = {null, "daily", "weekdays", "weekly", "monthly"};
+        String[] kindNames = {"Never", "Daily", "Weekdays", "Weekly", "Monthly"};
+
+        Runnable[] refresh = new Runnable[1];
+        java.util.function.Consumer<Runnable> apply = change -> {
+            pushListUndo();
+            change.run();
+            refresh[0].run();
+            row.showDue(true);
+            updateProgress();
+        };
+
+        String words = item.text == null ? "" : item.text.trim();
+        Label title = Ui.label(words.isEmpty() ? "This item" : words, 16, "medium");
+        title.setMaxWidth(230);
+        Label summary = Ui.label("", 13, "secondary");
+        summary.setWrapText(true);
+        Button remove = Ui.textButton("Remove", () -> {});
+        remove.setStyle("-fx-text-fill: " + Theme.ref("destructive") + ";");
+        HBox header = new HBox(10, Ui.icon(Icons.CLOCK, 20, "tile_orange"), title, Ui.spacer(), remove);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        FlowPane days = new FlowPane(6, 6);
+        List<ToggleButton> dayChips = new ArrayList<>();
+        for (int i = 0; i < quick.length; i++) {
+            long d = quick[i];
+            dayChips.add(dueChip(days, quickNames[i], () -> apply.accept(() -> Due.setDay(item, d))));
+        }
+        ToggleButton pick = dueChip(days, "Pick a date…", () -> {
+            refresh[0].run(); // Lit only once a day is picked.
+            int[] c = Due.civil(Due.dated(item) ? Due.day(item.due) : today);
+            java.time.ZoneId zone = java.time.ZoneId.systemDefault();
+            long from = java.time.LocalDate.of(c[0], c[1], c[2]).atStartOfDay(zone).toInstant().toEpochMilli();
+            Ui.pickDate(from, ms -> {
+                java.time.LocalDate d = java.time.Instant.ofEpochMilli(ms).atZone(zone).toLocalDate();
+                apply.accept(() -> Due.setDay(item, Due.day(d.getYear(), d.getMonthValue(), d.getDayOfMonth())));
+            });
+        });
+
+        FlowPane timeRow = new FlowPane(6, 6);
+        List<ToggleButton> timeChips = new ArrayList<>();
+        for (String t : times) {
+            timeChips.add(dueChip(timeRow, t == null ? "No time" : Due.time(t), () -> apply.accept(() -> {
+                if (t != null && !Due.dated(item)) Due.setDay(item, today);
+                item.time = t;
+            })));
+        }
+        TextField other = new TextField();
+        other.setPromptText("Other, 7:45");
+        other.setPrefColumnCount(7);
+        other.getStyleClass().add("due-time");
+        Runnable typed = () -> {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d{1,2})[:.](\\d{2})").matcher(other.getText().trim());
+            if (!m.matches()) return;
+            int h = Integer.parseInt(m.group(1)), min = Integer.parseInt(m.group(2));
+            if (h > 23 || min > 59) return;
+            String t = String.format(Locale.ROOT, "%02d:%02d", h, min);
+            if (t.equals(item.time)) return;
+            apply.accept(() -> {
+                if (!Due.dated(item)) Due.setDay(item, today);
+                item.time = t;
+            });
+        };
+        other.setOnAction(e -> typed.run());
+        other.focusedProperty().addListener((o, a, b) -> {
+            if (!b) typed.run();
+        });
+        timeRow.getChildren().add(other);
+
+        FlowPane repeatRow = new FlowPane(6, 6);
+        List<ToggleButton> repeatChips = new ArrayList<>();
+        for (int i = 0; i < kinds.length; i++) {
+            String kind = kinds[i];
+            repeatChips.add(dueChip(repeatRow, kindNames[i], () -> apply.accept(() -> Due.setRepeat(item, kind, today))));
+        }
+        HBox weekdays = new HBox(6);
+        ToggleButton[] dayToggles = new ToggleButton[8];
+        String[] letters = {"M", "T", "W", "T", "F", "S", "S"};
+        for (int d = 1; d <= 7; d++) {
+            int weekday = d;
+            ToggleButton t = new ToggleButton(letters[d - 1]);
+            t.getStyleClass().setAll("due-day");
+            Ui.tooltip(t, Due.WEEKDAYS[d - 1]);
+            t.setOnAction(e -> apply.accept(() -> Due.toggleWeekday(item, weekday, today)));
+            weekdays.getChildren().add(t);
+            dayToggles[d] = t;
+        }
+
+        VBox box = new VBox(header, summary, section("Day"), days, section("Time"), timeRow, section("Repeat"), repeatRow, weekdays);
+        box.setSpacing(6);
+        box.setPadding(new Insets(16, 18, 18, 18));
+        box.setPrefWidth(372);
+        VBox.setMargin(weekdays, new Insets(4, 0, 0, 0));
+
+        refresh[0] = () -> {
+            boolean dated = Due.dated(item);
+            long d = Due.day(item.due);
+            summary.setText(Due.summary(item, today));
+            remove.setVisible(dated);
+            int lit = -1; // One chip for the item's day ("Today" before "This weekend" on a Saturday).
+            for (int i = 0; i < quick.length && lit < 0; i++) if (dated && d == quick[i]) lit = i;
+            for (int i = 0; i < quick.length; i++) dayChips.get(i).setSelected(i == lit);
+            pick.setSelected(dated && lit < 0);
+            pick.setText(dated && lit < 0 ? Due.when(d, today) : "Pick a date…");
+            boolean quickTime = false;
+            for (int i = 0; i < times.length; i++) {
+                boolean on = java.util.Objects.equals(times[i], item.time);
+                timeChips.get(i).setSelected(on);
+                quickTime |= on;
+            }
+            if (!other.isFocused()) other.setText(quickTime ? "" : Due.time(item.time));
+            String kind = !Due.repeats(item) ? null : item.repeat.startsWith("weekly:") ? "weekly"
+                    : item.repeat.startsWith("monthly:") ? "monthly" : item.repeat;
+            for (int i = 0; i < kinds.length; i++) repeatChips.get(i).setSelected(java.util.Objects.equals(kinds[i], kind));
+            weekdays.setVisible("weekly".equals(kind));
+            weekdays.setManaged("weekly".equals(kind));
+            boolean[] on = Due.weekDays(item.repeat);
+            for (int w = 1; w <= 7; w++) dayToggles[w].setSelected(on[w]);
+        };
+        refresh[0].run();
+        Ui.Modal[] modal = new Ui.Modal[1];
+        remove.setOnAction(e -> {
+            apply.accept(() -> Due.clear(item));
+            modal[0].dismiss();
+        });
+        modal[0] = Ui.popover(anchor, box);
+    }
+
+    private static Label section(String name) {
+        Label l = Ui.label(name.toUpperCase(Locale.ROOT), 11, "secondary");
+        VBox.setMargin(l, new Insets(8, 0, 0, 0));
+        return l;
+    }
+
+    /** A chip in the due popover; the popover sets whether it's lit. */
+    private static ToggleButton dueChip(FlowPane row, String label, Runnable onClick) {
+        ToggleButton chip = new ToggleButton(label);
+        chip.getStyleClass().setAll("chip");
+        chip.setFocusTraversable(false);
+        chip.setOnAction(e -> onClick.run());
+        row.getChildren().add(chip);
+        return chip;
+    }
+
+
+    /** One list item: drag handle, tick box, the text (and its day), the clock, and × on hover. */
+    private final class ItemRow extends HBox implements Zoom.Scaled {
         final NoteData.TodoItem item;
         /** A growing text area when the list wraps, otherwise a one-line field. */
         final javafx.scene.control.TextInputControl text;
         private final StackPane box = new StackPane();
         private final Ui.IconView tick = Ui.icon(Icons.CHECK, 16, "white");
+        private StackPane handle, target;
+        private Button remove;
+        private javafx.scene.image.ImageView view;
+        private Button clock;
+        private Label pill;
+        private final Rectangle clip = new Rectangle();
+        private double zoomed = 1, pictureWidth, pictureRatio;
 
         ItemRow(NoteData.TodoItem item) {
             this.item = item;
@@ -392,7 +561,7 @@ final class NoteEditorView extends NoteEditor {
             setMinHeight(48);
             setPadding(new Insets(0, 16, 0, 4));
 
-            StackPane handle = new StackPane(Ui.icon(Icons.NOTE_LIST, 16, "divider"));
+            handle = new StackPane(Ui.icon(Icons.NOTE_LIST, 16, "divider"));
             handle.getStyleClass().add("list-handle");
             handle.setMinSize(32, 40);
             Ui.tooltip(handle, "Drag to reorder");
@@ -402,7 +571,7 @@ final class NoteEditorView extends NoteEditor {
             box.setMinSize(18, 18);
             box.setMaxSize(18, 18);
             box.getChildren().add(tick);
-            StackPane target = new StackPane(box);
+            target = new StackPane(box);
             target.setMinSize(44, 44);
             target.setStyle("-fx-cursor: hand;");
             target.setOnMouseClicked(e -> {
@@ -418,7 +587,19 @@ final class NoteEditorView extends NoteEditor {
             text.setText(item.text);
             if (text instanceof TextArea area) Ui.autoGrow(area, 0, 0);
             Links.install(text);
-            HBox.setHgrow(text, Priority.ALWAYS);
+            // Its day under the words, coloured by how near it is; click it to change it.
+            pill = new Label();
+            pill.getStyleClass().add("due-pill");
+            pill.setOnMouseClicked(e -> {
+                if (!readOnly) showDuePopover(this, pill);
+            });
+            VBox column = new VBox(text, pill);
+            column.setAlignment(Pos.CENTER_LEFT);
+            HBox.setHgrow(column, Priority.ALWAYS);
+            // The clock that gives it one: shown on the row under the pointer or being typed in.
+            clock = Ui.iconButton(Icons.CLOCK, 32, 18, "text_secondary", "Due date  (Ctrl+D)", () -> showDuePopover(this, clock));
+            hoverProperty().addListener((o, a, b) -> showDue(false));
+            text.focusedProperty().addListener((o, a, b) -> showDue(false));
             text.textProperty().addListener((o, a, b) -> {
                 item.text = b;
                 updateProgress();
@@ -434,6 +615,9 @@ final class NoteEditorView extends NoteEditor {
                     boolean empty = text.getText().trim().isEmpty();
                     if (empty && items.size() > 1) removeItemAt(index);
                     addPicture(empty && items.size() >= 1 ? index : index + 1, pasted);
+                } else if (e.getCode() == KeyCode.D && e.isShortcutDown() && !readOnly) {
+                    e.consume();
+                    showDuePopover(this, Due.dated(item) ? pill : clock);
                 } else if (e.getCode() == KeyCode.ENTER && e.isShortcutDown()) {
                     e.consume();
                     pushListUndo();
@@ -454,30 +638,30 @@ final class NoteEditorView extends NoteEditor {
                 }
             });
 
-            Button remove = Ui.iconButton(Icons.CLOSE, 32, 18, "text_secondary", "Delete item", () -> {
+            remove = Ui.iconButton(Icons.CLOSE, 32, 18, "text_secondary", "Delete item", () -> {
                 int index = itemRows.getChildren().indexOf(this);
                 removeItemAt(index);
                 if (items.isEmpty()) addItemAt(0);
             });
             remove.visibleProperty().bind(hoverProperty().or(text.focusedProperty()));
 
-            getChildren().addAll(handle, target, text, remove);
+            getChildren().addAll(handle, target, column, clock, remove);
             styleDone();
+            showDue(false);
         }
 
         /** The row of a picture item: its handle, the picture (click to view it big), and ×. */
         private void pictureRow(String name) {
             setAlignment(Pos.CENTER_LEFT);
             setPadding(new Insets(4, 16, 4, 4));
-            StackPane handle = new StackPane(Ui.icon(Icons.NOTE_LIST, 16, "divider"));
+            handle = new StackPane(Ui.icon(Icons.NOTE_LIST, 16, "divider"));
             handle.getStyleClass().add("list-handle");
             handle.setMinSize(32, 40);
             Ui.tooltip(handle, "Drag to reorder");
             dragToReorder(handle);
-            javafx.scene.image.ImageView view = new javafx.scene.image.ImageView();
+            view = new javafx.scene.image.ImageView();
             view.setPreserveRatio(true);
             view.setSmooth(true);
-            Rectangle clip = new Rectangle();
             clip.setArcWidth(16);
             clip.setArcHeight(16);
             view.setClip(clip);
@@ -485,11 +669,10 @@ final class NoteEditorView extends NoteEditor {
             if (file != null) {
                 Images.load(file, 2048, img -> {
                     if (img == null) return;
-                    double w = Math.min(img.getWidth(), 520);
+                    pictureWidth = Math.min(img.getWidth(), 520);
+                    pictureRatio = img.getHeight() / Math.max(1, img.getWidth());
                     view.setImage(img);
-                    view.setFitWidth(w);
-                    clip.setWidth(w);
-                    clip.setHeight(w * img.getHeight() / Math.max(1, img.getWidth()));
+                    sizePicture();
                 });
                 view.setStyle("-fx-cursor: hand;");
                 view.setOnMouseClicked(e -> {
@@ -500,7 +683,7 @@ final class NoteEditorView extends NoteEditor {
             picture.setAlignment(Pos.CENTER_LEFT);
             picture.setPadding(new Insets(4, 0, 4, 12));
             HBox.setHgrow(picture, Priority.ALWAYS);
-            Button remove = Ui.iconButton(Icons.CLOSE, 32, 18, "text_secondary", "Remove picture", () -> {
+            remove = Ui.iconButton(Icons.CLOSE, 32, 18, "text_secondary", "Remove picture", () -> {
                 int index = itemRows.getChildren().indexOf(this);
                 removeItemAt(index);
                 if (items.isEmpty()) addItemAt(0);
@@ -513,9 +696,83 @@ final class NoteEditorView extends NoteEditor {
             getChildren().addAll(handle, picture, remove);
         }
 
+        /** The item's pill (overdue, today, later) and, on the row in use, the clock. */
+        void showDue(boolean animate) {
+            if (pill == null) return; // A picture has no day.
+            long today = Due.today();
+            int s = Due.status(item, today);
+            boolean was = pill.isVisible();
+            pill.getStyleClass().removeAll("overdue", "today", "done");
+            if (s == Due.NONE) {
+                pill.setVisible(false);
+                pill.setManaged(false);
+            } else {
+                pill.setText(Due.pill(item, today));
+                pill.setGraphic(Ui.icon(Icons.CLOCK, 12, s == Due.OVERDUE ? "destructive" : s == Due.TODAY ? "tile_orange" : "text_secondary"));
+                scaleGraphic(pill.getGraphic(), zoomed);
+                if (s == Due.OVERDUE) pill.getStyleClass().add("overdue");
+                else if (s == Due.TODAY) pill.getStyleClass().add("today");
+                else if (s == Due.DONE) pill.getStyleClass().add("done");
+                pill.setVisible(true);
+                pill.setManaged(true);
+                pill.setCursor(readOnly ? javafx.scene.Cursor.DEFAULT : javafx.scene.Cursor.HAND);
+                if (animate && !was) {
+                    ScaleTransition pop = new ScaleTransition(Duration.millis(180), pill);
+                    pop.setFromX(0.6);
+                    pop.setFromY(0.6);
+                    pop.setToX(1);
+                    pop.setToY(1);
+                    pop.play();
+                }
+            }
+            clock.setVisible(!readOnly && s == Due.NONE && (isHover() || text.isFocused()));
+        }
+
+        private void sizePicture() {
+            double w = pictureWidth * zoomed;
+            view.setFitWidth(w);
+            clip.setWidth(w);
+            clip.setHeight(w * pictureRatio);
+        }
+
+        /** The row's own sizes follow the view's zoom, so a list zoomed out fits more items. */
+        @Override
+        public void zoom(double z) {
+            if (Math.abs(z - zoomed) < 0.001) return;
+            zoomed = z;
+            handle.setMinSize(32 * z, 40 * z);
+            scaleGraphic(handle.getChildren().get(0), z);
+            scaleGraphic(remove.getGraphic(), z);
+            remove.setMinSize(32 * z, 32 * z);
+            remove.setPrefSize(32 * z, 32 * z);
+            remove.setMaxSize(32 * z, 32 * z);
+            if (view != null) {
+                setPadding(new Insets(4 * z, 16 * z, 4 * z, 4 * z));
+                if (pictureWidth > 0) sizePicture();
+                return;
+            }
+            setMinHeight(48 * z);
+            setPadding(new Insets(0, 16 * z, 0, 4 * z));
+            box.setMinSize(18 * z, 18 * z);
+            box.setMaxSize(18 * z, 18 * z);
+            scaleGraphic(tick, z);
+            target.setMinSize(44 * z, 44 * z);
+            clock.setMinSize(32 * z, 32 * z);
+            clock.setPrefSize(32 * z, 32 * z);
+            clock.setMaxSize(32 * z, 32 * z);
+            scaleGraphic(clock.getGraphic(), z);
+            if (pill.getGraphic() != null) scaleGraphic(pill.getGraphic(), z);
+        }
+
+        private static void scaleGraphic(Node n, double z) {
+            n.setScaleX(z);
+            n.setScaleY(z);
+        }
+
         private void setDone(boolean done) {
-            item.done = done;
+            Due.tick(item, done, Due.today());
             styleDone();
+            showDue(true);
             updateProgress();
             markDirty();
             if (done) {

@@ -87,6 +87,7 @@ final class GroupNotes {
     private static JSONObject personalOff(JSONObject value) {
         value.remove("archived");
         value.remove("folder");
+        value.remove("template");
         return value;
     }
 

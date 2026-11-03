@@ -177,6 +177,10 @@ abstract class NoteEditor extends Screen {
             javafx.scene.control.Label from = Ui.label("From @" + loaded.getSharedFrom() + "  ·  read only", 14, "secondary");
             toolbar.getChildren().add(1, from);
             HBox.setMargin(from, new javafx.geometry.Insets(0, 0, 0, 8));
+        } else if (loaded.isTemplate()) {
+            javafx.scene.control.Label tag = Ui.label("Template  ·  new notes start as this", 14, "secondary");
+            toolbar.getChildren().add(1, tag);
+            HBox.setMargin(tag, new javafx.geometry.Insets(0, 0, 0, 8));
         }
         // Opened to read: no caret anywhere until a click puts one, like the phone.
         javafx.application.Platform.runLater(root::requestFocus);

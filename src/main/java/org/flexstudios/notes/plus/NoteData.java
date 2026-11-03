@@ -95,6 +95,10 @@ final class NoteData {
     static final class TodoItem {
         String text;
         boolean done;
+        /** Optional: its day ("YYYY-MM-DD"), time ("HH:mm") and repeat; see {@link Due}. */
+        String due, time, repeat;
+        /** Its day before a repeating tick moved it on: unticked again, it goes back (never saved). */
+        String undoDue;
 
         TodoItem(String text, boolean done) {
             this.text = text;
@@ -117,7 +121,12 @@ final class NoteData {
         JSONArray array = array(json, "items");
         for (int i = 0; i < array.length(); i++) {
             JSONObject o = array.optJSONObject(i);
-            if (o != null) items.add(new TodoItem(o.optString("text", ""), o.optBoolean("done", false)));
+            if (o == null) continue;
+            TodoItem item = new TodoItem(o.optString("text", ""), o.optBoolean("done", false));
+            item.due = Due.day(o.optString("due", null)) == Due.NO_DAY ? null : o.optString("due");
+            item.time = item.due != null && Due.time(o.optString("time", null)) != null ? o.optString("time") : null;
+            item.repeat = item.due != null && Due.valid(o.optString("repeat", null)) ? o.optString("repeat") : null;
+            items.add(item);
         }
         return items;
     }
@@ -133,7 +142,15 @@ final class NoteData {
 
     static String todosJson(List<TodoItem> items, boolean wrap) {
         JSONArray array = new JSONArray();
-        for (TodoItem item : items) array.put(new JSONObject().put("text", item.text).put("done", item.done));
+        for (TodoItem item : items) {
+            JSONObject o = new JSONObject().put("text", item.text).put("done", item.done);
+            if (item.due != null) {
+                o.put("due", item.due);
+                if (item.time != null) o.put("time", item.time);
+                if (item.repeat != null) o.put("repeat", item.repeat);
+            }
+            array.put(o);
+        }
         JSONObject o = new JSONObject().put("items", array);
         if (!wrap) o.put("wrap", false);
         return o.toString();

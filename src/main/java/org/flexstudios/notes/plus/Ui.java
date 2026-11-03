@@ -581,6 +581,33 @@ final class Ui {
         new ParallelTransition(fade, grow, drop).play();
     }
 
+    /**
+     * A card dropping from {@code anchor}: under it, right edges lined up (over it when there's no
+     * room below). A click outside or Escape closes it.
+     */
+    static Modal popover(Node anchor, Region box) {
+        box.getStyleClass().add("popover");
+        box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        Modal m = present(box, Pos.TOP_LEFT, false, null);
+        box.applyCss();
+        double w = box.prefWidth(-1), h = box.prefHeight(w);
+        Bounds b = layer.sceneToLocal(anchor.localToScene(anchor.getBoundsInLocal()));
+        double left = Math.max(8, Math.min(b.getMaxX() - w, layer.getWidth() - w - 8));
+        double top = b.getMaxY() + 4 + h <= layer.getHeight() - 8 ? b.getMaxY() + 4 : Math.max(8, b.getMinY() - h - 4);
+        StackPane.setMargin(box, new Insets(top, 0, 0, left));
+        box.setOpacity(0);
+        box.setScaleX(0.92);
+        box.setScaleY(0.92);
+        FadeTransition fade = new FadeTransition(Duration.millis(120), box);
+        fade.setToValue(1);
+        ScaleTransition grow = new ScaleTransition(Duration.millis(160), box);
+        grow.setToX(1);
+        grow.setToY(1);
+        grow.setInterpolator(Interpolator.EASE_OUT);
+        new ParallelTransition(fade, grow).play();
+        return m;
+    }
+
     // ===================================================================== sheet
 
     /** A bottom sheet, sliding up, at most 640 wide like the phone's on a tablet. */

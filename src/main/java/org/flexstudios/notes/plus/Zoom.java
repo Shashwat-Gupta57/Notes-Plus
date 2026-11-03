@@ -12,6 +12,7 @@ import javafx.scene.control.TextInputControl;
  *
  * Each label and text field under the zoomed node keeps the size it was made with (seen at
  * its first layout) and is shown at that size times the zoom, so rows added later follow too.
+ * A {@link Scaled} node also resizes its own parts, so a list zoomed out shows more items.
  */
 final class Zoom {
 
@@ -45,7 +46,13 @@ final class Zoom {
         walk(root, z);
     }
 
+    /** A node with sizes of its own (a list row's height, its checkbox) that follow the zoom too. */
+    interface Scaled {
+        void zoom(double z);
+    }
+
     private static void walk(Node n, double z) {
+        if (n instanceof Scaled s) s.zoom(z); // Its labels and fields are still sized below.
         if (n instanceof RichArea r) {
             r.zoom(z); // Formatted text scales as a whole: words, headings and bullets together.
             return;

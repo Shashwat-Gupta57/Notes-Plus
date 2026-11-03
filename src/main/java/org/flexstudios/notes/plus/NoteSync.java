@@ -554,6 +554,7 @@ final class NoteSync {
             if (note.getFolder() != null && !note.getFolder().isEmpty()) {
                 m.put("folder", note.getFolder().length() > 100 ? note.getFolder().substring(0, 100) : note.getFolder());
             }
+            if (note.isTemplate()) m.put("template", true);
         }
         if (NoteData.SKETCH.equals(note.getType())) {
             String sketch = readSketch(note.getId());
@@ -862,7 +863,7 @@ final class NoteSync {
         String uuid, type, title, content, data, sketch, media, folder;
         long rev, updatedAt, edited;
         int color;
-        boolean pinned, deleted, archived;
+        boolean pinned, deleted, archived, template;
         /** One of my own notes (users/{uid}/notes): only these say how the note is filed. */
         boolean mine;
 
@@ -888,6 +889,7 @@ final class NoteSync {
             r.color = s.optInt("color");
             r.pinned = s.optBoolean("pinned");
             r.archived = s.optBoolean("archived");
+            r.template = s.optBoolean("template");
             r.folder = s.opt("folder") instanceof String f && !f.isEmpty() ? f : null;
             r.edited = s.optLong("edited");
             if (r.edited == 0) r.edited = r.updatedAt;
@@ -921,6 +923,7 @@ final class NoteSync {
             if (mine) {
                 note.setArchived(archived);
                 note.setFolder(folder);
+                note.setTemplate(template);
             }
             note.setTimestamp(edited);
             note.setRev(rev);
@@ -934,7 +937,8 @@ final class NoteSync {
         return Objects.equals(n.getTitle(), r.title) && Objects.equals(n.getContent(), r.content)
                 && Objects.equals(n.getData(), r.data) && n.getColor() == r.color
                 && n.isPinned() == r.pinned && n.getType().equals(r.type)
-                && (!r.mine || (n.isArchived() == r.archived && Objects.equals(n.getFolder(), r.folder)));
+                && (!r.mine || (n.isArchived() == r.archived && Objects.equals(n.getFolder(), r.folder)
+                && n.isTemplate() == r.template));
     }
 
     // ============================================================== sketches

@@ -46,6 +46,7 @@ public class NoteEntity {
     /** Someone else's note sent to me: their @username. Read-only here; never pushed. */
     private String sharedFrom;
     private boolean archived;
+    private boolean template;
     private String folder;
 
     public NoteEntity(String title, String content, long timestamp) {
@@ -96,6 +97,9 @@ public class NoteEntity {
     public void setArchived(boolean archived) { this.archived = archived; }
     public String getFolder() { return folder; }
     public void setFolder(String folder) { this.folder = folder; }
+    /** One of my notes kept to start new ones from ({@link Templates}). */
+    public boolean isTemplate() { return template; }
+    public void setTemplate(boolean template) { this.template = template; }
 
     /** Someone else's note, sent to me. */
     boolean isReceived() { return sharedFrom != null; }
@@ -105,7 +109,8 @@ public class NoteEntity {
         return Objects.equals(title, o.title) && Objects.equals(content, o.content)
                 && Objects.equals(data, o.data) && timestamp == o.timestamp
                 && color == o.color && pinned == o.pinned && getType().equals(o.getType())
-                && Objects.equals(groupMembers, o.groupMembers) && archived == o.archived && Objects.equals(folder, o.folder);
+                && Objects.equals(groupMembers, o.groupMembers) && archived == o.archived && Objects.equals(folder, o.folder)
+                && template == o.template;
     }
 
     /** A detached copy, for handing to the writer thread. */
@@ -129,6 +134,7 @@ public class NoteEntity {
         c.sharedFrom = sharedFrom;
         c.archived = archived;
         c.folder = folder;
+        c.template = template;
         return c;
     }
 }

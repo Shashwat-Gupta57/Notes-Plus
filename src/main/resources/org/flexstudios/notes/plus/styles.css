@@ -326,6 +326,67 @@
     -fx-cursor: hand;
 }
 .check.on { -fx-background-color: -np-tile-green; -fx-background-insets: 0; -fx-background-radius: 2; }
+/* A list item's day (NoteEditorView), its picker, and the clock tag on a list's card (NoteCard). */
+.due-pill {
+    -fx-font-size: 12px;
+    -fx-text-fill: -np-text-secondary;
+    -fx-background-color: rgba(142, 142, 147, 0.16);
+    -fx-background-radius: 10;
+    -fx-padding: 2 8 2 6;
+    -fx-graphic-text-gap: 4;
+    -fx-translate-y: -3;
+}
+.due-pill.today { -fx-text-fill: -np-tile-orange; -fx-background-color: rgba(255, 159, 10, 0.16); }
+.due-pill.overdue { -fx-text-fill: -np-destructive; -fx-background-color: rgba(255, 59, 48, 0.14); }
+.due-pill.done { -fx-opacity: 0.6; }
+.due-tag {
+    -fx-font-size: 11px;
+    -fx-text-fill: -np-text-secondary;
+    -fx-background-color: rgba(142, 142, 147, 0.18);
+    -fx-background-radius: 8;
+    -fx-padding: 1 6 1 5;
+    -fx-graphic-text-gap: 3;
+}
+.due-tag.today { -fx-text-fill: -np-tile-orange; -fx-background-color: rgba(255, 159, 10, 0.18); }
+.due-tag.overdue { -fx-text-fill: -np-destructive; -fx-background-color: rgba(255, 59, 48, 0.16); }
+.card-row.overdue { -fx-text-fill: -np-destructive; }
+/* Ctrl+K (Palette). */
+.palette {
+    -fx-background-color: -np-m3-menu;
+    -fx-background-radius: 16;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.32), 28, 0.0, 0, 8);
+}
+.palette-field, .palette-field:focused {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent transparent -np-divider transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-font-size: 17px;
+    -fx-padding: 16 18 14 18;
+    -fx-text-fill: -np-text-primary;
+}
+.palette-rows { -fx-padding: 0 6 6 6; }
+.palette-row { -fx-padding: 7 10 7 10; -fx-background-radius: 10; -fx-cursor: hand; }
+.palette-row.selected { -fx-background-color: -np-m3-hover; }
+.palette-text { -fx-fill: -np-text-primary; -fx-font-size: 15px; }
+.palette-hit { -fx-fill: -np-text-primary; -fx-font-size: 15px; -fx-font-family: "Roboto Medium"; -fx-underline: true; }
+
+.popover {
+    -fx-background-color: -np-m3-menu;
+    -fx-background-radius: 16;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.28), 18, 0.0, 0, 4);
+}
+.popover .chip { -fx-border-color: -np-divider; -fx-border-radius: 8; -fx-min-height: 30; -fx-pref-height: 30; -fx-padding: 0 12 0 12; }
+.popover .chip:selected { -fx-border-color: -np-brand-yellow; }
+.due-day {
+    -fx-min-width: 38; -fx-min-height: 38; -fx-pref-width: 38; -fx-pref-height: 38;
+    -fx-background-radius: 19; -fx-border-radius: 19;
+    -fx-background-color: -np-app-surface; -fx-border-color: -np-divider;
+    -fx-text-fill: -np-text-primary; -fx-font-size: 14px; -fx-cursor: hand;
+}
+.due-day:selected { -fx-background-color: -np-brand-yellow; -fx-border-color: -np-brand-yellow; -fx-text-fill: -np-black; }
+.due-time { -fx-pref-height: 30; -fx-background-radius: 8; }
+
 .progress-track { -fx-background-color: -np-m3-track; -fx-background-radius: 3; }
 .progress-fill { -fx-background-color: -np-tile-green; -fx-background-radius: 3; }
 .add-row { -fx-cursor: hand; -fx-min-height: 52; -fx-padding: 0 0 0 16; -fx-alignment: center-left; -fx-spacing: 16; }

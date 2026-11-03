@@ -43,6 +43,8 @@ final class NoteCard extends VBox {
     final NoteEntity note;
     private final VBox inner = new VBox();
     private final Label title = new Label();
+    /** A list's small clock tag for the footer, when any of its items has a day. */
+    private Label dueTag;
 
     NoteCard(NoteEntity note, Listener listener) {
         this.note = note;
@@ -157,6 +159,9 @@ final class NoteCard extends VBox {
 
     private void bindList() {
         List<NoteData.TodoItem> items = NoteData.todos(note.getData());
+        long today = Due.today();
+        Due.rollover(items, today); // As the editor will show it.
+        dueTag = dueTag(items, today);
         addTitle("List");
         VBox list = new VBox();
         VBox.setMargin(list, new Insets(4, 0, 0, 0));
@@ -171,6 +176,7 @@ final class NoteCard extends VBox {
             Label row = new Label(item.picture() != null ? "🖼  Picture" : (item.done ? "☑  " : "☐  ") + item.text);
             row.getStyleClass().add("card-row");
             if (item.done) row.getStyleClass().add("done");
+            if (Due.status(item, today) == Due.OVERDUE) row.getStyleClass().add("overdue");
             row.setMaxWidth(Double.MAX_VALUE);
             list.getChildren().add(row);
         }
@@ -179,6 +185,22 @@ final class NoteCard extends VBox {
             String more = items.size() > LIST_PREVIEW ? "  ·  +" + (items.size() - LIST_PREVIEW) + " more" : "";
             meta(done == tasks ? "All done" + more : done + " of " + tasks + " done" + more);
         }
+    }
+
+    /**
+     * The small clock tag: the list's most pressing day ("Overdue", "Today 7:30", "Fri", with ↻
+     * when it repeats), or a plain clock once every dated item is done. Null with no dated items.
+     */
+    private static Label dueTag(List<NoteData.TodoItem> items, long today) {
+        if (!Due.anyDated(items)) return null;
+        NoteData.TodoItem urgent = Due.urgent(items, today);
+        int s = urgent == null ? Due.DONE : Due.status(urgent, today);
+        String color = s == Due.OVERDUE ? "destructive" : s == Due.TODAY ? "tile_orange" : "text_secondary";
+        Label tag = new Label(Due.tag(items, today), Ui.icon(Icons.CLOCK, 11, color));
+        tag.getStyleClass().addAll("due-tag", s == Due.OVERDUE ? "overdue" : s == Due.TODAY ? "today" : "later");
+        tag.setMinWidth(Region.USE_PREF_SIZE);
+        if (tag.getText().isEmpty()) tag.setGraphicTextGap(0);
+        return tag;
     }
 
     private void bindMindMap() {
@@ -289,6 +311,7 @@ final class NoteCard extends VBox {
         HBox.setHgrow(date, Priority.ALWAYS);
         date.setMaxWidth(Double.MAX_VALUE);
         HBox row = new HBox(6, Ui.icon(kind.icon(), 14, kind.accent()), date);
+        if (dueTag != null) row.getChildren().add(dueTag);
         if (note.isPinned()) row.getChildren().add(Ui.icon(Icons.PIN, 14, "brand_yellow"));
         row.setAlignment(Pos.CENTER_LEFT);
         VBox.setMargin(row, new Insets(10, 0, 0, 0));

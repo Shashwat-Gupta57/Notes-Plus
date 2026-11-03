@@ -150,6 +150,13 @@ public class NotesApp extends Application {
                 newWindow();
                 return;
             }
+            // Ctrl+K: notes and commands, on the notes and in a note; never over the hidden spaces.
+            if (e.isShortcutDown() && e.getCode() == KeyCode.K && !holdsHiddenSpace()
+                    && (top instanceof MainView || top instanceof NoteEditor)) {
+                e.consume();
+                Palette.show(home());
+                return;
+            }
             // Ctrl+W: closes an open note/editor or screen, or its window if pop-out.
             if (e.isShortcutDown() && e.getCode() == KeyCode.W) {
                 if (top instanceof NoteEditor || top instanceof ViewerView || stack.size() > 1 || home() == null) {
@@ -334,6 +341,20 @@ public class NotesApp extends Application {
         w.screens.getChildren().setAll(view);
         if (below != null && animate) enter(view);
         screen.onResume();
+    }
+
+    /**
+     * Leaves the notes open in the current window (each saves as it goes), back to its notes grid.
+     * A note's own window keeps its note: there is no grid to go back to.
+     */
+    static void toHome() {
+        Win w = active;
+        if (w == null) return;
+        while (w.stack.size() > 1 && w.top() instanceof NoteEditor) {
+            Screen before = w.top();
+            back(w);
+            if (w.top() == before) return; // It asked to stay.
+        }
     }
 
     /** Closes the top screen of the current window (asking it first) and resumes the one below. */

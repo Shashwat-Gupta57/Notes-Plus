@@ -51,11 +51,13 @@ final class MainView extends Screen {
     private static final String SHARED = "SHARED";
     /** The archive: notes put away, shown nowhere else. */
     private static final String ARCHIVED = "ARCHIVED";
+    private static final String TEMPLATES = "TEMPLATES";
     /** A folder's filter: this prefix and its name. */
     private static final String FOLDER = "F:";
     private final HBox chips = new HBox(8);
     /** The folders the chips show now, to rebuild them only when that changes. */
     private List<String> shownFolders;
+    private boolean shownTemplates;
     private String query = "";
     private double lastScrollY;
     /** The Editor tab, made the first time it is shown. */
@@ -358,6 +360,22 @@ final class MainView extends Screen {
         return r;
     }
 
+    /** The palette's "Go to": a filter by its name here (folders come as "FOLDER:name"). */
+    void showFilter(String filter) {
+        if (filter != null && filter.startsWith("FOLDER:")) filter = FOLDER + filter.substring(7);
+        if (searching) stopSearch();
+        if (editorShown) modes.select(0);
+        filterType = filter;
+        shownFolders = null;
+        buildChips();
+        applyFilter();
+    }
+
+    void startSearchFromPalette() {
+        if (editorShown) modes.select(0);
+        startSearch();
+    }
+
     private void startSearch() {
         if (!searching) {
             searching = true;
@@ -375,8 +393,11 @@ final class MainView extends Screen {
     /** All, the folders (right-click: rename or remove), Shared with me, Archived, the types, and "New folder". */
     private void buildChips() {
         List<String> folders = NoteFolders.all(allNotes);
-        if (folders.equals(shownFolders)) return;
+        boolean templates = !Templates.of(allNotes).isEmpty();
+        if (folders.equals(shownFolders) && templates == shownTemplates) return;
         shownFolders = folders;
+        shownTemplates = templates;
+        if (TEMPLATES.equals(filterType) && !templates) filterType = null; // The last one went.
         if (filterType != null && filterType.startsWith(FOLDER) && !folders.contains(filterType.substring(FOLDER.length()))) {
             filterType = null; // Its folder went (renamed or removed).
         }
@@ -385,6 +406,7 @@ final class MainView extends Screen {
         chips.getChildren().add(chip(group, "All", null, filterType == null));
         for (String f : folders) chips.getChildren().add(chip(group, f, FOLDER + f, (FOLDER + f).equals(filterType)));
         chips.getChildren().add(chip(group, "Shared with me", SHARED, SHARED.equals(filterType)));
+        if (templates) chips.getChildren().add(chip(group, "Templates", TEMPLATES, TEMPLATES.equals(filterType)));
         chips.getChildren().add(chip(group, "Archived", ARCHIVED, ARCHIVED.equals(filterType)));
         for (NoteData.Kind kind : NoteData.KINDS) {
             chips.getChildren().add(chip(group, kind.plural(), kind.type(), kind.type().equals(filterType)));
@@ -412,6 +434,9 @@ final class MainView extends Screen {
         chip.setFocusTraversable(false);
         if (SHARED.equals(type)) {
             chip.setGraphic(Ui.icon(Icons.PERSON, 18, "tile_teal"));
+            chip.getStyleClass().add("with-icon");
+        } else if (TEMPLATES.equals(type)) {
+            chip.setGraphic(Ui.icon(Icons.TEMPLATE, 18, "tile_purple"));
             chip.getStyleClass().add("with-icon");
         } else if (ARCHIVED.equals(type)) {
             chip.setGraphic(Ui.icon(Icons.ARCHIVE, 18, "text_secondary"));
@@ -466,7 +491,9 @@ final class MainView extends Screen {
         String q = query.toLowerCase(Locale.getDefault());
         String folder = filterType != null && filterType.startsWith(FOLDER) ? filterType.substring(FOLDER.length()) : null;
         for (NoteEntity n : allNotes) {
-            if (ARCHIVED.equals(filterType)) {
+            if (TEMPLATES.equals(filterType) || n.isTemplate()) {
+                if (!TEMPLATES.equals(filterType) || !n.isTemplate()) continue; // Templates: only there.
+            } else if (ARCHIVED.equals(filterType)) {
                 if (!n.isArchived()) continue;
             } else if (n.isArchived()) {
                 continue; // Put away: only under Archived.
@@ -537,6 +564,7 @@ final class MainView extends Screen {
         emptyText.setText(!q.isEmpty() ? "Nothing matches “" + query + "”"
                 : SHARED.equals(filterType) ? "Nothing shared with you yet. When someone shares or sends you a note, it shows up here."
                 : ARCHIVED.equals(filterType) ? "Nothing archived. Archive a note from its options (right-click) to put it away here."
+                : TEMPLATES.equals(filterType) ? "No templates yet. Save a note as a template from its options (right-click)."
                 : folder != null ? "Nothing in “" + folder + "” yet. Move notes here from their options (right-click)."
                 : filterType != null ? "No " + NoteData.kind(filterType).plural().toLowerCase(Locale.getDefault()) + " yet"
                 : "No notes yet. Click New to start.");
@@ -617,12 +645,63 @@ final class MainView extends Screen {
             });
             content.getChildren().add(row);
         }
-        sheet[0] = Ui.sheet(content);
+        // From a template: one row each, under the types.
+        List<NoteEntity> templates = Templates.of(allNotes);
+        if (!templates.isEmpty()) {
+            Label from = Ui.label("From a template", 13, "secondary");
+            from.setPadding(new Insets(12, 24, 4, 24));
+            content.getChildren().add(from);
+            for (NoteEntity t : templates) {
+                NoteData.Kind kind = NoteData.kind(t.getType());
+                StackPane tile = new StackPane(Ui.icon(Icons.TEMPLATE, 24, "white"));
+                tile.setStyle("-fx-background-color: " + Theme.ref(kind.accent()) + "; -fx-background-radius: 8;");
+                tile.setMinSize(42, 42);
+                tile.setMaxSize(42, 42);
+                HBox row = new HBox(tile, new VBox(Ui.label(Templates.name(t), 17, "bold"),
+                        Ui.label(kind.label() + " template", 13, "secondary")));
+                row.getStyleClass().add("sheet-item");
+                row.setOnMouseClicked(e -> {
+                    sheet[0].dismiss();
+                    newFromTemplate(t);
+                });
+                content.getChildren().add(row);
+            }
+        }
+        sheet[0] = Ui.sheet(scrolling(content));
+    }
+
+    /** A sheet's rows, scrolling when there are more than fit (many templates). */
+    private static Node scrolling(VBox content) {
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setMaxHeight(620);
+        scroll.setPrefViewportHeight(Math.min(620, content.prefHeight(-1)));
+        return scroll;
+    }
+
+    /** A new note from a template, opened straight away. */
+    static void newFromTemplate(NoteEntity template) {
+        NoteStore.load(s -> Templates.newFrom(s, template), id -> {
+            NoteSync.schedule();
+            NotesApp.open(NoteData.editor(template.getType(), id));
+        });
     }
 
     private void showNoteOptions(NoteEntity note) {
         String name = note.getTitle() == null || note.getTitle().isEmpty()
                 ? NoteData.kind(note.getType()).label() : note.getTitle();
+        if (note.isTemplate()) {
+            // A template: start a note from it, or look after it. Nothing to file, send or share.
+            Ui.dialog().title(Templates.name(note)).items(
+                    List.of("New note from this", "Rename", "Colour", "Delete"),
+                    List.of(() -> newFromTemplate(note),
+                            () -> Ui.prompt("Rename template", "Name", Templates.name(note), "Rename",
+                                    n -> NoteStore.write(s -> s.saveContent(note.getId(), n.trim(), note.getContent(),
+                                            note.getData(), note.getColor(), false, System.currentTimeMillis()))),
+                            () -> pickColor(note), () -> deleteWithUndo(note))).show();
+            return;
+        }
         java.util.List<String> labels = new java.util.ArrayList<>(List.of(note.isPinned() ? "Unpin" : "Pin to top", "Colour"));
         java.util.List<Runnable> actions = new java.util.ArrayList<>(List.of(
                 () -> NoteStore.write(s -> s.setPinned(note.getId(), !note.isPinned())), () -> pickColor(note)));
@@ -634,6 +713,15 @@ final class MainView extends Screen {
         actions.add(() -> NoteFolders.setArchived(note, !note.isArchived()));
         labels.add("Duplicate");
         actions.add(() -> duplicateNote(note));
+        if (Templates.canSave(note)) {
+            labels.add("Save as template…");
+            actions.add(() -> Ui.prompt("Save as template",
+                    "A copy of this note that new notes can start from, under New. Ticks, one-off dates and pictures are left out.",
+                    "Template name", name, "Save", n -> NoteStore.load(s -> Templates.saveAs(s, note, n.trim().isEmpty() ? name : n), id -> {
+                        NoteSync.schedule();
+                        Ui.toast("Saved as a template. Find it under New or the Templates filter.");
+                    }), null, null, null));
+        }
         if (note.isReceived()) {
             // Someone else's note: mine to pin, colour, copy or put away, not to change.
             labels.add("Save a copy");

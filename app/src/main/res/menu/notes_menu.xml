@@ -15,4 +15,14 @@
         android:icon="@drawable/ic_person"
         android:title="Account"
         app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_import"
+        android:title="Import notes…"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_export"
+        android:title="Export all notes…"
+        app:showAsAction="never" />
 </menu>

@@ -169,6 +169,14 @@ journal on today with no mood, no pictures. `template` travels only in my own no
 copies) and needs its line in `database.rules.json`. The desktop and web also have Ctrl+K (`Palette` /
 `palette.js`), never over the hidden spaces.
 
+**Import / export** (`Interchange`, identical on the phone and the desktop, `interchange.js` on the web,
+kept in step by the same `InterchangeTest` cases; `ImportExport` is each app's pickers): reads Google
+Keep Takeout JSON, Apple Notes `.html`/`.txt`, Markdown folders (front matter, first `# heading`, task-only
+files become lists with `📅`/`⏰`/`🔁`), pictures by path, name or data URI; writes a zip of Markdown
+(`Archived/`, `Templates/`, folders as folders, `attachments/`, locked notes listed in `Not exported.md`)
+that reads back with every type. A note already here (same title and words, pictures ignored) is skipped.
+No `String.join`/`repeat`/`java.util.Base64` in it: Android 7 lacks them.
+
 **Filing** (`NoteFolders`): `archived` hides a note everywhere but the Archived filter; `folder` is a
 name (≤ 100) and a folder exists while a note is in it (empty ones made on a device are remembered in
 its prefs, `note_folders`). Both travel only with my own notes (`users/{uid}/notes`, `Remote.mine`),

@@ -36,6 +36,7 @@ import com.google.firebase.auth.FirebaseUser;
 public class AccountActivity extends AppCompatActivity {
 
     private View panelSignIn, panelVerify, panelAccount;
+    private ImportExport importExport;
     private LinearProgressIndicator progress;
     private TextInputEditText inputEmail, inputPassword;
     private MaterialButton btnEmail, btnToggleMode;
@@ -59,6 +60,7 @@ public class AccountActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        importExport = new ImportExport(this);
         setContentView(R.layout.activity_account);
         Toolbar toolbar = findViewById(R.id.toolbarAccount);
         toolbar.setNavigationOnClickListener(v -> finish());
@@ -117,6 +119,14 @@ public class AccountActivity extends AppCompatActivity {
         showNoteLockTime();
         findViewById(R.id.rowNoteLock).setOnClickListener(v -> chooseNoteLockTime());
         ((TextView) findViewById(R.id.txtTheme)).setText(AppTheme.NAMES[AppTheme.index(this)]);
+        findViewById(R.id.rowImportExport).setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
+                .setTitle("Import or export notes")
+                .setItems(new String[]{"Import notes… (Google Keep, Apple Notes, Markdown)", "Export all notes (a zip of Markdown)"},
+                        (d, which) -> {
+                            if (which == 0) importExport.chooseImport();
+                            else importExport.chooseExport();
+                        })
+                .show());
         findViewById(R.id.rowTheme).setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
                 .setTitle("Theme")
                 .setSingleChoiceItems(AppTheme.NAMES, AppTheme.index(this), (d, which) -> {

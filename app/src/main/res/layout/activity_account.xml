@@ -375,6 +375,16 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 
+                    <LinearLayout android:id="@+id/rowImportExport" style="@style/Settings.Row">
+                        <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_blue" android:src="@drawable/ic_sync" />
+                        <LinearLayout style="@style/Settings.Texts">
+                            <TextView style="@style/Settings.Title" android:text="Import or export notes" />
+                            <TextView style="@style/Settings.Subtitle" android:text="From Google Keep, Apple Notes or Markdown; all notes to a zip" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <View style="@style/Settings.Divider" />
+
                     <LinearLayout android:id="@+id/rowTheme" style="@style/Settings.Row">
                         <ImageView style="@style/Settings.Icon" android:backgroundTint="@color/tile_purple" android:src="@drawable/ic_palette" />
                         <LinearLayout style="@style/Settings.Texts">

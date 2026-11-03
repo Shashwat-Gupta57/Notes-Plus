@@ -71,6 +71,7 @@ public class MainActivity extends AppCompatActivity {
     /** The folders the chips show now, to rebuild them only when that changes. */
     private List<String> shownFolders;
     private boolean shownTemplates;
+    private ImportExport importExport;
     private String query = "";
 
     private final Handler secretHandler = new Handler(Looper.getMainLooper());
@@ -83,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         AppTheme.apply(this); // Before the first screen draws: the chosen look.
         super.onCreate(savedInstanceState);
+        importExport = new ImportExport(this);
 
         if (!SecurityHelper.isSetupDone(this)) {
             startActivity(new Intent(this, SetupLockActivity.class));
@@ -561,6 +563,14 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if (item.getItemId() == R.id.action_account) {
             startActivity(new Intent(this, AccountActivity.class));
+            return true;
+        }
+        if (item.getItemId() == R.id.action_import) {
+            importExport.chooseImport();
+            return true;
+        }
+        if (item.getItemId() == R.id.action_export) {
+            importExport.chooseExport();
             return true;
         }
         return super.onOptionsItemSelected(item);

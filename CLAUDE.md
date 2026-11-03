@@ -169,6 +169,13 @@ journal on today with no mood, no pictures. `template` travels only in my own no
 copies) and needs its line in `database.rules.json`. The desktop and web also have Ctrl+K (`Palette` /
 `palette.js`), never over the hidden spaces.
 
+**Search** (`Search`, identical on the phone and the desktop, `search.js` on the web, the same `SearchTest`
+cases): while the search box is open, every note (archived and templates too, never hidden ones) is searched
+for every word typed, in any order, in its title and `content` (which already holds list items, mind-map
+ideas and sub-texts, journal words); locked notes by title only; matching titles first, then newest. The
+filter chips become Type / Colour / Folder / Has pictures / Has dates; cards mark the words and show a line
+around the first match (`Search.snippet`), which replaces a text or journal card's usual preview.
+
 **Links between notes** (`NoteLinks`, identical on the phone and the desktop, `notelinks.js` on the web,
 kept in step by the same `NoteLinksTest` cases): `[[Title]]` / `[[Title|words]]` kept literally in a note's
 words and list items (never `![[…]]`, which is a picture); matched by title ignoring case, newest note wins;

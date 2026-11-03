@@ -55,6 +55,41 @@ public class NoteAdapter extends ListAdapter<NoteEntity, RecyclerView.ViewHolder
      * The grid's items with folder tiles first: {@code folders} (name → its notes) become one
      * item each. A tile's content says what it shows, so the differ redraws it when that changes.
      */
+    /** The words being searched for (none: not searching). Cards mark them, and show where they are. */
+    private List<String> terms = new java.util.ArrayList<>();
+
+    void setSearch(List<String> next) {
+        if (next.equals(terms)) return;
+        terms = next;
+        notifyDataSetChanged();
+    }
+
+    /** Searching: the title's matching letters marked, and a line of the note's words around a match. */
+    private void showMatch(Card c, NoteEntity note) {
+        c.match.setVisibility(View.GONE);
+        if (terms.isEmpty()) return;
+        Context ctx = c.itemView.getContext();
+        CharSequence title = c.title.getText();
+        if (title != null && title.length() > 0) c.title.setText(marked(ctx, title.toString(), Search.marks(title.toString(), terms)));
+        Search.Snippet s = Search.snippet(note, terms, 90);
+        if (s == null) return;
+        c.match.setText(marked(ctx, s.text, s.hits));
+        c.match.setVisibility(View.VISIBLE);
+        // Words: the piece around the match takes the place of the usual first lines.
+        if (NoteData.TEXT.equals(note.getType()) || NoteData.JOURNAL.equals(note.getType())) c.body.setVisibility(View.GONE);
+    }
+
+    private static CharSequence marked(Context ctx, String text, List<int[]> hits) {
+        android.text.SpannableString out = new android.text.SpannableString(text);
+        int bg = androidx.core.graphics.ColorUtils.setAlphaComponent(ContextCompat.getColor(ctx, R.color.brand_yellow), 0x70);
+        for (int[] h : hits) {
+            if (h[0] < 0 || h[1] > text.length()) continue;
+            out.setSpan(new android.text.style.BackgroundColorSpan(bg), h[0], h[1], android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            out.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), h[0], h[1], android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        return out;
+    }
+
     void submit(List<NoteEntity> loose, java.util.Map<String, List<NoteEntity>> byFolder) {
         folders.clear();
         folders.putAll(byFolder);
@@ -233,6 +268,7 @@ public class NoteAdapter extends ListAdapter<NoteEntity, RecyclerView.ViewHolder
                 : people > 0 ? "Shared · " + people + "  ·  " + when
                 : sent > 0 ? "Sent to " + sent + "  ·  " + when : when);
         c.pinned.setVisibility(note.isPinned() ? View.VISIBLE : View.GONE);
+        showMatch(c, note);
     }
 
     private void bindText(Card c, NoteEntity note) {
@@ -477,7 +513,7 @@ public class NoteAdapter extends ListAdapter<NoteEntity, RecyclerView.ViewHolder
         final ImageView cover, typeIcon, pinned;
         final MindMapActivity.MindMapView mindMap;
         final View journalDate;
-        final TextView day, weekday, month, mood, title, body, meta, date, due;
+        final TextView day, weekday, month, mood, title, body, meta, date, due, match;
         final LinearLayout list;
         final TextView[] listRows = new TextView[LIST_PREVIEW];
         final AudioNoteActivity.WaveformView wave;
@@ -501,6 +537,7 @@ public class NoteAdapter extends ListAdapter<NoteEntity, RecyclerView.ViewHolder
             date = v.findViewById(R.id.cardDate);
             pinned = v.findViewById(R.id.cardPinned);
             due = v.findViewById(R.id.cardDue);
+            match = v.findViewById(R.id.cardMatch);
             for (int i = 0; i < LIST_PREVIEW; i++) {
                 TextView row = new TextView(v.getContext());
                 row.setTextSize(14);

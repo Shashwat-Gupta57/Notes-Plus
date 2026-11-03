@@ -135,6 +135,18 @@
                 android:textSize="12sp"
                 android:visibility="gone" />
 
+            <!-- Searching: where the words typed are in this note, marked. -->
+            <TextView
+                android:id="@+id/cardMatch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:ellipsize="end"
+                android:maxLines="3"
+                android:textColor="@color/text_body"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

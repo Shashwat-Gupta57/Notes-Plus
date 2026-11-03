@@ -85,6 +85,9 @@ public class MainActivity extends AppCompatActivity {
     private boolean shownTemplates;
     private ImportExport importExport;
     private String query = "";
+    /** Searching (the search box is open): every note, narrowed by these, and the chips become them. */
+    private boolean searching;
+    private Search.Filters searchFilters = new Search.Filters();
 
     private final Handler secretHandler = new Handler(Looper.getMainLooper());
     private Runnable secretRunnable;
@@ -202,6 +205,16 @@ public class MainActivity extends AppCompatActivity {
             emptyText.setText("No hidden notes. Hide a note from its options to keep it here.");
             return;
         }
+        if (searching && (!query.isEmpty() || searchFilters.any())) {
+            // Every note (archived and templates too), best first, with the words marked on the cards.
+            List<NoteEntity> found = Search.run(allNotes, query, searchFilters);
+            adapter.setSearch(Search.terms(query));
+            adapter.submit(found, new java.util.LinkedHashMap<>());
+            emptyState.setVisibility(found.isEmpty() ? View.VISIBLE : View.GONE);
+            emptyText.setText(query.isEmpty() ? "No notes like that" : "Nothing matches “" + query + "”");
+            return;
+        }
+        adapter.setSearch(new ArrayList<>());
         List<NoteEntity> shown = new ArrayList<>();
         String q = query.toLowerCase(Locale.getDefault());
         String folder = filterType != null && filterType.startsWith(FOLDER) ? filterType.substring(FOLDER.length()) : null;
@@ -249,6 +262,10 @@ public class MainActivity extends AppCompatActivity {
 
     /** All, the folders (long press: rename or remove), Shared with me, Archived, the types, and "New folder". */
     private void buildFilterChips() {
+        if (searching) {
+            buildSearchChips();
+            return;
+        }
         List<String> folders = NoteFolders.all(this, allNotes);
         boolean templates = !Templates.of(allNotes).isEmpty();
         if (folders.equals(shownFolders) && templates == shownTemplates) return;
@@ -282,6 +299,78 @@ public class MainActivity extends AppCompatActivity {
             applyFilter();
         }));
         chips.addView(add);
+    }
+
+    /** While searching, the chips narrow the search: type, colour, folder, pictures, dates. */
+    private void buildSearchChips() {
+        ChipGroup chips = findViewById(R.id.filterChips);
+        chips.removeAllViews();
+        Search.Filters f = searchFilters;
+        searchChip(chips, f.type == null ? "Any type" : NoteData.kind(f.type).plural, f.type != null, R.drawable.ic_note_text, () -> {
+            String[] names = new String[NoteData.KINDS.length + 1];
+            names[0] = "Any type";
+            for (int i = 0; i < NoteData.KINDS.length; i++) names[i + 1] = NoteData.KINDS[i].plural;
+            pick("Type", names, which -> f.type = which == 0 ? null : NoteData.KINDS[which - 1].type);
+        });
+        searchChip(chips, f.color < 0 ? "Any colour" : f.color == 0 ? "No colour" : NoteData.COLOR_NAMES[f.color], f.color >= 0, R.drawable.ic_palette, () -> {
+            String[] names = new String[NoteData.COLOR_NAMES.length + 1];
+            names[0] = "Any colour";
+            names[1] = "No colour";
+            for (int i = 1; i < NoteData.COLOR_NAMES.length; i++) names[i + 1] = NoteData.COLOR_NAMES[i];
+            pick("Colour", names, which -> f.color = which - 1);
+        });
+        List<String> folders = NoteFolders.all(this, allNotes);
+        searchChip(chips, f.folder == null ? "Any folder" : f.folder.isEmpty() ? "No folder" : f.folder, f.folder != null, R.drawable.ic_folder, () -> {
+            String[] names = new String[folders.size() + 2];
+            names[0] = "Any folder";
+            names[1] = "No folder";
+            for (int i = 0; i < folders.size(); i++) names[i + 2] = folders.get(i);
+            pick("Folder", names, which -> f.folder = which == 0 ? null : which == 1 ? "" : folders.get(which - 2));
+        });
+        searchChip(chips, "Has pictures", f.pictures, R.drawable.ic_photo, () -> {
+            f.pictures = !f.pictures;
+            buildSearchChips();
+            applyFilter();
+        });
+        searchChip(chips, "Has dates", f.dates, R.drawable.ic_clock, () -> {
+            f.dates = !f.dates;
+            buildSearchChips();
+            applyFilter();
+        });
+    }
+
+    private void searchChip(ChipGroup group, String label, boolean on, int icon, Runnable onClick) {
+        Chip chip = new Chip(this);
+        chip.setText(label);
+        chip.setCheckable(true);
+        chip.setCheckedIconVisible(false);
+        chip.setChecked(on);
+        chip.setChipIconResource(icon);
+        chip.setChipIconTint(ColorStateList.valueOf(ContextCompat.getColor(this, on ? R.color.black : R.color.text_secondary)));
+        chip.setChipIconVisible(true);
+        chip.setChipBackgroundColor(new ColorStateList(
+                new int[][]{{android.R.attr.state_checked}, {}},
+                new int[]{ContextCompat.getColor(this, R.color.brand_yellow), ContextCompat.getColor(this, R.color.app_surface)}));
+        chip.setTextColor(new ColorStateList(
+                new int[][]{{android.R.attr.state_checked}, {}},
+                new int[]{ContextCompat.getColor(this, R.color.black), ContextCompat.getColor(this, R.color.text_primary)}));
+        chip.setChipStrokeWidth(0);
+        chip.setOnClickListener(v -> {
+            chip.setChecked(on); // What it shows comes from the filters, set by the choice.
+            onClick.run();
+        });
+        group.addView(chip);
+    }
+
+    private void pick(String title, String[] names, java.util.function.IntConsumer chose) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(title)
+                .setItems(names, (d, which) -> {
+                    chose.accept(which);
+                    buildSearchChips();
+                    applyFilter();
+                })
+                .show();
     }
 
     private void addChip(ChipGroup group, String label, String type, boolean checked) {
@@ -567,6 +656,26 @@ public class MainActivity extends AppCompatActivity {
         getMenuInflater().inflate(R.menu.notes_menu, menu);
         MenuItem search = menu.findItem(R.id.action_search);
         SearchView view = (SearchView) search.getActionView();
+        search.setOnActionExpandListener(new MenuItem.OnActionExpandListener() {
+            @Override
+            public boolean onMenuItemActionExpand(@NonNull MenuItem item) {
+                searching = true;
+                buildSearchChips();
+                applyFilter();
+                return true;
+            }
+
+            @Override
+            public boolean onMenuItemActionCollapse(@NonNull MenuItem item) {
+                searching = false;
+                searchFilters = new Search.Filters();
+                query = "";
+                shownFolders = null;
+                buildFilterChips();
+                applyFilter();
+                return true;
+            }
+        });
         if (view != null) {
             view.setQueryHint("Search notes");
             view.setOnQueryTextListener(new SearchView.OnQueryTextListener() {

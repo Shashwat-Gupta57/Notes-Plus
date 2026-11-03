@@ -94,6 +94,7 @@ async function openCommands() {
   const folders = [...new Set(notes.map(n => n.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   openPalette(notes, {
     folders,
+    current: current && current.noteUuid ? current.noteUuid : null,
     open: uuid => go('#/n/' + uuid),
     create: type => go('#/new/' + type),
     fromTemplate: async t => {

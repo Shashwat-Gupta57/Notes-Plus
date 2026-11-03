@@ -11,6 +11,7 @@ import { KINDS, plain, relative } from './model.js';
 import * as lock from './lock.js';
 import * as theme from './theme.js';
 import * as templates from './templates.js';
+import * as noteLinks from './notelinks.js';
 
 const MAX_ROWS = 50;
 const isWordChar = c => /[\p{L}\p{N}]/u.test(c);
@@ -67,6 +68,15 @@ export function openPalette(notes, actions) {
     items.push({ group: n.template ? 'Templates' : 'Notes', label, detail: () => `${where}  ·  ${relative(n.timestamp)}`,
       icon: n.template ? 'template' : k.icon, accent: k.accent, words: words.slice(0, 4000).toLowerCase(), when: n.timestamp,
       run: () => actions.open(n.uuid) });
+  }
+  // The open note's backlinks: the notes that link to it.
+  const open = actions.current ? notes.find(n => n.uuid === actions.current) : null;
+  if (open) {
+    for (const b of noteLinks.backlinks(open, notes)) {
+      const k = kindOf(b.type);
+      items.push({ group: 'Linking here', label: (b.title || '').trim() || k.label, detail: 'Links to this note', icon: k.icon, accent: k.accent,
+        words: '', when: b.timestamp, run: () => actions.open(b.uuid) });
+    }
   }
   for (const k of KINDS) {
     items.push({ group: 'New', label: 'New ' + k.label.toLowerCase(), detail: k.description, icon: k.icon, accent: k.accent, words: '', run: () => actions.create(k.type) });
@@ -129,7 +139,8 @@ export function openPalette(notes, actions) {
     const q = field.value.trim().toLowerCase();
     let found = [];
     if (!q) {
-      found = items.filter(it => it.group === 'Notes').sort((a, b) => b.when - a.when).slice(0, 6).map(it => ({ it, m: { at: [] }, score: 0 }))
+      found = items.filter(it => it.group === 'Linking here').map(it => ({ it, m: { at: [] }, score: 0 }))
+        .concat(items.filter(it => it.group === 'Notes').sort((a, b) => b.when - a.when).slice(0, 6).map(it => ({ it, m: { at: [] }, score: 0 })))
         .concat(items.filter(it => it.group === 'New').map(it => ({ it, m: { at: [] }, score: 0 })));
     } else {
       for (const it of items) {

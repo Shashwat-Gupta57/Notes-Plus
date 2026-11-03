@@ -7,6 +7,7 @@
 import { h, icon, iconButton, toast, choices, dialog } from './ui.js';
 import { richEditor } from './rich.js';
 import * as due from './due.js';
+import * as noteLinks from './notelinks.js';
 import { TEXT, LIST, JOURNAL, PICTURE_LINE, todos, todosJson, wraps, journal, journalJson, MOODS, mediaName, isVideo, dayStart } from './model.js';
 
 // Where the browser can size a field to its text itself (CSS field-sizing), nothing is measured here.
@@ -68,6 +69,7 @@ function richBody(ctx, content, placeholder) {
       onFocus: e => { active = e; onCaret(); },
     });
     ed.setMarkdown(md);
+    if (ctx.linkNotes) noteLinks.decorate(ed.node, ctx);
     const block = { kind: 'text', node: ed.node, ed, value: () => ed.markdown() };
     ed.node.addEventListener('paste', e => {
       const files = [...(e.clipboardData ? e.clipboardData.files : [])].filter(f => f.type.startsWith('image/'));
@@ -448,6 +450,10 @@ export function listEditor(ctx) {
     };
     check.addEventListener('click', () => setDone(!item.done));
     field.addEventListener('input', () => { item.text = field.value.replace(/\n/g, ' '); updateProgress(); ctx.changed(); });
+    if (ctx.linkNotes) {
+      noteLinks.linkClicks(field, ctx);
+      if (!ctx.readOnly) noteLinks.suggest(field, ctx);
+    }
     field.addEventListener('paste', e => {
       const files = [...(e.clipboardData ? e.clipboardData.files : [])].filter(f => f.type.startsWith('image/'));
       if (!files.length || ctx.readOnly) return;

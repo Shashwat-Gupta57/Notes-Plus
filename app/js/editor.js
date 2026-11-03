@@ -7,6 +7,7 @@ import * as lock from './lock.js';
 import * as sync from './sync.js';
 import * as account from './account.js';
 import * as links from './links.js';
+import * as noteLinks from './notelinks.js';
 import { h, icon, iconButton, toast, dialog, confirm, menu, pickColor, askLock, newLock, choices } from './ui.js';
 import { newNote, kind, tint, COLOR_NAMES, SKETCH, AUDIO } from './model.js';
 
@@ -48,6 +49,45 @@ export async function openEditor({ uuid, type }, implFor, go) {
   let timer = null;
   let saving = Promise.resolve();
 
+  // Links between notes: every note (what "[[" offers, which links lead somewhere), and the title
+  // as last saved (when it changes, the links to it are renamed).
+  let linkNotes = [];
+  const linkListeners = new Set();
+  let linkedTitle = note.title || '';
+  const backBar = h('div.backlinks-wrap');
+  async function loadLinks() {
+    linkNotes = (await db.allNotes()).filter(n => !n.deleted);
+    linkListeners.forEach(f => f());
+    const from = readOnly || isNew && !inDb ? [] : noteLinks.backlinks(note, linkNotes);
+    backBar.replaceChildren(...[noteLinks.backlinksRow(from, uuid => go('#/n/' + uuid))].filter(Boolean));
+  }
+  async function openLink(title) {
+    const all = (await db.allNotes()).filter(n => !n.deleted);
+    const target = noteLinks.resolve(title, all);
+    if (target) { go('#/n/' + target.uuid); return; }
+    if (readOnly) { toast(`No note called “${title.trim()}”`); return; }
+    confirm(`No note called “${title.trim()}”`, 'Make a note with that title?', 'Create', async () => {
+      const made = { ...newNote('TEXT'), title: title.trim(), account: account.uid() };
+      await db.putNote(made);
+      go('#/n/' + made.uuid);
+    });
+  }
+  /** Every note of mine linking "[[from]]" now links "[[to]]" (unless another note still has the old title). */
+  async function renameLinks(from, to) {
+    const all = (await db.allNotes()).filter(n => !n.deleted);
+    if (noteLinks.resolve(from, all)) return 0;
+    let changed = 0;
+    for (const n of all) {
+      if (n.uuid === note.uuid || n.sharedFrom || lock.isLocked(n.data) || sync.OPEN.has(n.uuid)) continue;
+      const next = noteLinks.renamed(n, from, to);
+      if (!next) continue;
+      await db.putNote({ ...n, content: next.content, data: next.data, dirty: true, timestamp: Date.now() }, true);
+      changed++;
+    }
+    if (changed) db.changed('notes');
+    return changed;
+  }
+
   let syncStatus = 'Saved';
   const statusListeners = new Set();
   const setSyncStatus = s => {
@@ -83,6 +123,10 @@ export async function openEditor({ uuid, type }, implFor, go) {
     async putFile(name, blob) { await db.putFile(note.uuid, name, blob); },
     fileUrl: name => db.fileUrl(note.uuid, name),
     save: () => (saving = saving.then(save)),
+    linkNotes: () => linkNotes,
+    onLinks: f => { linkListeners.add(f); return () => linkListeners.delete(f); },
+    openLink: title => openLink(title),
+    self: () => note.uuid,
   };
 
   function build() {
@@ -125,6 +169,13 @@ export async function openEditor({ uuid, type }, implFor, go) {
     }
     await db.putNote(stored);
     inDb = true;
+    // A new title: the links to the old one follow it (not for locked notes, whose links can't be seen).
+    const from = linkedTitle;
+    linkedTitle = note.title || '';
+    if (!key && noteLinks.key(from) && noteLinks.key(note.title) && noteLinks.key(from) !== noteLinks.key(note.title)) {
+      const changed = await renameLinks(from, note.title);
+      if (changed) toast(`Updated links in ${changed} ${changed === 1 ? 'note' : 'notes'}`);
+    }
   }
 
   /** "Unchanged" is what this editor makes of the note once shown, not the stored text. */
@@ -328,8 +379,12 @@ export async function openEditor({ uuid, type }, implFor, go) {
   if (!isNew) baseline();
   setTimeout(() => impl && impl.focus && impl.focus(isNew), 30);
 
+  root.append(backBar);
+  loadLinks();
+
   return {
     el: root,
+    noteUuid: note.uuid,
     async leave() {
       clearTimeout(timer);
       offSync();

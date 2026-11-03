@@ -129,6 +129,8 @@ export function write(paras) {
 
 /** A line without its marks (cards, counts). */
 export function plainLine(line) {
+  // "[[Trip|the trip]]" reads "the trip" on a card (notelinks.js shown(), kept here to stay import-free).
+  if (line.includes('[[')) line = line.replace(/(?<!!)\[\[([^[\]|\n]+)(\|[^[\]\n]*)?\]\]/g, (all, t, alias) => (alias && alias.length > 1 ? alias.slice(1) : t.trim()));
   const p = parseLine(line);
   const text = p.runs.map(r => r.text).join('');
   if (p.block === 'BULLET') return '• ' + text;

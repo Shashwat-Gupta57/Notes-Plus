@@ -4,7 +4,9 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import android.app.DatePickerDialog;
 import android.app.Dialog;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Paint;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
@@ -38,6 +40,9 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.github.chrisbanes.photoview.PhotoView;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
 
 import java.io.File;
@@ -74,6 +79,8 @@ public class NoteEditorActivity extends NoteActivity {
     // List
     private final List<NoteData.TodoItem> items = new ArrayList<>();
     private ListAdapter listAdapter;
+    private RecyclerView listView;
+    private View listAdd;
     private TextView listProgress;
     private LinearProgressIndicator listProgressBar;
 
@@ -181,9 +188,11 @@ public class NoteEditorActivity extends NoteActivity {
         findViewById(R.id.listSection).setVisibility(View.VISIBLE);
         listProgress = findViewById(R.id.listProgress);
         listProgressBar = findViewById(R.id.listProgressBar);
-        RecyclerView listView = findViewById(R.id.listItems);
         items.clear();
         items.addAll(NoteData.todos(note.getData()));
+        // Repeating items whose next day has come show unticked; saved with the next edit, if any
+        // (every device works out the same, so nothing needs pushing just for this).
+        Due.rollover(items, Due.today());
         wrapItems = NoteData.wraps(note.getData());
         if (items.isEmpty()) items.add(new NoteData.TodoItem("", false));
         if (listAdapter != null) {
@@ -194,14 +203,28 @@ public class NoteEditorActivity extends NoteActivity {
         }
 
         listAdapter = new ListAdapter();
+        listView = findViewById(R.id.listItems);
+        listAdd = findViewById(R.id.listAdd);
         listView.setLayoutManager(new LinearLayoutManager(this));
-        listView.setAdapter(listAdapter);
+        scrollAsList();
 
         ItemTouchHelper touch = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(
                 ItemTouchHelper.UP | ItemTouchHelper.DOWN, ItemTouchHelper.LEFT | ItemTouchHelper.RIGHT) {
+            // Only items move or swipe away: the page above them and "Add item" below stay put.
+            @Override
+            public int getDragDirs(@NonNull RecyclerView rv, @NonNull RecyclerView.ViewHolder holder) {
+                return holder.getBindingAdapter() == listAdapter ? super.getDragDirs(rv, holder) : 0;
+            }
+
+            @Override
+            public int getSwipeDirs(@NonNull RecyclerView rv, @NonNull RecyclerView.ViewHolder holder) {
+                return holder.getBindingAdapter() == listAdapter ? super.getSwipeDirs(rv, holder) : 0;
+            }
+
             @Override
             public boolean onMove(@NonNull RecyclerView rv, @NonNull RecyclerView.ViewHolder from,
                                   @NonNull RecyclerView.ViewHolder to) {
+                if (to.getBindingAdapter() != listAdapter) return false;
                 int a = from.getBindingAdapterPosition(), b = to.getBindingAdapterPosition();
                 Collections.swap(items, a, b);
                 listAdapter.notifyItemMoved(a, b);
@@ -226,14 +249,70 @@ public class NoteEditorActivity extends NoteActivity {
         });
         if (!readOnly) touch.attachToRecyclerView(listView);
         listAdapter.touch = touch;
-        findViewById(R.id.listAdd).setOnClickListener(v -> addItemAt(items.size()));
+        listAdd.setOnClickListener(v -> addItemAt(items.size()));
+        if (readOnly) listAdd.setVisibility(View.GONE);
         updateProgress();
+    }
+
+    /**
+     * A list scrolls as its own RecyclerView, so only the rows on screen exist and a list of 500
+     * items opens and scrolls like a short one. (Inside the page's scroll view, with nested
+     * scrolling off, every row was made and laid out at once.) The page above the items (title,
+     * progress) and "Add item" below them ride along as its first and last rows.
+     */
+    private void scrollAsList() {
+        androidx.core.widget.NestedScrollView scroll = findViewById(R.id.editorScroll);
+        ViewGroup page = (ViewGroup) scroll.getChildAt(0);
+        ViewGroup section = findViewById(R.id.listSection);
+        section.removeView(listView);
+        section.removeView(listAdd);
+        scroll.removeView(page);
+        ViewGroup root = (ViewGroup) scroll.getParent();
+        int at = root.indexOfChild(scroll);
+        root.removeView(scroll);
+        listView.setLayoutParams(scroll.getLayoutParams());
+        listView.setNestedScrollingEnabled(true);
+        listView.setClipToPadding(false);
+        listView.setPadding(0, 0, 0, page.getPaddingBottom());
+        listView.setItemViewCacheSize(12);
+        page.setPadding(page.getPaddingLeft(), page.getPaddingTop(), page.getPaddingRight(),
+                Math.round(8 * getResources().getDisplayMetrics().density));
+        root.addView(listView, at);
+        listView.setAdapter(new androidx.recyclerview.widget.ConcatAdapter(new OneRow(page), listAdapter, new OneRow(listAdd)));
+    }
+
+    /** One fixed view as a row of the list (the page above the items, "Add item" below). */
+    private static final class OneRow extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+        private final View view;
+
+        OneRow(View view) {
+            this.view = view;
+            view.setLayoutParams(new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    view.getLayoutParams() == null ? ViewGroup.LayoutParams.WRAP_CONTENT : view.getLayoutParams().height));
+        }
+
+        @NonNull
+        @Override
+        public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            if (view.getParent() instanceof ViewGroup) ((ViewGroup) view.getParent()).removeView(view);
+            return new RecyclerView.ViewHolder(view) {};
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        }
+
+        @Override
+        public int getItemCount() {
+            return 1;
+        }
     }
 
     /** A note sent to me: nothing to add, tick, reorder or re-date. */
     @Override
     protected void lockForReading() {
         super.lockForReading();
+        if (listAdd != null) listAdd.setVisibility(View.GONE); // A row of the list now: not always findable.
         for (int id : new int[]{R.id.listAdd, R.id.btnAddMedia, R.id.formatBar}) {
             View v = findViewById(id);
             if (v != null) v.setVisibility(View.GONE);
@@ -247,6 +326,7 @@ public class NoteEditorActivity extends NoteActivity {
         items.add(position, new NoteData.TodoItem("", false));
         listAdapter.focusPosition = position;
         listAdapter.notifyItemInserted(position);
+        listView.scrollToPosition(position + 1); // Made on screen, so it can take the focus (+1: the page row).
         updateProgress();
         markDirty();
     }
@@ -258,8 +338,9 @@ public class NoteEditorActivity extends NoteActivity {
             total++;
             if (item.done) done++;
         }
-        listProgress.setText(total == 0 ? "Nothing yet" : done == total ? "All done 🎉"
-                : done + " of " + total + " done");
+        int overdue = Due.overdue(items, Due.today());
+        listProgress.setText((total == 0 ? "Nothing yet" : done == total ? "All done 🎉"
+                : done + " of " + total + " done") + (overdue > 0 ? "  ·  " + overdue + " overdue" : ""));
         listProgressBar.setProgressCompat(total == 0 ? 0 : done * 100 / total, true);
     }
 
@@ -278,7 +359,7 @@ public class NoteEditorActivity extends NoteActivity {
             NoteData.TodoItem item = items.get(position);
             h.bound = null;
             String picture = item.picture();
-            h.text.setVisibility(picture == null ? View.VISIBLE : View.GONE);
+            h.column.setVisibility(picture == null ? View.VISIBLE : View.GONE);
             h.check.setVisibility(picture == null ? View.VISIBLE : View.INVISIBLE);
             h.picture.setVisibility(picture == null ? View.GONE : View.VISIBLE);
             if (picture != null) {
@@ -289,6 +370,7 @@ public class NoteEditorActivity extends NoteActivity {
                 else h.picture.setImageDrawable(null);
                 h.text.setText("");
                 h.bound = item;
+                h.showDue(false);
                 return;
             }
             Glide.with(h.picture).clear(h.picture);
@@ -299,6 +381,7 @@ public class NoteEditorActivity extends NoteActivity {
             h.check.setChecked(item.done);
             h.styleDone(item.done);
             h.bound = item;
+            h.showDue(false);
             if (position == focusPosition) {
                 focusPosition = -1;
                 h.text.post(() -> {
@@ -318,7 +401,9 @@ public class NoteEditorActivity extends NoteActivity {
         final class Holder extends RecyclerView.ViewHolder {
             final EditText text;
             final CheckBox check;
-            final ImageView picture;
+            final ImageView picture, clock;
+            final View column;
+            final TextView due;
             NoteData.TodoItem bound;
 
             @android.annotation.SuppressLint("ClickableViewAccessibility")
@@ -327,6 +412,18 @@ public class NoteEditorActivity extends NoteActivity {
                 text = v.findViewById(R.id.itemText);
                 check = v.findViewById(R.id.itemCheck);
                 picture = v.findViewById(R.id.itemPicture);
+                column = v.findViewById(R.id.itemColumn);
+                due = v.findViewById(R.id.itemDue);
+                clock = v.findViewById(R.id.itemClock);
+                if (!readOnly) {
+                    // The clock shows on the item being typed in; once it has a day, its pill takes over.
+                    text.setOnFocusChangeListener((f, has) -> showDue(false));
+                    View.OnClickListener open = c -> {
+                        if (bound != null) showDueSheet(bound);
+                    };
+                    clock.setOnClickListener(open);
+                    due.setOnClickListener(open);
+                }
                 if (readOnly) {
                     text.setKeyListener(null);
                     text.setFocusable(false);
@@ -342,8 +439,9 @@ public class NoteEditorActivity extends NoteActivity {
                 }));
                 check.setOnCheckedChangeListener((b, checked) -> {
                     if (bound == null) return;
-                    bound.done = checked;
+                    Due.tick(bound, checked, Due.today());
                     styleDone(checked);
+                    showDue(true);
                     updateProgress();
                     markDirty();
                     if (checked) b.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
@@ -361,12 +459,194 @@ public class NoteEditorActivity extends NoteActivity {
                 });
             }
 
+            /** The item's date pill (coloured: overdue, today, later) and, while typing, the clock. */
+            void showDue(boolean animate) {
+                NoteData.TodoItem item = bound;
+                long today = Due.today();
+                int s = item == null ? Due.NONE : Due.status(item, today);
+                boolean was = due.getVisibility() == View.VISIBLE;
+                if (s == Due.NONE) {
+                    due.setVisibility(View.GONE);
+                } else {
+                    int color = ContextCompat.getColor(NoteEditorActivity.this, s == Due.OVERDUE ? R.color.destructive
+                            : s == Due.TODAY ? R.color.tile_orange : R.color.text_secondary);
+                    due.setText(Due.pill(item, today));
+                    due.setTextColor(color);
+                    due.setCompoundDrawableTintList(ColorStateList.valueOf(color));
+                    GradientDrawable pill = new GradientDrawable();
+                    pill.setCornerRadius(10 * getResources().getDisplayMetrics().density);
+                    pill.setColor(androidx.core.graphics.ColorUtils.setAlphaComponent(color, 0x24));
+                    due.setBackground(pill);
+                    due.setAlpha(s == Due.DONE ? 0.6f : 1f);
+                    due.setVisibility(View.VISIBLE);
+                    if (animate && !was) {
+                        due.setScaleX(0.6f);
+                        due.setScaleY(0.6f);
+                        due.animate().scaleX(1f).scaleY(1f).setDuration(180).start();
+                    }
+                }
+                clock.setVisibility(!readOnly && item != null && item.picture() == null && s == Due.NONE
+                        && text.hasFocus() ? View.VISIBLE : View.GONE);
+            }
+
             void styleDone(boolean done) {
                 text.setPaintFlags(done ? text.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG
                         : text.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
                 text.setAlpha(done ? 0.5f : 1f);
             }
         }
+    }
+
+    // ================================================================== due dates
+
+    /** The item's day, time and repeat: every tap applies at once, closing keeps it. */
+    private void showDueSheet(NoteData.TodoItem item) {
+        android.view.inputmethod.InputMethodManager imm = getSystemService(android.view.inputmethod.InputMethodManager.class);
+        if (imm != null && getCurrentFocus() != null) imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
+        BottomSheetDialog sheet = new BottomSheetDialog(this);
+        View v = LayoutInflater.from(this).inflate(R.layout.sheet_due, null);
+        sheet.setContentView(v);
+        String words = item.text == null ? "" : item.text.trim();
+        ((TextView) v.findViewById(R.id.dueItem)).setText(words.isEmpty() ? "This item" : words);
+        TextView summary = v.findViewById(R.id.dueSummary);
+        View remove = v.findViewById(R.id.dueRemove);
+        ChipGroup days = v.findViewById(R.id.dueDays), times = v.findViewById(R.id.dueTimes), repeats = v.findViewById(R.id.dueRepeats);
+        LinearLayout weekdays = v.findViewById(R.id.dueWeekdays);
+        long today = Due.today();
+        int wd = Due.weekday(today);
+        long[] quick = {today, today + 1, wd >= 6 ? today : today + (6 - wd), today + (8 - wd)};
+        String[] quickNames = {"Today", "Tomorrow", "This weekend", "Next week"};
+        String[] kinds = {null, "daily", "weekdays", "weekly", "monthly"};
+        String[] kindNames = {"Never", "Daily", "Weekdays", "Weekly", "Monthly"};
+
+        Runnable[] refresh = new Runnable[1];
+        Runnable changed = () -> {
+            refresh[0].run();
+            int at = items.indexOf(item);
+            if (at >= 0) listAdapter.notifyItemChanged(at);
+            updateProgress();
+            markDirty();
+        };
+        List<Chip> dayChips = new ArrayList<>();
+        for (int i = 0; i < quick.length; i++) {
+            long d = quick[i];
+            dayChips.add(dueChip(days, quickNames[i], () -> {
+                Due.setDay(item, d);
+                changed.run();
+            }));
+        }
+        Chip pick = dueChip(days, "Pick a date…", () -> {
+            int[] c = Due.civil(Due.dated(item) ? Due.day(item.due) : today);
+            new DatePickerDialog(this, (picker, y, m, day) -> {
+                Due.setDay(item, Due.day(y, m + 1, day));
+                changed.run();
+            }, c[0], c[1] - 1, c[2]).show();
+            refresh[0].run(); // The chip stays as it was until a day is picked.
+        });
+        Chip time = dueChip(times, "Add time", () -> {
+            int h = 9, min = 0;
+            if (item.time != null) {
+                h = Integer.parseInt(item.time.substring(0, 2));
+                min = Integer.parseInt(item.time.substring(3));
+            }
+            new android.app.TimePickerDialog(this, (picker, hh, mm) -> {
+                if (!Due.dated(item)) Due.setDay(item, today);
+                item.time = String.format(Locale.ROOT, "%02d:%02d", hh, mm);
+                changed.run();
+            }, h, min, android.text.format.DateFormat.is24HourFormat(this)).show();
+            refresh[0].run();
+        });
+        time.setChipIconResource(R.drawable.ic_clock);
+        time.setChipIconTint(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.text_secondary)));
+        time.setChipIconVisible(true);
+        time.setOnCloseIconClickListener(c -> {
+            item.time = null;
+            changed.run();
+        });
+        List<Chip> repeatChips = new ArrayList<>();
+        for (int i = 0; i < kinds.length; i++) {
+            String kind = kinds[i];
+            repeatChips.add(dueChip(repeats, kindNames[i], () -> {
+                Due.setRepeat(item, kind, today);
+                changed.run();
+            }));
+        }
+        float density = getResources().getDisplayMetrics().density;
+        TextView[] dayToggles = new TextView[8];
+        String[] letters = {"M", "T", "W", "T", "F", "S", "S"};
+        for (int d = 1; d <= 7; d++) {
+            int weekday = d;
+            TextView t = new TextView(this);
+            t.setText(letters[d - 1]);
+            t.setGravity(Gravity.CENTER);
+            t.setTextSize(15);
+            t.setContentDescription(Due.WEEKDAYS[d - 1]);
+            t.setOnClickListener(c -> {
+                Due.toggleWeekday(item, weekday, today);
+                c.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+                changed.run();
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, Math.round(40 * density), 1);
+            lp.setMarginEnd(d < 7 ? Math.round(6 * density) : 0);
+            weekdays.addView(t, lp);
+            dayToggles[d] = t;
+        }
+        remove.setOnClickListener(c -> {
+            Due.clear(item);
+            changed.run();
+            sheet.dismiss();
+        });
+
+        refresh[0] = () -> {
+            boolean dated = Due.dated(item);
+            long d = Due.day(item.due);
+            summary.setText(Due.summary(item, today));
+            remove.setVisibility(dated ? View.VISIBLE : View.GONE);
+            // One chip lights up for the item's day ("Today" before "This weekend" on a Saturday).
+            int lit = -1;
+            for (int i = 0; i < quick.length && lit < 0; i++) if (dated && d == quick[i]) lit = i;
+            for (int i = 0; i < quick.length; i++) dayChips.get(i).setChecked(i == lit);
+            pick.setChecked(dated && lit < 0);
+            pick.setText(dated && lit < 0 ? Due.when(d, today) : "Pick a date…");
+            String t = Due.time(item.time);
+            time.setText(t != null ? t : "Add time");
+            time.setChecked(t != null);
+            time.setCloseIconVisible(t != null);
+            String kind = !Due.repeats(item) ? null : item.repeat.startsWith("weekly:") ? "weekly"
+                    : item.repeat.startsWith("monthly:") ? "monthly" : item.repeat;
+            for (int i = 0; i < kinds.length; i++) repeatChips.get(i).setChecked(java.util.Objects.equals(kinds[i], kind));
+            weekdays.setVisibility("weekly".equals(kind) ? View.VISIBLE : View.GONE);
+            boolean[] on = Due.weekDays(item.repeat);
+            for (int w = 1; w <= 7; w++) {
+                GradientDrawable circle = new GradientDrawable();
+                circle.setShape(GradientDrawable.OVAL);
+                circle.setColor(ContextCompat.getColor(this, on[w] ? R.color.brand_yellow : R.color.app_surface));
+                circle.setStroke(on[w] ? 0 : Math.round(density), ContextCompat.getColor(this, R.color.divider));
+                dayToggles[w].setBackground(circle);
+                dayToggles[w].setTextColor(ContextCompat.getColor(this, on[w] ? R.color.black : R.color.text_primary));
+            }
+        };
+        refresh[0].run();
+        sheet.show();
+    }
+
+    /** A chip in the due sheet, styled like the grid's filter chips; the sheet sets whether it's lit. */
+    private Chip dueChip(ChipGroup group, String label, Runnable onClick) {
+        Chip chip = new Chip(this);
+        chip.setText(label);
+        chip.setCheckable(true);
+        chip.setCheckedIconVisible(false);
+        chip.setChipBackgroundColor(new ColorStateList(
+                new int[][]{{android.R.attr.state_checked}, {}},
+                new int[]{ContextCompat.getColor(this, R.color.brand_yellow), ContextCompat.getColor(this, R.color.app_surface)}));
+        chip.setTextColor(new ColorStateList(
+                new int[][]{{android.R.attr.state_checked}, {}},
+                new int[]{ContextCompat.getColor(this, R.color.black), ContextCompat.getColor(this, R.color.text_primary)}));
+        chip.setChipStrokeWidth(getResources().getDisplayMetrics().density);
+        chip.setChipStrokeColor(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.divider)));
+        chip.setOnClickListener(c -> onClick.run());
+        group.addView(chip);
+        return chip;
     }
 
     // ================================================================== journal

@@ -157,6 +157,20 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 
+                <TextView
+                    android:id="@+id/cardDue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:drawablePadding="3dp"
+                    android:gravity="center_vertical"
+                    android:maxLines="1"
+                    android:paddingStart="5dp"
+                    android:paddingEnd="6dp"
+                    android:textSize="11sp"
+                    android:visibility="gone"
+                    app:drawableStartCompat="@drawable/ic_clock_small" />
+
                 <ImageView
                     android:id="@+id/cardPinned"
                     android:layout_width="14dp"

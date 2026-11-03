@@ -99,6 +99,7 @@ final class GroupNotes {
         Map<String, Object> value = NoteSync.toRemote(context, fresh);
         value.remove("archived"); // How it's filed stays mine.
         value.remove("folder");
+        value.remove("template");
         Map<String, Object> update = new HashMap<>();
         update.put("groupNotes/" + gid + "/owner", uid);
         update.put("groupNotes/" + gid + "/size", members.length());

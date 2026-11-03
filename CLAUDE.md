@@ -25,7 +25,7 @@ No MVVM, no repository layer. Activities talk to Room DAOs directly and hop thre
 executor per click. Media operations go through `VaultMedia`, never re-implemented in a
 screen.
 
-**Persistence** — `AppDatabase` (Room, singleton, version 20, `notes_database`)
+**Persistence** — `AppDatabase` (Room, singleton, version 21, `notes_database`)
 
 | Entity | Table | Notes |
 |---|---|---|
@@ -41,7 +41,7 @@ must match the `@Index`es on `SecretEntity` exactly), 10→11 adds `durationMs`,
 chat tables, 14→15 chat vault sync (`updatedAt`/`dirty`/`deleted`) and conversation `moved`,
 15→16 chat media, nicknames and shared backgrounds, 16→17 chat photos, ID aliases and list
 backgrounds, 17→18 group notes, group chats and message senders, 18→19 sent notes (`sentTo`,
-`sentMedia`, `sharedFrom`), 19→20 `archived` and `folder` (how a note is filed). Only `fallbackToDestructiveMigrationFrom(1)`
+`sentMedia`, `sharedFrom`), 19→20 `archived` and `folder` (how a note is filed), 20→21 `template`. Only `fallbackToDestructiveMigrationFrom(1)`
 is on, so a missing migration now crashes instead of wiping the vault — **always add it**.
 `onOpen` seeds vault 1 asynchronously; setup calls `AppDatabase.ensureMainVault` itself so it
 never races the unlock screen.
@@ -70,7 +70,10 @@ desktop's geometry; `MindNode.sub` is an optional sub-text under the idea; ideas
 `wrap` is off, and are never cut short; "Add idea behind" inserts a parent), `SketchActivity` (+ `DrawingView`; strokes in `sketch.json`, card in `sketch.png`),
 `AudioNoteActivity` (+ `WaveformView`; a recording not here yet is fetched on tap through
 `NoteSync.fetch`, since the sync skips notes open in an editor). Lists and mind maps carry `"wrap": false` in
-their data when the editor's "Wrap text" (`NoteActivity.wrapText`) is off. `NoteAdapter` draws one card layout for all types.
+their data when the editor's "Wrap text" (`NoteActivity.wrapText`) is off. A list's `RecyclerView` replaces the
+page's scroll view at runtime (`NoteEditorActivity.scrollAsList`), so long lists recycle their rows; the page
+above the items and "Add item" are its first and last rows, so `findViewById(R.id.listAdd)` can miss (use the
+`listAdd` field). `NoteAdapter` draws one card layout for all types.
 Long swipes on the notes grid are the secret gestures (left: gallery, right: chat), so there
 is no swipe-to-delete; notes are deleted from their options or their editor.
 Notes are not in the vault's `.bak` or Drive backups; they sync through the notes account.
@@ -148,6 +151,23 @@ notes). `NoteSync` pushes and pulls them like my own, just at that path; `groupI
 under its own uuid and retires its personal copy online. Deleting one here means leaving it;
 being removed keeps it here as my own note. Group note files are encrypted and shared by link
 (manifest entries carry `key`), so members without Drive still get them.
+
+**Due dates** (`Due`, the same logic as the desktop's `Due.java` and the web's `due.js`, kept in step by
+the identical `DueTest` cases): a list item may carry `due` ("YYYY-MM-DD", a calendar day, never a
+timestamp), `time` ("HH:mm") and `repeat` (`daily`, `weekdays`, `weekly:1,3,5` with 1 = Monday, `monthly:9`).
+Ticking a repeating item keeps it ticked and moves `due` to its next day; when that day comes it shows
+unticked again (`Due.rollover`, applied on display by the editor and the card, saved only with the next
+real edit, so devices never push just for it). Set from the clock on the item being typed in (a pill
+under the item once dated) through `sheet_due.xml`; cards show a small clock tag (`NoteAdapter.bindDue`).
+
+**Templates** (`Templates`, the same as the desktop's `Templates.java` and the web's `templates.js`): a
+note of my own with `template` set, off the grid except under the Templates chip (shown only when one
+exists), offered under "From a template" in the New sheet. "Save as template" copies a text, list, journal
+or mind map note (never locked, group, sent or received); `Templates.fresh` is what both the template and
+each new note start as: ticks cleared, one-off days dropped, repeats on their first day from today, a
+journal on today with no mood, no pictures. `template` travels only in my own notes (dropped from group
+copies) and needs its line in `database.rules.json`. The desktop and web also have Ctrl+K (`Palette` /
+`palette.js`), never over the hidden spaces.
 
 **Filing** (`NoteFolders`): `archived` hides a note everywhere but the Archived filter; `folder` is a
 name (≤ 100) and a folder exists while a note is in it (empty ones made on a device are remembered in

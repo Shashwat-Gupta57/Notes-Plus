@@ -65,10 +65,12 @@ public class MainActivity extends AppCompatActivity {
     private static final String SHARED = "SHARED";
     /** The archive: notes put away, shown nowhere else. */
     private static final String ARCHIVED = "ARCHIVED";
+    private static final String TEMPLATES = "TEMPLATES";
     /** A folder's filter: this prefix and its name. */
     private static final String FOLDER = "F:";
     /** The folders the chips show now, to rebuild them only when that changes. */
     private List<String> shownFolders;
+    private boolean shownTemplates;
     private String query = "";
 
     private final Handler secretHandler = new Handler(Looper.getMainLooper());
@@ -173,7 +175,9 @@ public class MainActivity extends AppCompatActivity {
         String q = query.toLowerCase(Locale.getDefault());
         String folder = filterType != null && filterType.startsWith(FOLDER) ? filterType.substring(FOLDER.length()) : null;
         for (NoteEntity n : allNotes) {
-            if (ARCHIVED.equals(filterType)) {
+            if (TEMPLATES.equals(filterType) || n.isTemplate()) {
+                if (!TEMPLATES.equals(filterType) || !n.isTemplate()) continue; // Templates: only there.
+            } else if (ARCHIVED.equals(filterType)) {
                 if (!n.isArchived()) continue;
             } else if (n.isArchived()) {
                 continue; // Put away: only under Archived.
@@ -206,6 +210,7 @@ public class MainActivity extends AppCompatActivity {
         emptyText.setText(!q.isEmpty() ? "Nothing matches “" + query + "”"
                 : SHARED.equals(filterType) ? "Nothing shared with you yet. When someone shares or sends you a note, it shows up here."
                 : ARCHIVED.equals(filterType) ? "Nothing archived. Archive a note from its options to put it away here."
+                : TEMPLATES.equals(filterType) ? "No templates yet. Save a note as a template from its options."
                 : folder != null ? "Nothing in “" + folder + "” yet. Move notes here from their options."
                 : filterType != null ? "No " + NoteData.kind(filterType).plural.toLowerCase(Locale.getDefault()) + " yet"
                 : "No notes yet. Tap New to start.");
@@ -214,8 +219,11 @@ public class MainActivity extends AppCompatActivity {
     /** All, the folders (long press: rename or remove), Shared with me, Archived, the types, and "New folder". */
     private void buildFilterChips() {
         List<String> folders = NoteFolders.all(this, allNotes);
-        if (folders.equals(shownFolders)) return;
+        boolean templates = !Templates.of(allNotes).isEmpty();
+        if (folders.equals(shownFolders) && templates == shownTemplates) return;
         shownFolders = folders;
+        shownTemplates = templates;
+        if (TEMPLATES.equals(filterType) && !templates) filterType = null; // The last one went.
         if (filterType != null && filterType.startsWith(FOLDER) && !folders.contains(filterType.substring(FOLDER.length()))) {
             filterType = null; // Its folder went (renamed or removed).
         }
@@ -224,6 +232,7 @@ public class MainActivity extends AppCompatActivity {
         addChip(chips, "All", null, filterType == null);
         for (String f : folders) addChip(chips, f, FOLDER + f, (FOLDER + f).equals(filterType));
         addChip(chips, "Shared with me", SHARED, SHARED.equals(filterType));
+        if (templates) addChip(chips, "Templates", TEMPLATES, TEMPLATES.equals(filterType));
         addChip(chips, "Archived", ARCHIVED, ARCHIVED.equals(filterType));
         for (NoteData.Kind kind : NoteData.KINDS) addChip(chips, kind.plural, kind.type, kind.type.equals(filterType));
         Chip add = new Chip(this);
@@ -260,6 +269,10 @@ public class MainActivity extends AppCompatActivity {
         if (SHARED.equals(type)) {
             chip.setChipIconResource(R.drawable.ic_person);
             chip.setChipIconTint(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.tile_teal)));
+            chip.setChipIconVisible(true);
+        } else if (TEMPLATES.equals(type)) {
+            chip.setChipIconResource(R.drawable.ic_template);
+            chip.setChipIconTint(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.tile_purple)));
             chip.setChipIconVisible(true);
         } else if (ARCHIVED.equals(type)) {
             chip.setChipIconResource(R.drawable.ic_archive);
@@ -310,6 +323,31 @@ public class MainActivity extends AppCompatActivity {
             });
             grid.addView(tile);
         }
+        // From a template: one row each, under the types.
+        List<NoteEntity> templates = Templates.of(allNotes);
+        if (!templates.isEmpty()) {
+            TextView heading = new TextView(this);
+            heading.setText("From a template");
+            heading.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+            heading.setTextSize(13);
+            int pad = Math.round(24 * getResources().getDisplayMetrics().density);
+            heading.setPadding(pad, pad / 2, pad, pad / 4);
+            grid.addView(heading);
+            for (NoteEntity t : templates) {
+                NoteData.Kind kind = NoteData.kind(t.getType());
+                View tile = LayoutInflater.from(this).inflate(R.layout.item_new_note, grid, false);
+                ImageView icon = tile.findViewById(R.id.newIcon);
+                icon.setImageResource(R.drawable.ic_template);
+                icon.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, kind.accent)));
+                ((TextView) tile.findViewById(R.id.newLabel)).setText(Templates.name(t));
+                ((TextView) tile.findViewById(R.id.newDescription)).setText(kind.label + " template");
+                tile.setOnClickListener(v -> {
+                    sheet.dismiss();
+                    newFromTemplate(t);
+                });
+                grid.addView(tile);
+            }
+        }
         sheet.setContentView(view);
         sheet.show();
     }
@@ -319,6 +357,24 @@ public class MainActivity extends AppCompatActivity {
                 ? NoteData.kind(note.getType()).label : note.getTitle();
         List<String> labels = new ArrayList<>();
         List<Runnable> actions = new ArrayList<>();
+        if (note.isTemplate()) {
+            // A template: start a note from it, or look after it. Nothing to file, send or share.
+            labels.add("New note from this");
+            actions.add(() -> newFromTemplate(note));
+            labels.add("Rename");
+            actions.add(() -> Prompts.text(this, "Rename template", null, "Name", Templates.name(note), Prompts.TEXT, "Rename",
+                    name -> executor.execute(() -> database.noteDao().saveContent(note.getId(), name.trim(), note.getContent(),
+                            note.getData(), note.getColor(), false, System.currentTimeMillis())), null));
+            labels.add("Colour");
+            actions.add(() -> pickColor(note));
+            labels.add("Delete");
+            actions.add(() -> deleteWithUndo(note));
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle(Templates.name(note))
+                    .setItems(labels.toArray(new String[0]), (d, which) -> actions.get(which).run())
+                    .show();
+            return;
+        }
         labels.add(note.isPinned() ? "Unpin" : "Pin to top");
         actions.add(() -> executor.execute(() -> database.noteDao().setPinned(note.getId(), !note.isPinned())));
         labels.add("Colour");
@@ -329,6 +385,16 @@ public class MainActivity extends AppCompatActivity {
         actions.add(() -> NoteFolders.setArchived(this, note, !note.isArchived()));
         labels.add("Duplicate");
         actions.add(() -> duplicateNote(note));
+        if (Templates.canSave(note)) {
+            labels.add("Save as template…");
+            actions.add(() -> Prompts.text(this, "Save as template",
+                    "A copy of this note that new notes can start from, under New. Ticks, one-off dates and pictures are left out.",
+                    "Template name", title, Prompts.TEXT, "Save", name -> executor.execute(() -> {
+                        Templates.saveAs(this, note, name.trim().isEmpty() ? title : name);
+                        runOnUiThread(() -> Toast.makeText(this,
+                                "Saved as a template. Find it under New or the Templates filter.", Toast.LENGTH_LONG).show());
+                    }), null));
+        }
         if (note.isReceived()) {
             // Someone else's note: mine to pin, colour, file, copy or put away, not to change.
             labels.add("Save a copy");
@@ -358,6 +424,14 @@ public class MainActivity extends AppCompatActivity {
                 .setTitle(title)
                 .setItems(labels.toArray(new String[0]), (d, which) -> actions.get(which).run())
                 .show();
+    }
+
+    /** A new note from a template, opened straight away. */
+    private void newFromTemplate(NoteEntity template) {
+        executor.execute(() -> {
+            int id = Templates.newFrom(this, template);
+            runOnUiThread(() -> startActivity(NoteData.editor(this, template.getType(), id)));
+        });
     }
 
     private void duplicateNote(NoteEntity note) {

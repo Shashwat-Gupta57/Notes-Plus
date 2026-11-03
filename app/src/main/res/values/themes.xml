@@ -30,6 +30,18 @@
         <item name="tint">@color/viewer_icon</item>
     </style>
 
+    <!-- A section label in a list item's due sheet (sheet_due.xml). -->
+    <style name="DueSheetLabel" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingTop">16dp</item>
+        <item name="android:paddingBottom">2dp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.06</item>
+    </style>
+
     <!-- ===== Settings: grouped cards ===== -->
     <style name="Settings.Header" parent="">
         <item name="android:layout_width">match_parent</item>

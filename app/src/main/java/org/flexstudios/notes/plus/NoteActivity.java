@@ -157,6 +157,8 @@ abstract class NoteActivity extends AppCompatActivity {
             if (getSupportActionBar() != null) {
                 getSupportActionBar().setSubtitle("From @" + loaded.getSharedFrom() + "  ·  read only");
             }
+        } else if (loaded.isTemplate() && getSupportActionBar() != null) {
+            getSupportActionBar().setSubtitle("Template  ·  new notes start as this");
         }
     }
 

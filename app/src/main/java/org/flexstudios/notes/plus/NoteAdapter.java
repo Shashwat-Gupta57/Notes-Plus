@@ -200,6 +200,7 @@ public class NoteAdapter extends ListAdapter<NoteEntity, RecyclerView.ViewHolder
         c.wave.setVisibility(View.GONE);
         c.meta.setVisibility(View.GONE);
         c.body.setVisibility(View.GONE);
+        c.due.setVisibility(View.GONE);
         Glide.with(c.cover).clear(c.cover);
 
         String title = note.getTitle() == null ? "" : note.getTitle();
@@ -244,9 +245,23 @@ public class NoteAdapter extends ListAdapter<NoteEntity, RecyclerView.ViewHolder
         }
     }
 
+    /**
+     * Lists' items, parsed once per version of the note: a long list's card is bound again and again
+     * while the grid scrolls, and reading 500 items each time is what made it stutter.
+     */
+    private final android.util.LruCache<String, List<NoteData.TodoItem>> parsedLists = new android.util.LruCache<>(48);
+
     private void bindList(Card c, NoteEntity note) {
-        List<NoteData.TodoItem> items = NoteData.todos(note.getData());
+        String data = note.getData() == null ? "" : note.getData();
+        List<NoteData.TodoItem> items = parsedLists.get(data);
+        if (items == null) {
+            items = NoteData.todos(data);
+            parsedLists.put(data, items);
+        }
+        long today = Due.today();
+        Due.rollover(items, today); // As the editor will show it.
         c.list.setVisibility(View.VISIBLE);
+        bindDue(c, items, today);
         int done = 0, tasks = 0;
         for (NoteData.TodoItem item : items) {
             if (item.picture() != null) continue;
@@ -265,6 +280,8 @@ public class NoteAdapter extends ListAdapter<NoteEntity, RecyclerView.ViewHolder
             row.setPaintFlags(item.done ? row.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG
                     : row.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
             row.setAlpha(item.done ? 0.5f : 1f);
+            row.setTextColor(ContextCompat.getColor(row.getContext(),
+                    Due.status(item, today) == Due.OVERDUE ? R.color.destructive : R.color.text_body));
         }
         if (tasks > 0) {
             c.meta.setVisibility(View.VISIBLE);
@@ -275,6 +292,30 @@ public class NoteAdapter extends ListAdapter<NoteEntity, RecyclerView.ViewHolder
             c.title.setText("List");
             c.title.setVisibility(View.VISIBLE);
         }
+    }
+
+    /**
+     * The card's small clock tag: its most pressing day ("Overdue", "Today 7:30", "Fri", with ↻
+     * when it repeats), or a plain clock once every dated item is done.
+     */
+    private void bindDue(Card c, List<NoteData.TodoItem> items, long today) {
+        if (!Due.anyDated(items)) return;
+        NoteData.TodoItem urgent = Due.urgent(items, today);
+        int s = urgent == null ? Due.DONE : Due.status(urgent, today);
+        Context ctx = c.due.getContext();
+        int color = ContextCompat.getColor(ctx, s == Due.OVERDUE ? R.color.destructive
+                : s == Due.TODAY ? R.color.tile_orange : R.color.text_secondary);
+        String tag = Due.tag(items, today);
+        c.due.setText(tag);
+        c.due.setCompoundDrawablePadding(tag.isEmpty() ? 0 : Math.round(3 * ctx.getResources().getDisplayMetrics().density));
+        c.due.setTextColor(color);
+        c.due.setCompoundDrawableTintList(ColorStateList.valueOf(color));
+        android.graphics.drawable.GradientDrawable pill = new android.graphics.drawable.GradientDrawable();
+        pill.setCornerRadius(8 * ctx.getResources().getDisplayMetrics().density);
+        pill.setColor(androidx.core.graphics.ColorUtils.setAlphaComponent(color, 0x26));
+        c.due.setBackground(pill);
+        c.due.setContentDescription(tag.isEmpty() ? "Dated items, all done" : "Due " + tag);
+        c.due.setVisibility(View.VISIBLE);
     }
 
     private void bindMindMap(Card c, NoteEntity note) {
@@ -436,7 +477,7 @@ public class NoteAdapter extends ListAdapter<NoteEntity, RecyclerView.ViewHolder
         final ImageView cover, typeIcon, pinned;
         final MindMapActivity.MindMapView mindMap;
         final View journalDate;
-        final TextView day, weekday, month, mood, title, body, meta, date;
+        final TextView day, weekday, month, mood, title, body, meta, date, due;
         final LinearLayout list;
         final TextView[] listRows = new TextView[LIST_PREVIEW];
         final AudioNoteActivity.WaveformView wave;
@@ -459,6 +500,7 @@ public class NoteAdapter extends ListAdapter<NoteEntity, RecyclerView.ViewHolder
             typeIcon = v.findViewById(R.id.cardTypeIcon);
             date = v.findViewById(R.id.cardDate);
             pinned = v.findViewById(R.id.cardPinned);
+            due = v.findViewById(R.id.cardDue);
             for (int i = 0; i < LIST_PREVIEW; i++) {
                 TextView row = new TextView(v.getContext());
                 row.setTextSize(14);

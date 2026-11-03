@@ -627,6 +627,7 @@ final class NoteSync {
         if (note.getGroupId() == null) {
             if (note.isArchived()) m.put("archived", true);
             if (note.getFolder() != null && !note.getFolder().isEmpty()) m.put("folder", clip(note.getFolder(), 100));
+            if (note.isTemplate()) m.put("template", true);
         }
         if (NoteData.SKETCH.equals(note.getType())) {
             String sketch = readSketch(context, note.getId());
@@ -1065,7 +1066,7 @@ final class NoteSync {
         String uuid, type, title, content, data, sketch, media, folder;
         long rev, updatedAt, edited;
         int color;
-        boolean pinned, deleted, archived;
+        boolean pinned, deleted, archived, template;
         /** One of my own notes (users/{uid}/notes): only these say how the note is filed. */
         boolean mine;
 
@@ -1085,6 +1086,7 @@ final class NoteSync {
             r.color = (int) number(s.child("color"));
             r.pinned = Boolean.TRUE.equals(s.child("pinned").getValue(Boolean.class));
             r.archived = Boolean.TRUE.equals(s.child("archived").getValue(Boolean.class));
+            r.template = Boolean.TRUE.equals(s.child("template").getValue(Boolean.class));
             r.folder = s.child("folder").getValue(String.class);
             if (r.folder != null && r.folder.isEmpty()) r.folder = null;
             DatabaseReference parent = s.getRef().getParent();
@@ -1121,6 +1123,7 @@ final class NoteSync {
             if (mine) {
                 note.setArchived(archived);
                 note.setFolder(folder);
+                note.setTemplate(template);
             }
             note.setTimestamp(edited);
             note.setRev(rev);
@@ -1134,7 +1137,8 @@ final class NoteSync {
         return java.util.Objects.equals(n.getTitle(), r.title) && java.util.Objects.equals(n.getContent(), r.content)
                 && java.util.Objects.equals(n.getData(), r.data) && n.getColor() == r.color
                 && n.isPinned() == r.pinned && n.getType().equals(r.type)
-                && (!r.mine || (n.isArchived() == r.archived && java.util.Objects.equals(n.getFolder(), r.folder)));
+                && (!r.mine || (n.isArchived() == r.archived && java.util.Objects.equals(n.getFolder(), r.folder)
+                        && n.isTemplate() == r.template));
     }
 
     // ============================================================== sketches

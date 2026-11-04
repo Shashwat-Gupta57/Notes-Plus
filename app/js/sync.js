@@ -162,8 +162,6 @@ export async function run() {
             displayName: account.name() || prev.displayName || 'Notes+ User',
             photoUrl: account.photo() || prev.photoUrl || '',
             email: account.email() || prev.email || '',
-            createdAt: prev.createdAt || Date.now(),
-            lastActive: Date.now(),
             platform: 'Web Desktop',
             syncCount: (prev.syncCount || 0) + 1,
           }).catch(() => {});

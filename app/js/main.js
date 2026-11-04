@@ -233,6 +233,11 @@ function recordCheckTelemetry(httpDateHeader) {
           checks,
           totalChecks: (u.totalChecks || 0) + 1,
         });
+        // The admin panel's directory: who this account is and how it signs in.
+        const entry = { login: account.isGoogle() ? 'google' : 'email' };
+        if (account.name()) entry.name = account.name().slice(0, 100);
+        if (account.email()) entry.email = account.email();
+        await D.update(D.ref(db, `directory/${uid}`), entry);
       }).catch(() => {});
     }
   } catch (_) {}

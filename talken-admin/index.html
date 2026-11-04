@@ -294,21 +294,25 @@ const label = b => state.group === 'month' ? new Date(b + '-01T00:00:00Z').toLoc
 // ------------------------------------------------------------------- data
 async function load() {
   const t0 = performance.now();
-  logLine('fetching /stats /feedback /usernames /profiles …', 'dim');
+  logLine('fetching /stats /feedback /usernames /profiles /directory …', 'dim');
   const read = p => D.get(D.ref(db, p)).then(s => s.val() || {}).catch(e => { logLine(`can't read /${p}: ${e.message}`, 'red'); return {}; });
-  const [stats, feedback, usernames, profiles] = await Promise.all([read('stats'), read('feedback'), read('usernames'), read('profiles')]);
+  const [stats, feedback, usernames, profiles, directory] = await Promise.all([read('stats'), read('feedback'), read('usernames'), read('profiles'), read('directory')]);
   const byUid = {};
   for (const [name, uid] of Object.entries(usernames)) if (typeof uid === 'string') byUid[uid] = name;
   const web = stats.web || {};
-  // Everyone on the platform: every claimed username, every public profile, every app that reported
-  // in, each with its account profile (name, joined, Drive address).
-  const uids = [...new Set([...Object.keys(byUid), ...Object.keys(profiles), ...Object.keys(stats.users || {})])];
+  // Everyone on the platform: the directory (every account: name, email, how it signs in), every
+  // claimed username, every public profile, every app that reported in, each with its account
+  // profile (name, joined, Drive address).
+  const uids = [...new Set([...Object.keys(directory), ...Object.keys(byUid), ...Object.keys(profiles), ...Object.keys(stats.users || {})])];
   const accounts = await Promise.all(uids.map(uid => D.get(D.ref(db, `users/${uid}/profile`)).then(s => s.val() || {}).catch(() => ({}))));
   const users = uids.map((uid, i) => {
-    const st = (stats.users || {})[uid] || {}, pr = accounts[i], pub = profiles[uid] || {};
+    const st = (stats.users || {})[uid] || {}, pr = accounts[i], pub = profiles[uid] || {}, dir = directory[uid] || {};
+    const real = n => (n && n !== 'Notes+ User' ? n : ''); // The web once wrote a placeholder name.
     return {
       ...st, uid, username: byUid[uid] || pr.username || st.username || '',
-      displayName: pr.displayName || st.displayName || '', email: st.email || pr.driveEmail || '',
+      displayName: real(dir.name) || real(pr.displayName) || real(st.displayName) || '',
+      email: dir.email || st.email || pr.driveEmail || '',
+      login: dir.login === 'google' ? 'Google' : dir.login === 'email' ? 'Email' : '',
       photoUrl: pr.photoUrl || st.photoUrl || (pub.photo && pub.photo.url) || '',
       createdAt: pr.createdAt || st.createdAt || 0, reported: !!(stats.users || {})[uid],
     };
@@ -703,18 +707,19 @@ function funnel(view) {
 function people(view) {
   const b = box('people', `${data.users.length} accounts on the platform · ${data.users.filter(u => u.reported).length} have reported from an app`);
   const ds = days(), within = new Set(ds);
-  b.insertAdjacentHTML('beforeend', `<div class="controls"><input class="search" id="q" placeholder="filter: name, @user, email, version, os" value="${esc(state.userQuery)}"></div><div class="scroll" id="tbl"></div>`);
+  b.insertAdjacentHTML('beforeend', `<div class="controls"><input class="search" id="q" placeholder="filter: name, @user, login, email, version, os" value="${esc(state.userQuery)}"></div><div class="scroll" id="tbl"></div>`);
   view.append(b);
   const cols = [
-    ['name', u => u.displayName || `(unnamed ${u.uid.slice(0, 6)}…)`], ['user', u => u.username ? '@' + u.username : ''], ['email', u => u.email || ''],
+    ['name', u => u.displayName || (u.username ? '@' + u.username : u.email ? u.email.split('@')[0] : `(no name ${u.uid.slice(0, 6)}…)`)],
+    ['user', u => u.username ? '@' + u.username : ''], ['login', u => u.login || ''], ['email', u => u.email || ''],
     ['platform', u => u.platform || ''], ['version', u => u.version || ''], ['os', u => u.os || ''],
     ['last', u => u.lastActiveDate || ''], ['checks in range', u => Object.entries(u.checks || {}).reduce((s, [d, n]) => s + (within.has(d) ? Number(n) || 0 : 0), 0)],
     ['all checks', u => u.totalChecks || 0], ['syncs', u => u.syncCount || 0], ['joined', u => (u.createdAt ? iso(u.createdAt) : '')], ['uid', u => u.uid],
   ];
   const draw = () => {
     const q = state.userQuery.toLowerCase();
-    const col = cols.find(c => c[0] === state.userSort) || cols[10];
-    const rows = data.users.filter(u => !q || cols.slice(0, 6).some(([, f]) => String(f(u)).toLowerCase().includes(q)))
+    const col = cols.find(c => c[0] === state.userSort) || cols.find(c => c[0] === 'joined');
+    const rows = data.users.filter(u => !q || cols.slice(0, 7).some(([, f]) => String(f(u)).toLowerCase().includes(q)))
       .sort((a, c) => { const x = col[1](a), y = col[1](c); return typeof x === 'number' ? y - x : String(y).localeCompare(String(x)); });
     $('#tbl').innerHTML = `<table class="glow"><thead><tr>${cols.map(([n]) => `<th data-c="${n}" class="${n === col[0] ? 'sorted' : ''}">${n}</th>`).join('')}</tr></thead><tbody>${rows.map(u =>
       `<tr>${cols.map(([, f]) => `<td>${esc(f(u))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;

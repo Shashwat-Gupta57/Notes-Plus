@@ -152,8 +152,6 @@ async function finishSignIn() {
       photoUrl: user.photoURL || prev.photoUrl || '',
       email: user.email || prev.email || '',
       username: prev.username || null,
-      createdAt: prev.createdAt || Date.now(),
-      lastActive: Date.now(),
       platform: 'Web Desktop',
       loginCount: (prev.loginCount || 0) + 1,
     });

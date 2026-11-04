@@ -1,17 +1,17 @@
 {
-  "versionCode": 39,
-  "versionName": "17.0",
+  "versionCode": 40,
+  "versionName": "19.0",
   "forced": false,
-  "changelog": "Notes+ 17.0: Restoring vault files on Desktop now offers custom destination choices with real-time toast feedback. Drastically boosted Android local backup restore performance with buffered streaming, database write throttling, and batch I/O.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-17.0.apk",
-  "sha256": "152b520978f677754425fb51ed2abaa83da194c0d55906598baf94cbd789176b",
+  "changelog": "Notes+ 19.0: due dates and repeats on list items, search across every note, links between notes, templates, import from Google Keep, Apple Notes and Markdown (and export to Markdown), home-screen widgets, separate idea and branch colours in mind maps, and pictures that open full screen. Install over this version; don't uninstall first.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-19.0.apk",
+  "sha256": "cf516ca794e064998d9bfe6f979eb3372e3e397f0e69f927f2c1c1918ef69314",
   "desktop": {
-    "versionName": "17.0",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-17.0.exe",
-    "sha256": "bec18f8d2083d6e3afa594228cf9cdebc49f8edbd3ec15141f4f8676576d5e65",
+    "versionName": "19.0",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-19.0.exe",
+    "sha256": "afc3cbb897c752f8a26210be0c3af7ed6aa3f74463b4451595137ad9f1271257",
     "size": "77 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-17.0.zip",
-    "zipSha256": "6c8032356d7cfc3ec4a398af61cd53115140d14a4fe3916a27f7ef3615420995",
-    "changelog": "Notes+ 17.0 for Windows: Restoring vault files now offers custom destination choices with real-time toast feedback."
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-19.0.zip",
+    "zipSha256": "463d2e35fde4a3fea1b8e83932624cc62616dac600ce73b90ac9ebb03e7e0faf",
+    "changelog": "Notes+ 19.0 for Windows: due dates and repeats, search across every note, Ctrl+K, links between notes, templates, import and export, and mind maps where you Ctrl+drag to select ideas and act on them together."
   }
 }

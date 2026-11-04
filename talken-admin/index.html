@@ -170,8 +170,8 @@
 <script src="../js/telemetry.js" data-quiet></script>
 <script src="../js/ascii.js" defer></script>
 <script type="module">
-// The Notes+ operations panel. Signs in with the panel's own username and password; the database lets in only uids listed at
-// /admins (set by hand in the Firebase console), so nothing here is a secret and nothing can be
+// The Notes+ operations panel. Signs in with the panel's own username and password; the database
+// rules (never public) name the one admin account, so nothing here is a secret and nothing can be
 // bypassed from the browser. Reads only aggregate counters, per-user stats rows and feedback:
 // never a note.
 //
@@ -1097,26 +1097,17 @@ let entering = false;
 // this domain: the password lives only in Firebase Auth (rate-limited), never in this page.
 const ADMIN_DOMAIN = '@admin.notes.talken.in';
 const shown = u => (u.email || '').endsWith(ADMIN_DOMAIN) ? u.email.slice(0, -ADMIN_DOMAIN.length) : (u.email || u.uid);
-// Until database.rules.json is deployed, /admins can't be read and /stats is public anyway: these
-// uids are let in so the panel works, with a warning. Once deployed, only /admins decides.
-const BRIDGE = ['uQaOODIWWqeeLmQyZSsTrtN6LZS2'];
-let bridge = false;
 async function enter(user) {
   if (entering) return; // The sign-in and the auth listener both report the same user.
   entering = true;
   $('#login').hidden = true;
-  await type([`> identity ${shown(user)}`, '> checking /admins …']);
+  await type([`> identity ${shown(user)}`, '> checking clearance …']);
+  // The rules let only the admin account read /feedback: whether this read works is the answer.
   let ok = false;
-  try { ok = (await D.get(D.ref(db, 'admins/' + user.uid))).val() === true; }
-  catch {
-    // Permission denied on /admins means the old rules are still live.
-    try { await D.get(D.query(D.ref(db, 'stats/web/visits'), D.limitToLast(1))); bridge = BRIDGE.includes(user.uid); } catch { bridge = false; }
-    ok = bridge;
-  }
+  try { await D.get(D.query(D.ref(db, 'feedback'), D.limitToFirst(1))); ok = true; } catch { ok = false; }
   const logged = logAccess(user, ok);
   if (!ok) {
-    await type(['', 'ACCESS DENIED', `uid ${user.uid} isn't listed at /admins.`,
-      'To grant it: Firebase console → Realtime Database → add  admins/' + user.uid + ' : true', '']);
+    await type(['', 'ACCESS DENIED', `${shown(user)} has no clearance.`, '']);
     entering = false;
     await logged; // While still signed in: the rules want the writer's own uid.
     await A.signOut(auth);
@@ -1128,10 +1119,6 @@ async function enter(user) {
   $('#app').classList.add('on');
   $('#who').textContent = shown(user);
   logLine('session open · type help', 'cyan');
-  if (bridge) {
-    logLine('WARNING: database.rules.json is not deployed: /stats, /profiles and /usernames are public.', 'red');
-    logLine('  run: firebase deploy --only database   then add  admins/<uid> : true  for ' + BRIDGE.join(', '), 'red');
-  }
   load().catch(fail);
 }
 
@@ -1177,7 +1164,7 @@ $('#login').onsubmit = async e => {
   }
   btn.disabled = false;
 };
-await type(['NOTES+ OPS TERMINAL v2', '> link: firebase rtdb asia-southeast1 … up', '> auth: username + password, checked against /admins by the database']);
+await type(['NOTES+ OPS TERMINAL v2', '> link: firebase rtdb asia-southeast1 … up', '> auth: username + password, checked by the database rules']);
 bootlog.classList.add('cursor');
 A.onAuthStateChanged(auth, u => {
   bootlog.classList.remove('cursor');

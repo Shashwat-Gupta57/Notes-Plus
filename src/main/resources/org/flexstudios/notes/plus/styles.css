@@ -691,3 +691,11 @@
 .rich-check { -fx-cursor: hand; }
 .format-text { -fx-font-size: 13px; -fx-padding: 4 10 4 10; -fx-background-radius: 8; }
 .format-on, .format-on:hover { -fx-background-color: -np-m3-secondary-container; -fx-background-radius: 8; }
+
+/* The due pane's time wheels, iOS style: the value in a band, its neighbours faint. */
+.wheel-face { -fx-padding: 4 0 0 0; }
+.wheel { -fx-spacing: 0; -fx-min-width: 64; -fx-cursor: hand; }
+.wheel:focused .wheel-band { -fx-border-color: -np-accent-blue; -fx-border-width: 1.5; -fx-border-radius: 10; }
+.wheel-band { -fx-background-color: -np-m3-hover; -fx-background-radius: 10; -fx-min-width: 60; -fx-min-height: 38; -fx-padding: 0 8 0 8; }
+.wheel-value { -fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: -np-text-primary; }
+.wheel-faint { -fx-font-size: 15px; -fx-text-fill: -np-text-secondary; -fx-opacity: 0.55; -fx-padding: 2 0 2 0; }

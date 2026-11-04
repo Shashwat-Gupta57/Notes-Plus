@@ -376,8 +376,16 @@ final class NoteEditorView extends NoteEditor {
     // ================================================================== due dates
 
     /** A list item's day, time and repeat, dropping from its clock or pill. Every click applies at once. */
+    /**
+     * The item's day, time and repeat. Changes are made to a draft and only land on Apply (one step
+     * for Ctrl+Z); Cancel, Escape or a click outside leave the item as it was.
+     */
     private void showDuePopover(ItemRow row, Node anchor) {
         NoteData.TodoItem item = row.item;
+        NoteData.TodoItem draft = new NoteData.TodoItem(item.text, item.done);
+        draft.due = item.due;
+        draft.time = item.time;
+        draft.repeat = item.repeat;
         long today = Due.today();
         int wd = Due.weekday(today);
         long[] quick = {today, today + 1, wd >= 6 ? today : today + (6 - wd), today + (8 - wd)};
@@ -387,76 +395,63 @@ final class NoteEditorView extends NoteEditor {
         String[] kindNames = {"Never", "Daily", "Weekdays", "Weekly", "Monthly"};
 
         Runnable[] refresh = new Runnable[1];
-        java.util.function.Consumer<Runnable> apply = change -> {
-            pushListUndo();
+        java.util.function.Consumer<Runnable> edit = change -> {
             change.run();
             refresh[0].run();
-            row.showDue(true);
-            updateProgress();
         };
 
         String words = item.text == null ? "" : item.text.trim();
         Label title = Ui.label(words.isEmpty() ? "This item" : words, 16, "medium");
-        title.setMaxWidth(230);
+        title.setMaxWidth(290);
+        HBox header = new HBox(10, Ui.icon(Icons.CLOCK, 20, "tile_orange"), title);
+        header.setAlignment(Pos.CENTER_LEFT);
         Label summary = Ui.label("", 13, "secondary");
         summary.setWrapText(true);
-        Button remove = Ui.textButton("Remove", () -> {});
-        remove.setStyle("-fx-text-fill: " + Theme.ref("destructive") + ";");
-        HBox header = new HBox(10, Ui.icon(Icons.CLOCK, 20, "tile_orange"), title, Ui.spacer(), remove);
-        header.setAlignment(Pos.CENTER_LEFT);
 
         FlowPane days = new FlowPane(6, 6);
         List<ToggleButton> dayChips = new ArrayList<>();
         for (int i = 0; i < quick.length; i++) {
             long d = quick[i];
-            dayChips.add(dueChip(days, quickNames[i], () -> apply.accept(() -> Due.setDay(item, d))));
+            dayChips.add(dueChip(days, quickNames[i], () -> edit.accept(() -> Due.setDay(draft, d))));
         }
         ToggleButton pick = dueChip(days, "Pick a date…", () -> {
             refresh[0].run(); // Lit only once a day is picked.
-            int[] c = Due.civil(Due.dated(item) ? Due.day(item.due) : today);
+            int[] c = Due.civil(Due.dated(draft) ? Due.day(draft.due) : today);
             java.time.ZoneId zone = java.time.ZoneId.systemDefault();
             long from = java.time.LocalDate.of(c[0], c[1], c[2]).atStartOfDay(zone).toInstant().toEpochMilli();
             Ui.pickDate(from, ms -> {
                 java.time.LocalDate d = java.time.Instant.ofEpochMilli(ms).atZone(zone).toLocalDate();
-                apply.accept(() -> Due.setDay(item, Due.day(d.getYear(), d.getMonthValue(), d.getDayOfMonth())));
+                edit.accept(() -> Due.setDay(draft, Due.day(d.getYear(), d.getMonthValue(), d.getDayOfMonth())));
             });
         });
 
         FlowPane timeRow = new FlowPane(6, 6);
         List<ToggleButton> timeChips = new ArrayList<>();
         for (String t : times) {
-            timeChips.add(dueChip(timeRow, t == null ? "No time" : Due.time(t), () -> apply.accept(() -> {
-                if (t != null && !Due.dated(item)) Due.setDay(item, today);
-                item.time = t;
+            timeChips.add(dueChip(timeRow, t == null ? "No time" : Due.time(t), () -> edit.accept(() -> {
+                if (t != null && !Due.dated(draft)) Due.setDay(draft, today);
+                draft.time = t;
             })));
         }
-        TextField other = new TextField();
-        other.setPromptText("Other, 7:45");
-        other.setPrefColumnCount(7);
-        other.getStyleClass().add("due-time");
-        Runnable typed = () -> {
-            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d{1,2})[:.](\\d{2})").matcher(other.getText().trim());
-            if (!m.matches()) return;
-            int h = Integer.parseInt(m.group(1)), min = Integer.parseInt(m.group(2));
-            if (h > 23 || min > 59) return;
-            String t = String.format(Locale.ROOT, "%02d:%02d", h, min);
-            if (t.equals(item.time)) return;
-            apply.accept(() -> {
-                if (!Due.dated(item)) Due.setDay(item, today);
-                item.time = t;
-            });
-        };
-        other.setOnAction(e -> typed.run());
-        other.focusedProperty().addListener((o, a, b) -> {
-            if (!b) typed.run();
+        // Any other time: an hour and a minute wheel, iOS style.
+        Ui.Wheel[] wheels = new Ui.Wheel[2];
+        Runnable wheelTime = () -> edit.accept(() -> {
+            if (!Due.dated(draft)) Due.setDay(draft, today);
+            draft.time = String.format(Locale.ROOT, "%02d:%02d", wheels[0].value(), wheels[1].value());
         });
-        timeRow.getChildren().add(other);
+        wheels[0] = new Ui.Wheel(0, 23, 9, v -> wheelTime.run());
+        wheels[1] = new Ui.Wheel(0, 59, 0, v -> wheelTime.run());
+        Label colon = Ui.label(":", 22, "medium");
+        HBox clockFace = new HBox(4, wheels[0], colon, wheels[1]);
+        clockFace.setAlignment(Pos.CENTER);
+        clockFace.getStyleClass().add("wheel-face");
+        Ui.tooltip(clockFace, "Scroll, drag or use the arrow keys");
 
         FlowPane repeatRow = new FlowPane(6, 6);
         List<ToggleButton> repeatChips = new ArrayList<>();
         for (int i = 0; i < kinds.length; i++) {
             String kind = kinds[i];
-            repeatChips.add(dueChip(repeatRow, kindNames[i], () -> apply.accept(() -> Due.setRepeat(item, kind, today))));
+            repeatChips.add(dueChip(repeatRow, kindNames[i], () -> edit.accept(() -> Due.setRepeat(draft, kind, today))));
         }
         HBox weekdays = new HBox(6);
         ToggleButton[] dayToggles = new ToggleButton[8];
@@ -466,48 +461,71 @@ final class NoteEditorView extends NoteEditor {
             ToggleButton t = new ToggleButton(letters[d - 1]);
             t.getStyleClass().setAll("due-day");
             Ui.tooltip(t, Due.WEEKDAYS[d - 1]);
-            t.setOnAction(e -> apply.accept(() -> Due.toggleWeekday(item, weekday, today)));
+            t.setOnAction(e -> edit.accept(() -> Due.toggleWeekday(draft, weekday, today)));
             weekdays.getChildren().add(t);
             dayToggles[d] = t;
         }
 
-        VBox box = new VBox(header, summary, section("Day"), days, section("Time"), timeRow, section("Repeat"), repeatRow, weekdays);
+        // What the buttons do is said on them: Clear empties the draft, Apply saves it.
+        Ui.Modal[] modal = new Ui.Modal[1];
+        Button clear = Ui.textButton("Clear", () -> edit.accept(() -> Due.clear(draft)));
+        clear.setStyle("-fx-text-fill: " + Theme.ref("destructive") + ";");
+        Button cancel = Ui.textButton("Cancel", () -> modal[0].dismiss());
+        Button apply = new Button("Apply");
+        apply.getStyleClass().setAll("filled-button", "compact");
+        apply.setDefaultButton(true);
+        apply.setOnAction(e -> {
+            boolean changed = !java.util.Objects.equals(item.due, draft.due) || !java.util.Objects.equals(item.time, draft.time)
+                    || !java.util.Objects.equals(item.repeat, draft.repeat);
+            if (changed) {
+                pushListUndo();
+                item.due = draft.due;
+                item.time = draft.time;
+                item.repeat = draft.repeat;
+                row.showDue(true);
+                updateProgress();
+                markDirty();
+                Ui.toast(Due.dated(item) ? Due.summary(item, today) : "Date removed");
+            }
+            modal[0].dismiss();
+        });
+        HBox buttons = new HBox(8, clear, Ui.spacer(), cancel, apply);
+        buttons.setAlignment(Pos.CENTER_RIGHT);
+        VBox.setMargin(buttons, new Insets(12, 0, 0, 0));
+
+        VBox box = new VBox(header, summary, section("Day"), days, section("Time"), timeRow, clockFace,
+                section("Repeat"), repeatRow, weekdays, buttons);
         box.setSpacing(6);
-        box.setPadding(new Insets(16, 18, 18, 18));
-        box.setPrefWidth(372);
+        box.setPadding(new Insets(16, 18, 16, 18));
+        box.setPrefWidth(380);
         VBox.setMargin(weekdays, new Insets(4, 0, 0, 0));
+        VBox.setMargin(clockFace, new Insets(4, 0, 0, 0));
 
         refresh[0] = () -> {
-            boolean dated = Due.dated(item);
-            long d = Due.day(item.due);
-            summary.setText(Due.summary(item, today));
-            remove.setVisible(dated);
+            boolean dated = Due.dated(draft);
+            long d = Due.day(draft.due);
+            summary.setText(dated ? Due.summary(draft, today) : "No date: pick a day, a time or a repeat");
+            clear.setDisable(!dated && draft.time == null && !Due.repeats(draft));
             int lit = -1; // One chip for the item's day ("Today" before "This weekend" on a Saturday).
             for (int i = 0; i < quick.length && lit < 0; i++) if (dated && d == quick[i]) lit = i;
             for (int i = 0; i < quick.length; i++) dayChips.get(i).setSelected(i == lit);
             pick.setSelected(dated && lit < 0);
             pick.setText(dated && lit < 0 ? Due.when(d, today) : "Pick a date…");
-            boolean quickTime = false;
-            for (int i = 0; i < times.length; i++) {
-                boolean on = java.util.Objects.equals(times[i], item.time);
-                timeChips.get(i).setSelected(on);
-                quickTime |= on;
+            for (int i = 0; i < times.length; i++) timeChips.get(i).setSelected(java.util.Objects.equals(times[i], draft.time));
+            if (draft.time != null && draft.time.matches("\\d{2}:\\d{2}")) {
+                wheels[0].set(Integer.parseInt(draft.time.substring(0, 2)));
+                wheels[1].set(Integer.parseInt(draft.time.substring(3)));
             }
-            if (!other.isFocused()) other.setText(quickTime ? "" : Due.time(item.time));
-            String kind = !Due.repeats(item) ? null : item.repeat.startsWith("weekly:") ? "weekly"
-                    : item.repeat.startsWith("monthly:") ? "monthly" : item.repeat;
+            clockFace.setOpacity(draft.time == null ? 0.55 : 1);
+            String kind = !Due.repeats(draft) ? null : draft.repeat.startsWith("weekly:") ? "weekly"
+                    : draft.repeat.startsWith("monthly:") ? "monthly" : draft.repeat;
             for (int i = 0; i < kinds.length; i++) repeatChips.get(i).setSelected(java.util.Objects.equals(kinds[i], kind));
             weekdays.setVisible("weekly".equals(kind));
             weekdays.setManaged("weekly".equals(kind));
-            boolean[] on = Due.weekDays(item.repeat);
+            boolean[] on = Due.weekDays(draft.repeat);
             for (int w = 1; w <= 7; w++) dayToggles[w].setSelected(on[w]);
         };
         refresh[0].run();
-        Ui.Modal[] modal = new Ui.Modal[1];
-        remove.setOnAction(e -> {
-            apply.accept(() -> Due.clear(item));
-            modal[0].dismiss();
-        });
         modal[0] = Ui.popover(anchor, box);
     }
 

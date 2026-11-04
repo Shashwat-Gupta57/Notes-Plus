@@ -49,7 +49,14 @@ final class LinkSuggest {
         list.getStyleClass().add("link-pop");
         popup.getContent().add(list);
         popup.setAutoHide(true);
-        place.node().addEventFilter(KeyEvent.KEY_PRESSED, this::keys);
+        // On the window, not the text: a filter there runs before any the editor put on the text
+        // itself (Enter for a new line or item), so Enter and Tab pick the highlighted title.
+        javafx.event.EventHandler<KeyEvent> keys = this::keys;
+        if (place.node().getScene() != null) place.node().getScene().addEventFilter(KeyEvent.KEY_PRESSED, keys);
+        place.node().sceneProperty().addListener((o, a, b) -> {
+            if (a != null) a.removeEventFilter(KeyEvent.KEY_PRESSED, keys);
+            if (b != null) b.addEventFilter(KeyEvent.KEY_PRESSED, keys);
+        });
         place.node().focusedProperty().addListener((o, a, b) -> {
             if (!b) popup.hide();
         });
@@ -150,7 +157,7 @@ final class LinkSuggest {
     }
 
     private void keys(KeyEvent e) {
-        if (!popup.isShowing()) return;
+        if (!popup.isShowing() || !place.node().isFocused()) return;
         if (e.getCode() == KeyCode.DOWN) {
             selected = Math.min(shown.size() - 1, selected + 1);
             paint();

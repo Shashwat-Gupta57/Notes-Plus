@@ -795,10 +795,17 @@ final class MainView extends Screen {
         }
         // From a template: one row each, under the types.
         List<NoteEntity> templates = Templates.of(allNotes);
-        if (!templates.isEmpty()) {
-            Label from = Ui.label("From a template", 13, "secondary");
-            from.setPadding(new Insets(12, 24, 4, 24));
-            content.getChildren().add(from);
+        Label from = Ui.label("From a template", 13, "secondary");
+        from.setPadding(new Insets(12, 24, 4, 24));
+        content.getChildren().add(from);
+        if (templates.isEmpty()) {
+            // Always here, so templates can be found: how to make the first one.
+            Label how = Ui.label("No templates yet. Open a note, list, journal or mind map and choose "
+                    + "\"Save as template…\" from its ⋮ menu (or right-click its card).", 13, "secondary");
+            how.setWrapText(true);
+            how.setPadding(new Insets(0, 24, 12, 24));
+            content.getChildren().add(how);
+        } else {
             for (NoteEntity t : templates) {
                 NoteData.Kind kind = NoteData.kind(t.getType());
                 StackPane tile = new StackPane(Ui.icon(Icons.TEMPLATE, 24, "white"));
@@ -826,6 +833,18 @@ final class MainView extends Screen {
         scroll.setMaxHeight(620);
         scroll.setPrefViewportHeight(Math.min(620, content.prefHeight(-1)));
         return scroll;
+    }
+
+    /** "Save as template…", from a card's options or a note's own menu. */
+    static void saveAsTemplate(NoteEntity note) {
+        String name = note.getTitle() == null || note.getTitle().isEmpty()
+                ? NoteData.kind(note.getType()).label() : note.getTitle();
+        Ui.prompt("Save as template",
+                "A copy of this note that new notes can start from, under New. Ticks, one-off dates and pictures are left out.",
+                "Template name", name, "Save", n -> NoteStore.load(s -> Templates.saveAs(s, note, n.trim().isEmpty() ? name : n), id -> {
+                    NoteSync.schedule();
+                    Ui.toast("Saved as a template. Find it under New or the Templates filter.");
+                }), null, null, null);
     }
 
     /** A new note from a template, opened straight away. */
@@ -883,12 +902,7 @@ final class MainView extends Screen {
         actions.add(() -> duplicateNote(note));
         if (Templates.canSave(note)) {
             labels.add("Save as template…");
-            actions.add(() -> Ui.prompt("Save as template",
-                    "A copy of this note that new notes can start from, under New. Ticks, one-off dates and pictures are left out.",
-                    "Template name", name, "Save", n -> NoteStore.load(s -> Templates.saveAs(s, note, n.trim().isEmpty() ? name : n), id -> {
-                        NoteSync.schedule();
-                        Ui.toast("Saved as a template. Find it under New or the Templates filter.");
-                    }), null, null, null));
+            actions.add(() -> saveAsTemplate(note));
         }
         if (note.isReceived()) {
             // Someone else's note: mine to pin, colour, copy or put away, not to change.

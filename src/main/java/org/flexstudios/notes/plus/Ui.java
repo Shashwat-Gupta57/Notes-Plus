@@ -154,6 +154,79 @@ final class Ui {
         return b;
     }
 
+    /**
+     * A wheel of numbers, iOS style: the value in a band with its neighbours faint above and below.
+     * The mouse wheel, a drag, the arrow keys or the little arrows turn it; it wraps round.
+     */
+    static final class Wheel extends VBox {
+        private final int min, max;
+        private int value;
+        private final Label above = new Label(), current = new Label(), below = new Label();
+        private final java.util.function.IntConsumer onChange;
+        private double dragY;
+
+        Wheel(int min, int max, int value, java.util.function.IntConsumer onChange) {
+            this.min = min;
+            this.max = max;
+            this.onChange = onChange;
+            getStyleClass().add("wheel");
+            setAlignment(Pos.CENTER);
+            setFocusTraversable(true);
+            Button up = iconButton(Icons.CHEVRON_UP, 26, 18, "text_secondary", null, () -> turn(-1));
+            Button down = iconButton(Icons.CHEVRON_DOWN, 26, 18, "text_secondary", null, () -> turn(1));
+            above.getStyleClass().add("wheel-faint");
+            below.getStyleClass().add("wheel-faint");
+            current.getStyleClass().add("wheel-value");
+            StackPane band = new StackPane(current);
+            band.getStyleClass().add("wheel-band");
+            getChildren().addAll(up, above, band, below, down);
+            setOnScroll(e -> {
+                if (e.getDeltaY() != 0) turn(e.getDeltaY() > 0 ? -1 : 1);
+                e.consume();
+            });
+            setOnMousePressed(e -> {
+                dragY = e.getY();
+                requestFocus();
+            });
+            setOnMouseDragged(e -> {
+                int steps = (int) ((dragY - e.getY()) / 18);
+                if (steps != 0) {
+                    turn(steps);
+                    dragY -= steps * 18;
+                }
+            });
+            setOnKeyPressed(e -> {
+                if (e.getCode() == javafx.scene.input.KeyCode.UP) turn(-1);
+                else if (e.getCode() == javafx.scene.input.KeyCode.DOWN) turn(1);
+                else return;
+                e.consume();
+            });
+            set(value);
+        }
+
+        private int wrap(int v) {
+            int span = max - min + 1;
+            return ((v - min) % span + span) % span + min;
+        }
+
+        private void turn(int by) {
+            set(wrap(value + by));
+            onChange.accept(value);
+        }
+
+        int value() {
+            return value;
+        }
+
+        /** Shows {@code v} without telling anyone. */
+        void set(int v) {
+            value = wrap(v);
+            above.setText(String.format(java.util.Locale.ROOT, "%02d", wrap(value - 1)));
+            current.setText(String.format(java.util.Locale.ROOT, "%02d", value));
+            below.setText(String.format(java.util.Locale.ROOT, "%02d", wrap(value + 1)));
+        }
+    }
+
     static void tooltip(Node node, String text) {
         Tooltip t = new Tooltip(text);
         t.setShowDelay(Duration.millis(500));
@@ -874,6 +947,9 @@ final class Ui {
     static void autoGrow(TextArea area, double minHeight, double lineSpacing) {
         Text measure = new Text();
         Runnable fit = () -> {
+            // Not laid out yet: measured at no width, every letter would be a line of its own and
+            // the row would open hundreds of pixels tall. Its width arriving runs this again.
+            if (area.getWidth() < 40) return;
             measure.setFont(area.getFont());
             measure.setLineSpacing(lineSpacing);
             measure.setWrappingWidth(Math.max(1, area.getWidth() - 6));
@@ -881,8 +957,11 @@ final class Ui {
             measure.setText(t.endsWith("\n") ? t + "X" : t);
             double h = Math.max(minHeight, Math.ceil(measure.getLayoutBounds().getHeight()) + 6);
             // The area's own text can wrap a little narrower than the measure: never cut it off.
+            // Unless that text is still wrapped at an older, narrower width (it catches up a pulse
+            // later and its own listener fits again): then its height is stale, and far too tall.
             Text inner = innerText(area, null);
-            if (inner != null) h = Math.max(h, Math.ceil(inner.getLayoutBounds().getHeight()) + 12);
+            if (inner != null && inner.getWrappingWidth() >= area.getWidth() * 0.7)
+                h = Math.max(h, Math.ceil(inner.getLayoutBounds().getHeight()) + 12);
             if (Math.abs(h - area.getPrefHeight()) < 0.5) return;
             area.setMinHeight(h);
             area.setPrefHeight(h);

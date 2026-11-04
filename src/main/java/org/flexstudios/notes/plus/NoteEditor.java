@@ -588,6 +588,13 @@ abstract class NoteEditor extends Screen {
                 labels.add(wrap ? "Don't wrap text" : "Wrap text");
                 actions.add(() -> setWrapText(!wrap));
             }
+            if (Templates.canSave(note)) {
+                labels.add("Save as template…");
+                // Saved first, so the template is the note as it is on screen.
+                actions.add(() -> afterSave(id -> NoteStore.load(s -> s.byId(id), saved -> {
+                    if (saved != null) MainView.saveAsTemplate(saved);
+                })));
+            }
             labels.add("Export…");
             actions.add(() -> afterSave(NoteExport::export));
             labels.add("Delete");

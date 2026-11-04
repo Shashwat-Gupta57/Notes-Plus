@@ -1063,9 +1063,15 @@ final class MindMapCanvas extends Region {
         }
     }
 
+    /**
+     * Ideas' own colours: the palette's hues, darker and calmer, so white words read well on every
+     * one (4.5:1 or better), in either theme. Same values on the phone and the web.
+     */
+    static final String[] FILLS = {"#2F5FA8", "#2E7D4F", "#A5561C", "#6B4FA8", "#A63A3A", "#23767E", "#5E6066"};
+
     /** The idea's own colour (a central idea: yellow unless given one), or null when it has none. */
     private Color fillOf(NoteData.MindNode n) {
-        if (n.fill > 0 && n.fill <= PALETTE.length) return Theme.color(PALETTE[n.fill - 1]);
+        if (n.fill > 0 && n.fill <= FILLS.length) return Color.web(FILLS[n.fill - 1]);
         return n.parent < 0 ? Theme.color("brand_yellow") : null;
     }
 

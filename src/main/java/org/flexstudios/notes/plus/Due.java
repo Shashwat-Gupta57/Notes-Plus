@@ -184,15 +184,49 @@ final class Due {
         return n;
     }
 
-    /** The item a card's tag speaks for: the soonest still to do (overdue first), or null. */
+    /**
+     * The item a card's tag speaks for: the soonest still to do (overdue first), by day and then by
+     * time (an item with no time after the timed ones that day), or null.
+     */
     static NoteData.TodoItem urgent(List<NoteData.TodoItem> items, long today) {
         NoteData.TodoItem best = null;
         for (NoteData.TodoItem item : items) {
             int s = status(item, today);
             if (s < LATER) continue;
-            if (best == null || day(item.due) < day(best.due)) best = item;
+            if (best == null || when(item) < when(best)) best = item;
         }
         return best;
+    }
+
+    /** Minutes from day 0 to an item's moment: its day, then its time (no time: the day's end). */
+    private static long when(NoteData.TodoItem item) {
+        long minutes = 24 * 60;
+        if (item.time != null && item.time.matches("\\d{1,2}:\\d{2}")) {
+            String[] hm = item.time.split(":");
+            minutes = Integer.parseInt(hm[0]) * 60L + Integer.parseInt(hm[1]);
+        }
+        return day(item.due) * (24 * 60 + 1) + minutes;
+    }
+
+    /** When a reminder comes on its day with no time set: 9:00. */
+    static final int REMIND_DEFAULT_MINUTE = 9 * 60;
+
+    /**
+     * Whether an item reminds: it has a day and words, and is still to do. A ticked repeating item
+     * reminds too (on its next day, when it shows unticked again).
+     */
+    static boolean remindable(NoteData.TodoItem item) {
+        return dated(item) && item.text != null && !item.text.trim().isEmpty() && (!item.done || repeats(item));
+    }
+
+    /** Minutes into its day that an item reminds: its time, or 9:00. */
+    static int remindMinute(NoteData.TodoItem item) {
+        if (item.time != null && item.time.matches("\\d{1,2}:\\d{2}")) {
+            String[] hm = item.time.split(":");
+            int m = Integer.parseInt(hm[0]) * 60 + Integer.parseInt(hm[1]);
+            if (m < 24 * 60) return m;
+        }
+        return REMIND_DEFAULT_MINUTE;
     }
 
     static boolean anyDated(List<NoteData.TodoItem> items) {

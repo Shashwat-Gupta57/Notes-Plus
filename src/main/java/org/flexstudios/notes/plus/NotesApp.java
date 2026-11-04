@@ -215,6 +215,11 @@ public class NotesApp extends Application {
     }
 
     @Override
+    public void stop() {
+        Reminders.stop();
+    }
+
+    @Override
     public void start(Stage stage) {
         app = this;
         for (String face : new String[]{"Regular", "Medium", "Bold", "Light", "Italic", "BoldItalic"}) {
@@ -232,6 +237,7 @@ public class NotesApp extends Application {
         VaultStore.IO.execute(VaultVideo::sweep); // A crash may have left a playback copy.
         if (Account.uid() != null) NoteSync.startLive();
         NoteSync.startPeriodic();
+        Reminders.start();
         ChatStore.IO.execute(ChatMedia::sweepPlain); // A crash may have left a playing voice note.
         ChatSync.startPeriodic();
         ChatSync.schedule();

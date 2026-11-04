@@ -338,7 +338,7 @@
         <header class="docs-hero">
           <div class="hero-pill-badge" style="margin-bottom: 14px;">
             <span class="pulse-dot" aria-hidden="true"></span>
-            <span>Notes+ v17.0 Canonical Docs</span>
+            <span>Notes+ v19.0 Canonical Docs</span>
           </div>
           <h1 class="hero-title" style="font-size: 2.6rem; margin-bottom: 14px;">
             Notes+ Documentation
@@ -379,7 +379,7 @@
 
           <h3>Windows</h3>
           <ol>
-            <li>Download <strong>Notes-Plus-Setup-17.0.exe</strong> from the <a href="download.html">download page</a> and run it. It needs no Java: one is built in.</li>
+            <li>Download <strong>Notes-Plus-Setup-19.0.exe</strong> from the <a href="download.html">download page</a> and run it. It needs no Java: one is built in.</li>
             <li>If Windows SmartScreen says it doesn't recognise the app, choose <strong>More info → Run anyway</strong>. (The installer isn't code-signed yet; check its SHA-256 on the download page if you like.)</li>
             <li>Setup asks about a <strong>Desktop shortcut</strong>, the <strong>Start menu</strong>, and whether Notes+ should be your <strong>Default text editor</strong> for <code>.txt</code> and similar files.</li>
           </ol>
@@ -456,6 +456,30 @@
             </tbody>
           </table>
           <p><strong>Enter</strong> continues a list and an empty item ends it; <strong>Backspace</strong> at the start of a list item or heading makes it plain. A heading or quote is a style for the whole line, as in Word. Notes are stored as plain Markdown, the same on every platform.</p>
+
+          <h3 id="due">Due dates and repeating items</h3>
+          <p>In a list, the <strong>clock</strong> beside the item you're typing in gives it a day, a time if you like, and a repeat: every day, weekdays, chosen days of the week, or a day of each month (<kbd>Ctrl</kbd> + <kbd>D</kbd> on Windows). The item then shows a small pill: red when overdue, yellow for today. Tick a repeating item and it moves to its next day; it shows unticked again when that day comes. Cards on the grid carry a small clock tag when something in them is due.</p>
+
+          <h3 id="templates">Templates</h3>
+          <p><strong>Save as template</strong> in a note's options keeps a text note, list, journal or mind map as a starting point. New notes made <strong>From a template</strong> (in the New sheet) start fresh: ticks cleared, one-off days dropped, repeats on their next day. Your templates are under the <strong>Templates</strong> chip.</p>
+
+          <h3 id="links">Links between notes</h3>
+          <p>Type <code>[[</code> and pick a note to link it, or write <code>[[Title]]</code> yourself. Tap a link on Android, or <kbd>Ctrl</kbd> + click it on Windows and the web, to open that note (or create it, if no note has that title yet). Every note shows what links to it under <strong>Linked from</strong>, and renaming a note updates the links to it in your other notes.</p>
+
+          <h3 id="search">Searching every note</h3>
+          <p>The search box looks through every note at once, archived ones and templates too: titles, words, list items, mind-map ideas and journal days. Every word you type must be in the note, in any order. Matching words are highlighted on each card, with the line they're in. While searching, the chips narrow it down: kind of note, colour, folder, <strong>Has pictures</strong>, <strong>Has dates</strong>. On Windows and the web, <kbd>Ctrl</kbd> + <kbd>K</kbd> jumps to any note or action.</p>
+
+          <h3 id="mindmaps">Mind maps</h3>
+          <p>Each idea has two colours: its <strong>Idea colour</strong> fills the idea itself, and its <strong>Branch colour</strong> colours the lines out of it (on a central idea, all of its branches). On Windows, hold <kbd>Ctrl</kbd> and drag to draw a selection box (or <kbd>Ctrl</kbd> + click ideas one by one); drag any of them to move them together, and right-click them to colour, connect, disconnect, strip the pictures from or delete them all at once. Pictures in ideas, in lists and in text notes open full screen with a tap.</p>
+
+          <h3 id="import">Import and export</h3>
+          <p><strong>Import notes…</strong> (the notes menu on Android, the Account screen on Windows and the web, or <kbd>Ctrl</kbd> + <kbd>K</kbd>) brings in Google Keep (a Takeout zip), Apple Notes exports and Markdown folders from apps like Obsidian or Bear, with their pictures, folders, pins and ticks. It shows what it found first, and never imports the same note twice. <strong>Export all notes…</strong> saves everything as a zip of Markdown files any app can read.</p>
+
+          <h3 id="widgets">Home-screen widgets (Android)</h3>
+          <p>Long-press your home screen, choose <strong>Widgets</strong>, then <strong>Notes+</strong>: a <strong>checklist</strong> you can tick without opening the app, or <strong>New note</strong> buttons for a note, list, journal or recording.</p>
+
+          <h3 id="offline">Offline</h3>
+          <p>Once opened, Notes+ on the web works with no connection at all: open, read, search, edit and create notes. Changes sync by themselves when you're back online.</p>
         </section>
 
         <!-- 4. Settings -->
@@ -587,6 +611,9 @@
               <tr><td>Normal text</td><td><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>0</kbd></td></tr>
               <tr><td>Open a link</td><td><kbd>Ctrl</kbd> + click</td></tr>
               <tr><td>Find in note</td><td><kbd>Ctrl</kbd> + <kbd>F</kbd></td></tr>
+              <tr><td>Go to any note or action</td><td><kbd>Ctrl</kbd> + <kbd>K</kbd></td></tr>
+              <tr><td>Give a list item a day (Windows)</td><td><kbd>Ctrl</kbd> + <kbd>D</kbd></td></tr>
+              <tr><td>Select ideas together in a mind map (Windows)</td><td><kbd>Ctrl</kbd> + drag, <kbd>Ctrl</kbd> + click</td></tr>
               <tr><td>Toggle this site's theme</td><td><kbd>T</kbd></td></tr>
             </tbody>
           </table>
@@ -649,7 +676,7 @@
         <div class="footer-copy">
           <p>© 2026 Shashwat Gupta • Flex Studios. Open source under the <a href="https://github.com/Shashwat-Gupta57/Notes-Plus/blob/master/LICENSE" style="text-decoration: underline;">GPL-3.0</a>.</p>
           <p style="font-size: 0.8rem; margin-top: 4px; color: var(--text-muted);">
-            No ad trackers. Notes+ v17.0 Canonical Docs.
+            No ad trackers. Notes+ v19.0 Canonical Docs.
           </p>
         </div>
 

@@ -574,7 +574,7 @@ final class Ui {
         if (l.startsWith("move")) return Icons.FOLDER;
         if (l.startsWith("open in")) return Icons.OPEN_IN_NEW;
         if (l.startsWith("pin") || l.startsWith("unpin")) return Icons.PIN;
-        if (l.startsWith("colour")) return Icons.PALETTE;
+        if (l.contains("colour")) return Icons.PALETTE;
         if (l.startsWith("connect")) return Icons.LINK;
         if (l.contains("archive")) return Icons.ARCHIVE;
         if (l.contains("template")) return Icons.TEMPLATE;

@@ -423,7 +423,9 @@ final class MindMapEditor extends NoteEditor {
         }
         labels.add(node.sub.isEmpty() ? "Add sub-text" : "Edit sub-text");
         actions.add(() -> editSub(node));
-        labels.add("Colour");
+        labels.add("Idea colour");
+        actions.add(() -> pickFill(List.of(node)));
+        labels.add("Branch colour");
         actions.add(() -> pickColor(node));
         if (map.hasChildren(node)) {
             labels.add(node.collapsed ? "Unfold branch" : "Fold branch");
@@ -480,7 +482,9 @@ final class MindMapEditor extends NoteEditor {
         if (readOnly || nodes.size() < 2) return;
         List<String> labels = new ArrayList<>();
         List<Runnable> actions = new ArrayList<>();
-        labels.add("Colour…");
+        labels.add("Idea colour…");
+        actions.add(() -> pickFill(nodes));
+        labels.add("Branch colour…");
         actions.add(() -> pickGroupColor(nodes));
         labels.add("Connect all to another idea…");
         actions.add(() -> {
@@ -517,11 +521,11 @@ final class MindMapEditor extends NoteEditor {
     private void pickGroupColor(List<NoteData.MindNode> nodes) {
         String[] colorNames = {"Blue", "Green", "Orange", "Purple", "Red", "Teal", "Grey"};
         String[] names = new String[colorNames.length + 1];
-        names[0] = "Same as their branches";
+        names[0] = "Same as the branches they're on";
         System.arraycopy(colorNames, 0, names, 1, colorNames.length);
         int common = nodes.get(0).color;
         for (NoteData.MindNode n : nodes) if (n.color != common) common = -1;
-        Ui.dialog().title("Colour of " + nodes.size() + " ideas").singleChoice(names, common, which -> {
+        Ui.dialog().title("Branch colour of " + nodes.size() + " ideas").singleChoice(names, common, which -> {
             pushUndo();
             for (NoteData.MindNode n : nodes) n.color = which;
             map.selectGroup(nodes);
@@ -549,12 +553,32 @@ final class MindMapEditor extends NoteEditor {
         Platform.runLater(area::requestFocus);
     }
 
+    /** The idea's own colour, filling it (one idea or several); their lines keep theirs. */
+    private void pickFill(List<NoteData.MindNode> nodes) {
+        String[] colorNames = {"Blue", "Green", "Orange", "Purple", "Red", "Teal", "Grey"};
+        String[] names = new String[colorNames.length + 1];
+        boolean roots = true;
+        for (NoteData.MindNode n : nodes) roots &= n.parent < 0;
+        names[0] = roots ? "Yellow (default)" : "None (default)";
+        System.arraycopy(colorNames, 0, names, 1, colorNames.length);
+        int common = nodes.get(0).fill;
+        for (NoteData.MindNode n : nodes) if (n.fill != common) common = -1;
+        String title = nodes.size() == 1 ? "Idea colour" : "Colour of " + nodes.size() + " ideas";
+        Ui.dialog().title(title).singleChoice(names, common, which -> {
+            pushUndo();
+            for (NoteData.MindNode n : nodes) n.fill = which;
+            if (nodes.size() > 1) map.selectGroup(nodes);
+            map.refresh();
+        }).show();
+    }
+
+    /** The colour of the lines out of an idea (and its outline); on a central idea, its branches'. */
     private void pickColor(NoteData.MindNode node) {
         String[] colorNames = {"Blue", "Green", "Orange", "Purple", "Red", "Teal", "Grey"};
         String[] names = new String[colorNames.length + 1];
-        names[0] = node.parent < 0 ? "Yellow (default)" : "Same as its branch";
+        names[0] = node.parent < 0 ? "Each branch its own (default)" : "Same as the branch it's on";
         System.arraycopy(colorNames, 0, names, 1, colorNames.length);
-        Ui.dialog().title("Colour").singleChoice(names, node.color, which -> {
+        Ui.dialog().title("Branch colour").singleChoice(names, node.color, which -> {
             if (which != node.color) pushUndo();
             node.color = which;
             map.refresh();

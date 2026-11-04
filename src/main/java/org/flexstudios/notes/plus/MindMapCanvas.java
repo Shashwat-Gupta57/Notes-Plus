@@ -580,7 +580,9 @@ final class MindMapCanvas extends Region {
         int i = 0;
         for (NoteData.MindNode n : model.nodes) {
             if (centres.contains(n.parent)) {
-                int index = n.color > 0 ? n.color - 1 : i % (PALETTE.length - 1);
+                NoteData.MindNode centre = byId.get(n.parent);
+                int index = n.color > 0 ? n.color - 1
+                        : centre != null && centre.color > 0 ? centre.color - 1 : i % (PALETTE.length - 1);
                 colorOf.put(n.id, Theme.color(PALETTE[index]));
                 i++;
             }
@@ -1001,11 +1003,13 @@ final class MindMapCanvas extends Region {
             double w = rr - rl, h = rb - rt;
             double maxRadius = isRoot ? 24 : 18;
             double radius = n.image != null ? Math.min(h / 2, 16 * s) : Math.min(h / 2, maxRadius * s);
+            Color filled = fillOf(n);
             if (isRoot) {
-                g.setFill(n.color > 0 ? Theme.color(PALETTE[n.color - 1]) : Theme.color("brand_yellow"));
+                g.setFill(filled);
                 g.fillRoundRect(rl, rt, w, h, radius * 2, radius * 2);
             } else {
-                g.setFill(surface);
+                // Its own colour fills it; the outline stays its branch's.
+                g.setFill(filled != null ? filled : surface);
                 g.fillRoundRect(rl, rt, w, h, radius * 2, radius * 2);
                 g.setStroke(color);
                 g.setLineWidth(Math.max(1, 2 * s));
@@ -1021,7 +1025,8 @@ final class MindMapCanvas extends Region {
             Block b = block(n);
             Font f = font(isRoot, (isRoot ? 18 : 15) * s);
             g.setFont(f);
-            g.setFill(isRoot ? Color.BLACK : n.text.isEmpty() ? muted : ink);
+            boolean light = filled != null && 0.299 * filled.getRed() + 0.587 * filled.getGreen() + 0.114 * filled.getBlue() > 0.62;
+            g.setFill(filled != null ? (light ? Color.BLACK : Color.WHITE) : n.text.isEmpty() ? muted : ink);
             double cxm = (rl + rr) / 2, y = rtt;
             boolean underline = decorations && Links.ctrl.get() && !Links.find(n.text).isEmpty();
             for (String line : b.title) {
@@ -1038,7 +1043,7 @@ final class MindMapCanvas extends Region {
             if (!b.sub.isEmpty()) {
                 y += SUB_GAP * s;
                 g.setFont(subFont(isRoot, s));
-                g.setFill(isRoot ? Color.color(0, 0, 0, 0.7) : muted);
+                g.setFill(filled != null ? (light ? Color.color(0, 0, 0, 0.7) : Color.color(1, 1, 1, 0.85)) : muted);
                 for (String line : b.sub) {
                     g.fillText(line, cxm, y + b.subLine * s / 2);
                     y += b.subLine * s;
@@ -1056,6 +1061,12 @@ final class MindMapCanvas extends Region {
             }
             drawBadges(g, n, s, color);
         }
+    }
+
+    /** The idea's own colour (a central idea: yellow unless given one), or null when it has none. */
+    private Color fillOf(NoteData.MindNode n) {
+        if (n.fill > 0 && n.fill <= PALETTE.length) return Theme.color(PALETTE[n.fill - 1]);
+        return n.parent < 0 ? Theme.color("brand_yellow") : null;
     }
 
     /** "+N" on a folded idea (outward side) and an arrow on one that links to a note. */

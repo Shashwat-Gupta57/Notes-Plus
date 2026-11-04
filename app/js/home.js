@@ -13,6 +13,7 @@ import { drawPreview } from './mindmap-draw.js';
 import * as templates from './templates.js';
 import * as search from './search.js';
 import * as due from './due.js';
+import { masonry } from './masonry.js';
 import { drawSketchPreview } from './ed-sketch.js';
 
 const SHARED = 'SHARED';
@@ -62,6 +63,7 @@ export function homeScreen(go) {
   const searchActive = () => searching && !showingHidden && (!!query || search.anyFilter(searchFilters));
   let searching = false;
   const grid = h('div.grid');
+  masonry(grid); // Along the rows, like the apps.
   const empty = h('div.empty', icon('noteText', 72, 'var(--secondary)'), h('p'));
   const title = h('h1.toolbar-title', 'Notes');
   const syncing = h('span.syncing', 'Syncing…');

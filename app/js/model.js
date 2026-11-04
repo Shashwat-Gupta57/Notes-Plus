@@ -92,6 +92,8 @@ export function mindMap(json) {
     x: Number(o.x) || 0,
     y: Number(o.y) || 0,
     color: Number(o.color) || 0,
+    // The idea's own colour (filling it); older maps coloured a central idea with `color`.
+    fill: o.fill !== undefined ? Number(o.fill) || 0 : (o.parent === undefined || Number(o.parent) < 0) ? Number(o.color) || 0 : 0,
     collapsed: o.collapsed === true,
     link: Number(o.link) || 0,
     linkUuid: typeof o.linkUuid === 'string' && o.linkUuid ? o.linkUuid : null,
@@ -106,6 +108,7 @@ export function mindMapJson(map) {
   const nodes = map.nodes.map(n => {
     const o = { id: n.id, parent: n.parent, text: n.text, x: Math.round(n.x * 10) / 10, y: Math.round(n.y * 10) / 10 };
     if (n.color) o.color = n.color;
+    if (n.fill || (n.parent < 0 && n.color)) o.fill = n.fill || 0;
     if (n.collapsed) o.collapsed = true;
     if (n.link) o.link = n.link;
     if (n.linkUuid) o.linkUuid = n.linkUuid;

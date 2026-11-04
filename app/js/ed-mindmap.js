@@ -246,9 +246,16 @@ export function mindMapEditor(ctx) {
     });
   }
 
+  /** The colour of the lines out of an idea (and its outline); on a central idea, its branches'. */
   function pickColor(n) {
-    const names = [n.parent < 0 ? 'Yellow (default)' : 'Same as its branch', 'Blue', 'Green', 'Orange', 'Purple', 'Red', 'Teal', 'Grey'];
-    choices('Colour', names.map((label, i) => ({ text: (i === n.color ? '✓  ' : '') + label, onClick: () => { n.color = i; changedStructure(); } })));
+    const names = [n.parent < 0 ? 'Each branch its own (default)' : "Same as the branch it's on", 'Blue', 'Green', 'Orange', 'Purple', 'Red', 'Teal', 'Grey'];
+    choices('Branch colour', names.map((label, i) => ({ text: (i === n.color ? '✓  ' : '') + label, onClick: () => { n.color = i; changedStructure(); } })));
+  }
+
+  /** The idea's own colour, filling it; its lines keep theirs. */
+  function pickFill(n) {
+    const names = [n.parent < 0 ? 'Yellow (default)' : 'None (default)', 'Blue', 'Green', 'Orange', 'Purple', 'Red', 'Teal', 'Grey'];
+    choices('Idea colour', names.map((label, i) => ({ text: (i === (n.fill || 0) ? '✓  ' : '') + label, onClick: () => { n.fill = i; changedStructure(); } })));
   }
 
   async function pickNoteToLink(n) {
@@ -288,7 +295,8 @@ export function mindMapEditor(ctx) {
       { text: 'Add idea', onClick: () => addChild(n) },
       !root && { text: 'Add idea behind', onClick: () => { const m = insertBehind(n); if (m) name(m, true, true); } },
       { text: n.sub ? 'Edit sub-text' : 'Add sub-text', onClick: () => editSub(n) },
-      { text: 'Colour', onClick: () => pickColor(n) },
+      { text: 'Idea colour', onClick: () => pickFill(n) },
+      { text: 'Branch colour', onClick: () => pickColor(n) },
       view.children(n).length && { text: n.collapsed ? 'Unfold branch' : 'Fold branch', onClick: () => { n.collapsed = !n.collapsed; changedStructure(); } },
       (n.linkUuid || n.link) ? { text: 'Open linked note', onClick: () => openLinked(n) } : { text: 'Link to a note…', onClick: () => pickNoteToLink(n) },
       (n.linkUuid || n.link) && { text: 'Remove note link', onClick: () => { n.link = 0; n.linkUuid = null; changedStructure(); } },

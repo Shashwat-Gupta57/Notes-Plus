@@ -7,6 +7,15 @@ const PIC_W = 160, PIC_H = 120;
 export const PALETTE = ['tile-blue', 'tile-green', 'tile-orange', 'tile-purple', 'tile-red', 'tile-teal', 'tile-gray'];
 
 const css = name => getComputedStyle(document.documentElement).getPropertyValue('--' + name).trim();
+/** Light enough for black words on it (a "#rrggbb" colour). */
+function light(color) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(color || '');
+  if (!m) return false;
+  const [r, g, b] = m.slice(1).map(h => parseInt(h, 16));
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62;
+}
+/** An idea's own colour (a central idea: yellow unless given one), or null. */
+const fillOf = n => (n.fill > 0 && n.fill <= PALETTE.length ? css(PALETTE[n.fill - 1]) : n.parent < 0 ? css('brand') : null);
 const fontOf = (root, size) => `${root ? 'bold ' : ''}${size}px Roboto, system-ui, sans-serif`;
 
 let measureCtx = null;
@@ -87,7 +96,9 @@ export class MapView {
     let i = 0;
     for (const n of this.map.nodes) {
       if (centres.has(n.parent)) {
-        this.colorOf.set(n.id, n.color > 0 ? PALETTE[n.color - 1] : PALETTE[i % (PALETTE.length - 1)]);
+        const centre = this.byId.get(n.parent);
+        this.colorOf.set(n.id, n.color > 0 ? PALETTE[n.color - 1]
+          : centre && centre.color > 0 ? PALETTE[centre.color - 1] : PALETTE[i % (PALETTE.length - 1)]);
         i++;
       }
     }
@@ -277,11 +288,13 @@ export class MapView {
       const color = css(this.colorOf.get(n.id) || 'secondary');
       g.beginPath();
       roundRect(g, l, t, w, h, radius);
+      const filled = fillOf(n), onLight = filled && light(filled);
       if (root) {
-        g.fillStyle = n.color > 0 ? css(PALETTE[n.color - 1]) : css('brand');
+        g.fillStyle = filled;
         g.fill();
       } else {
-        g.fillStyle = surface;
+        // Its own colour fills it; the outline stays its branch's.
+        g.fillStyle = filled || surface;
         g.fill();
         g.strokeStyle = color;
         g.lineWidth = Math.max(1, 2 * s);
@@ -315,7 +328,7 @@ export class MapView {
       const textMid = t + h - geo.textH * s / 2;
       let y = textMid - b.h * s / 2;
       g.font = fontOf(root, (root ? 18 : 15) * s);
-      g.fillStyle = root ? '#000' : n.text ? ink : muted;
+      g.fillStyle = filled ? (onLight ? '#000' : '#fff') : n.text ? ink : muted;
       for (const line of b.title) {
         g.fillText(line, X(n.x), y + b.titleLine * s / 2);
         y += b.titleLine * s;
@@ -323,7 +336,7 @@ export class MapView {
       if (b.sub.length) {
         y += SUB_GAP * s;
         g.font = fontOf(false, (root ? 13.5 : 12.5) * s);
-        g.fillStyle = root ? 'rgba(0,0,0,0.7)' : muted;
+        g.fillStyle = filled ? (onLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)') : muted;
         for (const line of b.sub) {
           g.fillText(line, X(n.x), y + b.subLine * s / 2);
           y += b.subLine * s;

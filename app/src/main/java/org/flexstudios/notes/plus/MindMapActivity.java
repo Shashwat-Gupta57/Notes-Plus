@@ -229,7 +229,9 @@ public class MindMapActivity extends NoteActivity {
         }
         labels.add(node.sub.isEmpty() ? "Add sub-text" : "Edit sub-text");
         actions.add(() -> editSub(node));
-        labels.add("Colour");
+        labels.add("Idea colour");
+        actions.add(() -> pickFill(node));
+        labels.add("Branch colour");
         actions.add(() -> pickColor(node));
         labels.add(node.image == null ? "Add a picture…" : "Change picture…");
         actions.add(() -> choosePicture(node));
@@ -335,6 +337,22 @@ public class MindMapActivity extends NoteActivity {
         });
     }
 
+    /** The idea's own colour, filling it; its lines keep theirs. */
+    private void pickFill(NoteData.MindNode node) {
+        String[] colorNames = {"Blue", "Green", "Orange", "Purple", "Red", "Teal", "Grey"};
+        String[] names = new String[colorNames.length + 1];
+        names[0] = node.parent < 0 ? "Yellow (default)" : "None (default)";
+        System.arraycopy(colorNames, 0, names, 1, colorNames.length);
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Idea colour")
+                .setSingleChoiceItems(names, node.fill, (d, which) -> {
+                    node.fill = which;
+                    map.refresh();
+                    d.dismiss();
+                })
+                .show();
+    }
+
     /** Sub-text: more about an idea, shown smaller under it. Empty removes it. */
     private void editSub(NoteData.MindNode node) {
         Prompts.text(this, "Sub-text", null, "More about this idea", node.sub,
@@ -345,13 +363,14 @@ public class MindMapActivity extends NoteActivity {
                 }, null);
     }
 
+    /** The colour of the lines out of an idea (and its outline); on a central idea, its branches'. */
     private void pickColor(NoteData.MindNode node) {
         String[] colorNames = {"Blue", "Green", "Orange", "Purple", "Red", "Teal", "Grey"};
         String[] names = new String[colorNames.length + 1];
-        names[0] = node.parent < 0 ? "Yellow (default)" : "Same as its branch";
+        names[0] = node.parent < 0 ? "Each branch its own (default)" : "Same as the branch it's on";
         System.arraycopy(colorNames, 0, names, 1, colorNames.length);
         new MaterialAlertDialogBuilder(this)
-                .setTitle("Colour")
+                .setTitle("Branch colour")
                 .setSingleChoiceItems(names, node.color, (d, which) -> {
                     node.color = which;
                     map.refresh();
@@ -936,7 +955,9 @@ public class MindMapActivity extends NoteActivity {
             int i = 0;
             for (NoteData.MindNode n : model.nodes) {
                 if (centres.contains(n.parent)) {
-                    int index = n.color > 0 ? n.color - 1 : i % (PALETTE.length - 1);
+                    NoteData.MindNode centre = byId.get(n.parent);
+                    int index = n.color > 0 ? n.color - 1
+                            : centre != null && centre.color > 0 ? centre.color - 1 : i % (PALETTE.length - 1);
                     colorOf.put(n.id, ContextCompat.getColor(getContext(), PALETTE[index]));
                     i++;
                 }
@@ -1086,9 +1107,11 @@ public class MindMapActivity extends NoteActivity {
         private Block block(NoteData.MindNode n) {
             boolean isRoot = n.parent < 0;
             Context c = getContext();
-            int titleColor = isRoot ? ContextCompat.getColor(c, R.color.black)
+            int filled = fillOf(n);
+            boolean light = filled != 0 && light(filled);
+            int titleColor = filled != 0 ? (light ? 0xFF000000 : 0xFFFFFFFF)
                     : ContextCompat.getColor(c, n.text.isEmpty() ? R.color.text_secondary : R.color.text_primary);
-            int subColor = isRoot ? 0xB3000000 : ContextCompat.getColor(c, R.color.text_secondary);
+            int subColor = filled != 0 ? (light ? 0xB3000000 : 0xD9FFFFFF) : ContextCompat.getColor(c, R.color.text_secondary);
             String label = label(n);
             String key = label + '\u0000' + n.sub + '\u0000' + model.wrap + isRoot + titleColor + '/' + subColor;
             Block b = blocks.get(n.id);
@@ -1114,6 +1137,18 @@ public class MindMapActivity extends NoteActivity {
             b.h = b.title.getHeight() + (b.sub == null ? 0 : SUB_GAP_DP * density + b.sub.getHeight());
             blocks.put(n.id, b);
             return b;
+        }
+
+        /** The idea's own colour (a central idea: yellow unless given one), or 0 when it has none. */
+        private int fillOf(NoteData.MindNode n) {
+            if (n.fill > 0 && n.fill <= PALETTE.length) return ContextCompat.getColor(getContext(), PALETTE[n.fill - 1]);
+            return n.parent < 0 ? ContextCompat.getColor(getContext(), R.color.brand_yellow) : 0;
+        }
+
+        /** Light enough for black words on it. */
+        private static boolean light(int c) {
+            return (0.299 * android.graphics.Color.red(c) + 0.587 * android.graphics.Color.green(c)
+                    + 0.114 * android.graphics.Color.blue(c)) / 255 > 0.62;
         }
 
         private static float widest(String text, TextPaint paint) {
@@ -1251,12 +1286,13 @@ public class MindMapActivity extends NoteActivity {
                 Integer color = colorOf.get(n.id);
                 float maxRadius = (isRoot ? 24 : 18) * density * s;
                 float radius = n.image != null ? Math.min(rect.height() / 2, 16 * density * s) : Math.min(rect.height() / 2, maxRadius);
+                int filled = fillOf(n);
                 if (isRoot) {
-                    fill.setColor(n.color > 0 ? ContextCompat.getColor(c, PALETTE[n.color - 1])
-                            : ContextCompat.getColor(c, R.color.brand_yellow));
+                    fill.setColor(filled);
                     canvas.drawRoundRect(rect, radius, radius, fill);
                 } else {
-                    fill.setColor(surface);
+                    // Its own colour fills it; the outline stays its branch's.
+                    fill.setColor(filled != 0 ? filled : surface);
                     canvas.drawRoundRect(rect, radius, radius, fill);
                     stroke.setColor(color == null ? muted : color);
                     stroke.setStrokeWidth(Math.max(1f, 2f * s) * density);

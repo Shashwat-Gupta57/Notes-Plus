@@ -20,3 +20,5 @@ local.properties
 
 # Firebase rules and secrets
 database.rules.json
+#idiotic amounts of files
+node_modules

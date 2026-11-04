@@ -182,8 +182,16 @@ final class NoteData {
         long parent; // -1 for the root
         String text;
         float x, y;
-        /** 0 inherits the branch colour; otherwise 1 + an index into MindMapView's palette. */
+        /**
+         * The colour of the idea's branch (the lines out of it and its outline): 0 inherits; otherwise
+         * 1 + an index into MindMapView's palette. On a central idea: its first-level branches.
+         */
         int color;
+        /**
+         * The idea's own colour, filling it: 0 none (a central idea is yellow); otherwise 1 + an index
+         * into the same palette. Older maps coloured a central idea with {@code color}: read as its fill.
+         */
+        int fill;
         /** Children hidden behind a "+N" badge. */
         boolean collapsed;
         /** Id of another note this idea opens, or 0. Row ids differ per phone, so... */
@@ -230,6 +238,7 @@ final class NoteData {
             MindNode n = new MindNode(o.optLong("id"), o.optLong("parent", -1), o.optString("text", ""),
                     (float) o.optDouble("x", 0), (float) o.optDouble("y", 0));
             n.color = o.optInt("color", 0);
+            n.fill = o.has("fill") ? o.optInt("fill", 0) : n.parent < 0 ? n.color : 0;
             n.collapsed = o.optBoolean("collapsed", false);
             n.link = o.optInt("link", 0);
             n.linkUuid = o.optString("linkUuid", "").isEmpty() ? null : o.optString("linkUuid");
@@ -254,6 +263,7 @@ final class NoteData {
                 JSONObject o = new JSONObject().put("id", n.id).put("parent", n.parent).put("text", n.text)
                         .put("x", Math.round(n.x * 10) / 10.0).put("y", Math.round(n.y * 10) / 10.0);
                 if (n.color != 0) o.put("color", n.color);
+                if (n.fill != 0 || (n.parent < 0 && n.color != 0)) o.put("fill", n.fill);
                 if (n.collapsed) o.put("collapsed", true);
                 if (n.link != 0) o.put("link", n.link);
                 if (n.linkUuid != null) o.put("linkUuid", n.linkUuid);

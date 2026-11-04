@@ -219,6 +219,12 @@ everything the newest one held), and `CloudSync.pullThenPush` ("Sync now", and a
 same store read-only (`app/js/gallery.js`, same left-swipe gesture): keyring → data key → newest
 restore point; it never writes and keeps nothing.
 
+**Mind map colours**: `MindNode.color` is the idea's *branch* colour (its lines and outline, inherited
+downwards; on a central idea, its first-level branches), `MindNode.fill` its own colour, filling it (a central
+idea is yellow without one). Maps from before 19.0 coloured a central idea with `color` only: `NoteData.mindMap`
+reads that as its `fill`, and a central idea with a `color` always writes `fill` (even 0) so it isn't read again.
+Words on a filled idea are black or white by its brightness. Same on the desktop and the web (`mindmap-draw.js`).
+The desktop also selects ideas together (Ctrl+drag, Ctrl+click) and acts on them at once (`MindMapCanvas.group`).
 **Mind maps** may have several central ideas (`parent < 0`); each is the top of its own tree and
 never becomes another's idea (`roots()`, `rootOf()`, `canRemove()`); tidy stacks the trees.
 **Theme** (`AppTheme`, `app_theme`): system / light / dark via `AppCompatDelegate`.

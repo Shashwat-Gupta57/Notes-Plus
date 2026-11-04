@@ -10,7 +10,7 @@
 //   Live data             database, sign-in, Drive, version.json: never cached.
 //
 // Bump CACHE_NAME with every release (docs/Push to production.md), so the new files replace the old.
-const CACHE_NAME = 'notes-plus-pwa-v19.0';
+const CACHE_NAME = 'notes-plus-pwa-v19.4';
 
 const SHELL_ASSETS = [
   './',
@@ -19,7 +19,7 @@ const SHELL_ASSETS = [
   './manifest.webmanifest',
   ...['account-ui', 'account', 'db', 'drive', 'due', 'ed-audio', 'ed-mindmap', 'ed-sketch', 'ed-text', 'editor',
     'gallery', 'home', 'importexport', 'interchange', 'links', 'notelinks', 'lock', 'main', 'md', 'mindmap-draw', 'model', 'palette', 'rich', 'share-ui',
-    'masonry', 'search', 'sync', 'templates', 'theme', 'ui', 'zip'].map(m => `./js/${m}.js`),
+    'masonry', 'reminders', 'search', 'sync', 'templates', 'theme', 'ui', 'zip'].map(m => `./js/${m}.js`),
   '../res/notes_icon.png',
   '../res/icon-192.png',
   '../res/icon-512.png',
@@ -102,4 +102,22 @@ self.addEventListener('fetch', event => {
     if (cached) event.waitUntil(fresh.catch(() => {}));
     return cached || fresh;
   }));
+});
+
+// A reminder clicked: the app forward (or opened), on that list.
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const uuid = event.notification.data && event.notification.data.uuid;
+  const url = new URL('./' + (uuid ? '#/n/' + uuid : ''), self.registration.scope).href;
+  event.waitUntil((async () => {
+    const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of open) {
+      if (c.url.startsWith(self.registration.scope)) {
+        await c.focus();
+        if (uuid) c.navigate(url).catch(() => {});
+        return;
+      }
+    }
+    await self.clients.openWindow(url);
+  })());
 });

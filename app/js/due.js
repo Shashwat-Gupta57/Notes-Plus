@@ -158,12 +158,31 @@ export function urgent(items, now) {
   let best = null;
   for (const item of items) {
     if (status(item, now) < LATER) continue;
-    if (!best || day(item.due) < day(best.due)) best = item;
+    if (!best || moment(item) < moment(best)) best = item;
   }
   return best;
 }
 
+/** Minutes from day 0 to an item's moment: its day, then its time (no time: the day's end). */
+function moment(item) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(item.time || '');
+  return day(item.due) * (24 * 60 + 1) + (m ? Number(m[1]) * 60 + Number(m[2]) : 24 * 60);
+}
+
 export const anyDated = items => items.some(dated);
+
+/** When a reminder comes on its day with no time set: 9:00. */
+export const REMIND_DEFAULT_MINUTE = 9 * 60;
+
+/** Whether an item reminds: a day, words, still to do (a ticked repeating item: on its next day). */
+export const remindable = item => dated(item) && !!(item.text || '').trim() && (!item.done || repeats(item));
+
+/** Minutes into its day that an item reminds: its time, or 9:00. */
+export function remindMinute(item) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(item.time || '');
+  const v = m ? Number(m[1]) * 60 + Number(m[2]) : -1;
+  return v >= 0 && v < 24 * 60 ? v : REMIND_DEFAULT_MINUTE;
+}
 
 // ------------------------------------------------------------------- edits from the picker
 

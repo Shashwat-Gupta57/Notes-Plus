@@ -7,6 +7,7 @@
 import { h, icon, iconButton, toast, choices, dialog } from './ui.js';
 import { richEditor } from './rich.js';
 import * as due from './due.js';
+import * as reminders from './reminders.js';
 import * as noteLinks from './notelinks.js';
 import { TEXT, LIST, JOURNAL, PICTURE_LINE, todos, todosJson, wraps, journal, journalJson, MOODS, mediaName, isVideo, dayStart } from './model.js';
 
@@ -479,6 +480,7 @@ export function listEditor(ctx) {
 
   /** An item's day, time and repeat, dropping from its clock or pill: every click applies at once. */
   function openDue(item, anchor, showDue) {
+    reminders.askIfNeeded(); // A day means a reminder: notifications have to be allowed (asked on this click).
     document.querySelectorAll('.due-pop').forEach(p => p._close());
     const now = due.today(), wd = due.weekday(now);
     const quick = [[now, 'Today'], [now + 1, 'Tomorrow'], [wd >= 6 ? now : now + (6 - wd), 'This weekend'], [now + (8 - wd), 'Next week']];

@@ -15,7 +15,10 @@ function light(color) {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62;
 }
 /** An idea's own colour (a central idea: yellow unless given one), or null. */
-const fillOf = n => (n.fill > 0 && n.fill <= PALETTE.length ? css(PALETTE[n.fill - 1]) : n.parent < 0 ? css('brand') : null);
+// Ideas' own colours: the palette's hues, darker and calmer, so white words read well on every one
+// (4.5:1 or better), in either theme. Same values on the phone and the desktop.
+export const FILLS = ['#2F5FA8', '#2E7D4F', '#A5561C', '#6B4FA8', '#A63A3A', '#23767E', '#5E6066'];
+const fillOf = n => (n.fill > 0 && n.fill <= FILLS.length ? FILLS[n.fill - 1] : n.parent < 0 ? css('brand') : null);
 const fontOf = (root, size) => `${root ? 'bold ' : ''}${size}px Roboto, system-ui, sans-serif`;
 
 let measureCtx = null;

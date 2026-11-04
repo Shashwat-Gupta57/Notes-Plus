@@ -10,6 +10,7 @@
 
 import * as account from './account.js';
 import * as sync from './sync.js';
+import * as reminders from './reminders.js';
 import { hasModal, closeTop, toast, dialog, button, h } from './ui.js';
 import { homeScreen } from './home.js';
 import { accountScreen, VERSION } from './account-ui.js';
@@ -327,6 +328,7 @@ export async function promptPwaInstall() {
 async function boot() {
   route();
   checkForWebUpdate();
+  reminders.start(uuid => go('#/n/' + uuid)); // List items' reminders, while the app is open.
   // Back online: an account that couldn't load offline comes back, and what was saved here syncs.
   window.addEventListener('online', async () => {
     await account.restore();

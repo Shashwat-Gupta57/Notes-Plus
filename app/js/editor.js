@@ -8,7 +8,8 @@ import * as sync from './sync.js';
 import * as account from './account.js';
 import * as links from './links.js';
 import * as noteLinks from './notelinks.js';
-import { h, icon, iconButton, toast, dialog, confirm, menu, pickColor, askLock, newLock, choices } from './ui.js';
+import { h, icon, iconButton, toast, dialog, confirm, menu, pickColor, askLock, newLock, choices, prompt } from './ui.js';
+import * as templates from './templates.js';
 import { newNote, kind, tint, COLOR_NAMES, SKETCH, AUDIO } from './model.js';
 
 const state = n => [n.title, n.content, n.data, n.color, n.pinned, n.sketch || ''].join('\u0000');
@@ -263,6 +264,21 @@ export async function openEditor({ uuid, type }, implFor, go) {
       }
       if (account.uid() && !key && note.type !== AUDIO) {
         items.push({ text: 'Share link…', onClick: async () => { await (saving = saving.then(save)); links.sheet(await db.getNote(note.uuid) || note); } });
+      }
+      if (!key && templates.canSave(note)) {
+        // The note as it is on screen (saved first) becomes a template under New.
+        items.push({ text: 'Save as template…', onClick: () => prompt({
+          title: 'Save as template',
+          message: 'A copy of this note that new notes can start from, under New. Ticks, one-off dates and pictures are left out.',
+          hint: 'Template name', value: note.title || kind(note.type).label, ok: 'Save',
+          onOk: async v => {
+            await (saving = saving.then(save));
+            const saved = await db.getNote(note.uuid) || note;
+            await db.putNote(templates.copyOf(saved, v.trim() || saved.title, true, account.uid()));
+            sync.schedule();
+            toast('Saved as a template. Find it under New or the Templates filter.');
+          },
+        }) });
       }
       items.push({ text: 'Delete', danger: true, onClick: () => confirm('Delete this note?', null, 'Delete', () => remove(), true) });
     }

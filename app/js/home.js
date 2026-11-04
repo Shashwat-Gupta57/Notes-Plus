@@ -259,8 +259,10 @@ export function homeScreen(go) {
     }
     // From a template: one row each, under the kinds.
     const tpls = templates.of(notes);
-    if (tpls.length) {
-      list.appendChild(h('div.kind-heading', 'From a template'));
+    list.appendChild(h('div.kind-heading', 'From a template'));
+    // Always here, so templates can be found: how to make the first one.
+    if (!tpls.length) list.appendChild(h('p.kind-hint', 'No templates yet. Open a note, list, journal or mind map and choose “Save as template…” from its ⋮ menu (or right-click its card).'));
+    else {
       for (const t of tpls) {
         const k = kind(t.type);
         list.appendChild(h('button.kind', { type: 'button', onClick: () => { d.close(); newFromTemplate(t); } },

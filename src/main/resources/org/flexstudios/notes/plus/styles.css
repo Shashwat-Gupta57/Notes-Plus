@@ -277,6 +277,7 @@
 .menu-row.danger .label { -fx-text-fill: -np-destructive; }
 .menu-row.danger:hover { -fx-background-color: rgba(255, 59, 48, 0.12); }
 .menu-divider { -fx-min-height: 1; -fx-max-height: 1; -fx-background-color: -np-divider; -fx-opacity: 0.7; }
+.menu-heading { -fx-font-size: 12.5px; -fx-font-weight: bold; -fx-text-fill: -np-text-secondary; -fx-padding: 6 12 6 12; }
 
 .outlined-field {
     -fx-background-color: transparent;

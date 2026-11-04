@@ -69,10 +69,15 @@ final class MindMapEditor extends NoteEditor {
             public void onStateChanging() {
                 pushUndo();
             }
+
+            @Override
+            public void onGroupOptions(List<NoteData.MindNode> nodes, double sceneX, double sceneY) {
+                showGroupOptions(nodes, sceneX, sceneY);
+            }
         };
         map.addEventFilter(KeyEvent.KEY_PRESSED, this::mapKeys);
 
-        Label hint = Ui.label("Tab child  ·  Enter sibling  ·  Shift+Enter subtext  ·  Space fold  ·  Ctrl+Z undo  ·  Ctrl+K connect  ·  Double-click rename",
+        Label hint = Ui.label("Tab child  ·  Enter sibling  ·  Shift+Enter subtext  ·  Space fold  ·  Ctrl+Z undo  ·  Ctrl+K connect  ·  Ctrl+drag select  ·  Double-click rename",
                 12, "secondary");
         hint.setOpacity(0.6);
         hint.setMouseTransparent(true);
@@ -263,6 +268,16 @@ final class MindMapEditor extends NoteEditor {
     private void mapKeys(KeyEvent e) {
         if (readOnly) return;
         NoteData.MindNode selected = map.selected();
+        List<NoteData.MindNode> group = map.group();
+        if (e.getCode() == KeyCode.ESCAPE && map.dropGroup()) {
+            e.consume();
+            return;
+        }
+        if (!group.isEmpty() && !readOnly && (e.getCode() == KeyCode.DELETE || e.getCode() == KeyCode.BACK_SPACE)) {
+            e.consume();
+            deleteGroup(group);
+            return;
+        }
         if (e.isShortcutDown() && e.getCode() == KeyCode.Z) {
             e.consume();
             if (e.isShiftDown()) redo();
@@ -455,6 +470,63 @@ final class MindMapEditor extends NoteEditor {
             actions.add(() -> map.removeBranch(node));
         }
         Ui.dialog().title(node.text.isEmpty() ? "Idea" : node.text).items(labels, actions).show();
+    }
+
+    /**
+     * Right-click on ideas selected together (Ctrl+drag): what can be done to all of them at once,
+     * each one step for Ctrl+Z.
+     */
+    private void showGroupOptions(List<NoteData.MindNode> nodes, double sceneX, double sceneY) {
+        if (readOnly || nodes.size() < 2) return;
+        List<String> labels = new ArrayList<>();
+        List<Runnable> actions = new ArrayList<>();
+        labels.add("Colour…");
+        actions.add(() -> pickGroupColor(nodes));
+        labels.add("Connect all to another idea…");
+        actions.add(() -> {
+            map.startConnectingGroup(nodes);
+            Ui.snackbar("Click the idea to connect them to", Ui.LONG, "Cancel", () -> map.startConnectingGroup(null), null);
+        });
+        boolean pictures = false;
+        for (NoteData.MindNode n : nodes) pictures |= n.image != null;
+        if (map.anyCrossLinks(nodes)) {
+            labels.add("Remove their connections");
+            actions.add(() -> map.removeCrossLinksOf(nodes));
+        }
+        if (pictures) {
+            labels.add("Remove their pictures");
+            actions.add(() -> {
+                pushUndo();
+                for (NoteData.MindNode n : nodes) n.image = null;
+                map.selectGroup(nodes);
+                map.refresh();
+            });
+        }
+        labels.add("Delete " + nodes.size() + " ideas");
+        actions.add(() -> deleteGroup(nodes));
+        Ui.menuAt(sceneX, sceneY, nodes.size() + " ideas selected", labels, actions);
+    }
+
+    /** Deletes ideas selected together, with everything under them; Ctrl+Z brings them back. */
+    private void deleteGroup(List<NoteData.MindNode> nodes) {
+        int gone = map.removeAll(nodes);
+        if (gone > 0) Ui.snackbar(gone == 1 ? "1 idea deleted" : gone + " ideas deleted", Ui.SHORT, "Undo", this::undo, null);
+        map.requestFocus();
+    }
+
+    private void pickGroupColor(List<NoteData.MindNode> nodes) {
+        String[] colorNames = {"Blue", "Green", "Orange", "Purple", "Red", "Teal", "Grey"};
+        String[] names = new String[colorNames.length + 1];
+        names[0] = "Same as their branches";
+        System.arraycopy(colorNames, 0, names, 1, colorNames.length);
+        int common = nodes.get(0).color;
+        for (NoteData.MindNode n : nodes) if (n.color != common) common = -1;
+        Ui.dialog().title("Colour of " + nodes.size() + " ideas").singleChoice(names, common, which -> {
+            pushUndo();
+            for (NoteData.MindNode n : nodes) n.color = which;
+            map.selectGroup(nodes);
+            map.refresh();
+        }).show();
     }
 
     /** Sub-text: more about an idea, shown smaller under it. Empty removes it. */

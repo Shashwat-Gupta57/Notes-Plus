@@ -575,6 +575,7 @@ final class Ui {
         if (l.startsWith("open in")) return Icons.OPEN_IN_NEW;
         if (l.startsWith("pin") || l.startsWith("unpin")) return Icons.PIN;
         if (l.startsWith("colour")) return Icons.PALETTE;
+        if (l.startsWith("connect")) return Icons.LINK;
         if (l.contains("archive")) return Icons.ARCHIVE;
         if (l.contains("template")) return Icons.TEMPLATE;
         if (l.startsWith("hide") || l.startsWith("unhide")) return Icons.LOCK;
@@ -583,10 +584,59 @@ final class Ui {
 
     /** The toolbar's overflow menu, dropping from {@code anchor}'s top-right corner. */
     static void menu(Node anchor, List<String> labels, List<Runnable> actions) {
+        Modal[] self = new Modal[1];
+        VBox box = menuBox(null, labels, actions, self);
+        Bounds b = layer.sceneToLocal(anchor.localToScene(anchor.getBoundsInLocal()));
+        StackPane.setMargin(box, new Insets(b.getMinY() + 4, Math.max(8, layer.getWidth() - b.getMaxX() + 4), 0, 0));
+        self[0] = present(box, Pos.TOP_RIGHT, false, null);
+        box.setOpacity(0);
+        box.setScaleY(0.8);
+        box.setTranslateY(-12);
+        FadeTransition fade = new FadeTransition(Duration.millis(120), box);
+        fade.setToValue(1);
+        ScaleTransition grow = new ScaleTransition(Duration.millis(150), box);
+        grow.setToY(1);
+        TranslateTransition drop = new TranslateTransition(Duration.millis(150), box);
+        drop.setToY(0);
+        new ParallelTransition(fade, grow, drop).play();
+    }
+
+    /**
+     * A right-click menu at the pointer ({@code sceneX}, {@code sceneY}), kept inside the window,
+     * styled like the overflow menu; {@code heading} (optional) says what it acts on.
+     */
+    static void menuAt(double sceneX, double sceneY, String heading, List<String> labels, List<Runnable> actions) {
+        Modal[] self = new Modal[1];
+        VBox box = menuBox(heading, labels, actions, self);
+        self[0] = present(box, Pos.TOP_LEFT, false, null);
+        box.applyCss();
+        double w = box.prefWidth(-1), h = box.prefHeight(w);
+        javafx.geometry.Point2D at = layer.sceneToLocal(sceneX, sceneY);
+        double left = Math.max(8, Math.min(at.getX() + 2, layer.getWidth() - w - 8));
+        double top = at.getY() + 2 + h <= layer.getHeight() - 8 ? at.getY() + 2 : Math.max(8, at.getY() - h - 2);
+        StackPane.setMargin(box, new Insets(top, 0, 0, left));
+        box.setOpacity(0);
+        box.setScaleX(0.94);
+        box.setScaleY(0.94);
+        FadeTransition fade = new FadeTransition(Duration.millis(110), box);
+        fade.setToValue(1);
+        ScaleTransition grow = new ScaleTransition(Duration.millis(140), box);
+        grow.setToX(1);
+        grow.setToY(1);
+        grow.setInterpolator(Interpolator.EASE_OUT);
+        new ParallelTransition(fade, grow).play();
+    }
+
+    /** A menu's card: an optional heading, then a row per item (icons, the red ones under a line). */
+    private static VBox menuBox(String heading, List<String> labels, List<Runnable> actions, Modal[] self) {
         VBox box = new VBox();
         box.getStyleClass().add("menu-popup");
         box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
-        Modal[] self = new Modal[1];
+        if (heading != null) {
+            Label head = new Label(heading);
+            head.getStyleClass().add("menu-heading");
+            box.getChildren().add(head);
+        }
         boolean icons = false;
         for (String l : labels) icons |= menuIcon(l) != null;
         boolean divided = false;
@@ -619,19 +669,7 @@ final class Ui {
             });
             box.getChildren().add(row);
         }
-        Bounds b = layer.sceneToLocal(anchor.localToScene(anchor.getBoundsInLocal()));
-        StackPane.setMargin(box, new Insets(b.getMinY() + 4, Math.max(8, layer.getWidth() - b.getMaxX() + 4), 0, 0));
-        self[0] = present(box, Pos.TOP_RIGHT, false, null);
-        box.setOpacity(0);
-        box.setScaleY(0.8);
-        box.setTranslateY(-12);
-        FadeTransition fade = new FadeTransition(Duration.millis(120), box);
-        fade.setToValue(1);
-        ScaleTransition grow = new ScaleTransition(Duration.millis(150), box);
-        grow.setToY(1);
-        TranslateTransition drop = new TranslateTransition(Duration.millis(150), box);
-        drop.setToY(0);
-        new ParallelTransition(fade, grow, drop).play();
+        return box;
     }
 
     /**

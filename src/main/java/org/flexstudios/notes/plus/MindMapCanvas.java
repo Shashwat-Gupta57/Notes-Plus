@@ -32,6 +32,8 @@ import java.util.Set;
  *
  * Click selects, double-click renames (on empty space: shows everything), drag moves an idea,
  * dragging empty space pans, the wheel or a pinch zooms, right-click opens the idea's options.
+ * Ctrl+drag draws a selection rectangle and Ctrl+click adds or takes away one idea: the ideas
+ * selected together move together, and right-click on one of them opens what can be done to all.
  * Non-interactive, it only draws, fitted to its bounds: the overview on a note's card.
  */
 final class MindMapCanvas extends Region {
@@ -49,6 +51,9 @@ final class MindMapCanvas extends Region {
         void onConnected();
 
         default void onStateChanging() {}
+
+        /** Right-click on ideas selected together: what can be done to all of them, at the pointer. */
+        default void onGroupOptions(List<NoteData.MindNode> nodes, double sceneX, double sceneY) {}
     }
 
     static final String[] PALETTE = {"tile_blue", "tile_green", "tile_orange", "tile_purple", "tile_red",
@@ -69,6 +74,15 @@ final class MindMapCanvas extends Region {
     private long selectedId = -1;
     private NoteData.MindNode connectFrom;
     private NoteData.MindNode dragging;
+    /** Ideas selected together (two or more; one is just the selection). */
+    private final Set<Long> group = new java.util.LinkedHashSet<>();
+    /** Ctrl+drag: the selection rectangle, from (mx0, my0) to (mx1, my1), on screen. */
+    private boolean marquee;
+    private double mx0, my0, mx1, my1;
+    /** Dragging one of the ideas selected together moves them all. */
+    private boolean groupDrag;
+    /** "Connect all to…": these ideas, waiting for the idea they connect to. */
+    private List<NoteData.MindNode> connectGroup;
     private double lastX, lastY, downX, downY;
     private boolean moved;
     private boolean dragRecorded;
@@ -118,6 +132,10 @@ final class MindMapCanvas extends Region {
                 NoteData.MindNode hit = hit(e.getX(), e.getY());
                 if (hit == null || listener == null || locked) return;
                 dragging = null;
+                if (group.size() > 1 && group.contains(hit.id)) {
+                    listener.onGroupOptions(group(), e.getSceneX(), e.getSceneY());
+                    return;
+                }
                 select(hit);
                 listener.onOptions(hit);
             });
@@ -153,6 +171,8 @@ final class MindMapCanvas extends Region {
 
     void setMap(NoteData.MindMap map) {
         model = map;
+        group.clear();
+        connectGroup = null;
         blocks.clear();
         fitted = false;
         refresh();
@@ -232,7 +252,97 @@ final class MindMapCanvas extends Region {
 
     void select(NoteData.MindNode node) {
         selectedId = node == null ? -1 : node.id;
+        group.clear();
         draw();
+    }
+
+    /** The ideas selected together, in map order (empty unless two or more are). */
+    List<NoteData.MindNode> group() {
+        List<NoteData.MindNode> out = new ArrayList<>();
+        for (NoteData.MindNode n : model.nodes) if (group.contains(n.id) && !hidden.contains(n.id)) out.add(n);
+        return out.size() > 1 ? out : new ArrayList<>();
+    }
+
+    /** Selects these ideas together (one or none: just the selection). */
+    void selectGroup(java.util.Collection<NoteData.MindNode> nodes) {
+        group.clear();
+        for (NoteData.MindNode n : nodes) group.add(n.id);
+        if (group.size() == 1) {
+            selectedId = group.iterator().next();
+            group.clear();
+        } else {
+            selectedId = -1;
+        }
+        draw();
+    }
+
+    /**
+     * Deletes these ideas and everything under them, as one step. A map always keeps a central
+     * idea: when every one would go, the first stays (with its ideas that weren't chosen).
+     */
+    int removeAll(java.util.Collection<NoteData.MindNode> nodes) {
+        Set<Long> chosen = new HashSet<>();
+        for (NoteData.MindNode n : nodes) chosen.add(n.id);
+        List<NoteData.MindNode> roots = roots();
+        boolean allRoots = !roots.isEmpty();
+        for (NoteData.MindNode r : roots) allRoots &= chosen.contains(r.id);
+        if (allRoots) chosen.remove(roots.get(0).id);
+        if (chosen.isEmpty()) return 0;
+        if (listener != null) listener.onStateChanging();
+        Set<Long> doomed = new HashSet<>(chosen);
+        boolean grew = true;
+        while (grew) {
+            grew = false;
+            for (NoteData.MindNode n : model.nodes) {
+                if (!doomed.contains(n.id) && doomed.contains(n.parent)) {
+                    doomed.add(n.id);
+                    grew = true;
+                }
+            }
+        }
+        int before = model.nodes.size();
+        model.nodes.removeIf(n -> doomed.contains(n.id));
+        model.links.removeIf(l -> doomed.contains(l[0]) || doomed.contains(l[1]));
+        selectedId = -1;
+        group.clear();
+        refresh();
+        return before - model.nodes.size();
+    }
+
+    /** Whether any of these ideas is connected to another (beyond its branch). */
+    boolean anyCrossLinks(java.util.Collection<NoteData.MindNode> nodes) {
+        for (NoteData.MindNode n : nodes) if (hasCrossLinks(n)) return true;
+        return false;
+    }
+
+    /** Takes away every connection these ideas have, as one step. */
+    void removeCrossLinksOf(java.util.Collection<NoteData.MindNode> nodes) {
+        Set<Long> ids = new HashSet<>();
+        for (NoteData.MindNode n : nodes) ids.add(n.id);
+        if (listener != null) listener.onStateChanging();
+        model.links.removeIf(l -> ids.contains(l[0]) || ids.contains(l[1]));
+        draw();
+    }
+
+    /** The next idea clicked gets a connection from each of these. */
+    void startConnectingGroup(List<NoteData.MindNode> nodes) {
+        connectGroup = nodes == null || nodes.isEmpty() ? null : nodes;
+        connectFrom = null;
+        draw();
+    }
+
+    private void connectAll(List<NoteData.MindNode> from, NoteData.MindNode to) {
+        boolean changed = false;
+        for (NoteData.MindNode a : from) {
+            if (a == to) continue;
+            boolean exists = false;
+            for (long[] l : model.links) exists |= (l[0] == a.id && l[1] == to.id) || (l[0] == to.id && l[1] == a.id);
+            if (exists) continue;
+            if (!changed && listener != null) listener.onStateChanging();
+            changed = true;
+            model.links.add(new long[]{a.id, to.id});
+        }
+        if (changed && listener != null) listener.onConnected();
     }
 
     boolean hasChildren(NoteData.MindNode node) {
@@ -355,6 +465,7 @@ final class MindMapCanvas extends Region {
 
     void startConnecting(NoteData.MindNode from) {
         connectFrom = from;
+        connectGroup = null;
         draw();
     }
 
@@ -812,6 +923,17 @@ final class MindMapCanvas extends Region {
         g.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
         if (interactive) drawGrid(g);
         drawMap(g, scale, tx, ty, interactive);
+        if (marquee && moved) {
+            // The selection rectangle: Windows' translucent box, in the accent colour.
+            Color accent = Theme.color("accent_blue");
+            double x = Math.min(mx0, mx1), y = Math.min(my0, my1), w = Math.abs(mx1 - mx0), h = Math.abs(my1 - my0);
+            g.setFill(Color.color(accent.getRed(), accent.getGreen(), accent.getBlue(), 0.16));
+            g.fillRect(x, y, w, h);
+            g.setStroke(Color.color(accent.getRed(), accent.getGreen(), accent.getBlue(), 0.85));
+            g.setLineWidth(1);
+            g.setLineDashes((double[]) null);
+            g.strokeRect(Math.round(x) + 0.5, Math.round(y) + 0.5, Math.round(w), Math.round(h));
+        }
     }
 
     /** A quiet dot grid that moves with the map, so panning feels physical. */
@@ -889,8 +1011,9 @@ final class MindMapCanvas extends Region {
                 g.setLineWidth(Math.max(1, 2 * s));
                 g.strokeRoundRect(rl, rt, w, h, radius * 2, radius * 2);
             }
-            if (decorations && (n.id == selectedId || n == connectFrom)) {
-                g.setStroke(n == connectFrom ? Theme.color("tile_orange") : accent);
+            boolean waiting = n == connectFrom || (connectGroup != null && connectGroup.contains(n));
+            if (decorations && (n.id == selectedId || waiting || group.contains(n.id) || inMarquee(n))) {
+                g.setStroke(waiting ? Theme.color("tile_orange") : accent);
                 g.setLineWidth(3);
                 double grow = 4;
                 g.strokeRoundRect(rl - grow, rt - grow, w + grow * 2, h + grow * 2, (radius + grow) * 2, (radius + grow) * 2);
@@ -986,12 +1109,51 @@ final class MindMapCanvas extends Region {
         lastY = downY = e.getY();
         moved = false;
         dragRecorded = false;
+        marquee = false;
+        // Ctrl held: a selection rectangle (or, without moving, Ctrl+click adds or takes away one idea).
+        if (e.isShortcutDown() && !locked && connectFrom == null && connectGroup == null) {
+            marquee = true;
+            mx0 = mx1 = e.getX();
+            my0 = my1 = e.getY();
+            return;
+        }
+        groupDrag = dragging != null && group.size() > 1 && group.contains(dragging.id);
+    }
+
+    /** Whether the selection rectangle being drawn touches this idea. */
+    private boolean inMarquee(NoteData.MindNode n) {
+        if (!marquee || !moved) return false;
+        bounds(n, scale, tx, ty);
+        return rr >= Math.min(mx0, mx1) && rl <= Math.max(mx0, mx1) && rb >= Math.min(my0, my1) && rt <= Math.max(my0, my1);
+    }
+
+    /** Ctrl let go: the rectangle's ideas join the ones already selected; a Ctrl+click toggles one. */
+    private void endMarquee(MouseEvent e) {
+        Set<Long> next = new java.util.LinkedHashSet<>(group);
+        if (next.isEmpty() && selected() != null) next.add(selectedId);
+        if (moved) {
+            for (NoteData.MindNode n : model.nodes) if (!hidden.contains(n.id) && inMarquee(n)) next.add(n.id);
+        } else {
+            NoteData.MindNode hit = hit(e.getX(), e.getY());
+            if (hit != null && !next.remove(hit.id)) next.add(hit.id);
+        }
+        marquee = false;
+        List<NoteData.MindNode> nodes = new ArrayList<>();
+        for (NoteData.MindNode n : model.nodes) if (next.contains(n.id)) nodes.add(n);
+        selectGroup(nodes);
     }
 
     private void dragged(MouseEvent e) {
         if (e.getButton() != MouseButton.PRIMARY) return;
         if (!moved && Math.hypot(e.getX() - downX, e.getY() - downY) < 4) return;
         moved = true;
+        if (marquee) {
+            mx1 = e.getX();
+            my1 = e.getY();
+            setCursor(Cursor.CROSSHAIR);
+            draw();
+            return;
+        }
         if (!dragRecorded && dragging != null) {
             dragRecorded = true;
             if (listener != null) listener.onStateChanging();
@@ -999,7 +1161,10 @@ final class MindMapCanvas extends Region {
         double dx = e.getX() - lastX, dy = e.getY() - lastY;
         lastX = e.getX();
         lastY = e.getY();
-        if (dragging != null) {
+        if (groupDrag) {
+            moveGroup(dx / scale, dy / scale);
+            setCursor(Cursor.MOVE);
+        } else if (dragging != null) {
             // A folded idea carries its hidden branch with it.
             moveWithHidden(dragging, dx / scale, dy / scale);
             setCursor(Cursor.MOVE);
@@ -1015,9 +1180,21 @@ final class MindMapCanvas extends Region {
         setCursor(Cursor.DEFAULT);
         if (e.getButton() != MouseButton.PRIMARY) return;
         dragging = null;
+        groupDrag = false;
+        if (marquee) {
+            endMarquee(e);
+            return;
+        }
         if (moved || e.getClickCount() > 1) return;
         if (handleBadgeTap(e.getX(), e.getY())) return;
         NoteData.MindNode hit = hit(e.getX(), e.getY());
+        if (connectGroup != null) {
+            List<NoteData.MindNode> from = connectGroup;
+            connectGroup = null;
+            if (hit != null) connectAll(from, hit);
+            draw();
+            return;
+        }
         if (connectFrom != null) {
             if (hit != null && hit != connectFrom) connect(connectFrom, hit);
             connectFrom = null;
@@ -1058,6 +1235,33 @@ final class MindMapCanvas extends Region {
         ty = fy - (fy - ty) * f;
         scale = next;
         draw();
+    }
+
+    /** Moves the ideas selected together (each folded one with its hidden branch), each once. */
+    private void moveGroup(double dx, double dy) {
+        Set<Long> moving = new HashSet<>(group);
+        List<Long> queue = new ArrayList<>();
+        for (NoteData.MindNode n : model.nodes) if (group.contains(n.id) && n.collapsed) queue.add(n.id);
+        for (int q = 0; q < queue.size(); q++) {
+            for (NoteData.MindNode k : model.nodes) {
+                if (k.parent == queue.get(q) && moving.add(k.id)) queue.add(k.id);
+            }
+        }
+        for (NoteData.MindNode n : model.nodes) {
+            if (moving.contains(n.id)) {
+                n.x += dx;
+                n.y += dy;
+            }
+        }
+    }
+
+    /** Escape: no ideas selected together, no connecting waiting. True when there was something to drop. */
+    boolean dropGroup() {
+        boolean had = !group.isEmpty() || connectGroup != null;
+        group.clear();
+        connectGroup = null;
+        draw();
+        return had;
     }
 
     private void moveWithHidden(NoteData.MindNode node, double dx, double dy) {

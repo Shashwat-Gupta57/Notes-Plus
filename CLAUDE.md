@@ -66,14 +66,15 @@ Audio), its JSON and its folder. Editors extend `NoteActivity`, which loads, sav
 `RichText` and kept as Markdown, `Markdown`, the same format as the desktop's `Markdown.java` and the web's
 `md.js`; `Markdown.repair` undoes the HTML entities 16.1 wrote), `MindMapActivity` (+ `MindMapView`, also the card
 preview; an idea may carry a picture from the desktop, `MindNode.image`, drawn above its text with the
-desktop's geometry; `MindNode.sub` is an optional sub-text under the idea; ideas wrap at 180 dp unless the map's
+desktop's geometry and opened full screen by tapping it once the idea is selected, or the "View picture" button that shows then; `MindNode.sub` is an optional sub-text under the idea; ideas wrap at 180 dp unless the map's
 `wrap` is off, and are never cut short; "Add idea behind" inserts a parent), `SketchActivity` (+ `DrawingView`; strokes in `sketch.json`, card in `sketch.png`),
 `AudioNoteActivity` (+ `WaveformView`; a recording not here yet is fetched on tap through
 `NoteSync.fetch`, since the sync skips notes open in an editor). Lists and mind maps carry `"wrap": false` in
 their data when the editor's "Wrap text" (`NoteActivity.wrapText`) is off. A list's `RecyclerView` replaces the
 page's scroll view at runtime (`NoteEditorActivity.scrollAsList`), so long lists recycle their rows; the page
 above the items and "Add item" are its first and last rows, so `findViewById(R.id.listAdd)` can miss (use the
-`listAdd` field). `NoteAdapter` draws one card layout for all types.
+`listAdd` field). A picture item opens full screen on a tap. In text and journal notes, `RichText.PictureSpan`
+draws a `![[IMG_….png]]` line as its picture (not one of `ours()`, so the line stays in the Markdown); a tap opens it. `NoteAdapter` draws one card layout for all types.
 Long swipes on the notes grid are the secret gestures (left: gallery, right: chat), so there
 is no swipe-to-delete; notes are deleted from their options or their editor.
 Notes are not in the vault's `.bak` or Drive backups; they sync through the notes account.

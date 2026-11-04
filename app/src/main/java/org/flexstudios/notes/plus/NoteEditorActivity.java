@@ -111,6 +111,8 @@ public class NoteEditorActivity extends NoteActivity {
             rich = new RichText(body, this::markDirty);
             rich.setMarkdown(note.getContent());
             rich.setLinks(title -> NoteLinks.resolve(title, linkNotes) != null, this::showLink);
+            rich.setPictures(name -> this.note == null || this.note.getId() <= 0 ? null
+                    : new File(NoteData.dir(this, this.note.getId()), name), file -> openMedia(file, false));
             if (!readOnly) LinkSuggest.attach(body, () -> linkNotes, () -> note == null ? 0 : note.getId());
             setUpFormatBar();
         }
@@ -422,6 +424,14 @@ public class NoteEditorActivity extends NoteActivity {
                 column = v.findViewById(R.id.itemColumn);
                 due = v.findViewById(R.id.itemDue);
                 clock = v.findViewById(R.id.itemClock);
+                // A picture item opens full screen (pinch to zoom, tap to close), read-only notes too.
+                picture.setOnClickListener(c -> {
+                    String name = bound == null ? null : bound.picture();
+                    if (name == null || note == null || note.getId() <= 0) return;
+                    File file = new File(NoteData.dir(NoteEditorActivity.this, note.getId()), name);
+                    if (file.exists()) openMedia(file, false);
+                    else Toast.makeText(NoteEditorActivity.this, "This picture isn't on this phone yet", Toast.LENGTH_SHORT).show();
+                });
                 if (!readOnly) {
                     // The clock shows on the item being typed in; once it has a day, its pill takes over.
                     text.setOnFocusChangeListener((f, has) -> showDue(false));

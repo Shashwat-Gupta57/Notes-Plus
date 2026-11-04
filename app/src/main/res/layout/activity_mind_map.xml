@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Mind map editor: title, the map filling the screen, and two actions floating over it. -->
+<!-- Mind map editor: title, the map filling the screen, a row of small actions along the bottom and
+     "Add idea" above its right end (never beside the row, so the two can't overlap on any width). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/mindMapRoot"
@@ -53,7 +54,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|start"
-            android:layout_margin="20dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:layout_marginBottom="20dp"
             android:orientation="horizontal">
 
             <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -63,7 +66,7 @@
                 android:layout_marginEnd="10dp"
                 android:contentDescription="Add another central idea"
                 app:fabSize="mini"
-                app:srcCompat="@drawable/ic_add" />
+                app:srcCompat="@drawable/ic_add_central" />
 
             <com.google.android.material.floatingactionbutton.FloatingActionButton
                 android:id="@+id/btnCenter"
@@ -90,6 +93,17 @@
                 android:contentDescription="Share as a picture"
                 app:fabSize="mini"
                 app:srcCompat="@drawable/ic_share" />
+
+            <!-- Shown while the selected idea has a picture. -->
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/btnViewPicture"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:contentDescription="View picture"
+                android:visibility="gone"
+                app:fabSize="mini"
+                app:srcCompat="@drawable/ic_photo" />
         </LinearLayout>
 
         <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
@@ -97,7 +111,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
-            android:layout_margin="24dp"
+            android:layout_marginEnd="20dp"
+            android:layout_marginBottom="76dp"
             android:text="Add idea"
             android:textColor="@color/on_brand_yellow"
             app:backgroundTint="@color/brand_yellow"

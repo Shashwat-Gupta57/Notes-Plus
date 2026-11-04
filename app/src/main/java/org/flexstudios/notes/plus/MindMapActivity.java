@@ -97,6 +97,16 @@ public class MindMapActivity extends NoteActivity {
             public void onConnected() {
                 Snackbar.make(map, "Connected", Snackbar.LENGTH_SHORT).show();
             }
+
+            @Override
+            public void onSelected(NoteData.MindNode node) {
+                findViewById(R.id.btnViewPicture).setVisibility(node != null && node.image != null ? View.VISIBLE : View.GONE);
+            }
+
+            @Override
+            public void onViewPicture(NoteData.MindNode node) {
+                viewPicture(node);
+            }
         };
         findViewById(R.id.btnAddIdea).setOnClickListener(v -> {
             NoteData.MindNode parent = map.selected();
@@ -106,6 +116,15 @@ public class MindMapActivity extends NoteActivity {
         findViewById(R.id.btnTidy).setOnClickListener(v -> map.tidy());
         findViewById(R.id.btnShareMap).setOnClickListener(v -> shareAsImage());
         findViewById(R.id.btnAddCentral).setOnClickListener(v -> name(map.addRoot(), true));
+        findViewById(R.id.btnViewPicture).setOnClickListener(v -> {
+            NoteData.MindNode n = map.selected();
+            if (n != null) viewPicture(n);
+        });
+        // A long press on a small button says what it does.
+        for (int id : new int[]{R.id.btnAddCentral, R.id.btnCenter, R.id.btnTidy, R.id.btnShareMap, R.id.btnViewPicture}) {
+            View b = findViewById(id);
+            androidx.appcompat.widget.TooltipCompat.setTooltipText(b, b.getContentDescription());
+        }
 
         // Last: a new note is handed to onNoteLoaded immediately.
         setUpNote(findViewById(R.id.mindMapRoot), findViewById(R.id.toolbarMindMap));
@@ -220,6 +239,7 @@ public class MindMapActivity extends NoteActivity {
             labels.add("Remove picture");
             actions.add(() -> {
                 node.image = null;
+                map.select(node);
                 map.refresh();
                 save();
             });
@@ -425,6 +445,12 @@ public class MindMapActivity extends NoteActivity {
             void onOpenLink(NoteData.MindNode node);
 
             void onConnected();
+
+            /** The selected idea changed (null: none). */
+            void onSelected(NoteData.MindNode node);
+
+            /** The picture of the selected idea was tapped. */
+            void onViewPicture(NoteData.MindNode node);
         }
 
         static final int[] PALETTE = {R.color.tile_blue, R.color.tile_green, R.color.tile_orange,
@@ -505,6 +531,14 @@ public class MindMapActivity extends NoteActivity {
                         connectFrom = null;
                         invalidate();
                         return true;
+                    }
+                    // A tap on the picture of the idea already selected opens the picture.
+                    if (hit != null && hit.id == selectedId && hit.image != null && listener != null) {
+                        bounds(hit, scale, tx, ty);
+                        if (picH > 0 && e.getY() < textTop) {
+                            listener.onViewPicture(hit);
+                            return true;
+                        }
                     }
                     select(hit);
                     return true;
@@ -658,6 +692,7 @@ public class MindMapActivity extends NoteActivity {
 
         void select(NoteData.MindNode node) {
             selectedId = node == null ? -1 : node.id;
+            if (listener != null) listener.onSelected(node);
             invalidate();
         }
 
@@ -740,7 +775,7 @@ public class MindMapActivity extends NoteActivity {
             }
             model.nodes.remove(mid);
             model.links.removeIf(l -> l[0] == mid.id || l[1] == mid.id);
-            selectedId = -1;
+            select(null);
             refresh();
         }
 
@@ -775,7 +810,7 @@ public class MindMapActivity extends NoteActivity {
             }
             model.nodes.removeIf(n -> doomed.contains(n.id));
             model.links.removeIf(l -> doomed.contains(l[0]) || doomed.contains(l[1]));
-            selectedId = -1;
+            select(null);
             refresh();
         }
 

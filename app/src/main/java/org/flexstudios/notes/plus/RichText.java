@@ -25,7 +25,12 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 
+import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.List;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -61,6 +66,16 @@ final class RichText implements TextWatcher {
     /** Links ("[[Title]]"): whether one leads to a note, and what a tap on one does. */
     @Nullable private java.util.function.Predicate<String> linkExists;
     @Nullable private java.util.function.Consumer<String> linkTapped;
+    /**
+     * Picture lines ({@code ![[IMG_….png]]}, put between the words on the desktop or the web): drawn as
+     * the picture once it's here, the line itself staying in the text (and the Markdown) untouched.
+     */
+    @Nullable private java.util.function.Function<String, File> pictureFile;
+    @Nullable private java.util.function.Consumer<File> pictureTapped;
+    private final Map<String, android.graphics.Bitmap> pictures = new HashMap<>();
+    private final Set<String> pictureLoading = new HashSet<>();
+    private static final Pattern PICTURE_LINE = Pattern.compile(
+            "(?m)^!\\[\\[([^\\]/\\\\]+\\.(?:png|jpe?g|gif|webp|bmp))\\]\\]$", Pattern.CASE_INSENSITIVE);
 
     @SuppressLint("ClickableViewAccessibility")
     RichText(EditText edit, Runnable onChange) {
@@ -69,6 +84,17 @@ final class RichText implements TextWatcher {
         this.dp = edit.getResources().getDisplayMetrics().density;
         edit.addTextChangedListener(this);
         edit.setOnTouchListener((v, e) -> {
+            if (e.getAction() == MotionEvent.ACTION_UP && pictureTapped != null) {
+                File picture = pictureAt(e);
+                if (picture != null) {
+                    pictureTapped.accept(picture);
+                    MotionEvent cancel = MotionEvent.obtain(e);
+                    cancel.setAction(MotionEvent.ACTION_CANCEL);
+                    v.onTouchEvent(cancel);
+                    cancel.recycle();
+                    return true;
+                }
+            }
             if (e.getAction() == MotionEvent.ACTION_UP && linkTapped != null) {
                 String title = linkAt(e);
                 if (title != null) linkTapped.accept(title); // The caret still goes there: a bar offers to open it.
@@ -458,7 +484,116 @@ final class RichText implements TextWatcher {
         if (e != null) styleLinks(e);
     }
 
+    /** Draws picture lines as their pictures; {@code fileOf} finds one by name, {@code tapped} opens one. */
+    void setPictures(java.util.function.Function<String, File> fileOf, java.util.function.Consumer<File> tapped) {
+        pictureFile = fileOf;
+        pictureTapped = tapped;
+        Editable e = edit.getText();
+        if (e != null) stylePictures(e);
+    }
+
+    private void stylePictures(Editable e) {
+        if (pictureFile == null) return;
+        for (PictureSpan p : e.getSpans(0, e.length(), PictureSpan.class)) e.removeSpan(p);
+        if (android.text.TextUtils.indexOf(e, "![[") < 0) return;
+        Matcher m = PICTURE_LINE.matcher(e);
+        while (m.find()) {
+            String name = m.group(1);
+            android.graphics.Bitmap shown = pictures.get(name);
+            if (shown != null) {
+                e.setSpan(new PictureSpan(shown, name), m.start(), m.end(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            } else {
+                loadPicture(name);
+            }
+        }
+    }
+
+    /** Decodes a picture to the editor's width (at most 320 dp high) off the main thread, then draws it. */
+    private void loadPicture(String name) {
+        if (pictureFile == null || !pictureLoading.add(name)) return;
+        File file = pictureFile.apply(name);
+        if (file == null || !file.exists()) {
+            pictureLoading.remove(name); // Not here yet (still downloading): the line shows; tried again later.
+            return;
+        }
+        int width = edit.getWidth() - edit.getTotalPaddingLeft() - edit.getTotalPaddingRight();
+        if (width <= 0) width = edit.getResources().getDisplayMetrics().widthPixels - Math.round(48 * dp);
+        final int maxW = width, maxH = Math.round(320 * dp);
+        AppDatabase.IO.execute(() -> {
+            android.graphics.Bitmap shown = null;
+            try {
+                android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+                o.inJustDecodeBounds = true;
+                android.graphics.BitmapFactory.decodeFile(file.getPath(), o);
+                if (o.outWidth > 0 && o.outHeight > 0) {
+                    int sample = 1;
+                    while (o.outWidth / (sample * 2) >= maxW || o.outHeight / (sample * 2) >= maxH) sample *= 2;
+                    o = new android.graphics.BitmapFactory.Options();
+                    o.inSampleSize = sample;
+                    android.graphics.Bitmap raw = android.graphics.BitmapFactory.decodeFile(file.getPath(), o);
+                    if (raw != null) {
+                        float f = Math.min(1f, Math.min(maxW / (float) raw.getWidth(), maxH / (float) raw.getHeight()));
+                        shown = f >= 1f ? raw : android.graphics.Bitmap.createScaledBitmap(raw,
+                                Math.max(1, Math.round(raw.getWidth() * f)), Math.max(1, Math.round(raw.getHeight() * f)), true);
+                    }
+                }
+            } catch (OutOfMemoryError | RuntimeException ignored) {
+                // Not a picture we can show: the line stays as words.
+            }
+            final android.graphics.Bitmap done = shown;
+            edit.post(() -> {
+                if (done == null) return; // Stays in pictureLoading: not tried again while this note is open.
+                pictures.put(name, done);
+                Editable now = edit.getText();
+                if (now != null) stylePictures(now);
+            });
+        });
+    }
+
+    /** The picture under a tap, or null. */
+    @Nullable
+    private File pictureAt(MotionEvent ev) {
+        Editable e = edit.getText();
+        Layout layout = edit.getLayout();
+        if (e == null || layout == null || pictureFile == null) return null;
+        int at = edit.getOffsetForPosition(ev.getX(), ev.getY());
+        float y = ev.getY() - edit.getTotalPaddingTop() + edit.getScrollY();
+        for (PictureSpan p : e.getSpans(at, at, PictureSpan.class)) {
+            int line = layout.getLineForOffset(e.getSpanStart(p));
+            if (y >= layout.getLineTop(line) && y <= layout.getLineBottom(line)) return pictureFile.apply(p.name);
+        }
+        return null;
+    }
+
+    /** A picture line drawn as its picture. Not one of the styles kept in the Markdown: the line is the picture. */
+    static final class PictureSpan extends android.text.style.ReplacementSpan {
+        final String name;
+        private final android.graphics.Bitmap bitmap;
+
+        PictureSpan(android.graphics.Bitmap bitmap, String name) {
+            this.bitmap = bitmap;
+            this.name = name;
+        }
+
+        @Override
+        public int getSize(@NonNull Paint paint, CharSequence text, int start, int end, @Nullable Paint.FontMetricsInt fm) {
+            if (fm != null) {
+                Paint.FontMetricsInt font = paint.getFontMetricsInt();
+                fm.ascent = fm.top = -bitmap.getHeight() - font.descent;
+                fm.descent = fm.bottom = font.descent;
+            }
+            return bitmap.getWidth();
+        }
+
+        @Override
+        public void draw(@NonNull Canvas canvas, CharSequence text, int start, int end, float x, int top, int y,
+                         int bottom, @NonNull Paint paint) {
+            canvas.drawBitmap(bitmap, x, y - bitmap.getHeight(), null);
+        }
+    }
+
     private void styleLinks(Editable e) {
+        stylePictures(e);
         for (LinkSpan s : e.getSpans(0, e.length(), LinkSpan.class)) e.removeSpan(s);
         if (linkExists == null || android.text.TextUtils.indexOf(e, "[[") < 0) return;
         Matcher m = NoteLinks.LINK.matcher(e);

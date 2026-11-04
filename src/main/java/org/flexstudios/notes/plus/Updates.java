@@ -215,6 +215,11 @@ final class Updates {
                     patch.put("totalChecks", u.optInt("totalChecks", 0) + 1);
 
                     Firebase.patch("stats/users/" + uid, patch);
+                    // The admin panel's directory: who this account is and how it signs in.
+                    JSONObject entry = new JSONObject().put("login", Account.isGoogle() ? "google" : "email");
+                    if (name != null && !name.isEmpty()) entry.put("name", name.length() > 100 ? name.substring(0, 100) : name);
+                    if (email != null) entry.put("email", email);
+                    Firebase.patch("directory/" + uid, entry);
                 } catch (Exception ignored) {}
             }
         } catch (Exception ignored) {}

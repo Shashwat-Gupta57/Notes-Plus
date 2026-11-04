@@ -17,6 +17,11 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/action_widgets"
+        android:title="Add a widget…"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_import"
         android:title="Import notes…"
         app:showAsAction="never" />

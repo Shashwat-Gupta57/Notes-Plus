@@ -31,7 +31,63 @@ public class ChecklistWidget extends AppWidgetProvider {
     }
 
     static String chosen(Context context, int widgetId) {
-        return SecurityHelper.getAppPrefs(context).getString(PREF + widgetId, null);
+        String uuid = SecurityHelper.getAppPrefs(context).getString(PREF + widgetId, null);
+        if (uuid != null) return uuid;
+        // A widget placed from inside the app ("Add to home screen"): its list was named before it came.
+        // Only for two minutes: a request the launcher's dialog cancelled mustn't name a later widget's list.
+        String pending = SecurityHelper.getAppPrefs(context).getString(PENDING, null);
+        if (pending == null || pending.indexOf('|') < 0) return null;
+        String uuid2 = pending.substring(0, pending.indexOf('|'));
+        long at;
+        try {
+            at = Long.parseLong(pending.substring(pending.indexOf('|') + 1));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        SecurityHelper.getAppPrefs(context).edit().remove(PENDING).apply();
+        if (System.currentTimeMillis() - at > 120_000) return null;
+        SecurityHelper.getAppPrefs(context).edit().putString(PREF + widgetId, uuid2).apply();
+        return uuid2;
+    }
+
+    private static final String PENDING = "widget_pending_list";
+
+    /**
+     * Asks the launcher to put a widget for this list on the home screen (it shows its own "Add"
+     * confirmation). Some launchers' widget pickers don't list other apps' widgets at all; this
+     * works there too. False when the launcher can't.
+     */
+    static boolean pin(Context context, String uuid) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return false;
+        AppWidgetManager manager = AppWidgetManager.getInstance(context);
+        if (!manager.isRequestPinAppWidgetSupported()) return false;
+        SecurityHelper.getAppPrefs(context).edit().putString(PENDING, uuid + "|" + System.currentTimeMillis()).apply();
+        // Mutable: the launcher adds the new widget's id to it.
+        PendingIntent placed = PendingIntent.getBroadcast(context, uuid.hashCode(),
+                new Intent(context, Pinned.class).putExtra("uuid", uuid),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+        return manager.requestPinAppWidget(new ComponentName(context, ChecklistWidget.class), null, placed);
+    }
+
+    /** The launcher placed a pinned list widget: it shows that list. */
+    public static final class Pinned extends android.content.BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            int id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1);
+            String uuid = intent.getStringExtra("uuid");
+            if (id < 0 || uuid == null) return;
+            SecurityHelper.getAppPrefs(context).edit().putString(PREF + id, uuid).remove(PENDING).apply();
+            AppWidgetManager manager = AppWidgetManager.getInstance(context);
+            PendingResult pending = goAsync();
+            AppDatabase.IO.execute(() -> {
+                try {
+                    update(context, manager, id);
+                    manager.notifyAppWidgetViewDataChanged(new int[]{id}, R.id.widgetItems);
+                } finally {
+                    pending.finish();
+                }
+            });
+        }
     }
 
     /** The note a widget shows, if it can still show it. Off the main thread. */

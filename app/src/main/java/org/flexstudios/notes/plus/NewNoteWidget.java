@@ -12,6 +12,14 @@ import androidx.core.app.TaskStackBuilder;
 /** "New" on the home screen: a note, a list, today's journal or a recording, one tap each. */
 public class NewNoteWidget extends AppWidgetProvider {
 
+    /** Asks the launcher to put the "New" widget on the home screen; false when it can't. */
+    static boolean pin(Context context) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return false;
+        AppWidgetManager manager = AppWidgetManager.getInstance(context);
+        return manager.isRequestPinAppWidgetSupported() && manager.requestPinAppWidget(
+                new android.content.ComponentName(context, NewNoteWidget.class), null, null);
+    }
+
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
         for (int id : ids) {

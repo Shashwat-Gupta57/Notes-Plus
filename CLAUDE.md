@@ -169,7 +169,10 @@ showing twice (or from before, beyond 12 h). Never from locked, hidden, archived
 `Reminders` checks every 20 s while running (a tray notification and a toast); the web's `reminders.js` while open (a
 service-worker notification, `notificationclick` in `sw.js` opens the list). The card tag (`Due.urgent`) is the soonest
 by day, then time. The widget providers are exported (some launchers list only exported ones); ticks go to the private
-`ChecklistWidget$Tick`.
+`ChecklistWidget$Tick`. Xiaomi's HyperOS picker can hide other apps' widgets entirely, so both can also be placed from inside
+the app (`ChecklistWidget.pin` / `NewNoteWidget.pin`, `requestPinAppWidget`): a list's ⋮ "Add to home screen" and the
+notes menu's "Add a widget…". A pinned list widget takes its list from `widget_pending_list` (2 minutes) or from
+`ChecklistWidget$Pinned`, the launcher's callback. Both providers carry `previewLayout`/`previewImage`.
 
 **Templates** (`Templates`, the same as the desktop's `Templates.java` and the web's `templates.js`): a
 note of my own with `template` set, off the grid except under the Templates chip (shown only when one

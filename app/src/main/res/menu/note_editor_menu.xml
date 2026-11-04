@@ -45,6 +45,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_pin_widget"
+        android:title="Add to home screen"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_save_template"
         android:title="Save as template…"
         app:showAsAction="never" />

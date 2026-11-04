@@ -650,6 +650,9 @@ abstract class NoteActivity extends AppCompatActivity {
             link.setTitle(note != null && note.getGroupId() != null ? "Invite link" : "Share link");
             link.setVisible(note != null && !readOnly && lock == null && !NoteData.AUDIO.equals(note.getType()) && Account.uid() != null);
         }
+        MenuItem pinWidget = menu.findItem(R.id.action_pin_widget);
+        if (pinWidget != null) pinWidget.setVisible(note != null && NoteData.LIST.equals(note.getType())
+                && lock == null && !note.isHidden() && !note.isTemplate());
         MenuItem template = menu.findItem(R.id.action_save_template);
         if (template != null) template.setVisible(note != null && !readOnly && lock == null && Templates.canSave(note));
         MenuItem copy = menu.findItem(R.id.action_save_copy);
@@ -719,6 +722,17 @@ abstract class NoteActivity extends AppCompatActivity {
                 if (note == null) return;
                 if (note.getGroupId() != null) ShareLinks.inviteSheet(this, note);
                 else ShareLinks.sheet(this, note.getId());
+            }));
+            return true;
+        } else if (id == R.id.action_pin_widget) {
+            // Saved first, so the widget has the list as it is (a new list gets its uuid).
+            save();
+            final NoteEntity live = note;
+            WRITES.execute(() -> runOnUiThread(() -> {
+                if (live == null || live.getUuid() == null || !ChecklistWidget.pin(this, live.getUuid())) {
+                    android.widget.Toast.makeText(this, "Your home screen doesn't allow this. Long-press it, choose Widgets, then Notes+.",
+                            android.widget.Toast.LENGTH_LONG).show();
+                }
             }));
             return true;
         } else if (id == R.id.action_save_template) {

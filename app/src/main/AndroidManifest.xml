@@ -194,6 +194,9 @@
             </intent-filter>
         </receiver>
         <receiver
+            android:name=".ChecklistWidget$Pinned"
+            android:exported="false" />
+        <receiver
             android:name=".ChecklistWidget$Tick"
             android:exported="false" />
         <service

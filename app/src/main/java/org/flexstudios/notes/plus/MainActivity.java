@@ -480,6 +480,45 @@ public class MainActivity extends AppCompatActivity {
         sheet.show();
     }
 
+    /**
+     * "Add a widget…": the "New" buttons, or one list to tick, placed by the launcher after its own
+     * confirmation (some launchers' widget pickers don't list other apps' widgets).
+     */
+    private void chooseWidget() {
+        List<NoteEntity> lists = new ArrayList<>();
+        for (NoteEntity n : allNotes) {
+            if (NoteData.LIST.equals(n.getType()) && !n.isHidden() && !n.isTemplate() && !n.isArchived()
+                    && !NoteLock.isLocked(n.getData())) lists.add(n);
+        }
+        Runnable cant = () -> Toast.makeText(this, "Your home screen doesn't allow this. Long-press it, choose Widgets, then Notes+.",
+                Toast.LENGTH_LONG).show();
+        String[] options = {"New note buttons", "A list to tick…"};
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle("Add a widget")
+                .setItems(options, (d, which) -> {
+                    if (which == 0) {
+                        if (!NewNoteWidget.pin(this)) cant.run();
+                        return;
+                    }
+                    if (lists.isEmpty()) {
+                        Toast.makeText(this, "Make a list first", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    String[] names = new String[lists.size()];
+                    for (int i = 0; i < names.length; i++) {
+                        String t = lists.get(i).getTitle();
+                        names[i] = t == null || t.trim().isEmpty() ? "Untitled list" : t.trim();
+                    }
+                    new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                            .setTitle("Which list?")
+                            .setItems(names, (d2, i) -> {
+                                if (!ChecklistWidget.pin(this, lists.get(i).getUuid())) cant.run();
+                            })
+                            .show();
+                })
+                .show();
+    }
+
     private void showNoteOptions(NoteEntity note) {
         String title = note.getTitle() == null || note.getTitle().isEmpty()
                 ? NoteData.kind(note.getType()).label : note.getTitle();
@@ -739,6 +778,10 @@ public class MainActivity extends AppCompatActivity {
         }
         if (item.getItemId() == R.id.action_account) {
             startActivity(new Intent(this, AccountActivity.class));
+            return true;
+        }
+        if (item.getItemId() == R.id.action_widgets) {
+            chooseWidget();
             return true;
         }
         if (item.getItemId() == R.id.action_import) {

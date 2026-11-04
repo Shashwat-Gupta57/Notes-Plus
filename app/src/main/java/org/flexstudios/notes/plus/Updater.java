@@ -591,10 +591,23 @@ public final class Updater {
                     if (user.getPhotoUrl() != null) map.put("photoUrl", user.getPhotoUrl().toString());
                 }
                 map.put("platform", "Android");
-                map.put("version", "15.5");
+                String version = "?";
+                try {
+                    version = context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName;
+                } catch (Exception ignored) {
+                    // Unknown: "?".
+                }
+                map.put("version", version);
                 map.put("os", "Android " + android.os.Build.VERSION.RELEASE);
                 map.put("lastActiveDate", today);
                 userRef.updateChildren(map);
+                // The admin panel's directory: who this account is and how it signs in.
+                java.util.Map<String, Object> entry = new java.util.HashMap<>();
+                entry.put("login", user != null && Account.isGoogle(user) ? "google" : "email");
+                if (user != null && user.getDisplayName() != null && !user.getDisplayName().isEmpty())
+                    entry.put("name", user.getDisplayName().length() > 100 ? user.getDisplayName().substring(0, 100) : user.getDisplayName());
+                if (user != null && user.getEmail() != null) entry.put("email", user.getEmail());
+                db.child("directory/" + uid).updateChildren(entry);
 
                 userRef.child("checks/" + today).runTransaction(new com.google.firebase.database.Transaction.Handler() {
                     @androidx.annotation.NonNull

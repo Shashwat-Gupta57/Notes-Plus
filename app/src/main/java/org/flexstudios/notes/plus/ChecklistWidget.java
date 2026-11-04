@@ -45,6 +45,7 @@ public class ChecklistWidget extends AppWidgetProvider {
 
     /** Every list widget shows what's stored now (after a save here, or a sync). */
     static void refresh(Context context) {
+        Reminders.schedule(context); // Lists changed: so may the next reminder.
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         int[] ids = manager.getAppWidgetIds(new ComponentName(context, ChecklistWidget.class));
         if (ids.length == 0) return;
@@ -97,7 +98,7 @@ public class ChecklistWidget extends AppWidgetProvider {
             views.setOnClickPendingIntent(R.id.widgetHeader, openApp(context, n));
         }
         // Each row fills in which item; the tick comes back here.
-        Intent tick = new Intent(context, ChecklistWidget.class).setAction(ACTION_TICK)
+        Intent tick = new Intent(context, Tick.class).setAction(ACTION_TICK)
                 .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
         views.setPendingIntentTemplate(R.id.widgetItems, PendingIntent.getBroadcast(context, id, tick,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE));
@@ -111,20 +112,25 @@ public class ChecklistWidget extends AppWidgetProvider {
         return stack.getPendingIntent(n == null ? 0 : n.getId(), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
-    @Override
-    public void onReceive(Context context, Intent intent) {
-        super.onReceive(context, intent);
-        if (!ACTION_TICK.equals(intent.getAction())) return;
-        int id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1);
-        int index = intent.getIntExtra(EXTRA_ITEM, -1);
-        PendingResult pending = goAsync();
-        AppDatabase.IO.execute(() -> {
-            try {
-                tick(context, id, index);
-            } finally {
-                pending.finish();
-            }
-        });
+    /**
+     * A tick from a widget row. Its own receiver, not exported: the widget provider itself has to be
+     * exported (some launchers list only exported widgets), and no other app may tick a list.
+     */
+    public static final class Tick extends android.content.BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (!ACTION_TICK.equals(intent.getAction())) return;
+            int id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1);
+            int index = intent.getIntExtra(EXTRA_ITEM, -1);
+            PendingResult pending = goAsync();
+            AppDatabase.IO.execute(() -> {
+                try {
+                    tick(context, id, index);
+                } finally {
+                    pending.finish();
+                }
+            });
+        }
     }
 
     /** Ticks or unticks one item, as the app would (a repeating item moves on to its next day). */

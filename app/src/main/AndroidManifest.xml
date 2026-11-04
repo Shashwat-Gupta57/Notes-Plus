@@ -20,6 +20,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Progress and completion of long backups and restores (Android 13+ asks for it). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Reminders for list items: an alarm at the item's time, set again after a reboot. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name=".NotesApplication"
@@ -154,10 +158,11 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- Home-screen widgets: a list to tick, and "New". Notes only. -->
+        <!-- Home-screen widgets: a list to tick, and "New". Notes only. Exported: some launchers'
+             widget pickers list only exported providers. Ticks go to the private ChecklistWidget$Tick. -->
         <receiver
             android:name=".ChecklistWidget"
-            android:exported="false"
+            android:exported="true"
             android:label="Notes+ list">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -168,7 +173,7 @@
         </receiver>
         <receiver
             android:name=".NewNoteWidget"
-            android:exported="false"
+            android:exported="true"
             android:label="Notes+ new">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -177,6 +182,20 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_new_note_info" />
         </receiver>
+        <!-- List item reminders: the alarm, and setting it again after a reboot, a clock change or an update. -->
+        <receiver
+            android:name=".Reminders$Receiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".ChecklistWidget$Tick"
+            android:exported="false" />
         <service
             android:name=".ChecklistWidgetService"
             android:exported="false"

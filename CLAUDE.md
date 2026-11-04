@@ -161,6 +161,16 @@ unticked again (`Due.rollover`, applied on display by the editor and the card, s
 real edit, so devices never push just for it). Set from the clock on the item being typed in (a pill
 under the item once dated) through `sheet_due.xml`; cards show a small clock tag (`NoteAdapter.bindDue`).
 
+**Reminders** (`Reminders`): a dated list item (`Due.remindable`: words, a day, not done, or a ticked repeating one)
+notifies at its time, or 9:00 (`Due.remindMinute`). Android: one exact alarm (`USE_EXACT_ALARM`; `setAndAllowWhileIdle`
+when exact alarms aren't allowed) for the soonest, re-set from `ChecklistWidget.refresh` (every list save, pull and tick),
+`MainActivity.onResume`, boot, clock/time-zone change and update; `reminders_shown_until` in app prefs keeps any from
+showing twice (or from before, beyond 12 h). Never from locked, hidden, archived or template lists. The desktop's
+`Reminders` checks every 20 s while running (a tray notification and a toast); the web's `reminders.js` while open (a
+service-worker notification, `notificationclick` in `sw.js` opens the list). The card tag (`Due.urgent`) is the soonest
+by day, then time. The widget providers are exported (some launchers list only exported ones); ticks go to the private
+`ChecklistWidget$Tick`.
+
 **Templates** (`Templates`, the same as the desktop's `Templates.java` and the web's `templates.js`): a
 note of my own with `template` set, off the grid except under the Templates chip (shown only when one
 exists), offered under "From a template" in the New sheet. "Save as template" copies a text, list, journal
@@ -378,7 +388,7 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-Released: 40 / "19.0" everywhere (build file, `version.json`, desktop `pom.xml`, the web's `VERSION`, `?v=` and `sw.js` cache; tags `v19.0.0` Android, `v19.0` desktop). The next release bumps them all again (`version.json` last; it may carry `web.versionName`, which the web app compares with, so an Android-only release doesn't prompt the web).
+Released: 41 / "19.4" everywhere (build file, `version.json`, desktop `pom.xml`, the web's `VERSION`, `?v=` and `sw.js` cache; tags `v19.4.0` Android, `v19.4` desktop). The next release bumps them all again (`version.json` last; it may carry `web.versionName`, which the web app compares with, so an Android-only release doesn't prompt the web).
 16.1 was never published (its APK was never on R2); 16.4 follows 16.0.
 From 11.0 the APK is served from Cloudflare R2 (`releases` bucket, public at
 `https://releases.talken.in/android/Notes-Plus-<version>.apk`); from 16.6 every release is also a

@@ -561,6 +561,29 @@ abstract class NoteActivity extends AppCompatActivity {
         });
     }
 
+    /** "Save as template…": this note as it is on screen (saved first), as a template under New. */
+    private void saveAsTemplate() {
+        if (note == null) return;
+        String title = note.getTitle() == null || note.getTitle().trim().isEmpty()
+                ? NoteData.kind(note.getType()).label : note.getTitle().trim();
+        Prompts.text(this, "Save as template",
+                "A copy of this note that new notes can start from, under New. Ticks, one-off dates and pictures are left out.",
+                "Template name", title, Prompts.TEXT, "Save", name -> {
+                    save();
+                    final NoteEntity live = note;
+                    final android.content.Context app = getApplicationContext();
+                    WRITES.execute(() -> {
+                        // On the serial writer: the save above (or the first insert) has landed.
+                        NoteEntity saved = live == null || live.getId() <= 0 ? null
+                                : AppDatabase.getInstance(app).noteDao().getNoteById(live.getId());
+                        if (saved == null) return;
+                        Templates.saveAs(app, saved, name.trim().isEmpty() ? title : name.trim());
+                        runOnUiThread(() -> android.widget.Toast.makeText(app,
+                                "Saved as a template. Find it under New or the Templates filter.", android.widget.Toast.LENGTH_LONG).show());
+                    });
+                }, null);
+    }
+
     private void delete(boolean thenFinish) {
         final NoteEntity doomed = copy(note);
         doomed.setId(note.getId());
@@ -627,6 +650,8 @@ abstract class NoteActivity extends AppCompatActivity {
             link.setTitle(note != null && note.getGroupId() != null ? "Invite link" : "Share link");
             link.setVisible(note != null && !readOnly && lock == null && !NoteData.AUDIO.equals(note.getType()) && Account.uid() != null);
         }
+        MenuItem template = menu.findItem(R.id.action_save_template);
+        if (template != null) template.setVisible(note != null && !readOnly && lock == null && Templates.canSave(note));
         MenuItem copy = menu.findItem(R.id.action_save_copy);
         if (copy != null) copy.setVisible(readOnly);
         MenuItem delete = menu.findItem(R.id.action_delete);
@@ -695,6 +720,9 @@ abstract class NoteActivity extends AppCompatActivity {
                 if (note.getGroupId() != null) ShareLinks.inviteSheet(this, note);
                 else ShareLinks.sheet(this, note.getId());
             }));
+            return true;
+        } else if (id == R.id.action_save_template) {
+            saveAsTemplate();
             return true;
         } else if (id == R.id.action_save_copy) {
             final NoteEntity received = note;

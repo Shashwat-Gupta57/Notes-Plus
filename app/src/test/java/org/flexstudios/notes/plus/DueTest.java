@@ -132,5 +132,11 @@ public class DueTest {
         assertEquals("Overdue", Due.tag(Arrays.asList(item(false, "2026-11-09", null), item(false, "2026-10-30", null)), MON));
         assertEquals("", Due.tag(Collections.singletonList(item(true, "2026-10-30", null)), MON));
         assertEquals("Daily", Due.repeatShort("weekly:1,2,3,4,5,6,7"));
+        // The soonest by time on the same day, wherever it is in the list; no time comes after timed ones.
+        NoteData.TodoItem late = item(false, "2026-11-02", null), soon = item(false, "2026-11-02", null), bare = item(false, "2026-11-02", null);
+        late.time = "13:45";
+        soon.time = "12:47";
+        assertEquals("Today 12:47", Due.tag(Arrays.asList(late, soon), MON));
+        assertEquals("Today 12:47", Due.tag(Arrays.asList(bare, soon), MON));
     }
 }

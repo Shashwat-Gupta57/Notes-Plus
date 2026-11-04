@@ -45,6 +45,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_save_template"
+        android:title="Save as template…"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_save_copy"
         android:title="Save a copy"
         app:showAsAction="never" />

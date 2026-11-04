@@ -1139,9 +1139,15 @@ public class MindMapActivity extends NoteActivity {
             return b;
         }
 
+        /**
+         * Ideas' own colours: the palette's hues, darker and calmer, so white words read well on every
+         * one (4.5:1 or better), in either theme. Same values on the desktop and the web.
+         */
+        static final int[] FILLS = {0xFF2F5FA8, 0xFF2E7D4F, 0xFFA5561C, 0xFF6B4FA8, 0xFFA63A3A, 0xFF23767E, 0xFF5E6066};
+
         /** The idea's own colour (a central idea: yellow unless given one), or 0 when it has none. */
         private int fillOf(NoteData.MindNode n) {
-            if (n.fill > 0 && n.fill <= PALETTE.length) return ContextCompat.getColor(getContext(), PALETTE[n.fill - 1]);
+            if (n.fill > 0 && n.fill <= FILLS.length) return FILLS[n.fill - 1];
             return n.parent < 0 ? ContextCompat.getColor(getContext(), R.color.brand_yellow) : 0;
         }
 

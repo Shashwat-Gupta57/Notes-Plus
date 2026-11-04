@@ -519,6 +519,7 @@ public class NoteEditorActivity extends NoteActivity {
 
     /** The item's day, time and repeat: every tap applies at once, closing keeps it. */
     private void showDueSheet(NoteData.TodoItem item) {
+        Reminders.askIfNeeded(this); // A day means a reminder: notifications have to be allowed.
         android.view.inputmethod.InputMethodManager imm = getSystemService(android.view.inputmethod.InputMethodManager.class);
         if (imm != null && getCurrentFocus() != null) imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
         BottomSheetDialog sheet = new BottomSheetDialog(this);

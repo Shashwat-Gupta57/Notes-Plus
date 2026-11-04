@@ -445,14 +445,22 @@ public class MainActivity extends AppCompatActivity {
         }
         // From a template: one row each, under the types.
         List<NoteEntity> templates = Templates.of(allNotes);
-        if (!templates.isEmpty()) {
-            TextView heading = new TextView(this);
-            heading.setText("From a template");
-            heading.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
-            heading.setTextSize(13);
-            int pad = Math.round(24 * getResources().getDisplayMetrics().density);
-            heading.setPadding(pad, pad / 2, pad, pad / 4);
-            grid.addView(heading);
+        TextView heading = new TextView(this);
+        heading.setText("From a template");
+        heading.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+        heading.setTextSize(13);
+        int pad = Math.round(24 * getResources().getDisplayMetrics().density);
+        heading.setPadding(pad, pad / 2, pad, pad / 4);
+        grid.addView(heading);
+        if (templates.isEmpty()) {
+            // Always here, so templates can be found: how to make the first one.
+            TextView how = new TextView(this);
+            how.setText("No templates yet. Open a note, list, journal or mind map and choose “Save as template…” from its ⋮ menu (or long-press its card).");
+            how.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+            how.setTextSize(13);
+            how.setPadding(pad, 0, pad, pad / 2);
+            grid.addView(how);
+        } else {
             for (NoteEntity t : templates) {
                 NoteData.Kind kind = NoteData.kind(t.getType());
                 View tile = LayoutInflater.from(this).inflate(R.layout.item_new_note, grid, false);
@@ -775,6 +783,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         Updater.onForeground(this);
+        Reminders.schedule(this);
         invalidateOptionsMenu();
     }
 

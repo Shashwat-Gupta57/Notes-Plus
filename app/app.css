@@ -540,8 +540,6 @@ textarea.field { resize: vertical; min-height: 96px; }
 .item { display: flex; align-items: flex-start; gap: 6px; padding: 4px 0; border-radius: 12px; }
 .item.dragging { background: var(--hover); }
 /* Rows off screen skip layout and paint, so a long list scrolls like a short one. */
-.list-rows > .item { content-visibility: auto; contain-intrinsic-size: auto 46px; }
-.list-rows > .item.dragging { content-visibility: visible; }
 .handle { display: grid; place-items: center; width: 28px; height: 38px; color: var(--divider); cursor: grab; touch-action: none; flex: none; }
 .check {
   display: grid; place-items: center; width: 22px; height: 22px; margin: 8px 4px 0 0; flex: none;

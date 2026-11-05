@@ -99,8 +99,9 @@ export async function openEditor({ uuid, type }, implFor, go) {
   const offSync = sync.onStatus(active => {
     if (active) {
       if (syncStatus === 'Saved') setSyncStatus('Syncing…');
-    } else {
-      if (syncStatus === 'Syncing…' || syncStatus === 'Saving…') setSyncStatus('Synced');
+    } else if (syncStatus === 'Syncing…' || syncStatus === 'Saving…') {
+      // "Synced" only once this note really went up (signed out or offline, it waits here).
+      db.getNote(note.uuid).then(n => setSyncStatus(n && n.dirty ? 'Not synced yet' : 'Synced'));
     }
   });
 
@@ -119,7 +120,7 @@ export async function openEditor({ uuid, type }, implFor, go) {
           setSyncStatus('Saved');
           sync.schedule(300);
         });
-      }, 10000);
+      }, 1500);
     },
     async putFile(name, blob) { await db.putFile(note.uuid, name, blob); },
     fileUrl: name => db.fileUrl(note.uuid, name),
@@ -161,6 +162,8 @@ export async function openEditor({ uuid, type }, implFor, go) {
     if (st === saved) return;
     saved = st;
     Object.assign(note, { title: probe.title, content: probe.content, data: probe.data, sketch: probe.sketch || null });
+    const current = inDb ? await db.getNote(note.uuid) : null;
+    if (current) Object.assign(note, { rev: current.rev, media: current.media, groupMembers: current.groupMembers });
     note.timestamp = Date.now();
     note.dirty = true;
     const stored = { ...note };
@@ -211,6 +214,14 @@ export async function openEditor({ uuid, type }, implFor, go) {
     toast('Updated from your other device');
   }
   sync.WATCHERS.set(note.uuid, takeNewerIfUnchanged);
+
+  const flushAway = () => {
+    if (document.visibilityState !== 'hidden' || readOnly) return;
+    clearTimeout(timer);
+    saving = saving.then(save).then(() => sync.schedule(0));
+  };
+  document.addEventListener('visibilitychange', flushAway);
+  window.addEventListener('pagehide', flushAway);
 
   function exitToHome() {
     root.classList.add('leaving');
@@ -404,6 +415,8 @@ export async function openEditor({ uuid, type }, implFor, go) {
     async leave() {
       clearTimeout(timer);
       offSync();
+      document.removeEventListener('visibilitychange', flushAway);
+      window.removeEventListener('pagehide', flushAway);
       if (impl) await (saving = saving.then(save));
       if (impl && impl.destroy) impl.destroy();
       sync.WATCHERS.delete(note.uuid);

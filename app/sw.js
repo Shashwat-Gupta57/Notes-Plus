@@ -10,7 +10,7 @@
 //   Live data             database, sign-in, Drive, version.json: never cached.
 //
 // Bump CACHE_NAME with every release (docs/Push to production.md), so the new files replace the old.
-const CACHE_NAME = 'notes-plus-pwa-v19.4';
+const CACHE_NAME = 'notes-plus-pwa-v19.5';
 
 const SHELL_ASSETS = [
   './',

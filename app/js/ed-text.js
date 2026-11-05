@@ -391,6 +391,7 @@ export function listEditor(ctx) {
       if (items[at] && !items[at].text.trim() && !pictureOf(items[at]) && items.length > 1) removeAt(at);
       const item = { text: `![[${name}]]`, done: false };
       items.splice(at, 0, item);
+      shown = items.length;
       const el = row(item);
       if (at >= rows.children.length) rows.appendChild(el); else rows.children[at].before(el);
       i = at + 1;
@@ -566,6 +567,7 @@ export function listEditor(ctx) {
     handle.addEventListener('pointerdown', e => {
       if (ctx.readOnly) return;
       e.preventDefault();
+      rows.querySelectorAll('.item.dragging').forEach(r => r.classList.remove('dragging')); // None left over.
       showAll();
       handle.setPointerCapture(e.pointerId);
       el.classList.add('dragging');
@@ -585,13 +587,16 @@ export function listEditor(ctx) {
           ctx.changed();
         }
       };
+      // Ends however the pointer goes: let go, cancelled (Safari, a scroll), or its capture lost.
+      // Before, only pointerup ended it, and a cancelled drag left its row grey and still moving.
       const up = () => {
         el.classList.remove('dragging');
         handle.removeEventListener('pointermove', move);
-        handle.removeEventListener('pointerup', up);
+        for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) handle.removeEventListener(t, up);
+        try { handle.releasePointerCapture(e.pointerId); } catch { /* Already released. */ }
       };
       handle.addEventListener('pointermove', move);
-      handle.addEventListener('pointerup', up);
+      for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) handle.addEventListener(t, up);
     });
   }
 
@@ -635,6 +640,7 @@ export function listEditor(ctx) {
     showAll();
     const item = { text: '', done: false };
     items.splice(i, 0, item);
+    shown = items.length; // All shown (showAll above): a new row counts, or the next showAll draws it twice.
     const el = row(item);
     if (i >= rows.children.length) rows.appendChild(el); else rows.children[i].before(el);
     updateProgress();
@@ -645,6 +651,7 @@ export function listEditor(ctx) {
     if (i < 0 || i >= items.length) return;
     showAll();
     items.splice(i, 1);
+    shown = items.length;
     rows.children[i].remove();
     updateProgress();
     ctx.changed();

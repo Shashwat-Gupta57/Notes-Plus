@@ -233,23 +233,6 @@ export function forceClose(uuid, reason) {
   }
 }
 
-async function saveConflictedCopy(uid, local, r) {
-  const d = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  const timestamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  const copyUuid = crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2));
-  const copy = copyInto(r, {
-    uuid: copyUuid,
-    account: uid,
-    title: (local.title || 'Untitled') + ' (Conflicted copy ' + timestamp + ')',
-    sharedFrom: null,
-    rev: 1,
-    dirty: true
-  });
-  await db.putNote(copy, true);
-  toast('Conflict detected: a conflicted copy was saved for ' + (local.title || 'Untitled'));
-}
-
 /** Applies one pulled note; false when it had to wait (open here). */
 async function apply(uid, r) {
   let local = await db.getNote(r.uuid);
@@ -266,9 +249,8 @@ async function apply(uid, r) {
           NEWER.set(local.uuid, r);
           const w = WATCHERS.get(local.uuid);
           if (w) setTimeout(w);
-        } else {
-          await saveConflictedCopy(uid, local, r);
         }
+        // Edited here too: no copy. This edit is the later intent; its push replaces the other.
       }
       return false;
     case INSERT:
@@ -308,13 +290,26 @@ async function push(uid) {
   for (let round = 0; round < 3; round++) {
     let any = false;
     for (const n of await db.allNotes()) {
-      if (!n.dirty || n.account !== uid || n.sharedFrom || OPEN.has(n.uuid) || done.has(n.uuid)) continue;
+      if (!n.dirty || n.account !== uid || n.sharedFrom || done.has(n.uuid) || strayGroupCopy(n)) continue;
       any = true;
       done.add(n.uuid);
       await pushOne(uid, n, true);
     }
     if (!any) return;
   }
+}
+
+/**
+ * A note claiming a group it isn't (a group note's uuid is the group's id): left by the conflict
+ * copies of 15.1–19.4. It becomes a note of my own instead, so it never overwrites the group's.
+ */
+function strayGroupCopy(n) {
+  if (!n.groupId || n.uuid === n.groupId) return false;
+  n.groupId = null;
+  n.groupMembers = null;
+  n.dirty = true;
+  db.putNote(n, true);
+  return true;
 }
 
 async function pushOne(uid, note, mayRetry) {
@@ -443,6 +438,10 @@ async function pullGroups(uid) {
         Object.assign(local, { groupId: gid, groupMembers: members });
         await db.putNote(local, true);
         continue;
+      } else if (!local.dirty && OPEN.has(gid) && r.rev > local.rev) {
+        NEWER.set(gid, r); // Open and unchanged here: the editor takes it in place.
+        const w = WATCHERS.get(gid);
+        if (w) setTimeout(w);
       }
     }
     if (local && local.groupMembers !== members) {

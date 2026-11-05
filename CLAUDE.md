@@ -89,7 +89,12 @@ Notes are not in the vault's `.bak` or Drive backups; they sync through the note
 
 Sync rules, all in `NoteSync`: every write bumps `rev` by one (the database rules enforce it);
 push is a transaction that only lands on the `rev` it was based on; if the server moved on,
-an edit made here replaces it (re-pushed on the server's rev; no conflict copies). Pull only
+an edit made here replaces it (re-pushed on the server's rev; no conflict copies). (15.1–19.4 made "Conflicted copy" notes on every
+pull while an open note had unsaved edits, and the desktop's kept the group's id, overwriting the group note; 19.5
+removed them on all three, and a push turns any note whose `groupId` isn't its own uuid back into my own note.)
+An open note *is* pushed (what its editor saved, through `saveContent`, which never touches `rev`); it is still
+never overwritten by a pull. The web saves 1.5 s after the last change and at once when the page is hidden or
+closed; its editor re-reads `rev` before every save. Pull only
 overwrites clean notes. A note in `NoteSync.OPEN` (open in an editor, or deleted with Undo still on
 screen) is neither pushed nor overwritten, except that an editor with no changes takes a newer
 version in place (`NoteSync.takeNewer`); "changed" is measured against what the editor itself
@@ -391,7 +396,7 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-Released: 41 / "19.4" everywhere (build file, `version.json`, desktop `pom.xml`, the web's `VERSION`, `?v=` and `sw.js` cache; tags `v19.4.0` Android, `v19.4` desktop). The next release bumps them all again (`version.json` last; it may carry `web.versionName`, which the web app compares with, so an Android-only release doesn't prompt the web).
+Released: 42 / "19.5" everywhere (build file, `version.json`, desktop `pom.xml`, the web's `VERSION`, `?v=` and `sw.js` cache; tags `v19.5.0` Android, `v19.5` desktop). The next release bumps them all again (`version.json` last; it may carry `web.versionName`, which the web app compares with, so an Android-only release doesn't prompt the web).
 16.1 was never published (its APK was never on R2); 16.4 follows 16.0.
 From 11.0 the APK is served from Cloudflare R2 (`releases` bucket, public at
 `https://releases.talken.in/android/Notes-Plus-<version>.apk`); from 16.6 every release is also a

@@ -395,24 +395,6 @@ final class NoteSync {
         return remoteDeleted ? REMOVE : OVERWRITE;
     }
 
-    private static void saveConflictedCopy(Context context, String uid, Remote remote, NoteEntity local) {
-        NoteDao dao = AppDatabase.getInstance(context).noteDao();
-        String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(new java.util.Date());
-        NoteEntity copy = new NoteEntity(local.getTitle() + " (Conflicted copy " + timestamp + ")", "", System.currentTimeMillis());
-        copy.setUuid(newUuid());
-        copy.setAccount(uid);
-        remote.copyInto(copy, context);
-        copy.setRev(1);
-        copy.setDirty(true);
-        long copyId = dao.insert(copy);
-        copy.setId((int) copyId);
-        writeSketch(context, (int) copyId, remote.sketch);
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
-                android.widget.Toast.makeText(context.getApplicationContext(),
-                        "Conflict detected: a conflicted copy was saved for " + local.getTitle(),
-                        android.widget.Toast.LENGTH_LONG).show());
-    }
-
     /** Applies one pulled note. False when it had to wait because the note is open. */
     private static boolean apply(Context context, String uid, Remote remote) {
         return apply(context, uid, remote, null, null);
@@ -446,9 +428,9 @@ final class NoteSync {
                         NEWER.put(local.getId(), remote);
                         Runnable watcher = WATCHERS.get(local.getId());
                         if (watcher != null) new android.os.Handler(android.os.Looper.getMainLooper()).post(watcher);
-                    } else {
-                        saveConflictedCopy(context, uid, remote, local);
                     }
+                    // Edited here too: no copy (15.1–19.4 made one on every pull). This edit is the
+                    // later intent; its push replaces the other.
                 }
                 return false;
             case INSERT: {
@@ -507,12 +489,27 @@ final class NoteSync {
         for (int round = 0; round < 3; round++) {
             boolean any = false;
             for (NoteEntity note : dao.dirtyNotes(uid)) {
-                if (OPEN.contains(note.getId()) || !done.add(note.getId())) continue;
+                // An open note goes up too (what its editor saved; a pull still never overwrites it),
+                // or a note left open on screen would never sync.
+                if (!done.add(note.getId()) || strayGroupCopy(dao, note)) continue;
                 any = true;
                 pushOne(context, uid, notes, note, drive, true);
             }
             if (!any) return;
         }
+    }
+
+    /**
+     * A note claiming a group it isn't (a group note's uuid is the group's id): left by the conflict
+     * copies of 15.1–19.4. It becomes a note of my own, so it never overwrites the group's.
+     */
+    private static boolean strayGroupCopy(NoteDao dao, NoteEntity note) {
+        if (note.getGroupId() == null || note.getGroupId().equals(note.getUuid())) return false;
+        note.setGroupId(null);
+        note.setGroupMembers(null);
+        note.setDirty(true);
+        dao.update(note);
+        return true;
     }
 
     private static void pushOne(Context context, String uid, DatabaseReference notes, NoteEntity note,

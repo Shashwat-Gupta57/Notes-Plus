@@ -36,6 +36,8 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
      */
     public static final String EXTRA_REALM = "realm";
     public static final String REALM_CHAT = "_chat";
+    /** Hidden notes: this screen only answers whether the lock was right (RESULT_OK). */
+    public static final String REALM_NOTES = "_notes";
     
     /** Free attempts before the first lockout. */
     private static final int FREE_ATTEMPTS = 5;
@@ -50,7 +52,7 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
     private boolean verifyOnly = false;
     private List<VaultEntity> allVaults;
     private List<ChatStore.Vault> chatVaults;
-    private boolean chat, checking;
+    private boolean chat, notes, checking;
 
     private ImageView lockBackground;
     private View lockDimOverlay, unlockRoot;
@@ -61,6 +63,7 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         chat = REALM_CHAT.equals(getIntent().getStringExtra(EXTRA_REALM));
+        notes = REALM_NOTES.equals(getIntent().getStringExtra(EXTRA_REALM));
         SecurityHelper.applyScreenProtection(getWindow(), this, chat ? REALM_CHAT : "");
         setContentView(R.layout.activity_unlock);
 
@@ -169,7 +172,10 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
         AppDatabase.IO.execute(() -> {
             AppDatabase db = AppDatabase.getInstance(this);
             String type;
-            if (chat) {
+            if (notes) {
+                allVaults = new java.util.ArrayList<>();
+                type = HiddenLock.type(this);
+            } else if (chat) {
                 chatVaults = db.chatDao().vaults();
                 allVaults = new java.util.ArrayList<>();
                 ChatStore.Vault main = db.chatDao().mainVault();
@@ -204,6 +210,32 @@ public class UnlockActivity extends AppCompatActivity implements UnlockPagerAdap
                 matchedVault = v;
                 break;
             }
+        }
+
+        if (notes) {
+            // Hashed too (PBKDF2): off the main thread, one attempt at a time.
+            if (checking) return;
+            checking = true;
+            AppDatabase.IO.execute(() -> {
+                boolean ok;
+                try {
+                    ok = HiddenLock.matches(this, type, value);
+                } catch (Exception e) {
+                    ok = false;
+                }
+                boolean right = ok;
+                runOnUiThread(() -> {
+                    checking = false;
+                    if (!right) {
+                        handleFailedAttempt();
+                        return;
+                    }
+                    SecurityHelper.getAppPrefs(this).edit().remove(KEY_FAILURES).remove(KEY_LOCKED_UNTIL).apply();
+                    setResult(RESULT_OK);
+                    finish();
+                });
+            });
+            return;
         }
 
         if (chat) {

@@ -17,6 +17,12 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/action_hidden_lock"
+        android:title="Change lock…"
+        android:visible="false"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_widgets"
         android:title="Add a widget…"
         app:showAsAction="never" />

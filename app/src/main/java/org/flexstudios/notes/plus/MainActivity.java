@@ -739,6 +739,8 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
+        MenuItem hiddenLock = menu.findItem(R.id.action_hidden_lock);
+        if (hiddenLock != null) hiddenLock.setVisible(showingHidden); // Only ever inside the hidden view.
         MenuItem account = menu.findItem(R.id.action_account);
         if (account != null) {
             androidx.core.view.MenuItemCompat.setIconTintList(account, ColorStateList.valueOf(
@@ -778,6 +780,10 @@ public class MainActivity extends AppCompatActivity {
         }
         if (item.getItemId() == R.id.action_account) {
             startActivity(new Intent(this, AccountActivity.class));
+            return true;
+        }
+        if (item.getItemId() == R.id.action_hidden_lock) {
+            chooseHiddenLock("Change lock", null);
             return true;
         }
         if (item.getItemId() == R.id.action_widgets) {
@@ -873,7 +879,7 @@ public class MainActivity extends AppCompatActivity {
                             float pulled = event.getY() - pullStartY, dp = getResources().getDisplayMetrics().density;
                             boolean down = pulled > 110 * dp && Math.abs(event.getX() - initialTouchX) < pulled / 2;
                             if (down && pullRunnable == null && !showingHidden) {
-                                pullRunnable = MainActivity.this::showHidden;
+                                pullRunnable = MainActivity.this::askForHidden;
                                 secretHandler.postDelayed(pullRunnable, 1200);
                             } else if (!down && pullRunnable != null) {
                                 cancelPull();
@@ -915,6 +921,78 @@ public class MainActivity extends AppCompatActivity {
         pullStartY = -1;
     }
 
+    /** The lock screen in hidden notes' mode: right lock, and they show. */
+    private final androidx.activity.result.ActivityResultLauncher<Intent> unlockHidden = registerForActivityResult(
+            new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() != RESULT_OK) return;
+                showHidden();
+                offerOwnHiddenLock();
+            });
+
+    /**
+     * The pull held: hidden notes' lock first. Its first lock is the main lock as it is now (or the
+     * account's, set on another device); with no lock anywhere, one is chosen here.
+     */
+    private void askForHidden() {
+        pullRunnable = null;
+        pullStartY = -1;
+        if (showingHidden) return;
+        getWindow().getDecorView().performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+        executor.execute(() -> {
+            boolean ready = HiddenLock.prepare(this);
+            runOnUiThread(() -> {
+                if (isFinishing()) return;
+                if (ready) {
+                    unlockHidden.launch(new Intent(this, UnlockActivity.class)
+                            .putExtra(UnlockActivity.EXTRA_REALM, UnlockActivity.REALM_NOTES));
+                } else {
+                    chooseHiddenLock("Choose a lock for hidden notes", this::showHidden);
+                }
+            });
+        });
+    }
+
+    /** Once, while the lock is still the one it started with: suggest one of its own. */
+    private void offerOwnHiddenLock() {
+        if (!SecurityHelper.getAppPrefs(this).getBoolean(HiddenLock.INHERITED, false)) return;
+        SecurityHelper.getAppPrefs(this).edit().remove(HiddenLock.INHERITED).apply();
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle("Give hidden notes their own lock?")
+                .setMessage("They still open with the lock they started with. A lock used only here keeps them private even from someone who knows your other codes.")
+                .setPositiveButton("Choose a lock", (d, w) -> chooseHiddenLock("A lock for hidden notes", null))
+                .setNegativeButton("Keep it", null)
+                .show();
+    }
+
+    /** A new lock for hidden notes: its kind, then entered twice. {@code after} runs once it's saved. */
+    private void chooseHiddenLock(String title, Runnable after) {
+        String[] kinds = {"PIN", "Password", "Pattern"}, types = {"PIN", "PASSWORD", "PATTERN"};
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(title)
+                .setItems(kinds, (d, which) -> UnlockActivity.askForNewLock(this, types[which], "New " + kinds[which].toLowerCase(java.util.Locale.ROOT),
+                        first -> UnlockActivity.askForNewLock(this, types[which], "Once more", second -> {
+                            if (!first.equals(second)) {
+                                Toast.makeText(this, "They didn't match. Try again.", Toast.LENGTH_LONG).show();
+                                return;
+                            }
+                            executor.execute(() -> {
+                                boolean saved;
+                                try {
+                                    HiddenLock.set(this, types[which], first);
+                                    saved = true;
+                                } catch (Exception e) {
+                                    saved = false;
+                                }
+                                boolean ok = saved;
+                                runOnUiThread(() -> {
+                                    Toast.makeText(this, ok ? "Lock saved" : "Couldn't save the lock", Toast.LENGTH_SHORT).show();
+                                    if (ok && after != null) after.run();
+                                });
+                            });
+                        })))
+                .show();
+    }
+
     /** The hidden notes, until Back, the up arrow, or leaving the app. */
     private void showHidden() {
         pullRunnable = null;
@@ -922,7 +1000,7 @@ public class MainActivity extends AppCompatActivity {
         if (showingHidden) return;
         showingHidden = true;
         backFromHidden.setEnabled(true);
-        getWindow().getDecorView().performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+        invalidateOptionsMenu();
         if (getSupportActionBar() != null) {
             getSupportActionBar().setTitle("Hidden notes");
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
@@ -935,6 +1013,7 @@ public class MainActivity extends AppCompatActivity {
         if (!showingHidden) return;
         showingHidden = false;
         backFromHidden.setEnabled(false);
+        invalidateOptionsMenu();
         if (getSupportActionBar() != null) {
             getSupportActionBar().setTitle("Notes");
             getSupportActionBar().setDisplayHomeAsUpEnabled(false);

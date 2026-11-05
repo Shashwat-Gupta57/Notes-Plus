@@ -217,7 +217,15 @@ No `String.join`/`repeat`/`java.util.Base64` in it: Android 7 lacks them.
 options takes it off the grid, search, folders, templates, link suggestions, backlinks, Ctrl+K and widgets.
 Pulling the grid down at the very top and holding 1.2 s (`MainActivity.showHidden`; desktop: scrolling up at
 the top for a moment; web: either) shows only them, until Back, the up arrow, or leaving the app
-(`onUserLeaveHint`). Not a hidden space: no lock, and nothing about it is in the docs.
+(`onUserLeaveHint`). Nothing about it is in the docs.
+**Their lock** (`HiddenLock`, the same on the desktop, `hiddenlock.js` on the web, kept in step by the same
+`HiddenLockTest` vectors): like the chat space's, the first lock is the main lock at that moment (Android: the gallery's
+main vault, hashed then; desktop: remembered when the gallery is unlocked there; web: none, so it asks), or the
+account's if another device set one; after that it's their own ("Change lock…" in the hidden view, plus a one-time
+"Give hidden notes their own lock?"). Stored only as `h1:<salt>:<hex PBKDF2-HMAC-SHA256(type + ":" + value, salt,
+210000, 32)>` (pattern values are the dot ids run together), locally and at `users/{uid}/hiddenLock` = {type, hash, at}
+(its rules line); the newest `at` wins. The pull opens `UnlockActivity` with `REALM_NOTES` (desktop: `UnlockView(Runnable)`),
+which shares the one lockout; the web counts its own wrong tries.
 
 **Widgets**: `ChecklistWidget` (+ `ChecklistWidgetService` rows, `ChecklistWidgetConfig` picker) shows one
 list, chosen by uuid in app prefs, ticked from the home screen through `Due.tick` and saved like the app

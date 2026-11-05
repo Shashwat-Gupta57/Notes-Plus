@@ -13,5 +13,9 @@
     "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-19.5.zip",
     "zipSha256": "f8bcbe7144999d4ea7fd2ae0949d0d30bbc60b448ec90a281e1c790552a0a81e",
     "changelog": "Notes+ 19.5 for Windows: no more \"Conflicted copy\" notes (a shared note can no longer be overwritten by one), and a note left open in a window still syncs."
+  },
+  "web": {
+    "versionName": "19.6",
+    "changelog": "Notes+ on the web 19.6: list items no longer appear twice for anyone (the fix now reaches every browser)."
   }
 }

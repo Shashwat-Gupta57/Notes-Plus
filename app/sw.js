@@ -18,7 +18,7 @@ const SHELL_ASSETS = [
   './app.css',
   './manifest.webmanifest',
   ...['account-ui', 'account', 'db', 'drive', 'due', 'ed-audio', 'ed-mindmap', 'ed-sketch', 'ed-text', 'editor',
-    'gallery', 'home', 'importexport', 'interchange', 'links', 'notelinks', 'lock', 'main', 'md', 'mindmap-draw', 'model', 'palette', 'rich', 'share-ui',
+    'gallery', 'hiddenlock', 'home', 'importexport', 'interchange', 'links', 'notelinks', 'lock', 'main', 'md', 'mindmap-draw', 'model', 'palette', 'rich', 'share-ui',
     'masonry', 'reminders', 'search', 'sync', 'templates', 'theme', 'ui', 'zip'].map(m => `./js/${m}.js`),
   '../res/notes_icon.png',
   '../res/icon-192.png',

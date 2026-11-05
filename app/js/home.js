@@ -14,6 +14,7 @@ import * as templates from './templates.js';
 import * as search from './search.js';
 import * as due from './due.js';
 import { masonry } from './masonry.js';
+import * as hiddenLock from './hiddenlock.js';
 import { drawSketchPreview } from './ed-sketch.js';
 
 const SHARED = 'SHARED';
@@ -83,7 +84,7 @@ export function homeScreen(go) {
   function showToolbar() {
     if (showingHidden && !searching) {
       toolbar.replaceChildren(iconButton('back', 'Back to your notes (Esc)', leaveHidden), h('h1.toolbar-title', 'Hidden notes'),
-        h('div.spacer'), iconButton('search', 'Search (Ctrl+F)', startSearch));
+        h('div.spacer'), iconButton('search', 'Search (Ctrl+F)', startSearch), iconButton('lock', 'Change lock', () => hiddenLock.change()));
       return;
     }
     if (searching) {
@@ -587,6 +588,13 @@ export function homeScreen(go) {
     showToolbar();
     render();
   }
+  /** Hidden notes' lock first: right, and they show. */
+  let asking = false;
+  function askHidden() {
+    if (showingHidden || asking || hasOverlay()) return;
+    asking = true;
+    hiddenLock.open(showHidden).finally(() => { asking = false; });
+  }
   function leaveHidden() {
     if (!showingHidden) return;
     showingHidden = false;
@@ -601,7 +609,7 @@ export function homeScreen(go) {
     if (!pull || showingHidden) return;
     const dy = e.touches[0].clientY - pull.y, dx = Math.abs(e.touches[0].clientX - pull.x);
     const down = dy > 110 && dx < dy / 2;
-    if (down && !pull.timer) pull.timer = setTimeout(() => { pull = null; showHidden(); }, 1200);
+    if (down && !pull.timer) pull.timer = setTimeout(() => { pull = null; askHidden(); }, 1200);
     else if (!down && pull.timer) { clearTimeout(pull.timer); pull.timer = null; }
   }, { passive: true });
   gridWrap.addEventListener('touchend', endPull);
@@ -612,7 +620,7 @@ export function homeScreen(go) {
     if (showingHidden || e.deltaY >= 0 || window.scrollY > 0 || hasOverlay()) { wheelStart = 0; return; }
     if (!wheelStart || now - wheelLast > 350) wheelStart = now;
     wheelLast = now;
-    if (now - wheelStart >= 1200) { wheelStart = 0; showHidden(); }
+    if (now - wheelStart >= 1200) { wheelStart = 0; askHidden(); }
   };
   const hasOverlay = () => !!document.querySelector('.scrim, .palette-scrim');
   window.addEventListener('wheel', onWheel, { passive: true });

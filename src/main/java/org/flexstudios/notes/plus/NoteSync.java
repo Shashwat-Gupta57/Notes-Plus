@@ -355,10 +355,10 @@ final class NoteSync {
                         writeSketch(local.getId(), remote.sketch);
                         if (ed != null) ed.reloadFromRemote(remote);
                         return true;
-                    } else {
-                        saveConflictedCopy(store, uid, local, remote, members);
-                        return false;
                     }
+                    // Edited here too: no copy (15.1–19.4 made one, under the group's id even, so
+                    // it overwrote the group's note). This edit is the later intent; its push wins.
+                    return false;
                 }
                 return false;
             case INSERT: {
@@ -391,25 +391,20 @@ final class NoteSync {
         }
     }
 
-    private static void saveConflictedCopy(NoteStore store, String uid, NoteEntity local, Remote remote, String members) {
-        NoteEntity conflict = new NoteEntity("", "", remote.edited);
-        conflict.setUuid(newUuid());
-        conflict.setAccount(uid);
-        remote.copyInto(conflict);
-        String stamp = new java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale.getDefault())
-                .format(new java.util.Date(remote.edited > 0 ? remote.edited : System.currentTimeMillis()));
-        String base = remote.title == null || remote.title.isEmpty() ? "Untitled" : remote.title;
-        conflict.setTitle(base + " (Conflicted copy " + stamp + ")");
-        conflict.setGroupId(local.getGroupId());
-        conflict.setGroupMembers(members != null ? members : local.getGroupMembers());
-        int id = store.insert(conflict);
-        writeSketch(id, remote.sketch);
-        Platform.runLater(() -> {
-            Ui.snackbar("Sync conflict detected: saved conflicting copy so no changes are lost", Ui.LONG, null, null, null);
-        });
-    }
-
     // ================================================================ push
+
+    /**
+     * A note claiming a group it isn't (a group note's uuid is the group's id): left by the conflict
+     * copies of 15.1–19.4. It becomes a note of my own, so it never overwrites the group's.
+     */
+    private static boolean strayGroupCopy(NoteStore store, NoteEntity note) {
+        if (note.getGroupId() == null || note.getGroupId().equals(note.getUuid())) return false;
+        note.setGroupId(null);
+        note.setGroupMembers(null);
+        note.setDirty(true);
+        store.update(note);
+        return true;
+    }
 
     private static void push(String uid, Drive drive) throws Exception {
         NoteStore store = NoteStore.get();
@@ -418,7 +413,9 @@ final class NoteSync {
         for (int round = 0; round < 3; round++) {
             boolean any = false;
             for (NoteEntity note : store.dirtyNotes(uid)) {
-                if (OPEN.contains(note.getId()) || !done.add(note.getId())) continue;
+                // An open note goes up too (what its editor saved; a pull still never overwrites it),
+                // or a note left open in a window would never sync.
+                if (!done.add(note.getId()) || strayGroupCopy(store, note)) continue;
                 any = true;
                 pushOne(uid, note, drive, true);
             }

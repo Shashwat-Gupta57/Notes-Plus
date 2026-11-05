@@ -338,7 +338,7 @@
         <header class="docs-hero">
           <div class="hero-pill-badge" style="margin-bottom: 14px;">
             <span class="pulse-dot" aria-hidden="true"></span>
-            <span>Notes+ v19.5 Canonical Docs</span>
+            <span>Notes+ v19.7 Canonical Docs</span>
           </div>
           <h1 class="hero-title" style="font-size: 2.6rem; margin-bottom: 14px;">
             Notes+ Documentation
@@ -368,7 +368,7 @@
               <tr><td><strong>Windows</strong> 10 / 11</td><td>Installer or portable ZIP</td><td>Java 21, JavaFX, SQLite</td></tr>
               <tr><td><strong>Web</strong> (any modern browser)</td><td><a href="app/">notes.talken.in/app</a>, installable as an app (PWA)</td><td>Plain ES modules, IndexedDB, no framework</td></tr>
               <tr><td><strong>macOS</strong>, <strong>iPhone / iPad</strong></td><td>The web app, installed to the Dock or Home Screen</td><td>(same as web)</td></tr>
-              <tr><td><strong>Linux</strong></td><td>The web app today, installed: its own window, works offline. A native build is <span class="docs-pill">pending</span></td><td>(same as web)</td></tr>
+              <tr><td><strong>Linux</strong></td><td>The desktop app: a <code>.deb</code> (Ubuntu, Debian, Mint), an AppImage (any distribution) or a <code>.tar.gz</code>. Or the web app, installed.</td><td>Same as Windows</td></tr>
             </tbody>
           </table>
         </section>
@@ -379,7 +379,7 @@
 
           <h3>Windows</h3>
           <ol>
-            <li>Download <strong>Notes-Plus-Setup-19.5.exe</strong> from the <a href="download.html">download page</a> and run it. It needs no Java: one is built in.</li>
+            <li>Download <strong>Notes-Plus-Setup-19.7.exe</strong> from the <a href="download.html">download page</a> and run it. It needs no Java: one is built in.</li>
             <li>If Windows SmartScreen says it doesn't recognise the app, choose <strong>More info → Run anyway</strong>. (The installer isn't code-signed yet; check its SHA-256 on the download page if you like.)</li>
             <li>Setup asks about a <strong>Desktop shortcut</strong>, the <strong>Start menu</strong>, and whether Notes+ should be your <strong>Default text editor</strong> for <code>.txt</code> and similar files.</li>
           </ol>
@@ -405,7 +405,13 @@
           <p>There is no native Mac build. Install the web app as above (Chrome, Edge or Safari's <strong>Add to Dock</strong>): it opens in its own window from the Dock and Launchpad, works offline, and syncs with your phone and PC.</p>
 
           <h3>Linux</h3>
-          <div class="docs-alert"><strong>Native Linux build: pending.</strong> It's on the way. Until then, install the web app from Chrome, Chromium or Edge: it runs in its own window, opens and edits with no connection at all once it has been opened online, and syncs like the others when you're back. When the Linux build ships, it will be on <code>releases.talken.in</code> and on GitHub Releases like every other build.</div>
+          <p>The same app as on Windows, with its own Java runtime built in (nothing else to install), for 64-bit Linux. From the <a href="download.html#linux">download page</a>:</p>
+          <ul>
+            <li><strong>.deb</strong> (Ubuntu, Debian, Linux Mint, Pop!_OS): open it with your software installer, or run <code>sudo apt install ./notes-plus_*_amd64.deb</code>. Notes+ appears in your app menu; remove it like any other app.</li>
+            <li><strong>AppImage</strong> (any distribution, including Fedora and Arch): make it runnable (<code>chmod +x Notes-Plus-*.AppImage</code>, or Properties → Allow executing), then open it. Some systems need <code>libfuse2</code> first.</li>
+            <li><strong>.tar.gz</strong>: unpack it anywhere and run <code>Notes+/bin/Notes+</code>.</li>
+          </ul>
+          <p>Your notes are kept in <code>~/.notes-plus</code>. When a new version is out, the app says so and opens the download page.</p>
         </section>
 
         <!-- 3. Using -->
@@ -545,7 +551,7 @@
             <li><strong><a href="https://github.com/Shashwat-Gupta57/Notes-Plus/releases" target="_blank" rel="noopener">GitHub Releases</a></strong>: the same files, with the release notes and the source they were built from.</li>
           </ul>
           <p>The apps learn about a release from <code>version.json</code>: Android checks at most every 12 hours, Windows at start and every few minutes, the web app when it opens. Android verifies the download's checksum and signing key before installing. Android, Windows and the web share one version number.</p>
-          <div class="docs-alert"><strong>Coming:</strong> a native Linux build, published to both places like the others.</div>
+          <p>Linux builds (<code>.deb</code>, AppImage, <code>.tar.gz</code>) are published to both places with every release, like the others.</p>
         </section>
 
         <!-- 8. FAQ -->
@@ -559,7 +565,7 @@
           <details class="docs-faq"><summary>My folders don't show on my other device.</summary><p>Update every device to 16.7 or later. Before 16.7, folders and the archive synced only where an option was on; 16.7 syncs them always and catches up on its first sync.</p></details>
           <details class="docs-faq"><summary>Windows says it protected my PC (SmartScreen).</summary><p>The installer isn't code-signed yet, so Windows doesn't recognise it. Choose <strong>More info → Run anyway</strong>, and compare the file's SHA-256 with the one on the download page if you want to be sure.</p></details>
           <details class="docs-faq"><summary>How do I move to a new phone?</summary><p>Sign in on the new phone with the same account: your notes, folders and files come down. Install the APK; don't restore an old one over it.</p></details>
-          <details class="docs-faq"><summary>Does it work on Mac, Linux, iPhone or iPad?</summary><p>Yes, through the web app, installed to the Dock or Home Screen (see <a href="#install">Install</a>). A native Linux build is pending.</p></details>
+          <details class="docs-faq"><summary>Does it work on Mac, Linux, iPhone or iPad?</summary><p>On Linux, yes: there’s a desktop app (see <a href="#install">Install</a>). On Mac, iPhone and iPad, through the web app, installed to the Dock or Home Screen.</p></details>
           <details class="docs-faq"><summary>Does it work offline?</summary><p>Yes, everywhere. The web app, once opened online, opens, searches, edits and makes notes with no connection at all (an "Offline" tag shows at the top), signed in or not. Changes sync by themselves when you're back online.</p></details>
           <details class="docs-faq"><summary>How do I delete my account and data?</summary><p>Account → <strong>Delete account</strong> on Android or Windows. It removes everything stored online for that account: notes, username, profile and sharing.</p></details>
           <details class="docs-faq"><summary>I found a bug / I have an idea.</summary><p>Account → <strong>Send Feedback &amp; Review</strong> in any app, or open an issue on <a href="https://github.com/Shashwat-Gupta57/Notes-Plus/issues" target="_blank" rel="noopener">GitHub</a>. On Android, Account → App logs lets you save logs to attach.</p></details>
@@ -677,7 +683,7 @@
         <div class="footer-copy">
           <p>© 2026 Shashwat Gupta • Flex Studios. Open source under the <a href="https://github.com/Shashwat-Gupta57/Notes-Plus/blob/master/LICENSE" style="text-decoration: underline;">GPL-3.0</a>.</p>
           <p style="font-size: 0.8rem; margin-top: 4px; color: var(--text-muted);">
-            No ad trackers. Notes+ v19.5 Canonical Docs.
+            No ad trackers. Notes+ v19.7 Canonical Docs.
           </p>
         </div>
 

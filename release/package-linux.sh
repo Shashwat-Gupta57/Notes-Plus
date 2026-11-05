@@ -116,8 +116,20 @@ if [ ! -x "$TOOL" ]; then
   curl -fsSL -o "$TOOL" "https://github.com/AppImage/appimagetool/releases/download/$APPIMAGETOOL_VERSION/appimagetool-x86_64.AppImage"
   chmod +x "$TOOL"
 fi
+# The AppImage runtime, fetched once and kept (the tool would download it on every run, and GitHub
+# sometimes answers 504).
+RUNTIME="$HOME/appimage-runtime-x86_64"
+if [ ! -s "$RUNTIME" ]; then
+  if ! curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o "$RUNTIME" \
+      "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64"; then
+    # Offline or refused: appimagetool is an AppImage itself, so its first bytes (up to its
+    # squashfs) are that same runtime.
+    OFFSET=$("$TOOL" --appimage-offset)
+    head -c "$OFFSET" "$TOOL" > "$RUNTIME"
+  fi
+fi
 # No FUSE in WSL: the tool runs extracted.
-APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "$TOOL" -n "$APPDIR" "$OUT/Notes-Plus-$VERSION-x86_64.AppImage" >/dev/null
+APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "$TOOL" -n --runtime-file "$RUNTIME" "$APPDIR" "$OUT/Notes-Plus-$VERSION-x86_64.AppImage" >/dev/null
 
 echo
 echo "Built in $OUT:"

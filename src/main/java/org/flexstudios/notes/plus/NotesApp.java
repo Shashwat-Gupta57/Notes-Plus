@@ -238,6 +238,9 @@ public class NotesApp extends Application {
         if (Account.uid() != null) NoteSync.startLive();
         NoteSync.startPeriodic();
         Reminders.start();
+        Thread tidy = new Thread(() -> Setup.pruneUpdates(null), "np-tidy-updates"); // Older downloaded updates go.
+        tidy.setDaemon(true);
+        tidy.start();
         ChatStore.IO.execute(ChatMedia::sweepPlain); // A crash may have left a playing voice note.
         ChatSync.startPeriodic();
         ChatSync.schedule();

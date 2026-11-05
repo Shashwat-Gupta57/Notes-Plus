@@ -246,11 +246,43 @@ public class Setup extends Application {
     // ================================================================ home
 
     static Path updateCacheDir(String version) {
+        return updatesRoot().resolve(version);
+    }
+
+    private static Path updatesRoot() {
         String localApp = System.getenv("LOCALAPPDATA");
-        Path base = (localApp != null && !localApp.isBlank())
-                ? Path.of(localApp, "Notes+", "updates", version)
-                : Path.of(System.getProperty("java.io.tmpdir"), "NotesPlusUpdates", version);
-        return base;
+        return (localApp != null && !localApp.isBlank())
+                ? Path.of(localApp, "Notes+", "updates")
+                : Path.of(System.getProperty("java.io.tmpdir"), "NotesPlusUpdates");
+    }
+
+    /**
+     * Downloaded updates: only {@code keep} stays (or, with null, only the newest), so they never
+     * pile up (each is ~150 MB). Before 19.6 every version's copy was kept for good.
+     */
+    static void pruneUpdates(String keep) {
+        Path root = updatesRoot();
+        if (!Files.isDirectory(root)) return;
+        try (Stream<Path> stream = Files.list(root)) {
+            List<Path> dirs = stream.filter(Files::isDirectory).toList();
+            String newest = keep;
+            if (newest == null) {
+                for (Path d : dirs) {
+                    String v = d.getFileName().toString();
+                    if (newest == null || Updates.compare(v, newest) > 0) newest = v;
+                }
+            }
+            for (Path d : dirs) {
+                if (d.getFileName().toString().equals(newest)) continue;
+                try {
+                    deleteTree(d);
+                } catch (Exception ignored) {
+                    // In use (an install running from it): next time.
+                }
+            }
+        } catch (Exception ignored) {
+            // Nothing to tidy.
+        }
     }
 
     static Path getDownloadedUpdate(String version) {
@@ -542,6 +574,7 @@ public class Setup extends Application {
         Label status = Ui.label("Downloading…", 14, "secondary");
         show(progressScreen("Downloading Notes+ " + version, status, bar));
         work(() -> {
+            pruneUpdates(version); // Only this one is kept.
             if (forceFresh) {
                 try {
                     deleteTree(cacheDir);

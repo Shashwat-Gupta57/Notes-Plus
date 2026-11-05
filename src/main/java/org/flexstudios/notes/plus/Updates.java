@@ -43,6 +43,8 @@ final class Updates {
         }
     }
 
+    static final boolean LINUX = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("linux");
+
     /** Blocking. The newer release, or null when this build is up to date. */
     static Release check() throws Exception {
         HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(12)).build();
@@ -55,7 +57,8 @@ final class Updates {
                 if (response.statusCode() != 200) continue;
                 Prefs.put(PREF_LAST_CHECK, System.currentTimeMillis());
                 recordCheckTelemetry(response.headers().firstValue("date").orElse(null));
-                JSONObject desktop = new JSONObject(response.body()).optJSONObject("desktop");
+                // Linux reads its own entry (a .deb / AppImage page); Windows the installer's.
+                JSONObject desktop = new JSONObject(response.body()).optJSONObject(LINUX ? "linux" : "desktop");
                 if (desktop == null) return null;
                 String name = desktop.optString("versionName", "");
                 String url = desktop.optString("url", "");

@@ -11,7 +11,7 @@
 import * as account from './account.js';
 import * as sync from './sync.js';
 import * as reminders from './reminders.js';
-import { hasModal, closeTop, toast, dialog, button, h } from './ui.js';
+import { hasModal, closeTop, toast, dialog, button, h, snackbar } from './ui.js';
 import { homeScreen } from './home.js';
 import { accountScreen, VERSION } from './account-ui.js';
 import { openEditor } from './editor.js';
@@ -325,7 +325,30 @@ export async function promptPwaInstall() {
   return false;
 }
 
+/**
+ * A new version took over (its service worker): this page still runs the old code. On the grid it
+ * reloads at once; in a note, after saving, when asked (never under someone typing).
+ */
+function reloadOnUpdate() {
+  if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return; // First visit: nothing old.
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return;
+    if (!/^#\/(n|new)\//.test(location.hash)) {
+      reloading = true;
+      location.reload();
+      return;
+    }
+    snackbar('Notes+ was updated', 'Reload', async () => {
+      reloading = true;
+      try { if (current && current.flush) await current.flush(); } catch { /* Reload anyway. */ }
+      location.reload();
+    });
+  });
+}
+
 async function boot() {
+  reloadOnUpdate();
   route();
   checkForWebUpdate();
   reminders.start(uuid => go('#/n/' + uuid)); // List items' reminders, while the app is open.

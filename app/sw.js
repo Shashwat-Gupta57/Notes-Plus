@@ -10,7 +10,7 @@
 //   Live data             database, sign-in, Drive, version.json: never cached.
 //
 // Bump CACHE_NAME with every release (docs/Push to production.md), so the new files replace the old.
-const CACHE_NAME = 'notes-plus-pwa-v19.5';
+const CACHE_NAME = 'notes-plus-pwa-v19.6';
 
 const SHELL_ASSETS = [
   './',
@@ -50,8 +50,11 @@ const NETWORK_ONLY = [
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      // One by one, so a single missing file doesn't leave the whole cache empty.
-      .then(cache => Promise.all(SHELL_ASSETS.map(u => cache.add(u).catch(e => console.warn('[sw] not cached', u, e)))))
+      // One by one, so a single missing file doesn't leave the whole cache empty. Straight from the
+      // server ("reload"), never the browser's HTTP cache: the site lets browsers keep files for hours,
+      // and a new version built from those would keep serving the old code (19.5 did, for some).
+      .then(cache => Promise.all(SHELL_ASSETS.map(u => cache.add(new Request(u, { cache: 'reload' }))
+        .catch(e => console.warn('[sw] not cached', u, e)))))
       .then(() => self.skipWaiting())
   );
 });
@@ -92,7 +95,8 @@ self.addEventListener('fetch', event => {
 
   // The app's own files: from the cache at once, refreshed in the background.
   event.respondWith(caches.match(req, { ignoreSearch: true }).then(cached => {
-    const fresh = fetch(req).then(res => {
+    // Asked again of the server (not the HTTP cache), so the next load has what's live.
+    const fresh = fetch(req, { cache: 'no-cache' }).then(res => {
       if (res && res.ok && res.type === 'basic') {
         const copy = res.clone();
         caches.open(CACHE_NAME).then(c => c.put(req, copy));

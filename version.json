@@ -1,17 +1,17 @@
 {
-  "versionCode": 41,
-  "versionName": "19.4",
+  "versionCode": 42,
+  "versionName": "19.5",
   "forced": false,
-  "changelog": "Notes+ 19.4: reminders for list items (a notification at the item's time, even with the app closed), calmer and more readable mind map colours, home-screen widgets now listed by every launcher, \"Save as template\" in every note's menu, and the card shows the item due soonest. Install over this version; don't uninstall first.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-19.4.apk",
-  "sha256": "52b41fbd997e4050319ccdf91c5ac59e8ca3ba92c84b75ec12598bbe92ceac32",
+  "changelog": "Notes+ 19.5: more reliable sync. No more \"Conflicted copy\" notes, shared notes keep their identity, and a note left open still syncs. Widgets can now be added from inside the app (a list's menu: Add to home screen; the notes menu: Add a widget) for home screens that don't list them. Install over this version; don't uninstall first.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-19.5.apk",
+  "sha256": "4248f35b1e60d694c4c5c36d01928bdec4407f2fc1febc8ad643d80423c619cf",
   "desktop": {
-    "versionName": "19.4",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-19.4.exe",
-    "sha256": "bd801247f8a4691e7dbae670b2208a5a4167dd52cc040ada073f03ad1681ea1e",
+    "versionName": "19.5",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-19.5.exe",
+    "sha256": "241885934de51a64098506b71a8bd501f74b63f4206435f2a37637d66ad7794f",
     "size": "77 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-19.4.zip",
-    "zipSha256": "061c52382806fd37be3fde8987b55a208f2a39fbfee276bdede759bf1abb4445",
-    "changelog": "Notes+ 19.4 for Windows: reminders for list items, a date pane with Apply and a time wheel, lists that no longer open with blank gaps, Enter picks a [[ link title, Save as template in every note, calmer mind map colours."
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-19.5.zip",
+    "zipSha256": "f8bcbe7144999d4ea7fd2ae0949d0d30bbc60b448ec90a281e1c790552a0a81e",
+    "changelog": "Notes+ 19.5 for Windows: no more \"Conflicted copy\" notes (a shared note can no longer be overwritten by one), and a note left open in a window still syncs."
   }
 }

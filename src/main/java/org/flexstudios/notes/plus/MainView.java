@@ -319,7 +319,8 @@ final class MainView extends Screen {
     private void showToolbar() {
         if (showingHidden && !searching) {
             toolbar.getChildren().setAll(Ui.iconButton(Icons.ARROW_BACK, "text_primary", "Back to your notes (Esc)", this::leaveHidden),
-                    title, Ui.spacer(), Ui.iconButton(Icons.SEARCH, "text_primary", "Search (Ctrl+F)", this::startSearch));
+                    title, Ui.spacer(), Ui.iconButton(Icons.SEARCH, "text_primary", "Search (Ctrl+F)", this::startSearch),
+                    Ui.iconButton(Icons.LOCK, "text_primary", "Change lock", () -> HiddenLock.choose("Change lock", null, null)));
             return;
         }
         if (searching) {
@@ -596,13 +597,41 @@ final class MainView extends Screen {
         pullLast = now;
         if (now - pullStart >= 1200) {
             pullStart = 0;
-            showHidden();
+            askForHidden();
         }
     }
 
     private final javafx.beans.value.ChangeListener<Boolean> leaveOnBlur = (o, was, is) -> {
         if (!is) leaveHidden(); // Another app in front: hidden again.
     };
+
+    /**
+     * The scroll held: hidden notes' lock first (the same lock screen). Its first lock is the main
+     * lock remembered here, or the account's; with none anywhere, one is chosen now.
+     */
+    private void askForHidden() {
+        if (showingHidden) return;
+        NoteStore.load(s -> HiddenLock.prepare(), ready -> {
+            if (ready) {
+                NotesApp.open(new UnlockView(() -> {
+                    showHidden();
+                    offerOwnHiddenLock();
+                }));
+            } else {
+                HiddenLock.choose("Choose a lock for hidden notes", "It opens them on every device you sign in on.", this::showHidden);
+            }
+        });
+    }
+
+    /** Once, while the lock is still the one it started with: suggest one of its own. */
+    private void offerOwnHiddenLock() {
+        if (Prefs.get(HiddenLock.INHERITED) == null) return;
+        Prefs.put(HiddenLock.INHERITED, null);
+        Ui.dialog().title("Give hidden notes their own lock?")
+                .message("They still open with the lock they started with. A lock used only here keeps them private even from someone who knows your other codes.")
+                .positive("Choose a lock", () -> HiddenLock.choose("A lock for hidden notes", null, null))
+                .negative("Keep it", null).show();
+    }
 
     private void showHidden() {
         if (showingHidden) return;

@@ -35,6 +35,9 @@ final class UnlockView extends Screen {
     private static final String KEY_FAILURES = "unlock_failures", KEY_LOCKED_UNTIL = "unlock_locked_until";
     /** Which hidden space this lock screen opens; the screen itself looks the same for both. */
     static final String REALM_GALLERY = "", REALM_CHAT = "_chat";
+    /** Hidden notes: the right lock goes back to the notes and runs {@link #onNotes}. */
+    static final String REALM_NOTES = "_notes";
+    private Runnable onNotes;
 
     private final StackPane root = new StackPane();
     private final HBox strip = new HBox();
@@ -50,6 +53,12 @@ final class UnlockView extends Screen {
 
     UnlockView() {
         this(REALM_GALLERY);
+    }
+
+    /** Hidden notes' lock: {@code opened} runs once it's right, back on the notes. */
+    UnlockView(Runnable opened) {
+        this(REALM_NOTES);
+        onNotes = opened;
     }
 
     UnlockView(String realm) {
@@ -117,7 +126,9 @@ final class UnlockView extends Screen {
             layoutPages(false);
             inputs[page].focus();
         };
-        if (REALM_CHAT.equals(realm)) {
+        if (REALM_NOTES.equals(realm)) {
+            openOn.accept(HiddenLock.type());
+        } else if (REALM_CHAT.equals(realm)) {
             ChatStore.load(s -> s.mainVault() == null ? null : s.mainVault().lockType, openOn);
         } else {
             VaultStore.load(s -> s.mainVault() == null ? null : s.mainVault().lockType, openOn);
@@ -213,6 +224,21 @@ final class UnlockView extends Screen {
             return;
         }
         checking = true;
+        if (REALM_NOTES.equals(realm)) {
+            NoteStore.load(s -> HiddenLock.matches(type, value), right -> {
+                checking = false;
+                if (!right) {
+                    failed();
+                    inputs[page].clear();
+                    return;
+                }
+                Prefs.put(KEY_FAILURES, null);
+                Prefs.put(KEY_LOCKED_UNTIL, null);
+                NotesApp.back();
+                if (onNotes != null) onNotes.run();
+            });
+            return;
+        }
         if (REALM_CHAT.equals(realm)) {
             ChatStore.load(s -> ChatVaults.find(type, value), match -> {
                 checking = false;
@@ -234,7 +260,10 @@ final class UnlockView extends Screen {
             for (VaultStore.Vault v : vaults) {
                 if (type.equals(v.lockType) && VaultCrypto.matches(v.lockHash, type, value)
                         && VaultCrypto.unlock(v.uuid, type, value)) {
-                    if (v.main) ChatVaults.rememberInitialLock(type, value);
+                    if (v.main) {
+                        ChatVaults.rememberInitialLock(type, value);
+                        HiddenLock.rememberInitial(type, value);
+                    }
                     return v;
                 }
             }

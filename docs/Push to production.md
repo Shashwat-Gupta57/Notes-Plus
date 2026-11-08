@@ -77,6 +77,17 @@ or the build can't sign in with Google or use Drive. `package.sh` warns when it'
 
 Quick check: unzip the zip into an empty folder, run `Notes+.exe`, open a note.
 
+## 2b. Build Linux (in WSL)
+
+```bash
+wsl -d Ubuntu-24.04 -- bash /mnt/d/User/Data/projects/Notes-Plus-Desktop/release/package-linux.sh
+```
+
+Output in `dist/<ver>/linux/`: `notes-plus_<ver>_amd64.deb`, `Notes-Plus-<ver>-x86_64.AppImage`,
+`Notes-Plus-Linux-<ver>.tar.gz`, and a printed `"linux"` entry for `version.json`. jpackage only builds for the
+system it runs on, so this needs WSL (Ubuntu 24.04 on D:, with openjdk-21-jdk, maven, fakeroot, dpkg-dev). Upload
+the three to R2 under `linux/`, delete the previous version's, and attach them to the GitHub Release.
+
 ## 3. Upload the APK to R2
 
 R2 holds **one APK at a time**: upload the new one now, and delete the old one only after

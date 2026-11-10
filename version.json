@@ -27,7 +27,7 @@
     "changelog": "Notes+ 19.7: the first Linux release, as a .deb, an AppImage and a .tar.gz."
   },
   "web": {
-    "versionName": "19.7",
-    "changelog": "Notes+ on the web 19.7: hidden notes have a lock."
+    "versionName": "19.8",
+    "changelog": "Notes+ on the web 19.8: a note made right after opening the app now syncs to your other devices. Notes that missed out before are offered to your account once."
   }
 }

@@ -134,6 +134,12 @@ export async function run() {
     try {
       await account.load();
       for (const n of await db.allNotes()) {
+        if (n.pendingAccount && !n.account && !n.sharedFrom) {
+          n.account = uid;
+          n.dirty = true;
+          delete n.pendingAccount;
+          await db.putNote(n, true);
+        }
         if (n.deleted && !OPEN.has(n.uuid) && (n.rev === 0 || n.account !== uid) && !n.sharedFrom) await db.purgeNote(n.uuid, true);
       }
       await pull(uid);
@@ -630,6 +636,10 @@ export async function localCount() {
 export async function leave(uid, keep) {
   stopLive();
   for (const n of await db.allNotes()) {
+    if (n.pendingAccount) {
+      delete n.pendingAccount; // Never joins whoever signs in next.
+      await db.putNote(n, true);
+    }
     if (n.account !== uid) continue;
     if (n.sharedFrom || !keep || n.deleted) {
       await db.purgeNote(n.uuid, true);

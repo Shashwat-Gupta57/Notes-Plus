@@ -347,6 +347,25 @@ function reloadOnUpdate() {
   });
 }
 
+/**
+ * Up to 19.7, a note made in the first seconds after opening (before the account had loaded) was
+ * kept only in this browser and never synced. Once per account, those are offered to it.
+ */
+async function offerStranded() {
+  const uid = account.uid();
+  const asked = 'np_stranded_asked_' + uid;
+  // Signing in on the account screen: that screen asks the same question itself.
+  if (!uid || localStorage.getItem(asked) || location.hash.startsWith('#/account')) return;
+  localStorage.setItem(asked, '1');
+  const count = await sync.localCount();
+  if (!count) return;
+  dialog({
+    title: `${count} note${count === 1 ? ' isn’t' : 's aren’t'} in your account`,
+    message: `${count === 1 ? 'It was' : 'They were'} made in this browser but never synced to your phone and PC. Add ${count === 1 ? 'it' : 'them'} now?`,
+    buttons: [{ text: 'Keep only here' }, { text: 'Add to account', onClick: () => sync.adoptLocal(uid) }],
+  });
+}
+
 async function boot() {
   reloadOnUpdate();
   route();
@@ -361,9 +380,12 @@ async function boot() {
   await account.restore();
   if (account.uid()) {
     sync.startLive();
+    sync.schedule(0); // Notes made while the account was loading go up now.
+    offerStranded();
   }
   account.observe(() => {
     if (account.uid()) sync.startLive(); else sync.stopLive();
+    offerStranded();
     // Signed in from a link ("Sign in to save" / "to join"): back to the link.
     const back = sessionStorage.getItem('np_return');
     if (account.uid() && back) {

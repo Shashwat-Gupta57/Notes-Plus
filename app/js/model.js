@@ -33,6 +33,9 @@ export function newNote(type) {
   return {
     uuid: newUuid(), type, title: '', content: '', data: null, color: 0, pinned: false,
     timestamp: Date.now(), rev: 0, dirty: true, deleted: false, account: null, media: null, sharedFrom: null,
+    // Made while an account is remembered here but still loading (the first seconds after opening,
+    // or offline): it joins that account at the next sync instead of staying only in this browser.
+    pendingAccount: typeof localStorage !== 'undefined' && !!localStorage.getItem('np_account'),
   };
 }
 

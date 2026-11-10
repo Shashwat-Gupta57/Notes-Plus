@@ -166,6 +166,14 @@ export async function openEditor({ uuid, type }, implFor, go) {
     if (current) Object.assign(note, { rev: current.rev, media: current.media, groupMembers: current.groupMembers });
     note.timestamp = Date.now();
     note.dirty = true;
+    if (!note.account && note.pendingAccount && account.uid()) {
+      note.account = account.uid();
+      delete note.pendingAccount;
+    }
+    if (current && current.account && !note.account) { // Joined by a sync meanwhile.
+      note.account = current.account;
+      delete note.pendingAccount;
+    }
     const stored = { ...note };
     if (key) {
       stored.data = await lock.seal(key, note.content, note.data);

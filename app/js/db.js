@@ -3,7 +3,9 @@
 // few settings. Other tabs of the app hear about changes and redraw.
 
 const NAME = 'notesplus';
-const VERSION = 1;
+const VERSION = 2;
+/** The vault's stores (v2): never read by the notes, never synced with them. */
+export const VAULT_STORES = ['vaults', 'secrets', 'albums', 'vaultData'];
 let opening = null;
 
 function open() {
@@ -15,6 +17,10 @@ function open() {
         if (!d.objectStoreNames.contains('notes')) d.createObjectStore('notes', { keyPath: 'uuid' });
         if (!d.objectStoreNames.contains('files')) d.createObjectStore('files');
         if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv');
+        if (!d.objectStoreNames.contains('vaults')) d.createObjectStore('vaults', { keyPath: 'uuid' });
+        if (!d.objectStoreNames.contains('secrets')) d.createObjectStore('secrets', { keyPath: 'fileName' });
+        if (!d.objectStoreNames.contains('albums')) d.createObjectStore('albums', { keyPath: 'uuid' });
+        if (!d.objectStoreNames.contains('vaultData')) d.createObjectStore('vaultData');
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -41,6 +47,14 @@ function req(r) {
     r.onerror = () => reject(r.error);
   });
 }
+
+// ------------------------------------------------------------------ any store (the vault's)
+
+export const storeAll = store => run(store, 'readonly', s => req(s.getAll()));
+export const storeGet = (store, key) => run(store, 'readonly', s => req(s.get(key))).then(v => (v === undefined ? null : v));
+export const storePut = (store, value, key) => run(store, 'readwrite', s => req(key === undefined ? s.put(value) : s.put(value, key)));
+export const storeDelete = (store, key) => run(store, 'readwrite', s => req(s.delete(key)));
+export const storeClear = store => run(store, 'readwrite', s => req(s.clear()));
 
 // ------------------------------------------------------------------ change events
 

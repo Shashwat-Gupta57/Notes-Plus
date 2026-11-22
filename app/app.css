@@ -666,25 +666,77 @@ input.item-text { white-space: nowrap; text-overflow: ellipsis; }
 .folder-more { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.45);
   color: #fff; font-size: 22px; font-weight: 700; }
 
-/* The read-only gallery. */
-.gallery { min-height: 100vh; background: var(--bg); }
-.gallery-lock { max-width: 360px; margin: 12vh auto 0; padding: 0 16px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
-.gallery-lock h2 { margin: 4px 0 0; font-size: 22px; }
-.gallery-lock p { margin: 0; color: var(--secondary); }
-.gallery-lock-input { width: 100%; display: flex; justify-content: center; }
-.gallery-lock-input .field { width: 100%; }
-.gallery-tabs { display: flex; gap: 8px; }
-.gallery-vaults { max-width: 640px; margin: 0 auto; }
-.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 3px; padding: 4px 12px 24px; }
-.gallery-tile { position: relative; aspect-ratio: 1; border: 0; padding: 0; background: var(--placeholder); overflow: hidden; cursor: pointer; border-radius: 4px; }
-.gallery-tile img, .gallery-tile video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
-.gallery-badge { position: absolute; right: 6px; bottom: 6px; z-index: 1; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); }
-.gallery-viewer { position: fixed; inset: 0; z-index: 50; background: #000; }
-.gallery-stage { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; }
-.gallery-stage img, .gallery-stage video { max-width: 100%; max-height: 100%; }
-.gallery-nav { position: absolute; top: 12px; border: 0; background: rgba(0, 0, 0, 0.4); border-radius: 50%; width: 44px; height: 44px; display: grid; place-items: center; cursor: pointer; }
-.gallery-nav.prev { left: 12px; }
-.gallery-nav.close { right: 12px; }
+/* The vault (vault-ui.js): the desktop's gallery, in the apps' look. */
+.vault { min-height: 100vh; background: var(--bg); }
+.vault.dropping::after { content: ''; position: fixed; inset: 12px; z-index: 40; border: 3px dashed var(--brand); border-radius: 22px; pointer-events: none;
+  background: color-mix(in srgb, var(--brand) 10%, transparent); }
+.vault-page { min-height: 100vh; padding-bottom: 96px; }
+.vault-center { max-width: 400px; margin: 10vh auto 0; padding: 0 16px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+.vault-center h2 { margin: 4px 0 0; font-size: 24px; }
+.vault-center p { margin: 0; color: var(--secondary); }
+.vault-choices { width: 100%; text-align: left; margin-top: 8px; }
+.vault-lock-entry { width: 100%; }
+.vault-lock-entry .tabs { margin-bottom: 12px; }
+.vault-lock-input { width: 100%; display: flex; justify-content: center; }
+.vault-lock-input .field { width: 100%; }
+.vault-lock-note { min-height: 20px; font-size: 14px; }
+.vault-dialog-go { display: flex; justify-content: flex-end; margin-top: 14px; }
+.vault-spacer { flex: 1; }
+.vault-count { color: var(--secondary); font-size: 14px; margin-left: 10px; align-self: flex-end; padding-bottom: 6px; white-space: nowrap; }
+.vault-tabs { max-width: 360px; margin: 0 16px 6px; }
+.vault-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--cell, 150px), 1fr)); gap: 3px; padding: 0 12px 24px; user-select: none; }
+.vault-day { grid-column: 1 / -1; margin: 14px 4px 6px; font-size: 15px; font-weight: 600; }
+.vault-tile { position: relative; aspect-ratio: 1; border: 0; padding: 0; background: var(--placeholder); overflow: hidden; cursor: pointer; border-radius: 4px; }
+.vault-tile img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.vault-tile.gone { display: none; }
+.vault-badge { position: absolute; right: 6px; bottom: 6px; z-index: 1; display: flex; align-items: center; gap: 3px; height: 24px; padding: 0 7px 0 5px; border-radius: 12px;
+  background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 12px; font-weight: 500; }
+.vault-fav { position: absolute; left: 6px; bottom: 6px; z-index: 1; display: grid; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6)); }
+.vault-check { position: absolute; top: 6px; right: 6px; z-index: 2; display: none; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  border: 2px solid #fff; background: rgba(0, 0, 0, 0.25); }
+.vault.selecting .vault-check { display: grid; }
+.vault-tile.on .vault-check { background: var(--accent); border-color: var(--accent); }
+.vault-tile.on img { transform: scale(0.9); border-radius: 6px; transition: transform 0.12s; }
+.vault-selbar { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); z-index: 30; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 2px; padding: 6px 10px; border-radius: 20px; background: var(--surface); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+  max-width: calc(100vw - 32px); overflow-x: auto; scrollbar-width: none; }
+.vault-selbar::-webkit-scrollbar { display: none; }
+.vault-selcount { padding: 0 10px 0 4px; font-weight: 500; white-space: nowrap; }
+.vault.selecting .new-fab { display: none; }
+.vault-albums { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 18px 14px; padding: 8px 16px 24px; }
+.vault-album { display: grid; gap: 2px; border: 0; padding: 0; background: none; text-align: left; cursor: pointer; color: var(--text); }
+.vault-album-cover { aspect-ratio: 1; border-radius: 14px; overflow: hidden; display: grid; place-items: center; background: var(--placeholder); }
+.vault-album-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vault-album-name { margin-top: 6px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vault-album-count { color: var(--secondary); font-size: 13.5px; }
+.vault-viewer { position: fixed; inset: 0; z-index: 50; background: #000; }
+.vault-viewer-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; gap: 2px;
+  padding: calc(8px + var(--safe-top, 0px)) 10px 24px; background: linear-gradient(rgba(0, 0, 0, 0.6), transparent); color: #fff; }
+.vault-viewer-bar .icon-btn { color: #fff; }
+.vault-viewer-title { margin-left: 6px; font-size: 15px; opacity: 0.85; }
+.vault-stage { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; }
+.vault-stage img, .vault-stage video { max-width: 100%; max-height: 100%; }
+.vault-nav { position: absolute; top: 50%; z-index: 2; transform: translateY(-50%); border: 0; background: rgba(0, 0, 0, 0.35); border-radius: 50%;
+  width: 46px; height: 46px; display: grid; place-items: center; cursor: pointer; }
+.vault-nav.prev { left: 12px; }
+.vault-nav.next { right: 12px; }
+.vault-details { display: grid; gap: 10px; }
+.vault-details div { display: flex; justify-content: space-between; gap: 18px; }
+.vault-details span:first-child { color: var(--secondary); }
+.vault-details span:last-child { text-align: right; word-break: break-all; }
+.vault-toggle { position: relative; flex: none; width: 44px; height: 26px; border-radius: 13px; background: var(--divider); transition: background 0.15s; }
+.vault-toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); transition: transform 0.15s; }
+.vault-toggle.on { background: var(--tile-green); }
+.vault-toggle.on::after { transform: translateX(18px); }
+.spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--divider); border-top-color: var(--brand); animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 640px) {
+  .vault-grid { grid-template-columns: repeat(auto-fill, minmax(min(var(--cell, 150px), 31vw), 1fr)); padding: 0 2px 24px; gap: 2px; }
+  .vault-tile { border-radius: 0; }
+  .vault-albums { grid-template-columns: repeat(2, 1fr); }
+  .vault-nav { display: none; }
+}
 
 /* -------------------------------------------------- Dedicated Native Apps Card & PWA */
 .dedicated-apps-card {
@@ -1046,7 +1098,7 @@ html.no-pull-refresh, html.no-pull-refresh body { overscroll-behavior-y: contain
 .dialog { max-height: calc(100vh - 32px - var(--safe-top) - var(--safe-bottom)); }
 .palette-scrim { padding-top: calc(72px + var(--safe-top)); }
 @media (max-width: 640px) { .palette-scrim { padding-top: calc(16px + var(--safe-top)); } }
-.gallery-nav { top: calc(12px + var(--safe-top)); }
+.vault-viewer-bar { padding-top: calc(8px + var(--safe-top)); }
 .toast { bottom: calc(28px + var(--safe-bottom)); }
 .snackbar { bottom: calc(24px + var(--safe-bottom)); }
 @media (display-mode: standalone) {

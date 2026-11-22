@@ -20,7 +20,7 @@ const SHELL_ASSETS = [
   ...['account-ui', 'account', 'db', 'drive', 'due', 'ed-audio', 'ed-mindmap', 'ed-sketch', 'ed-text', 'editor',
     'gallery', 'hiddenlock', 'home', 'importexport', 'interchange', 'links', 'notelinks', 'lock', 'main', 'md', 'mindmap-draw', 'model', 'palette', 'rich', 'share-ui',
     'masonry', 'reminders', 'search', 'sync', 'templates', 'theme', 'ui', 'zip',
-    'vault-crypto', 'vault-rules', 'vault-store', 'vault-sync', 'vault-ui'].map(m => `./js/${m}.js`),
+    'picline', 'vault-crypto', 'vault-rules', 'vault-store', 'vault-sync', 'vault-ui'].map(m => `./js/${m}.js`),
   '../res/notes_icon.png',
   '../res/icon-192.png',
   '../res/icon-512.png',

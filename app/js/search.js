@@ -14,7 +14,7 @@ import { shown } from './notelinks.js';
 export const emptyFilters = () => ({ type: null, color: -1, folder: null, pictures: false, dates: false });
 export const anyFilter = f => !!f && (f.type !== null || f.color >= 0 || f.folder !== null || f.pictures || f.dates);
 
-const PICTURE = /!\[\[[^\]]+\.(png|jpe?g|gif|webp|bmp|heic)\]\]/i;
+const PICTURE = /!\[\[[^\]|]+\.(png|jpe?g|gif|webp|bmp|heic)(\|[^\]]*)?\]\]/i;
 
 /** The words typed, each once, lowercased. */
 export function terms(query) {

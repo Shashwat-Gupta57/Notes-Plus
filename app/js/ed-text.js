@@ -9,7 +9,10 @@ import { richEditor } from './rich.js';
 import * as due from './due.js';
 import * as reminders from './reminders.js';
 import * as noteLinks from './notelinks.js';
+import { parse as parsePicture, format as formatPicture, snap } from './picline.js';
 import { TEXT, LIST, JOURNAL, PICTURE_LINE, todos, todosJson, wraps, journal, journalJson, MOODS, mediaName, isVideo, dayStart } from './model.js';
+
+const PIC_TYPE = 'application/x-notesplus-picture';
 
 // Where the browser can size a field to its text itself (CSS field-sizing), nothing is measured here.
 const SELF_SIZING = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('field-sizing', 'content');
@@ -60,6 +63,7 @@ const extOf = blob => ((blob.type || '').split('/')[1] || 'png').replace('jpeg',
 function richBody(ctx, content, placeholder) {
   const wrap = h('div.rich');
   const blocks = [];
+  let moving = null; // A picture being dragged to another place.
   let active = null;
   let onCaret = () => {};
 
@@ -94,17 +98,203 @@ function richBody(ctx, content, placeholder) {
     return block;
   }
 
-  function picBlock(name) {
-    const img = h('img', { alt: '' });
-    ctx.fileUrl(name).then(u => {
+  // ------------------------------------------------ pictures: select, resize, place, move
+  // Click a picture to select it: handles on its corners and sides resize it (a share of the
+  // column, in steps of 5%), and a bar sizes, places, moves, views or removes it. Dragging it into
+  // the words moves it there. The line keeps it all: `![[name|60%|center]]` (picline.js).
+
+  let selected = null;
+  function select(b) {
+    if (selected === b) return;
+    deselect();
+    selected = b;
+    b.node.classList.add('on');
+    b.node.append(...picUi(b));
+    if (document.activeElement && wrap.contains(document.activeElement)) document.activeElement.blur();
+  }
+  function deselect() {
+    if (!selected) return;
+    selected.node.classList.remove('on');
+    selected.node.querySelectorAll('.pic-ui').forEach(n => n.remove());
+    selected = null;
+  }
+  document.addEventListener('pointerdown', e => { if (selected && !selected.node.contains(e.target)) deselect(); }, true);
+  document.addEventListener('keydown', e => {
+    if (!selected || !wrap.isConnected) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      deselect();
+    } else if ((e.key === 'Delete' || e.key === 'Backspace') && !e.target.closest('input, textarea, [contenteditable="true"]')) {
+      e.preventDefault();
+      const b = selected;
+      deselect();
+      removeBlock(b);
+    }
+  }, true);
+
+  const view = img => { if (img.src) window.open(img.src, '_blank'); };
+
+  function picBlock(p) {
+    const img = h('img', { alt: '', draggable: !ctx.readOnly });
+    ctx.fileUrl(p.name).then(u => {
       if (u) img.src = u;
       else fig.classList.add('missing');
     });
-    const del = ctx.readOnly ? null : h('button.pic-remove', { type: 'button', title: 'Remove picture', onClick: () => removeBlock(block) }, icon('close', 18, '#fff'));
-    const fig = h('figure.pic', img, del, h('figcaption', 'Picture on another device'));
-    img.addEventListener('click', () => { if (img.src) window.open(img.src, '_blank'); });
-    const block = { kind: 'pic', node: fig, name, value: () => `![[${name}]]` };
+    const fig = h('figure.pic', img, h('figcaption', 'Picture on another device'));
+    const block = { kind: 'pic', node: fig, p: { ...p }, img, value: () => formatPicture(block.p) };
+    block.apply = () => {
+      fig.style.width = block.p.width ? block.p.width + '%' : '';
+      fig.dataset.align = block.p.align;
+    };
+    block.apply();
+    if (ctx.readOnly) {
+      img.addEventListener('click', () => view(img));
+      return block;
+    }
+    img.title = 'Click to select · double-click to view';
+    img.addEventListener('click', () => select(block));
+    img.addEventListener('dblclick', () => view(img));
+    img.addEventListener('dragstart', e => {
+      moving = block;
+      e.dataTransfer.setData(PIC_TYPE, block.p.name);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    img.addEventListener('dragend', () => { moving = null; });
     return block;
+  }
+
+  function picUi(b) {
+    const fig = b.node;
+    const label = h('span.pic-size.pic-ui');
+    const showLabel = () => { label.textContent = b.p.width ? b.p.width + '%' : 'As it comes'; };
+    const chips = [];
+    const paint = () => {
+      for (const [btn, test] of chips) btn.classList.toggle('on', test());
+      showLabel();
+    };
+    const set = patch => {
+      Object.assign(b.p, patch);
+      b.apply();
+      paint();
+      ctx.changed();
+    };
+    const size = (text, w, title) => {
+      const btn = h('button.pic-chip', { type: 'button', title, onClick: () => set({ width: w }) }, text);
+      chips.push([btn, () => b.p.width === w]);
+      return btn;
+    };
+    const place = (a, ic, title) => {
+      const btn = iconButton(ic, title, () => set({ align: a }));
+      chips.push([btn, () => b.p.align === a]);
+      return btn;
+    };
+    const bar = h('div.pic-bar.pic-ui',
+      size('S', 25, 'Small (25%)'), size('M', 50, 'Medium (50%)'), size('L', 75, 'Large (75%)'), size('Full', 100, 'Full width'), size('Auto', 0, 'As it comes'),
+      h('span.pic-sep'),
+      place('left', 'formatAlignLeft', 'Left'), place('center', 'formatAlignCenter', 'Centre'), place('right', 'formatAlignRight', 'Right'),
+      h('span.pic-sep'),
+      iconButton('arrowUp', 'Move up', () => moveBlock(b, -1)),
+      iconButton('arrowDown', 'Move down', () => moveBlock(b, 1)),
+      iconButton('photo', 'View', () => view(b.img)),
+      iconButton('delete', 'Remove picture', () => { deselect(); removeBlock(b); }));
+    const handles = ['nw', 'ne', 'sw', 'se', 'w', 'e'].map(pos => {
+      const hd = h('span.pic-handle.pic-ui.' + pos);
+      hd.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        hd.setPointerCapture(e.pointerId);
+        const x0 = e.clientX, w0 = fig.getBoundingClientRect().width, column = wrap.clientWidth || 1;
+        // A left handle grows to the left; a centred picture grows both ways.
+        const sign = pos.includes('w') ? -1 : 1, both = b.p.align === 'center' ? 2 : 1;
+        fig.classList.add('resizing');
+        const move = ev => {
+          b.p.width = snap((w0 + sign * both * (ev.clientX - x0)) / column * 100) || 10;
+          b.apply();
+          showLabel();
+        };
+        const up = () => {
+          hd.removeEventListener('pointermove', move);
+          hd.removeEventListener('pointerup', up);
+          hd.removeEventListener('pointercancel', up);
+          fig.classList.remove('resizing');
+          paint();
+          ctx.changed();
+        };
+        hd.addEventListener('pointermove', move);
+        hd.addEventListener('pointerup', up);
+        hd.addEventListener('pointercancel', up);
+      });
+      return hd;
+    });
+    paint();
+    return [bar, label, ...handles];
+  }
+
+  /** The note's lines now, with every block as it stands. */
+  function lines() {
+    const out = [];
+    for (const b of blocks) {
+      const v = b.value();
+      if (b.kind === 'text' && v === '' && blocks.length > 1) continue;
+      out.push(v);
+    }
+    return out.join('\n').split('\n');
+  }
+
+  /** Up or down past the next line of words (or picture). */
+  function moveBlock(b, dir) {
+    const all = lines();
+    const i = all.findIndex(l => { const q = parsePicture(l); return q && q.name === b.p.name; });
+    let j = i + dir;
+    while (j >= 0 && j < all.length && !all[j].trim()) j += dir;
+    if (i < 0 || j < 0 || j >= all.length) return;
+    const [line] = all.splice(i, 1);
+    all.splice(j, 0, line);
+    render(all.join('\n'), b.p.name);
+    ctx.changed();
+  }
+
+  /** A picture dragged into the words: it goes where it was dropped, between two paragraphs or splitting one. */
+  function dropMoving(e) {
+    const b = moving;
+    moving = null;
+    let range = null;
+    if (document.caretRangeFromPoint) range = document.caretRangeFromPoint(e.clientX, e.clientY);
+    else if (document.caretPositionFromPoint) {
+      const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+      if (pos) { range = document.createRange(); range.setStart(pos.offsetNode, pos.offset); }
+    }
+    const target = range && blocks.find(x => x.kind === 'text' && x.node.contains(range.startContainer));
+    if (!b || !target) return;
+    // Never inside a sentence: before the paragraph dropped on (its top half) or after it.
+    let para = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentNode;
+    while (para && para.parentNode !== target.node) para = para.parentNode;
+    if (para) {
+      const r = para.getBoundingClientRect();
+      range = document.createRange();
+      range.selectNodeContents(para);
+      range.collapse(e.clientY < r.top + r.height / 2);
+    }
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    const [before, rest] = target.ed.split();
+    const out = [];
+    for (const x of blocks) {
+      if (x === b) continue;
+      if (x === target) {
+        if (before) out.push(before);
+        out.push(b.value());
+        if (rest) out.push(rest);
+        continue;
+      }
+      const v = x.value();
+      if (x.kind === 'text' && v === '') continue;
+      out.push(v);
+    }
+    render(out.join('\n'), b.p.name);
+    ctx.changed();
   }
 
   function removeBlock(b) {
@@ -136,27 +326,42 @@ function richBody(ctx, content, placeholder) {
       after = rest;
       target.ed.setMarkdown(before);
     }
-    const pic = picBlock(name), next = textBlock(after);
+    const pic = picBlock({ name, width: 0, align: 'left' }), next = textBlock(after);
     blocks.splice(i + 1, 0, pic, next);
     target.node.after(pic.node, next.node);
     next.ed.focusStart();
     ctx.changed();
   }
 
-  // Parse: runs of words, and picture lines.
-  let run = [];
-  const flush = () => { blocks.push(textBlock(run.join('\n'))); run = []; };
-  for (const line of (content || '').split('\n')) {
-    const m = PICTURE_LINE.exec(line.trim());
-    if (m) { flush(); blocks.push(picBlock(m[1])); } else run.push(line);
+  /** Runs of words, and picture lines, drawn afresh from `md` (a picture called `keep` stays selected). */
+  function render(md, keep) {
+    deselect();
+    blocks.length = 0;
+    active = null;
+    let run = [];
+    const flush = () => { blocks.push(textBlock(run.join('\n'))); run = []; };
+    for (const line of (md || '').split('\n')) {
+      const p = parsePicture(line);
+      if (p) { flush(); blocks.push(picBlock(p)); } else run.push(line);
+    }
+    flush();
+    blocks[0].node.dataset.placeholder = placeholder;
+    wrap.replaceChildren(...blocks.map(b => b.node));
+    const again = keep && blocks.find(b => b.kind === 'pic' && b.p.name === keep);
+    if (again) select(again);
   }
-  flush();
-  blocks[0].node.dataset.placeholder = placeholder;
-  wrap.append(...blocks.map(b => b.node));
+  render(content);
 
   const activeBlock = () => (active ? blocks.find(b => b.ed === active) : null) || blocks[blocks.length - 1];
-  wrap.addEventListener('dragover', e => { if (!ctx.readOnly && e.dataTransfer.types.includes('Files')) e.preventDefault(); });
+  wrap.addEventListener('dragover', e => {
+    if (!ctx.readOnly && (e.dataTransfer.types.includes('Files') || (moving && e.dataTransfer.types.includes(PIC_TYPE)))) e.preventDefault();
+  });
   wrap.addEventListener('drop', e => {
+    if (moving && e.dataTransfer.types.includes(PIC_TYPE)) {
+      e.preventDefault();
+      dropMoving(e);
+      return;
+    }
     const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
     if (!files.length || ctx.readOnly) return;
     e.preventDefault();

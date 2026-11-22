@@ -172,8 +172,9 @@ export function formatDuration(ms) {
 
 // ---------------------------------------------------------- pictures in text
 
-/** A picture between the words of a text note or journal: a line of its own, `![[name]]`. */
-export const PICTURE_LINE = /^!\[\[([^\]\/\\]+)\]\]$/;
+/** A picture between the words of a text note or journal: a line of its own, `![[name]]`, maybe with a
+ *  size and place after it (`![[name|60%|center]]`, picline.js). Group 1 is the name. */
+export const PICTURE_LINE = /^!\[\[([^\]|\/\\]+)(?:\|[^\]]*)?\]\]$/;
 
 /** The words of a note for its card: picture lines left out. */
 export function plain(content) {

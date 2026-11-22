@@ -106,6 +106,13 @@
       margin: 24px 0 12px;
       color: var(--text-primary);
     }
+    .docs-section-block h3[id] { scroll-margin-top: 110px; }
+    .docs-section-block h4 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 20px 0 8px;
+      color: var(--text-primary);
+    }
     .docs-section-block p {
       font-size: 1rem;
       line-height: 1.7;
@@ -318,6 +325,7 @@
           <ul class="docs-nav-list">
             <li><a href="#sync" class="docs-nav-link">Sync, accounts &amp; sharing</a></li>
             <li><a href="#private" class="docs-nav-link">Private spaces</a></li>
+            <li><a href="#private-sync" class="docs-nav-link">Private spaces: sync &amp; web</a></li>
             <li><a href="#releases" class="docs-nav-link">Releases &amp; updates</a></li>
           </ul>
         </div>
@@ -540,6 +548,75 @@
             <li>Files in them are encrypted on the device with <strong>AES-256-GCM</strong> under a key kept in the phone's secure hardware store; they never go to the Notes+ database.</li>
             <li>Their backups (a file you save, or your own Google Drive) are encrypted before they leave the device.</li>
             <li>Wrong attempts lock the screen for longer and longer, up to an hour.</li>
+          </ul>
+
+          <h3 id="private-sync">Photos and videos: sync, deleting, locks and the web (19.9)</h3>
+          <p>
+            The private space for photos and videos works the same on Android, Windows, Linux and, from 19.9, the web.
+            This part explains exactly how it keeps your devices in step. (How to open it stays off this page on purpose.)
+          </p>
+
+          <h4>Where it can live</h4>
+          <ul>
+            <li><strong>On one device only.</strong> Everything stays encrypted on that phone, computer or browser. Nothing leaves it.</li>
+            <li><strong>In sync through your own Google Drive.</strong> Every device you connect shares the same vaults: what you add on one appears on the others at their next sync. Drive only ever holds encrypted files. Notes+ has no server of its own that could see them.</li>
+          </ul>
+
+          <h4>On the web (new in 19.9)</h4>
+          <ul>
+            <li><strong>The first time</strong> it opens in a browser, it asks one question: <em>Keep it in sync with Google Drive</em>, or <em>Only in this browser</em>.</li>
+            <li><strong>Only in this browser</strong> (or a Google account with no backup yet): you set a lock straight away, a PIN (4+ digits), a password (6+ characters) or a pattern (4+ dots), entered twice. It can't be skipped. There is no way in without it, and no way to recover it.</li>
+            <li><strong>A backup already on Drive</strong> (made by your phone or computer): it opens with your <em>backup password</em> if you set one, or otherwise with a vault's lock as set on that device. The page says which. Your vaults, albums, favourites and their locks then come down, and the main vault opens with its usual lock.</li>
+            <li><strong>Stored in the browser's own storage</strong> (IndexedDB), never as plain files: every photo, video and thumbnail is encrypted with the same key and the same format as your backup, so it goes to Drive and comes back byte for byte. Locks are never stored as they are: each vault's lock seals its copy of the key (PBKDF2-SHA256, 210,000 rounds, then AES-256-GCM).</li>
+            <li><strong>Everything the desktop app does:</strong> photos grouped by day; select with Ctrl/Cmd+click, Shift+click, drag, Ctrl+A or a long press; add with the + button, by dropping files onto the page, or by pasting; a full-screen viewer (arrow keys, F for favourite, details, download); favourites and albums; several vaults, each with its own lock; delete with Undo; and <em>Take out of the vault</em> (downloads the original, then removes it everywhere).</li>
+            <li><strong>It locks</strong> as soon as you leave the tab, or after 30 seconds or 1 minute if you choose. Leaving clears every key and picture from memory. Five wrong tries lock the screen for 30 seconds, doubling each time, up to an hour.</li>
+            <li><strong>Google sign-in on the web</strong> lasts for the open page only. After unlocking, if sync is on, it asks <em>Sync your vault with Google Drive?</em>, because browsers only allow Google's sign-in window from a tap.</li>
+            <li><strong>The web never deletes anything on Drive.</strong> Clearing out old files and restore points is left to your phone and computer, so a browser tab closed half-way can never remove something a restore point still needs.</li>
+            <li><strong>Remove the vault from this browser</strong> (in its settings) erases everything it holds here. With Drive, your backup is untouched and comes back when you connect again. Without Drive, it is gone for good.</li>
+            <li><strong>Size:</strong> a browser holds a video in memory while it encrypts or plays it, so very large videos (several GB) are better added from the phone or computer. Safari may limit how much a site can store.</li>
+          </ul>
+
+          <h4>How a sync works</h4>
+          <ol>
+            <li><strong>Unlock the backup.</strong> Every device shares one data key. It is stored on Drive only inside <code>keyring.json</code>, sealed by your backup password if you set one, or otherwise by each vault's lock (PBKDF2-SHA256, 210,000 rounds, AES-256-GCM).</li>
+            <li><strong>Bring down</strong> the newest restore point and every item this device doesn't have yet. Each one is checked against the SHA-256 recorded when it was uploaded.</li>
+            <li><strong>Upload</strong> only what Drive doesn't have yet. A 5 GB vault with 300 MB new moves 300 MB.</li>
+            <li><strong>Write a new restore point</strong>: a list of every vault, album and item, encrypted, naming files without containing them.</li>
+          </ol>
+          <p>
+            It runs when you tap <em>Sync now</em> in the vault's settings, and (if <em>Sync when unlocked</em> / <em>Sync every time Notes+ starts</em> is on) when you open it.
+            On Drive it all lives in <code>Notes-plus/Saved-Notes/Cloud/Remote/Backup</code>: <code>objects/</code> (one encrypted file per photo or video), <code>objects_index.json</code>, <code>snapshots/</code> (restore points) and <code>keyring.json</code>.
+            Files are encrypted with AES-256-GCM in 256 KB segments (Tink's streaming format), each with its own key derived by HKDF-SHA256.
+            Restore points are kept by device: the 3 newest, plus one a day for 30 days.
+          </p>
+
+          <h4>Deleting now sticks (19.9)</h4>
+          <p>
+            Before 19.9, a sync only ever added: a photo deleted on one device came back from the backup at the next sync, on every device.
+            From 19.9:
+          </p>
+          <ul>
+            <li>Deleting a photo, a video, an album or a whole vault <strong>marks</strong> it on that device. The mark is sent with the next backups and kept until <strong>three</strong> backups have carried it, so the deletion is sure to reach Drive.</li>
+            <li>Each restore point remembers what was deleted, and when, for <strong>60 days</strong>. Any device that syncs deletes those items too, and never downloads them again.</li>
+            <li>Deleting an album keeps its photos (they just leave the album). A deleted vault goes from other devices once it's empty there.</li>
+            <li><strong>Changed your mind?</strong> Older restore points still hold the item for <strong>30 days</strong>. <em>Restore from Drive</em> → pick a restore point from before the delete. What it brings back is marked as restored, and the next syncs bring it back everywhere.</li>
+            <li><strong>Every device you sync with needs Notes+ 19.9 or later.</strong> An older version that backs up writes a restore point without the list of deletions, and deleted items can come back.</li>
+          </ul>
+
+          <h4>Sync vault locks across devices (19.9)</h4>
+          <p>A switch in the vault's Google Drive settings, on each device. It's off unless you turn it on.</p>
+          <ul>
+            <li><strong>Off:</strong> each device keeps its own locks. Changing a lock on your phone changes it only there. A device that gets a vault for the first time takes the lock it had in the backup.</li>
+            <li><strong>On:</strong> changing a vault's lock on this device sends it with the next sync, and a newer lock changed on another device (with this switch on) replaces this device's at the next sync. The most recent change always wins.</li>
+            <li>If the incoming lock is one another vault on this device already uses, it is skipped: two vaults never share a lock.</li>
+            <li>A lock is never stored in the clear anywhere. Restore points and the keyring that carry it are encrypted, and each device keeps only a sealed copy.</li>
+          </ul>
+
+          <h4>Good to know</h4>
+          <ul>
+            <li><strong>Forgotten lock?</strong> There is no reset. Another device where you still know the lock can change it there; with lock sync on, the new lock reaches your other devices at their next sync.</li>
+            <li><strong>Backup password:</strong> set on your phone or computer, it becomes the only thing that opens the backup on a new device. Without one, a vault's lock opens it.</li>
+            <li><strong>Disconnecting Drive</strong> keeps everything on that device and leaves your backup on Drive as it is.</li>
           </ul>
         </section>
 

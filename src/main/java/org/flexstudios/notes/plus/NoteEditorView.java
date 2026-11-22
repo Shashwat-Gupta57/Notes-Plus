@@ -49,6 +49,7 @@ final class NoteEditorView extends NoteEditor {
 
     private final VBox column = new VBox();
     private final ScrollPane scroll;
+    private javafx.scene.Node formatRow;
     private final TextArea title = new TextArea();
     private RichBody body;
     private final Label footer = new Label();
@@ -106,6 +107,14 @@ final class NoteEditorView extends NoteEditor {
         footer.setMaxWidth(Double.MAX_VALUE);
         footer.setAlignment(Pos.CENTER);
 
+        // The formatting row stays at the top of the view once the page scrolls past it.
+        javafx.beans.InvalidationListener stick = o -> {
+            if (formatRow == null) return;
+            double scrolled = -scroll.getViewportBounds().getMinY();
+            formatRow.setTranslateY(Math.max(0, scrolled - formatRow.getLayoutY() - column.getLayoutY()));
+        };
+        scroll.viewportBoundsProperty().addListener(stick);
+        column.layoutBoundsProperty().addListener(stick);
         javafx.scene.layout.BorderPane content = new javafx.scene.layout.BorderPane(scroll);
         content.setBottom(footer);
         syncStatus.addListener((o, a, b) -> updateFooter());
@@ -122,7 +131,13 @@ final class NoteEditorView extends NoteEditor {
         title.setPromptText(NoteData.JOURNAL.equals(type) ? "Give the day a title"
                 : NoteData.LIST.equals(type) ? "List name" : "Title");
         column.getChildren().add(padded(title, new Insets(12, 20, 4, 20)));
-        if (!NoteData.LIST.equals(type)) column.getChildren().add(padded(createFormatBar(), new Insets(0, 20, 6, 20)));
+        if (!NoteData.LIST.equals(type)) {
+            formatRow = padded(createFormatBar(), new Insets(0, 20, 6, 20));
+            formatRow.setViewOrder(-1); // Drawn (and clicked) above the words it floats over.
+            column.getChildren().add(formatRow);
+        } else {
+            formatRow = null;
+        }
         if (NoteData.LIST.equals(type)) {
             column.getChildren().add(listSection(note));
         } else {
@@ -1195,7 +1210,7 @@ final class NoteEditorView extends NoteEditor {
         HBox bar = new HBox(2, fmtParagraph, hgap(8), fmtBold, fmtItalic, fmtUnderline, fmtStrike, fmtCode, colorBtn,
                 hgap(8), fmtBullet, fmtNumber, fmtTask, hgap(8), spacing);
         bar.setAlignment(Pos.CENTER_LEFT);
-        bar.setPadding(new Insets(2, 0, 6, 0));
+        bar.setPadding(new Insets(4, 8, 4, 8));
         bar.getStyleClass().add("format-bar");
         body.setOnCaret(this::showFormat);
         return bar;

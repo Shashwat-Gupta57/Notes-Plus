@@ -89,6 +89,11 @@ final class NoteSync {
         schedule(1500);
     }
 
+    /** "Sync now": a pass straight away. */
+    static void now() {
+        schedule(0);
+    }
+
     private static void schedule(long delayMs) {
         if (Account.uid() == null || !QUEUED.compareAndSet(false, true)) return;
         SYNC.schedule(NoteSync::job, delayMs, TimeUnit.MILLISECONDS);

@@ -102,7 +102,11 @@ abstract class NoteEditor extends Screen {
         lockButton.setVisible(false);
         lockButton.setManaged(false);
         Button more = Ui.iconButton(Icons.MORE, "text_primary", "More options", () -> {});
-        more.setOnAction(e -> showMenu(more));
+        // The stored row says whether this note still waits to go up ("Sync now" or a greyed "Synced").
+        more.setOnAction(e -> {
+            int id = note == null ? 0 : note.getId();
+            NoteStore.load(s -> id > 0 ? s.byId(id) : null, stored -> showMenu(more, stored != null && !stored.isDirty()));
+        });
         toolbar.getChildren().setAll(
                 Ui.iconButton(Icons.ARROW_BACK, "text_primary", "Back (Esc)", () -> NotesApp.leave(this)),
                 Ui.spacer(),
@@ -352,14 +356,14 @@ abstract class NoteEditor extends Screen {
     @Override
     void onKey(KeyEvent e) {
         if (e.isShortcutDown() && e.getCode() == KeyCode.Z) {
-            if (!(root.getScene() != null && root.getScene().getFocusOwner() instanceof javafx.scene.control.TextInputControl)) {
+            if (!(root.getScene() != null && ownUndo(root.getScene().getFocusOwner()))) {
                 e.consume();
                 if (e.isShiftDown()) redo();
                 else undo();
                 return;
             }
         } else if (e.isShortcutDown() && e.getCode() == KeyCode.Y) {
-            if (!(root.getScene() != null && root.getScene().getFocusOwner() instanceof javafx.scene.control.TextInputControl)) {
+            if (!(root.getScene() != null && ownUndo(root.getScene().getFocusOwner()))) {
                 e.consume();
                 redo();
                 return;
@@ -384,6 +388,11 @@ abstract class NoteEditor extends Screen {
             e.consume();
             zoomBy(0);
         }
+    }
+
+    /** Text fields and the rich text area keep their own undo history: Ctrl+Z is theirs. */
+    private static boolean ownUndo(javafx.scene.Node focus) {
+        return focus instanceof javafx.scene.control.TextInputControl || focus instanceof org.fxmisc.richtext.GenericStyledArea;
     }
 
     protected void undo() {}
@@ -531,7 +540,7 @@ abstract class NoteEditor extends Screen {
     // ===================================================================== actions
 
     /** The "more" menu: what can be done with this note, mine or someone else's. */
-    private void showMenu(Button more) {
+    private void showMenu(Button more, boolean storedSynced) {
         if (note == null) return;
         List<String> labels = new java.util.ArrayList<>();
         List<Runnable> actions = new java.util.ArrayList<>();
@@ -594,6 +603,15 @@ abstract class NoteEditor extends Screen {
                 actions.add(() -> afterSave(id -> NoteStore.load(s -> s.byId(id), saved -> {
                     if (saved != null) MainView.saveAsTemplate(saved);
                 })));
+            }
+            if (signedIn) {
+                boolean synced = storedSynced && !isModified();
+                labels.add(synced ? "Synced" : "Sync now");
+                actions.add(synced ? null : () -> {
+                    save(false);
+                    NoteStore.write(s -> NoteSync.now()); // After the save lands.
+                    Ui.toast("Syncing…");
+                });
             }
             labels.add("Export…");
             actions.add(() -> afterSave(NoteExport::export));

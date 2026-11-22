@@ -736,10 +736,14 @@ final class Ui {
             row.getChildren().add(label);
             row.getStyleClass().add("menu-row");
             if (danger) row.getStyleClass().add("danger");
-            row.setOnMouseClicked(e -> {
-                self[0].dismiss();
-                actions.get(index).run();
-            });
+            if (actions.get(index) == null) {
+                row.setOpacity(0.4); // No action: shown greyed, does nothing.
+            } else {
+                row.setOnMouseClicked(e -> {
+                    self[0].dismiss();
+                    actions.get(index).run();
+                });
+            }
             box.getChildren().add(row);
         }
         return box;

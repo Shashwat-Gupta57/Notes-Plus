@@ -1,33 +1,33 @@
 {
-  "versionCode": 45,
-  "versionName": "20.0",
+  "versionCode": 46,
+  "versionName": "20.1",
   "forced": false,
-  "changelog": "Notes+ 20.0: resize and place pictures in your notes. Tap a picture, drag its handles to resize it, tap again to put it left, centre or right, or move it. Update Notes+ on every device you use. Install over this version; don't uninstall first.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-20.0.apk",
-  "sha256": "f88f080ee7b14cb4e726e10c02cb760de3093f83c692258d94fe651e493107f8",
+  "changelog": "Notes+ 20.1: the top of every screen no longer sits under the status bar (and the bottom under the navigation bar) on Android 15 and later. Install over this version; don't uninstall first.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-20.1.apk",
+  "sha256": "979d1a41e19e8ade10c8167d1dfaa59a2fdb6250b95381d6325a6260a0055c4c",
   "desktop": {
-    "versionName": "20.0",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-20.0.exe",
-    "sha256": "78ae0077425766c2abce5a20a5aa78c4efcce285c4adbdf25c389ad6a3ae34c6",
+    "versionName": "20.1",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-20.1.exe",
+    "sha256": "25380bda01d7787855db7e205cb8783985918383ba4ce2974fcf6c75a8153e28",
     "size": "77 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-20.0.zip",
-    "zipSha256": "72d66f7eefb012e38b972866be63e4035aec81796d8dbcd00d636f38f50cb39c",
-    "changelog": "Notes+ 20.0 for Windows: resize and place pictures in your notes. Click one, drag its corners, put it left, centre or right, or drag it anywhere in the note."
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-20.1.zip",
+    "zipSha256": "b898aa3fe93c0aaf8da9d18ba2529edae344dfbeaa5f0a1138a893765f564a4b",
+    "changelog": "Notes+ 20.1 for Windows: list items sit level with their tick boxes."
   },
   "linux": {
-    "versionName": "20.0",
+    "versionName": "20.1",
     "url": "https://notes.talken.in/download.html#linux",
-    "deb": "https://releases.talken.in/linux/notes-plus_20.0_amd64.deb",
-    "debSha256": "96f12cbc8ac61ab79bd55b33bfbd6e788fd50682cbf7be4c946c18d18a529232",
-    "appImage": "https://releases.talken.in/linux/Notes-Plus-20.0-x86_64.AppImage",
-    "appImageSha256": "7f22f3af0d39e9d4bd9b79f065ee7a1856d3a204e07aa37dedcaa48f786b731d",
-    "tarGz": "https://releases.talken.in/linux/Notes-Plus-Linux-20.0.tar.gz",
-    "tarGzSha256": "82403588938e3306fd74ae85f085ce92958000b244b20d883d12ae552fc0ac3b",
+    "deb": "https://releases.talken.in/linux/notes-plus_20.1_amd64.deb",
+    "debSha256": "583840201ba66ce2d76dbf0fac4e348849ea4cfb1c5b566e1b1258063febf21b",
+    "appImage": "https://releases.talken.in/linux/Notes-Plus-20.1-x86_64.AppImage",
+    "appImageSha256": "e1080ee0663e82e44625de1f34055618d84f7882418bcbc003695df2e34af3a1",
+    "tarGz": "https://releases.talken.in/linux/Notes-Plus-Linux-20.1.tar.gz",
+    "tarGzSha256": "2fec62a14a101c7e51165f20db14436e6ef0c7c94532a04309ee6b470f144370",
     "size": "75 MB",
-    "changelog": "Notes+ 20.0 for Linux: resize and place pictures in your notes."
+    "changelog": "Notes+ 20.1 for Linux: list items sit level with their tick boxes."
   },
   "web": {
-    "versionName": "20.0",
-    "changelog": "Notes+ on the web 20.0: resize and place pictures in your notes."
+    "versionName": "20.1",
+    "changelog": "Notes+ on the web 20.1: small fixes."
   }
 }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Set on a screen once its content is padded clear of the system bars (NotesApplication). -->
+    <item name="edge_to_edge" type="id" />
+</resources>

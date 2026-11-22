@@ -430,7 +430,7 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-Released: 45 / "20.0" everywhere (build file, `version.json`, desktop `pom.xml`, the web's `VERSION`, `?v=` and `sw.js` cache; tags `v20.0.0` Android, `v20.0` desktop). The next release bumps them all again (`version.json` last; it may carry `web.versionName`, which the web app compares with, so an Android-only release doesn't prompt the web).
+Released: 46 / "20.1" everywhere (build file, `version.json`, desktop `pom.xml`, the web's `VERSION`, `?v=` and `sw.js` cache; tags `v20.1.0` Android, `v20.1` desktop). The next release bumps them all again (`version.json` last; it may carry `web.versionName`, which the web app compares with, so an Android-only release doesn't prompt the web).
 16.1 was never published (its APK was never on R2); 16.4 follows 16.0.
 From 11.0 the APK is served from Cloudflare R2 (`releases` bucket, public at
 `https://releases.talken.in/android/Notes-Plus-<version>.apk`); from 16.6 every release is also a
@@ -489,5 +489,6 @@ on purpose: it used to redefine the base theme without the button style.
 
 Known and still open: white on `@color/brand_yellow` is ~1.5:1 and fails contrast —
 `@color/on_brand_yellow` is the single value to change. Strings are still hardcoded in
-layouts (`strings.xml` has only `app_name`), there is no edge-to-edge inset handling despite
-targetSdk 36, and almost nothing has a `contentDescription`.
+layouts (`strings.xml` has only `app_name`), edge to edge (forced by targetSdk 36 on Android 15+) is
+handled once for every screen in `NotesApplication.EdgeToEdge` (content padded by the system bars and the keyboard; the
+media viewer pads itself, chat handles its keyboard), and almost nothing has a `contentDescription`.

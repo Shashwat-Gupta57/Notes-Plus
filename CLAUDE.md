@@ -25,7 +25,7 @@ No MVVM, no repository layer. Activities talk to Room DAOs directly and hop thre
 executor per click. Media operations go through `VaultMedia`, never re-implemented in a
 screen.
 
-**Persistence** — `AppDatabase` (Room, singleton, version 22, `notes_database`)
+**Persistence** — `AppDatabase` (Room, singleton, version 23, `notes_database`)
 
 | Entity | Table | Notes |
 |---|---|---|
@@ -41,7 +41,7 @@ must match the `@Index`es on `SecretEntity` exactly), 10→11 adds `durationMs`,
 chat tables, 14→15 chat vault sync (`updatedAt`/`dirty`/`deleted`) and conversation `moved`,
 15→16 chat media, nicknames and shared backgrounds, 16→17 chat photos, ID aliases and list
 backgrounds, 17→18 group notes, group chats and message senders, 18→19 sent notes (`sentTo`,
-`sentMedia`, `sharedFrom`), 19→20 `archived` and `folder` (how a note is filed), 20→21 `template`, 21→22 `hidden`. Only `fallbackToDestructiveMigrationFrom(1)`
+`sentMedia`, `sharedFrom`), 19→20 `archived` and `folder` (how a note is filed), 20→21 `template`, 21→22 `hidden`, 22→23 vault `lockChangedAt`. Only `fallbackToDestructiveMigrationFrom(1)`
 is on, so a missing migration now crashes instead of wiping the vault — **always add it**.
 `onOpen` seeds vault 1 asynchronously; setup calls `AppDatabase.ensureMainVault` itself so it
 never races the unlock screen.
@@ -239,11 +239,28 @@ its prefs, `note_folders`). Both travel only with my own notes (`users/{uid}/not
 never in a group or sent note's copy. A list item that is just `![[IMG_….png]]` is a picture
 (`TodoItem.picture()`), the same embed line as pictures in desktop/web text notes.
 
-**Vault Drive sync**: backups are add-only (`Snapshot.mergeFrom`: a new restore point keeps
-everything the newest one held), and `CloudSync.pullThenPush` ("Sync now", and at every start when
-`vault_sync_on_start` is on) brings down what the backup has before backing up. The web opens the
-same store read-only (`app/js/gallery.js`, same left-swipe gesture): keyring → data key → newest
-restore point; it never writes and keeps nothing.
+**Vault Drive sync**: a new restore point keeps everything the newest one held (`Snapshot.settle` →
+`mergeFrom`) except what was deleted, and `CloudSync.pullThenPush` ("Sync now", and at every start when
+`vault_sync_on_start` is on) brings down what the backup has before backing up. **Deletions** (19.9, restore
+point `formatVersion` 3): `removed` = {fileName | "album:"uuid | "vault:"uuid → removedAt}, kept 60 days. Deleting
+here (`VaultMedia.remove`, album and vault deletes) records a mark in `VaultMarks` (app prefs `vault_marks`), sent
+with every push until three backups have carried it; a pull erases what `removed` names (`VaultMedia.erase`, no
+mark) and never downloads it. Restoring an older point by hand marks what it brings back as revived, which takes
+it out of `removed`. A 19.7 device pushing drops `removed`, so every device needs 19.9. **Lock sync** ("Sync vault
+locks across devices", `vault_sync_locks`, off by default, per device): vaults carry `lockChangedAt` (snapshot
+`lockAt`); on, the newest lock wins both ways; off, a push carries the backup's lock forward and a pull never
+changes one here. The same rules, and `SnapshotSettleTest`'s cases, are in the desktop's `Snapshot`/`VaultMarks`
+and the web's `vault-rules.js` (`app/tests/vault-rules.test.mjs`).
+
+**The vault on the web** (`app/js/vault-*.js`, reached by the same left-swipe gesture; `gallery.js` is its
+entry): the desktop's vault in a tab. First open asks "Google Drive" or "Only in this browser"; with no lock yet
+(local, or a Drive account with no backup) a lock must be set before anything else; an existing backup opens with
+its backup password or a vault lock and brings its vaults and locks. Stored in IndexedDB v2 (`vaults`, `secrets`,
+`albums`, `vaultData`); items and thumbnails in the backup's own v3 format under the data key (byte-compatible
+with `Portable`/`VaultCrypto`, checked both ways), so they go to and from Drive as they are; lock values encrypted
+under the data key, each vault's wrap of it keyed on its lock. `vault-sync.js` is the desktop's `CloudBackup`
+(settle key, upload, index merged on save, restore point, pull) with its own Google token in memory; it never
+deletes anything on Drive (the apps collect garbage) and never writes an empty keyring.
 
 **Mind map colours**: `MindNode.color` is the idea's *branch* colour (its lines and outline, inherited
 downwards; on a central idea, its first-level branches), `MindNode.fill` its own colour, filling it (a central

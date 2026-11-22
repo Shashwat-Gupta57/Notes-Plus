@@ -40,6 +40,8 @@
 }
 .bare.body-input { -fx-text-fill: -np-text-body; }
 .text-area.bare .content { -fx-background-color: transparent; -fx-padding: 0; -fx-cursor: text; }
+/* autoGrow makes an area 12px taller than its words: half above, half below, so the words sit level with the tick box. */
+.text-area.bare.item-text .content { -fx-padding: 6 0 0 0; }
 .text-area.bare .scroll-pane { -fx-hbar-policy: never; -fx-vbar-policy: never; -fx-background-color: transparent; }
 .text-area.bare .scroll-pane .viewport { -fx-background-color: transparent; }
 .text-area.bare .scroll-pane > .corner { -fx-background-color: transparent; }

@@ -624,7 +624,10 @@ final class NoteEditorView extends NoteEditor {
             text.setStyle("-fx-font-size: 17px; -fx-text-fill: " + Theme.ref("text_body") + ";");
             text.setPromptText("Item");
             text.setText(item.text);
-            if (text instanceof TextArea area) Ui.autoGrow(area, 0, 0);
+            if (text instanceof TextArea area) {
+                area.getStyleClass().add("item-text"); // Its spare height above and below the words, level with the box.
+                Ui.autoGrow(area, 0, 0);
+            }
             Links.install(text);
             if (!readOnly) LinkSuggest.attach(text, () -> linkNotes);
             // Ctrl+click on "[[Title]]" opens that note (the click has put the caret inside it).

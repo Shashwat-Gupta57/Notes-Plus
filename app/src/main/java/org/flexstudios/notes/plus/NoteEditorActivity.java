@@ -122,7 +122,95 @@ public class NoteEditorActivity extends NoteActivity {
                 : NoteData.LIST.equals(type) ? "List name" : "Title");
         body.addTextChangedListener(simpleWatcher(this::updateFooter));
         updateFooter();
+        // Undo starts afresh from the note as loaded.
+        body.removeCallbacks(commitHistory);
+        undoStack.clear();
+        redoStack.clear();
+        current = new String[] {snapshot(), "0"};
+        invalidateOptionsMenu();
         if (note.getId() <= 0) (NoteData.JOURNAL.equals(type) ? body : title).requestFocus();
+    }
+
+    // ================================================================ undo
+
+    /** Steps back and forward: {words (Markdown, or the list's JSON), caret}. Typing within half a second is one step. */
+    private final java.util.ArrayDeque<String[]> undoStack = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<String[]> redoStack = new java.util.ArrayDeque<>();
+    private String[] current;
+    private boolean restoring;
+    private final Runnable commitHistory = this::commitHistory;
+
+    @Override
+    protected void markDirty() {
+        super.markDirty();
+        if (restoring || current == null) return;
+        body.removeCallbacks(commitHistory);
+        body.postDelayed(commitHistory, 500);
+    }
+
+    private String snapshot() {
+        if (NoteData.LIST.equals(type)) return NoteData.todosJson(items, wrapItems);
+        return rich != null ? rich.markdown() : body.getText().toString();
+    }
+
+    private void commitHistory() {
+        body.removeCallbacks(commitHistory);
+        if (current == null) return;
+        String now = snapshot();
+        if (current[0].equals(now)) return;
+        undoStack.push(current);
+        if (undoStack.size() > 100) undoStack.removeLast();
+        current = new String[] {now, String.valueOf(body.getSelectionStart())};
+        redoStack.clear();
+        invalidateOptionsMenu();
+    }
+
+    private void step(boolean back) {
+        commitHistory();
+        java.util.ArrayDeque<String[]> from = back ? undoStack : redoStack, to = back ? redoStack : undoStack;
+        if (from.isEmpty() || current == null) return;
+        to.push(current);
+        current = from.pop();
+        restoring = true;
+        if (NoteData.LIST.equals(type)) {
+            items.clear();
+            items.addAll(NoteData.todos(current[0]));
+            if (items.isEmpty()) items.add(new NoteData.TodoItem("", false));
+            if (listAdapter != null) listAdapter.notifyDataSetChanged();
+            updateProgress();
+        } else {
+            if (rich != null) rich.setMarkdown(current[0]);
+            else body.setText(current[0]);
+            int at = Integer.parseInt(current[1]);
+            body.setSelection(Math.max(0, Math.min(at, body.length())));
+        }
+        restoring = false;
+        markDirty();
+        invalidateOptionsMenu();
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(android.view.Menu menu) {
+        boolean editable = note != null && !readOnly;
+        showStep(menu.findItem(R.id.action_undo), editable, !undoStack.isEmpty());
+        showStep(menu.findItem(R.id.action_redo), editable, !redoStack.isEmpty());
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+    private static void showStep(@Nullable android.view.MenuItem item, boolean visible, boolean can) {
+        if (item == null) return;
+        item.setVisible(visible);
+        item.setEnabled(can);
+        if (item.getIcon() != null) item.getIcon().mutate().setAlpha(can ? 255 : 80);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull android.view.MenuItem item) {
+        if (item.getItemId() == R.id.action_undo || item.getItemId() == R.id.action_redo) {
+            step(item.getItemId() == R.id.action_undo);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     @Override

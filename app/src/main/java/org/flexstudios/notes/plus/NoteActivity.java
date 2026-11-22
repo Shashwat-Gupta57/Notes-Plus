@@ -59,6 +59,23 @@ abstract class NoteActivity extends AppCompatActivity {
     private String linkedTitle;
     @Nullable private android.widget.HorizontalScrollView backlinksBar;
 
+    /** The stored note has nothing waiting to go up ("Sync now" shows greyed as "Synced"). */
+    private volatile boolean storedSynced;
+
+    private void refreshSynced() {
+        if (note == null || note.getId() <= 0) return;
+        int id = note.getId();
+        android.content.Context app = getApplicationContext();
+        AppDatabase.IO.execute(() -> {
+            NoteEntity n = AppDatabase.getInstance(app).noteDao().getNoteById(id);
+            boolean synced = n != null && !n.isDirty();
+            runOnUiThread(() -> {
+                storedSynced = synced;
+                invalidateOptionsMenu();
+            });
+        });
+    }
+
     protected void markDirty() {
         if (readOnly) return;
         syncStatus = "Unsaved changes";
@@ -116,6 +133,9 @@ abstract class NoteActivity extends AppCompatActivity {
             toolbar.getNavigationIcon().mutate().setTint(ContextCompat.getColor(this, R.color.text_primary));
         }
 
+        // Each sync run that ends may have taken this note up: "Sync now" follows.
+        androidx.work.WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData(NoteSync.UNIQUE)
+                .observe(this, infos -> refreshSynced());
         int id = getIntent().getIntExtra(NoteData.EXTRA_ID, -1);
         String type = getIntent().getStringExtra(NoteData.EXTRA_TYPE);
         if (id <= 0) {
@@ -146,6 +166,7 @@ abstract class NoteActivity extends AppCompatActivity {
 
     /** Fills the editor with a loaded note (already decrypted, if it was locked). */
     private void showLoaded(NoteEntity loaded) {
+        storedSynced = !loaded.isDirty();
         note = loaded;
         linkedTitle = loaded.getTitle();
         readOnly = loaded.isReceived();
@@ -257,6 +278,7 @@ abstract class NoteActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         ACTIVE_EDITORS.add(this);
+        refreshSynced();
         loadLinks(); // Back from a linked note: it may link here now, or have a new title.
     }
 
@@ -655,6 +677,13 @@ abstract class NoteActivity extends AppCompatActivity {
                 && lock == null && !note.isHidden() && !note.isTemplate());
         MenuItem template = menu.findItem(R.id.action_save_template);
         if (template != null) template.setVisible(note != null && !readOnly && lock == null && Templates.canSave(note));
+        MenuItem syncNow = menu.findItem(R.id.action_sync_now);
+        if (syncNow != null) {
+            boolean synced = storedSynced && !isModified();
+            syncNow.setVisible(note != null && !readOnly && Account.uid() != null);
+            syncNow.setTitle(synced ? "Synced" : "Sync now");
+            syncNow.setEnabled(!synced);
+        }
         MenuItem copy = menu.findItem(R.id.action_save_copy);
         if (copy != null) copy.setVisible(readOnly);
         MenuItem delete = menu.findItem(R.id.action_delete);
@@ -676,6 +705,12 @@ abstract class NoteActivity extends AppCompatActivity {
             finish();
             return true;
         } else if (note == null) {
+            return true;
+        } else if (id == R.id.action_sync_now) {
+            save();
+            android.content.Context app = getApplicationContext();
+            WRITES.execute(() -> NoteSync.schedule(app)); // After the save lands.
+            android.widget.Toast.makeText(this, "Syncing…", android.widget.Toast.LENGTH_SHORT).show();
             return true;
         } else if (id == R.id.action_lock) {
             if (lock == null) startLocking();

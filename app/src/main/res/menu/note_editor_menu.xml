@@ -3,6 +3,22 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_undo"
+        android:icon="@drawable/ic_undo"
+        android:title="Undo"
+        android:visible="false"
+        app:iconTint="@color/text_secondary"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_redo"
+        android:icon="@drawable/ic_redo"
+        android:title="Redo"
+        android:visible="false"
+        app:iconTint="@color/text_secondary"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/action_lock"
         android:icon="@drawable/ic_lock_open"
         android:title="Lock"
@@ -52,6 +68,12 @@
     <item
         android:id="@+id/action_save_template"
         android:title="Save as template…"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_sync_now"
+        android:title="Sync now"
+        android:visible="false"
         app:showAsAction="never" />
 
     <item

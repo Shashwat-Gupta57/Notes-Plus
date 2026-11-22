@@ -74,7 +74,14 @@ their data when the editor's "Wrap text" (`NoteActivity.wrapText`) is off. A lis
 page's scroll view at runtime (`NoteEditorActivity.scrollAsList`), so long lists recycle their rows; the page
 above the items and "Add item" are its first and last rows, so `findViewById(R.id.listAdd)` can miss (use the
 `listAdd` field). A picture item opens full screen on a tap. In text and journal notes, `RichText.PictureSpan`
-draws a `![[IMG_….png]]` line as its picture (not one of `ours()`, so the line stays in the Markdown); a tap opens it. `NoteAdapter` draws one card layout for all types.
+draws a `![[IMG_….png]]` line as its picture (not one of `ours()`, so the line stays in the Markdown). **Picture size and place**
+(20.0, `PictureLine`, identical on the desktop, `picline.js` on the web, the same `PictureLineTest` cases): `![[name|60%|center]]`,
+width a share of the column (10–100, steps of 5; none = as it comes), `left` (default, never written) / `center` / `right`.
+Android: a tap selects (outline and handles; dragging a handle resizes, written on release), a second tap offers sizes,
+places, move up/down, view and remove. Desktop (`RichBody.Picture`) and web (`ed-text.js`): click selects (handles plus a
+bar), double-click views, drag into the words moves it (to a paragraph boundary), Esc lets go. Every reader of a picture line
+accepts the suffix (`PICTURE_LINE`, `EMBED`, `PICTURE_ITEM`, `Templates`, `Search`); 19.9 and older show a resized picture
+as broken (Android: as its line). Picture changes aren't in the text undo history. `NoteAdapter` draws one card layout for all types.
 Long swipes on the notes grid are the secret gestures (left: gallery, right: chat), so there
 is no swipe-to-delete; notes are deleted from their options or their editor.
 Notes are not in the vault's `.bak` or Drive backups; they sync through the notes account.

@@ -260,7 +260,9 @@ its backup password or a vault lock and brings its vaults and locks. Stored in I
 with `Portable`/`VaultCrypto`, checked both ways), so they go to and from Drive as they are; lock values encrypted
 under the data key, each vault's wrap of it keyed on its lock. `vault-sync.js` is the desktop's `CloudBackup`
 (settle key, upload, index merged on save, restore point, pull) with its own Google token in memory; it never
-deletes anything on Drive (the apps collect garbage) and never writes an empty keyring.
+deletes anything on Drive (the apps collect garbage) and never writes an empty keyring. **Where it's described:** GitHub release notes say everything
+plainly; the website's home page only hints ("Private spaces, everywhere") and links to `docs.html#private-sync`,
+which explains sync, deleting, lock sync and the web vault in full but never how a space is opened.
 
 **Mind map colours**: `MindNode.color` is the idea's *branch* colour (its lines and outline, inherited
 downwards; on a central idea, its first-level branches), `MindNode.fill` its own colour, filling it (a central

@@ -1,21 +1,17 @@
-## Notes+ for Windows and Linux 19.9
+## Notes+ for Windows and Linux 20.0
 
-Pairs with Notes+ 19.9 for Android and Notes+ on the web (notes.talken.in/app).
+Pairs with Notes+ 20.0 for Android and Notes+ on the web (notes.talken.in/app).
 
-### New in 19.9
-- **Undo works in text notes again**: Ctrl+Z and Ctrl+Y (or Ctrl+Shift+Z) in text and journal notes, as in lists.
-- **The formatting bar stays put**: it follows you down a long note instead of scrolling away.
-- **Sync now** in a note's ⋮ menu: sends it straight away, and shows "Synced" (greyed) when there's nothing waiting.
+### New in 20.0: resize and place pictures
+- **Click a picture** in a note or journal to select it: drag the handles on its corners and sides to make it smaller or larger (a share of the page, in steps of 5%).
+- **The bar on it**: S, M, L, Full and Auto (as it comes), left / centre / right, move up / down, view and remove. Right-click gives the same choices.
+- **Drag the picture into your words** to move it there; it lands between paragraphs, never inside a sentence.
+- Double-click views it; Delete removes the selected one; Esc lets go.
+- The size and place are kept in the note (`![[IMG_….png|60%|center]]`), so a picture looks the same on Android, Windows, Linux and the web. **Update Notes+ on every device**: 19.9 and older show a resized picture as broken.
 
-### The private photo & video vault
-- **Deleting now sticks**: a deleted photo, video, album or vault is deleted on every synced device, instead of coming back from the Drive backup. Restoring an older restore point (kept 30 days) brings things back everywhere.
-- **Sync vault locks across devices**: a new switch in the vault's Google Drive settings; the newest lock change wins on every device that has it on.
-- The vault now also opens on the web, synced through the same Drive backup or only in that browser.
-- **Update Notes+ on every device you sync the vault with**: an older version can bring deleted items back. Details: https://notes.talken.in/docs.html#private-sync
-
-### Also from 19.7
-Notes+ for Linux (`.deb`, AppImage, `.tar.gz`), and only the newest downloaded update is kept.
+### Also from 19.9
+Undo in text notes, the formatting bar that stays at the top, Sync now in a note's menu, and vault deletions that reach every device.
 
 ### Install
-- **Windows**: download `Notes-Plus-Setup-19.9.exe` below and run it. Already have Notes+? The app offers the update automatically. If SmartScreen warns, choose **More info → Run anyway**.
-- **Linux**: `sudo apt install ./notes-plus_19.9_amd64.deb`, or make the AppImage executable and run it.
+- **Windows**: download `Notes-Plus-Setup-20.0.exe` below and run it. Already have Notes+? The app offers the update automatically. If SmartScreen warns, choose **More info → Run anyway**.
+- **Linux**: `sudo apt install ./notes-plus_20.0_amd64.deb`, or make the AppImage executable and run it.

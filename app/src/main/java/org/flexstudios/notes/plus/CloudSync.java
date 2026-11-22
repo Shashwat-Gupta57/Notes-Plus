@@ -59,6 +59,12 @@ public class CloudSync {
     private static final String SNAPSHOT_INDEX = "index.json";
     private static final String BASELINE_FILE = "last_synced_manifest.json";
     private static final String PREF_LAST_SYNC = "drive_last_sync";
+    /** "Sync vault locks across devices": the newest lock of each vault wins everywhere it's on. */
+    static final String PREF_SYNC_LOCKS = "vault_sync_locks";
+
+    static boolean syncLocks(Context context) {
+        return SecurityHelper.getAppPrefs(context).getBoolean(PREF_SYNC_LOCKS, false);
+    }
 
     private static final int CHECKPOINT_FILES = 20;
     private static final long CHECKPOINT_MS = TimeUnit.SECONDS.toMillis(60);
@@ -263,9 +269,11 @@ public class CloudSync {
 
             stage(progress, "Creating restore point");
             Snapshot snapshot = Snapshot.capture(context, db, index.names());
-            // Add-only: what the newest restore point holds stays, whatever this device has.
+            // What the newest restore point holds stays, whatever this device has, except what was
+            // deleted (here, or on another device); this device's marks go with it.
             Snapshot previous = newestRemote(VaultCrypto.localResolver(context, null));
-            if (previous != null) snapshot.mergeFrom(previous, index.names());
+            snapshot.settle(previous, index.names(), VaultMarks.removedMarks(context),
+                    VaultMarks.revivedMarks(context), syncLocks(context), System.currentTimeMillis());
             store.writeEncrypted(snapshot.fileName(), snapshotsId, snapshot.toJson());
 
             List<Snapshot.Summary> summaries = readSnapshotIndex();
@@ -280,6 +288,7 @@ public class CloudSync {
 
             List<Snapshot.Summary> retained = applyRetention(summaries, System.currentTimeMillis());
             writeSnapshotIndex(retained);
+            VaultMarks.confirmed(context);
 
             // DOWNLOAD means "the store wins": it must not lose anything on this run.
             if (resolution != Resolution.DOWNLOAD) {
@@ -326,7 +335,7 @@ public class CloudSync {
             if (newest != null) {
                 int failed = download(newest, resolver, progress);
                 stage(progress, "Adding to your vaults");
-                newest.apply(context, db, false);
+                newest.apply(context, db, false, syncLocks(context), VaultMarks.revivedMarks(context));
                 ThumbnailStore.get(context).clearAll();
                 writeBaseline(newest.mediaFileNames());
                 if (failed > 0) Log.w(TAG, failed + " item(s) couldn't come down this time");
@@ -341,7 +350,10 @@ public class CloudSync {
         ObjectIndex index = loadIndex();
         File vaultDir = VaultMedia.vaultDir(context);
         List<Snapshot.MediaRecord> missing = new ArrayList<>();
+        Set<String> deletedHere = VaultMarks.removedMarks(context).keySet();
         for (Snapshot.MediaRecord record : snapshot.media) {
+            // Deleted here (not yet in the backup), or deleted elsewhere: never brought down.
+            if (deletedHere.contains(record.fileName) || snapshot.removed.containsKey(record.fileName)) continue;
             if (!new File(vaultDir, record.fileName).exists()) missing.add(record);
         }
         int total = missing.size(), done = 0, failed = 0;
@@ -468,7 +480,18 @@ public class CloudSync {
             }
 
             stage(progress, "Updating your vaults");
-            snapshot.apply(context, db, replaceLocal);
+            // Picked by hand: what it brings back is wanted again, here and everywhere.
+            Map<String, Long> marked = VaultMarks.removedMarks(context);
+            for (Snapshot.MediaRecord record : missing) {
+                if (new File(vaultDir, record.fileName).exists()) VaultMarks.revived(context, record.fileName);
+            }
+            for (Snapshot.AlbumRecord a : snapshot.albums) {
+                if (marked.containsKey("album:" + a.uuid)) VaultMarks.revived(context, "album:" + a.uuid);
+            }
+            for (Snapshot.VaultRecord v : snapshot.vaults) {
+                if (marked.containsKey("vault:" + v.uuid)) VaultMarks.revived(context, "vault:" + v.uuid);
+            }
+            snapshot.apply(context, db, replaceLocal, false, VaultMarks.revivedMarks(context));
             ThumbnailStore.get(context).clearAll();
             writeBaseline(snapshot.mediaFileNames());
             if (failed > 0) {

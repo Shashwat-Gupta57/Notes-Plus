@@ -500,6 +500,12 @@ public class GallerySettingsActivity extends VaultActivity {
         onStart.setChecked(SecurityHelper.getAppPrefs(this).getBoolean(SyncWorker.PREF_SYNC_ON_START, false));
         onStart.setOnCheckedChangeListener((v, checked) -> SecurityHelper.getAppPrefs(this).edit()
                 .putBoolean(SyncWorker.PREF_SYNC_ON_START, checked).apply());
+        com.google.android.material.materialswitch.MaterialSwitch syncLocks = findViewById(R.id.switchSyncLocks);
+        syncLocks.setVisibility(visibility);
+        syncLocks.setOnCheckedChangeListener(null);
+        syncLocks.setChecked(CloudSync.syncLocks(this));
+        syncLocks.setOnCheckedChangeListener((v, checked) -> SecurityHelper.getAppPrefs(this).edit()
+                .putBoolean(CloudSync.PREF_SYNC_LOCKS, checked).apply());
         textRestorePointsHeader.setVisibility(visibility);
         textRetentionNote.setVisibility(visibility);
 
@@ -1201,6 +1207,7 @@ public class GallerySettingsActivity extends VaultActivity {
                         vault.setName(newName.isEmpty() ? vault.getName() : newName);
                         vault.setLockType(newType);
                         vault.setLockValue(newValue);
+                        if (lockChanged) vault.setLockChangedAt(System.currentTimeMillis());
                         database.vaultDao().update(vault);
                         runOnUiThread(() -> {
                             // A lock change now costs one small keyring rewrite. The media
@@ -1253,6 +1260,7 @@ public class GallerySettingsActivity extends VaultActivity {
                                     }
                                     deleteVaultResources(vault);
                                     database.vaultDao().delete(vault);
+                                    VaultMarks.removed(this, "vault:" + vault.getUuid());
                                 });
                             })
                             .setPositiveButton("Restore then Delete", (d, w) -> {
@@ -1271,6 +1279,7 @@ public class GallerySettingsActivity extends VaultActivity {
                                     if (stuck == 0) {
                                         deleteVaultResources(vault);
                                         database.vaultDao().delete(vault);
+                                        VaultMarks.removed(this, "vault:" + vault.getUuid());
                                     }
                                     runOnUiThread(() -> Toast.makeText(this, stuck == 0
                                             ? "Vault deleted"
@@ -1287,6 +1296,7 @@ public class GallerySettingsActivity extends VaultActivity {
                                 AppDatabase.IO.execute(() -> {
                                     deleteVaultResources(vault);
                                     database.vaultDao().delete(vault);
+                                    VaultMarks.removed(this, "vault:" + vault.getUuid());
                                 });
                             })
                             .setNegativeButton("Cancel", null)

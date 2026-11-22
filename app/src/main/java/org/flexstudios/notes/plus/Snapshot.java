@@ -39,7 +39,9 @@ import java.util.Set;
 public class Snapshot {
 
     private static final String TAG = "Snapshot";
-    public static final int FORMAT_VERSION = 2;
+    public static final int FORMAT_VERSION = 3;
+    /** How long a deletion is remembered: longer than restore points are kept (30 days). */
+    static final long REMOVED_KEEP_MS = 60L * 24 * 60 * 60 * 1000;
 
     private static final String PREF_INSTALL_ID = "install_id";
 
@@ -53,11 +55,18 @@ public class Snapshot {
     public final List<AlbumRecord> albums = new ArrayList<>();
     public final List<MediaRecord> media = new ArrayList<>();
     public JSONObject lockSettings = new JSONObject();
+    /**
+     * What was deleted, and when: item file names, and "album:" / "vault:" + uuid. Merging never
+     * brings these back, and a device that still has one deletes it at its next pull.
+     */
+    public final Map<String, Long> removed = new HashMap<>();
 
     public static class VaultRecord {
         public String uuid, name, lockType, lockValue, bgType, bgValue;
         public boolean isMain;
         public int sortOrder;
+        /** When this lock was set (0: before 19.9); with lock sync on, the newest wins. */
+        public long lockAt;
     }
 
     public static class AlbumRecord {
@@ -152,6 +161,54 @@ public class Snapshot {
         }
     }
 
+    /**
+     * Makes this (just captured) restore point the next one after {@code previous}: its
+     * deletions plus this device's {@code marks}, less what this device {@code revived}; then
+     * everything else it holds ({@link #mergeFrom}); then the locks: the backup's stay unless
+     * {@code syncLocks} is on and this device's are newer. The desktop's Snapshot.settle and the
+     * web's vault-sync.js do the same (SnapshotSettleTest).
+     */
+    public void settle(Snapshot previous, Set<String> stored, Map<String, Long> marks,
+                       Set<String> revived, boolean syncLocks, long now) {
+        if (previous != null) {
+            for (Map.Entry<String, Long> e : previous.removed.entrySet()) mergeRemoved(e.getKey(), e.getValue());
+        }
+        for (Map.Entry<String, Long> e : marks.entrySet()) mergeRemoved(e.getKey(), e.getValue());
+        for (String k : revived) removed.remove(k);
+        for (java.util.Iterator<Long> it = removed.values().iterator(); it.hasNext(); ) {
+            if (it.next() < now - REMOVED_KEEP_MS) it.remove();
+        }
+        if (previous != null) {
+            Map<String, VaultRecord> before = new HashMap<>();
+            for (VaultRecord v : previous.vaults) if (v.uuid != null) before.put(v.uuid, v);
+            for (VaultRecord v : vaults) {
+                VaultRecord p = before.get(v.uuid);
+                if (p == null || p.lockType == null || p.lockValue == null) continue;
+                if (!syncLocks || p.lockAt > v.lockAt) {
+                    v.lockType = p.lockType;
+                    v.lockValue = p.lockValue;
+                    v.lockAt = p.lockAt;
+                }
+            }
+            mergeFrom(previous, stored);
+        }
+        for (java.util.Iterator<MediaRecord> it = media.iterator(); it.hasNext(); ) {
+            if (removed.containsKey(it.next().fileName)) it.remove();
+        }
+        for (java.util.Iterator<AlbumRecord> it = albums.iterator(); it.hasNext(); ) {
+            if (removed.containsKey("album:" + it.next().uuid)) it.remove();
+        }
+        for (java.util.Iterator<VaultRecord> it = vaults.iterator(); it.hasNext(); ) {
+            VaultRecord v = it.next();
+            if (!v.isMain && removed.containsKey("vault:" + v.uuid)) it.remove();
+        }
+    }
+
+    private void mergeRemoved(String key, Long at) {
+        Long had = removed.get(key);
+        if (had == null || at > had) removed.put(key, at);
+    }
+
     // ------------------------------------------------------------------ capture
 
     /**
@@ -176,6 +233,7 @@ public class Snapshot {
             record.lockValue = vault.getLockValue();
             record.isMain = vault.isMain();
             record.sortOrder = vault.getSortOrder();
+            record.lockAt = vault.getLockChangedAt();
             record.bgType = vault.getBgType();
             record.bgValue = vault.getBgValue();
             snapshot.vaults.add(record);
@@ -240,6 +298,16 @@ public class Snapshot {
      * names, locks and backgrounds overwrite the ones here.
      */
     public void apply(Context context, AppDatabase db, boolean replaceLocal) {
+        apply(context, db, replaceLocal, false, java.util.Collections.<String>emptySet());
+    }
+
+    /**
+     * As {@link #apply(Context, AppDatabase, boolean)}, and then: with {@code syncLocks}, a vault
+     * whose lock here is older than the backup's takes the backup's (unless another vault here has
+     * it); items, albums and empty vaults the backup says were deleted go from here too, except
+     * what this device has {@code revived} since.
+     */
+    public void apply(Context context, AppDatabase db, boolean replaceLocal, boolean syncLocks, Set<String> revived) {
         File vaultDir = VaultMedia.vaultDir(context);
         db.runInTransaction(() -> {
             Map<String, Integer> vaultIdByUuid = new HashMap<>();
@@ -259,6 +327,7 @@ public class Snapshot {
                     VaultEntity vault = new VaultEntity(record.name, record.lockType,
                             record.lockValue, record.isMain, record.sortOrder);
                     vault.setUuid(record.uuid);
+                    vault.setLockChangedAt(record.lockAt);
                     vault.setBgType(record.bgType == null ? "DEFAULT" : record.bgType);
                     vault.setBgValue(remapBackgroundPath(context, record.bgValue));
                     vaultIdByUuid.put(record.uuid, (int) db.vaultDao().insert(vault));
@@ -267,9 +336,17 @@ public class Snapshot {
                         existing.setName(record.name);
                         existing.setLockType(record.lockType);
                         existing.setLockValue(record.lockValue);
+                        existing.setLockChangedAt(record.lockAt);
                         existing.setSortOrder(record.sortOrder);
                         existing.setBgType(record.bgType == null ? "DEFAULT" : record.bgType);
                         existing.setBgValue(remapBackgroundPath(context, record.bgValue));
+                        db.vaultDao().update(existing);
+                    } else if (syncLocks && record.lockType != null && record.lockValue != null
+                            && record.lockAt > existing.getLockChangedAt()
+                            && !lockTaken(db, existing.getId(), record.lockType, record.lockValue)) {
+                        existing.setLockType(record.lockType);
+                        existing.setLockValue(record.lockValue);
+                        existing.setLockChangedAt(record.lockAt);
                         db.vaultDao().update(existing);
                     }
                     vaultIdByUuid.put(record.uuid, existing.getId());
@@ -307,6 +384,28 @@ public class Snapshot {
             }
         });
 
+        // Deleted on another device: gone here too (without a mark of its own).
+        for (SecretEntity secret : db.secretDao().getAllSecretsDirect()) {
+            if (removed.containsKey(secret.getFileName()) && !revived.contains(secret.getFileName())) {
+                VaultMedia.erase(context, secret);
+            }
+        }
+        for (AlbumEntity album : db.albumDao().getAllAlbumsDirect()) {
+            String k = "album:" + album.getUuid();
+            if (removed.containsKey(k) && !revived.contains(k)) {
+                db.secretDao().unsetAlbumId(album.getId());
+                db.albumDao().delete(album);
+            }
+        }
+        for (VaultEntity vault : db.vaultDao().getAllVaultsDirect()) {
+            String k = "vault:" + vault.getUuid();
+            if (!vault.isMain() && removed.containsKey(k) && !revived.contains(k)
+                    && db.vaultDao().getSecretCountForVault(vault.getId()) == 0) {
+                db.albumDao().deleteAlbumsForVault(vault.getId());
+                db.vaultDao().delete(vault);
+            }
+        }
+
         try {
             JSONObject settings = lockSettings;
             SecurityHelper.setAutoLockDelay(context, settings.optLong("auto_lock_time", 0));
@@ -320,6 +419,14 @@ public class Snapshot {
         } catch (Exception e) {
             Log.w(TAG, "Could not apply lock settings from the restore point", e);
         }
+    }
+
+    /** Another vault here already opens with this lock (two vaults never share one). */
+    private static boolean lockTaken(AppDatabase db, int except, String type, String value) {
+        for (VaultEntity v : db.vaultDao().getAllVaultsDirect()) {
+            if (v.getId() != except && type.equals(v.getLockType()) && value.equals(v.getLockValue())) return true;
+        }
+        return false;
     }
 
     /** Background paths are absolute; re-root them under this install's files dir. */
@@ -353,6 +460,7 @@ public class Snapshot {
             item.put("sortOrder", record.sortOrder);
             item.put("bgType", orNull(record.bgType));
             item.put("bgValue", orNull(record.bgValue));
+            item.put("lockAt", record.lockAt);
             vaultArray.put(item);
         }
         document.put("vaults", vaultArray);
@@ -383,6 +491,9 @@ public class Snapshot {
             mediaArray.put(item);
         }
         document.put("media", mediaArray);
+        JSONObject removedObject = new JSONObject();
+        for (Map.Entry<String, Long> e : removed.entrySet()) removedObject.put(e.getKey(), e.getValue());
+        document.put("removed", removedObject);
         return document;
     }
 
@@ -409,6 +520,7 @@ public class Snapshot {
                 record.sortOrder = item.optInt("sortOrder", i);
                 record.bgType = str(item, "bgType");
                 record.bgValue = str(item, "bgValue");
+                record.lockAt = item.optLong("lockAt", 0);
                 snapshot.vaults.add(record);
             }
         }
@@ -450,6 +562,14 @@ public class Snapshot {
                 snapshot.media.add(record);
             }
             if (skipped > 0) Log.w(TAG, "Skipped " + skipped + " unreadable manifest entries");
+        }
+        JSONObject removedObject = document.optJSONObject("removed");
+        if (removedObject != null) {
+            for (java.util.Iterator<String> it = removedObject.keys(); it.hasNext(); ) {
+                String k = it.next();
+                long at = removedObject.optLong(k, 0);
+                if (at > 0) snapshot.removed.put(k, at);
+            }
         }
         return snapshot;
     }

@@ -529,7 +529,10 @@ public class SecretGalleryActivity extends VaultActivity {
                 .setPositiveButton("Delete", (d, w) -> executor.execute(() -> {
                     database.secretDao().unsetAlbumId(album.id);
                     AlbumEntity entity = database.albumDao().getAlbumById(album.id);
-                    if (entity != null) database.albumDao().delete(entity);
+                    if (entity != null) {
+                        database.albumDao().delete(entity);
+                        VaultMarks.removed(this, "album:" + entity.getUuid());
+                    }
                     runOnUiThread(this::loadAlbums);
                 }))
                 .setNegativeButton("Cancel", null)

@@ -12,7 +12,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 import java.util.concurrent.Executors;
 
 @Database(entities = {NoteEntity.class, SecretEntity.class, VaultEntity.class, AlbumEntity.class,
-        ChatStore.Vault.class, ChatStore.Conversation.class, ChatStore.Message.class}, version = 22, exportSchema = false)
+        ChatStore.Vault.class, ChatStore.Conversation.class, ChatStore.Message.class}, version = 23, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static AppDatabase instance;
 
@@ -36,7 +36,7 @@ public abstract class AppDatabase extends RoomDatabase {
                     .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
                             MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
-                            MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
+                            MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
                     .addCallback(new Callback() {
                         @Override
                         public void onOpen(@NonNull SupportSQLiteDatabase db) {
@@ -95,6 +95,14 @@ public abstract class AppDatabase extends RoomDatabase {
      * of thousands of items slow.
      */
     /** Hidden notes (off the grid until the notes are pulled down and held). */
+    /** When each vault's lock was set, for "Sync vault locks across devices". */
+    static final Migration MIGRATION_22_23 = new Migration(22, 23) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE `vaults` ADD COLUMN `lockChangedAt` INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
     static final Migration MIGRATION_21_22 = new Migration(21, 22) {
         @Override
         public void migrate(SupportSQLiteDatabase database) {

@@ -21,6 +21,8 @@ public class VaultEntity {
     // Background customization
     private String bgType; // "DEFAULT", "COLOR", "IMAGE"
     private String bgValue; // Hex color or filename
+    /** When the lock was last set: "Sync vault locks across devices" keeps the newest (0: before 19.9). */
+    private long lockChangedAt;
 
     public VaultEntity(String name, String lockType, String lockValue, boolean isMain, int sortOrder) {
         this.name = name;
@@ -30,6 +32,7 @@ public class VaultEntity {
         this.sortOrder = sortOrder;
         this.bgType = "DEFAULT";
         this.uuid = java.util.UUID.randomUUID().toString();
+        this.lockChangedAt = System.currentTimeMillis(); // A loaded row gets its stored value after this.
     }
 
     public int getId() { return id; }
@@ -51,4 +54,6 @@ public class VaultEntity {
     public void setBgType(String bgType) { this.bgType = bgType; }
     public String getBgValue() { return bgValue; }
     public void setBgValue(String bgValue) { this.bgValue = bgValue; }
+    public long getLockChangedAt() { return lockChangedAt; }
+    public void setLockChangedAt(long lockChangedAt) { this.lockChangedAt = lockChangedAt; }
 }

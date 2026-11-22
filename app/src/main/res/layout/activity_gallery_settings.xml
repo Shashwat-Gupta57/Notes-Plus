@@ -404,6 +404,17 @@
                         android:visibility="gone" />
 
                     <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switchSyncLocks"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:minHeight="48dp"
+                        android:text="Sync vault locks across devices"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:visibility="gone" />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/switchAutoSync"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

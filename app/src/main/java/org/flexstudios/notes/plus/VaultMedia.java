@@ -285,14 +285,19 @@ public final class VaultMedia {
 
     // ------------------------------------------------------------- delete/share
 
-    /** Removes an item from the vault: row, encrypted file and thumbnail. */
+    /** Removes an item from the vault, and marks it so the deletion reaches the backup and every other device. */
     public static void remove(Context context, SecretEntity entity) {
+        erase(context, entity);
+        VaultMarks.removed(context, entity.getFileName());
+        if (SecurityHelper.isAutoSyncEnabled(context)) SyncWorker.requestBackup(context);
+    }
+
+    /** Erases an item here: row, encrypted file and thumbnail. */
+    static void erase(Context context, SecretEntity entity) {
         AppDatabase.getInstance(context).secretDao().delete(entity);
         File file = fileOf(context, entity);
         if (file.exists() && !file.delete()) Log.w(TAG, "Could not delete " + file.getName());
         ThumbnailStore.get(context).invalidate(entity.getFileName());
-        // A delete is just "the next restore point won't include it": schedule one.
-        if (SecurityHelper.isAutoSyncEnabled(context)) SyncWorker.requestBackup(context);
     }
 
     /** Decrypted copy in the share directory, named so the receiving app knows its type. */

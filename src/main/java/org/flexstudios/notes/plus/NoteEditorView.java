@@ -52,6 +52,11 @@ final class NoteEditorView extends NoteEditor {
     private javafx.scene.Node formatRow;
     private final TextArea title = new TextArea();
     private RichBody body;
+
+    @Override
+    protected boolean dismissOverlay() {
+        return body != null && body.deselect();
+    }
     private final Label footer = new Label();
 
     // List

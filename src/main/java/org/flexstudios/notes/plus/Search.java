@@ -46,7 +46,7 @@ final class Search {
         }
     }
 
-    private static final Pattern PICTURE = Pattern.compile("!\\[\\[[^\\]]+\\.(png|jpe?g|gif|webp|bmp|heic)\\]\\]", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PICTURE = Pattern.compile("!\\[\\[[^\\]|]+\\.(png|jpe?g|gif|webp|bmp|heic)(\\|[^\\]]*)?\\]\\]", Pattern.CASE_INSENSITIVE);
 
     /** The words typed, each once, lowercased. */
     static List<String> terms(String query) {

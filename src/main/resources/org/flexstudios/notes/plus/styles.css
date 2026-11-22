@@ -689,6 +689,16 @@
 .rich-dot { -fx-fill: -np-text-secondary; }
 .rich-quote-bar { -fx-background-color: -np-brand-yellow; -fx-background-radius: 2; }
 .rich-check { -fx-cursor: hand; }
+.pic-bar { -fx-background-color: -color-bg-overlay; -fx-background-radius: 14; -fx-padding: 3 4 3 4;
+  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 14, 0, 0, 4); }
+.pic-chip { -fx-background-color: transparent; -fx-background-radius: 9; -fx-font-size: 12px; -fx-font-weight: bold;
+  -fx-padding: 5 9 5 9; -fx-text-fill: -color-fg-default; -fx-cursor: hand; }
+.pic-chip:hover { -fx-background-color: -color-bg-subtle; }
+.pic-bar .on { -fx-background-color: -np-brand-yellow; -fx-text-fill: black; -fx-background-radius: 9; }
+.pic-sep { -fx-min-width: 1; -fx-pref-width: 1; -fx-max-height: 20; -fx-pref-height: 20; -fx-background-color: -color-border-subtle; }
+.pic-size { -fx-background-color: rgba(0,0,0,0.6); -fx-background-radius: 8; -fx-text-fill: white; -fx-font-size: 12px;
+  -fx-font-weight: bold; -fx-padding: 2 8 2 8; }
+.pic-handle { -fx-fill: white; -fx-stroke: -color-accent-emphasis; -fx-stroke-width: 2; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 4, 0, 0, 1); }
 .format-bar { -fx-background-color: -color-bg-overlay; -fx-background-radius: 12; -fx-border-color: -color-border-subtle; -fx-border-radius: 12; }
 .format-text { -fx-font-size: 13px; -fx-padding: 4 10 4 10; -fx-background-radius: 8; }
 .format-on, .format-on:hover { -fx-background-color: -np-m3-secondary-container; -fx-background-radius: 8; }

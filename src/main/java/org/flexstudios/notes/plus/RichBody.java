@@ -14,7 +14,9 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.input.TransferMode;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Rectangle;
@@ -46,7 +48,8 @@ final class RichBody extends VBox {
     /** A note sent to me: read only, nothing pasted or dropped in. */
     boolean locked;
 
-    static final Pattern EMBED = Pattern.compile("^!\\[\\[([^\\]/\\\\]+)\\]\\]$");
+    /** A picture line (group 1: its name), maybe with a size and place: see {@link PictureLine}. */
+    static final Pattern EMBED = Pattern.compile("^!\\[\\[([^\\]|/\\\\]+)(?:\\|[^\\]]*)?\\]\\]$");
 
     /** Asks the editor for the note's folder (creating the note first if need be). */
     interface Folder {
@@ -69,12 +72,25 @@ final class RichBody extends VBox {
         setPadding(new Insets(0, 20, 0, 20));
         setOnDragOver(e -> {
             if (locked) return;
-            if (e.getDragboard().hasFiles() && e.getDragboard().getFiles().stream().anyMatch(RichBody::isPicture)) {
+            if (moving != null && e.getDragboard().hasString() && e.getDragboard().getString().startsWith(MOVE)) {
+                e.acceptTransferModes(TransferMode.MOVE);
+            } else if (e.getDragboard().hasFiles() && e.getDragboard().getFiles().stream().anyMatch(RichBody::isPicture)) {
                 e.acceptTransferModes(TransferMode.COPY);
             }
             e.consume();
         });
         setOnDragDropped(this::dropped);
+        // A click anywhere else lets go of a selected picture.
+        sceneProperty().addListener((o, was, scene) -> {
+            if (scene != null) scene.addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
+                if (selected != null && !(e.getTarget() instanceof Node n && isInside(n, selected))) deselect();
+            });
+        });
+    }
+
+    private static boolean isInside(Node n, Node parent) {
+        for (Node x = n; x != null; x = x.getParent()) if (x == parent) return true;
+        return false;
     }
 
     void setOnChange(Runnable r) {
@@ -101,10 +117,10 @@ final class RichBody extends VBox {
         StringBuilder text = new StringBuilder();
         boolean pending = false;
         for (String line : (content == null ? "" : content).split("\n", -1)) {
-            Matcher m = EMBED.matcher(line.trim());
-            if (m.matches()) {
+            PictureLine pic = PictureLine.parse(line);
+            if (pic != null) {
                 getChildren().add(text(text.toString()));
-                getChildren().add(new Picture(m.group(1)));
+                getChildren().add(new Picture(pic));
                 text.setLength(0);
                 pending = false;
             } else {
@@ -124,7 +140,7 @@ final class RichBody extends VBox {
             if (i > 0) out.append('\n');
             Node n = getChildren().get(i);
             if (n instanceof RichArea a) out.append(a.markdown());
-            else if (n instanceof Picture p) out.append("![[").append(p.name).append("]]");
+            else if (n instanceof Picture p) out.append(p.line.format());
         }
         return out.toString();
     }
@@ -264,7 +280,7 @@ final class RichBody extends VBox {
         before.moveTo(Math.min(caret, before.getLength()));
         onChange.run();
         // The file goes with the save: until then Undo-by-retyping is not a thing, so delete now.
-        Path file = dir == null ? null : dir.resolve(p.name);
+        Path file = dir == null ? null : dir.resolve(p.line.name);
         if (file != null) NoteStore.write(s -> {
             try {
                 Files.deleteIfExists(file);
@@ -288,6 +304,10 @@ final class RichBody extends VBox {
     }
 
     private void dropped(DragEvent e) {
+        if (moving != null && e.getDragboard().hasString() && e.getDragboard().getString().startsWith(MOVE)) {
+            dropMoving(e);
+            return;
+        }
         List<File> files = new ArrayList<>();
         if (e.getDragboard().hasFiles()) for (File f : e.getDragboard().getFiles()) if (isPicture(f)) files.add(f);
         if (files.isEmpty()) return;
@@ -332,7 +352,7 @@ final class RichBody extends VBox {
                 if (after.startsWith("\n")) after = after.substring(1);
                 area.setMarkdown(before);
                 RichArea rest = text(after);
-                getChildren().add(at + 1, new Picture(name));
+                getChildren().add(at + 1, new Picture(new PictureLine(name, 0, PictureLine.LEFT)));
                 getChildren().add(at + 2, rest);
                 refreshPrompts();
                 onChange.run();
@@ -383,21 +403,122 @@ final class RichBody extends VBox {
         return dot < 0 ? ".png" : name.substring(dot).toLowerCase(Locale.US);
     }
 
-    /** A picture in the text: its own size, never wider than the page. Click to view it big. */
+    // ============================================================= pictures
+    // Click a picture to select it: handles on its corners and sides resize it (a share of the
+    // page, in steps of 5%), and a bar (or its right-click menu) sizes, places, moves, views or
+    // removes it; dragging it into the words moves it there. Double-click views it. The line keeps
+    // it all: ![[name|60%|center]] ({@link PictureLine}), the same on the phone and the web.
+
+    private static final String MOVE = "notesplus-picture:";
+    private Picture selected, moving;
+
+    /** Lets go of a selected picture; true when one was (Esc goes no further). */
+    boolean deselect() {
+        if (selected == null) return false;
+        Picture p = selected;
+        selected = null;
+        p.showChrome(false);
+        return true;
+    }
+
+    private void select(Picture p) {
+        if (selected == p) return;
+        deselect();
+        selected = p;
+        p.showChrome(true);
+        p.requestFocus();
+    }
+
+    /** The note's lines now, every block as it stands. */
+    private List<String> lines() {
+        return new ArrayList<>(List.of(getContent().split("\n", -1)));
+    }
+
+    /** Draws the note afresh from its lines; a picture called {@code keep} stays selected. */
+    private void relayout(List<String> lines, String keep) {
+        selected = null;
+        setContent(String.join("\n", lines), dir);
+        for (Node n : getChildren()) if (n instanceof Picture p && p.line.name.equals(keep)) select(p);
+        onChange.run();
+    }
+
+    /** Up or down past the next line of words (or picture). */
+    private void move(Picture p, int dir) {
+        List<String> all = lines();
+        int i = -1;
+        for (int k = 0; k < all.size(); k++) {
+            PictureLine q = PictureLine.parse(all.get(k));
+            if (q != null && q.name.equals(p.line.name)) { i = k; break; }
+        }
+        int j = i + dir;
+        while (j >= 0 && j < all.size() && all.get(j).trim().isEmpty()) j += dir;
+        if (i < 0 || j < 0 || j >= all.size()) return;
+        String line = all.remove(i);
+        all.add(j, line);
+        relayout(all, p.line.name);
+    }
+
+    /** A picture dragged into the words: before the paragraph dropped on (its top half) or after it. */
+    private void dropMoving(DragEvent e) {
+        Picture p = moving;
+        moving = null;
+        RichArea target = null;
+        for (Node n : getChildren()) {
+            if (n instanceof RichArea a && a.localToScene(a.getBoundsInLocal()).contains(e.getSceneX(), e.getSceneY())) target = a;
+        }
+        if (target == null) return;
+        javafx.geometry.Point2D at = target.sceneToLocal(e.getSceneX(), e.getSceneY());
+        int index = target.hit(at.getX(), at.getY()).getInsertionIndex();
+        int par = target.offsetToPosition(index, org.fxmisc.richtext.model.TwoDimensional.Bias.Forward).getMajor();
+        int cut = target.getAbsolutePosition(par, 0);
+        var bounds = target.getParagraphBoundsOnScreen(par);
+        if (bounds.isPresent() && e.getScreenY() > bounds.get().getMinY() + bounds.get().getHeight() / 2) {
+            cut += target.getParagraph(par).length();
+        }
+        String before = target.markdown(0, cut), after = target.markdown(cut, target.getLength());
+        if (before.endsWith("\n")) before = before.substring(0, before.length() - 1);
+        if (after.startsWith("\n")) after = after.substring(1);
+        List<String> out = new ArrayList<>();
+        for (Node n : getChildren()) {
+            if (n == p) continue;
+            if (n == target) {
+                if (!before.isEmpty()) out.add(before);
+                out.add(p.line.format());
+                if (!after.isEmpty()) out.add(after);
+            } else if (n instanceof RichArea a) {
+                if (!a.markdown().isEmpty()) out.add(a.markdown());
+            } else if (n instanceof Picture q) {
+                out.add(q.line.format());
+            }
+        }
+        e.setDropCompleted(true);
+        e.consume();
+        relayout(out, p.line.name);
+    }
+
+    /** A picture in the text, at its own size (or its share of the page), placed left, centre or right. */
     private final class Picture extends StackPane {
-        final String name;
+        final PictureLine line;
         private final ImageView view = new ImageView();
         private final Rectangle clip = new Rectangle();
+        private final javafx.scene.layout.Pane chrome = new javafx.scene.layout.Pane();
+        private final javafx.scene.control.Label size = new javafx.scene.control.Label();
+        private final List<javafx.scene.shape.Circle> handles = new ArrayList<>();
+        private final HBox bar = new HBox(2);
 
-        Picture(String name) {
-            this.name = name;
-            setAlignment(Pos.CENTER_LEFT);
+        Picture(PictureLine line) {
+            this.line = line;
             setPadding(new Insets(6, 0, 6, 0));
+            setFocusTraversable(false);
             view.setPreserveRatio(true);
             view.setSmooth(true);
-            getChildren().add(view);
+            getChildren().addAll(view, chrome);
+            chrome.setPickOnBounds(false);
+            chrome.setManaged(false);
+            chrome.setVisible(false);
+            place();
             setStyle("-fx-cursor: hand;");
-            Path file = dir == null ? null : dir.resolve(name);
+            Path file = dir == null ? null : dir.resolve(line.name);
             if (file != null) {
                 Images.load(file, 2048, img -> {
                     if (img == null) return;
@@ -409,24 +530,189 @@ final class RichBody extends VBox {
             clip.setArcWidth(16);
             clip.setArcHeight(16);
             view.setClip(clip);
-            setOnMouseClicked(e -> {
-                if (e.getButton() == MouseButton.PRIMARY && file != null) MediaViewer.open(file, false);
+            Runnable open = () -> {
+                if (file != null) MediaViewer.open(file, false);
+            };
+            if (locked) {
+                setOnMouseClicked(e -> { if (e.getButton() == MouseButton.PRIMARY) open.run(); });
+                Ui.tooltip(this, "Click to view");
+                return;
+            }
+            view.setOnMouseClicked(e -> {
+                if (e.getButton() != MouseButton.PRIMARY) return;
+                if (e.getClickCount() >= 2) open.run();
+                else select(this);
             });
-            setOnContextMenuRequested(e -> Ui.dialog().items(List.of("View", "Remove picture"),
-                    List.of(() -> {
-                        if (file != null) MediaViewer.open(file, false);
-                    }, () -> remove(this))).show());
-            Ui.tooltip(this, "Click to view · right-click to remove");
+            setOnContextMenuRequested(e -> {
+                select(this);
+                Ui.menuAt(e.getSceneX(), e.getSceneY(), "Picture",
+                        List.of("Small (25%)", "Medium (50%)", "Large (75%)", "Full width", "As it comes",
+                                "Left", "Centre", "Right", "Move up", "Move down", "View", "Remove picture"),
+                        List.of(() -> set(25, null), () -> set(50, null), () -> set(75, null), () -> set(100, null), () -> set(0, null),
+                                () -> set(-1, PictureLine.LEFT), () -> set(-1, PictureLine.CENTER), () -> set(-1, PictureLine.RIGHT),
+                                () -> move(this, -1), () -> move(this, 1), open, () -> remove(this)));
+                e.consume();
+            });
+            setOnKeyPressed(e -> {
+                if (selected != this) return;
+                if (e.getCode() == KeyCode.DELETE || e.getCode() == KeyCode.BACK_SPACE) {
+                    e.consume();
+                    deselect();
+                    remove(this);
+                }
+            });
+            // Dragged into the words: moved there.
+            view.setOnDragDetected(e -> {
+                moving = this;
+                var board = view.startDragAndDrop(TransferMode.MOVE);
+                var content = new javafx.scene.input.ClipboardContent();
+                content.putString(MOVE + line.name);
+                board.setContent(content);
+                if (view.getImage() != null) board.setDragView(view.snapshot(null, null), 0, 0);
+                e.consume();
+            });
+            view.setOnDragDone(e -> moving = null);
+            Ui.tooltip(view, "Click to select · double-click to view · right-click for more");
+            buildChrome(open);
+        }
+
+        private void buildChrome(Runnable open) {
+            String[][] sizes = {{"S", "25"}, {"M", "50"}, {"L", "75"}, {"Full", "100"}, {"Auto", "0"}};
+            for (String[] s : sizes) {
+                int w = Integer.parseInt(s[1]);
+                javafx.scene.control.Button b = new javafx.scene.control.Button(s[0]);
+                b.getStyleClass().add("pic-chip");
+                b.setUserData(w);
+                b.setOnAction(e -> set(w, null));
+                bar.getChildren().add(b);
+            }
+            bar.getChildren().add(sep());
+            Object[][] places = {{Icons.ALIGN_LEFT, PictureLine.LEFT, "Left"}, {Icons.ALIGN_CENTER, PictureLine.CENTER, "Centre"},
+                    {Icons.ALIGN_RIGHT, PictureLine.RIGHT, "Right"}};
+            for (Object[] p : places) {
+                String a = (String) p[1];
+                javafx.scene.control.Button b = Ui.iconButton((Icons.Icon) p[0], 32, 18, "text_primary", (String) p[2], () -> set(-1, a));
+                b.setUserData(a);
+                bar.getChildren().add(b);
+            }
+            bar.getChildren().add(sep());
+            bar.getChildren().addAll(
+                    Ui.iconButton(Icons.ARROW_UP, 32, 18, "text_primary", "Move up", () -> move(this, -1)),
+                    Ui.iconButton(Icons.ARROW_DOWN, 32, 18, "text_primary", "Move down", () -> move(this, 1)),
+                    Ui.iconButton(Icons.PHOTO, 32, 18, "text_primary", "View (double-click)", open),
+                    Ui.iconButton(Icons.DELETE, 32, 18, "destructive", "Remove picture (Delete)", () -> remove(this)));
+            bar.getStyleClass().add("pic-bar");
+            bar.setAlignment(Pos.CENTER_LEFT);
+            size.getStyleClass().add("pic-size");
+            chrome.getChildren().addAll(bar, size);
+            String[] corners = {"nw", "ne", "sw", "se", "w", "e"};
+            for (String c : corners) {
+                javafx.scene.shape.Circle h = new javafx.scene.shape.Circle(7);
+                h.getStyleClass().add("pic-handle");
+                h.setCursor(c.equals("w") || c.equals("e") ? javafx.scene.Cursor.H_RESIZE
+                        : c.equals("nw") || c.equals("se") ? javafx.scene.Cursor.NW_RESIZE : javafx.scene.Cursor.NE_RESIZE);
+                h.setUserData(c);
+                double[] start = new double[2];
+                h.setOnMousePressed(e -> {
+                    start[0] = e.getScreenX();
+                    start[1] = view.getBoundsInParent().getWidth();
+                    e.consume();
+                });
+                h.setOnMouseDragged(e -> {
+                    double room = room();
+                    int sign = c.contains("w") ? -1 : 1, both = PictureLine.CENTER.equals(line.align) ? 2 : 1;
+                    double w = start[1] + sign * both * (e.getScreenX() - start[0]);
+                    line.width = Math.max(10, PictureLine.snap(w / room * 100));
+                    fit();
+                    e.consume();
+                });
+                h.setOnMouseReleased(e -> {
+                    paint();
+                    onChange.run();
+                    e.consume();
+                });
+                handles.add(h);
+                chrome.getChildren().add(h);
+            }
+        }
+
+        private javafx.scene.control.Button chip(String text, String tip, Runnable r) {
+            javafx.scene.control.Button b = new javafx.scene.control.Button(text);
+            b.getStyleClass().add("pic-chip");
+            Ui.tooltip(b, tip);
+            b.setOnAction(e -> r.run());
+            return b;
+        }
+
+        private javafx.scene.layout.Region sep() {
+            javafx.scene.layout.Region r = new javafx.scene.layout.Region();
+            r.getStyleClass().add("pic-sep");
+            return r;
+        }
+
+        /** {@code width} (-1: as it is) and {@code align} (null: as it is). */
+        private void set(int width, String align) {
+            if (width >= 0) line.width = PictureLine.snap(width);
+            if (align != null) line.align = align;
+            place();
+            fit();
+            paint();
+            onChange.run();
+        }
+
+        private void place() {
+            Pos pos = PictureLine.CENTER.equals(line.align) ? Pos.TOP_CENTER : PictureLine.RIGHT.equals(line.align) ? Pos.TOP_RIGHT : Pos.TOP_LEFT;
+            StackPane.setAlignment(view, pos);
+        }
+
+        void showChrome(boolean on) {
+            chrome.setVisible(on);
+            setStyle(on ? "-fx-cursor: default;" : "-fx-cursor: hand;");
+            paint();
+            requestLayout();
+        }
+
+        private void paint() {
+            size.setText(line.width > 0 ? line.width + "%" : "As it comes");
+            for (Node n : bar.getChildren()) {
+                Object d = n.getUserData();
+                boolean on = (d instanceof Integer w && w == line.width) || (d instanceof String a && a.equals(line.align));
+                if (on) { if (!n.getStyleClass().contains("on")) n.getStyleClass().add("on"); } else n.getStyleClass().remove("on");
+            }
+        }
+
+        private double room() {
+            return Math.max(40, getWidth() > 0 ? getWidth() : 700);
         }
 
         private void fit() {
             Image img = view.getImage();
             if (img == null) return;
-            double room = Math.max(40, getWidth() > 0 ? getWidth() : 700);
-            double w = Math.min(img.getWidth(), room);
+            double room = room();
+            double w = line.width > 0 ? room * line.width / 100.0 : Math.min(img.getWidth(), room);
             view.setFitWidth(w);
             clip.setWidth(w);
             clip.setHeight(w * img.getHeight() / Math.max(1, img.getWidth()));
+            paint();
+            requestLayout();
+        }
+
+        @Override
+        protected void layoutChildren() {
+            super.layoutChildren();
+            if (!chrome.isVisible()) return;
+            var b = view.getBoundsInParent();
+            chrome.resizeRelocate(0, 0, getWidth(), getHeight());
+            double[][] at = {{b.getMinX(), b.getMinY()}, {b.getMaxX(), b.getMinY()}, {b.getMinX(), b.getMaxY()},
+                    {b.getMaxX(), b.getMaxY()}, {b.getMinX(), b.getMinY() + b.getHeight() / 2}, {b.getMaxX(), b.getMinY() + b.getHeight() / 2}};
+            for (int i = 0; i < handles.size(); i++) {
+                handles.get(i).setCenterX(at[i][0]);
+                handles.get(i).setCenterY(at[i][1]);
+            }
+            bar.autosize();
+            bar.relocate(Math.max(0, Math.min(b.getMinX() + 8, getWidth() - bar.getWidth())), b.getMinY() + 8);
+            size.autosize();
+            size.relocate(b.getMaxX() - size.getWidth() - 8, b.getMaxY() - size.getHeight() - 8);
         }
     }
 

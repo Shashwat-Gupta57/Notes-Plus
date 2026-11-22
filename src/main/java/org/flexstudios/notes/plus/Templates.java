@@ -17,7 +17,7 @@ final class Templates {
 
     private Templates() {}
 
-    private static final java.util.regex.Pattern EMBED = java.util.regex.Pattern.compile("^!\\[\\[[^\\]/\\\\]+\\]\\]$");
+    private static final java.util.regex.Pattern EMBED = java.util.regex.Pattern.compile("^!\\[\\[[^\\]|/\\\\]+(?:\\|[^\\]]*)?\\]\\]$");
 
     static boolean kindAllowed(String type) {
         return NoteData.TEXT.equals(type) || NoteData.LIST.equals(type)

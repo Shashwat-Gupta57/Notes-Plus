@@ -402,6 +402,7 @@ abstract class NoteEditor extends Screen {
     /** Escape closes the find row first. */
     @Override
     boolean onBack() {
+        if (dismissOverlay()) return true;
         if (findBar != null && findBar.isOpen()) {
             findBar.close();
             root.requestFocus();
@@ -411,6 +412,11 @@ abstract class NoteEditor extends Screen {
     }
 
     private FindBar findBar;
+
+    /** Something in the note to let go of first (a selected picture); true when there was. */
+    protected boolean dismissOverlay() {
+        return false;
+    }
 
     /** What Ctrl+F searches in this note; null for none (a sketch). */
     protected FindBar.Searcher searcher() {

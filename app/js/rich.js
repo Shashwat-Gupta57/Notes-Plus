@@ -145,7 +145,64 @@ export function richEditor({ readOnly = false, placeholder = '', onChange = () =
   el.contentEditable = readOnly ? 'false' : 'true';
   el.spellcheck = true;
   el.dataset.placeholder = placeholder;
-  const changed = () => { paintEmpty(); onChange(); };
+  const changed = () => { paintEmpty(); onChange(); remember(); };
+
+  // Undo history of its own: the browser's skips what this editor changes itself (Enter in a
+  // checklist, "- " lists, Backspace un-styling), which left Ctrl+Z undoing the wrong things.
+  const hist = { past: [], future: [], cur: null, timer: 0 };
+  function caretAt() {
+    const sel = getSelection();
+    if (!sel.rangeCount || !el.contains(sel.anchorNode)) return 0;
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    r.setEnd(sel.anchorNode, sel.anchorOffset);
+    return r.toString().length;
+  }
+  function remember() {
+    clearTimeout(hist.timer);
+    hist.timer = setTimeout(commit, 400); // A burst of typing is one step.
+  }
+  function commit() {
+    clearTimeout(hist.timer);
+    if (hist.cur && el.innerHTML === hist.cur.html) return;
+    if (hist.cur) hist.past.push(hist.cur);
+    if (hist.past.length > 200) hist.past.shift();
+    hist.cur = { html: el.innerHTML, at: caretAt() };
+    hist.future.length = 0;
+  }
+  function restore(s) {
+    el.innerHTML = s.html;
+    let left = s.at;
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let node, placed = false;
+    while ((node = walk.nextNode())) {
+      if (left <= node.nodeValue.length) {
+        const r = document.createRange();
+        r.setStart(node, left);
+        getSelection().removeAllRanges();
+        getSelection().addRange(r);
+        placed = true;
+        break;
+      }
+      left -= node.nodeValue.length;
+    }
+    if (!placed) placeCaret(el.lastElementChild || el, true);
+    paintEmpty();
+    onChange();
+  }
+  function undo() {
+    commit();
+    if (!hist.past.length) return;
+    hist.future.push(hist.cur);
+    hist.cur = hist.past.pop();
+    restore(hist.cur);
+  }
+  function redo() {
+    if (!hist.future.length) return;
+    hist.past.push(hist.cur);
+    hist.cur = hist.future.pop();
+    restore(hist.cur);
+  }
   const paintEmpty = () => el.classList.toggle('empty', !el.textContent.trim() && !el.querySelector('li, .task, h1, h2, h3, blockquote'));
 
   function currentBlock() {
@@ -258,6 +315,11 @@ export function richEditor({ readOnly = false, placeholder = '', onChange = () =
 
   el.addEventListener('beforeinput', e => {
     if (readOnly) return;
+    if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') { // The browser's Edit menu.
+      e.preventDefault();
+      if (e.inputType === 'historyUndo') undo(); else redo();
+      return;
+    }
     const block = currentBlock();
     // "# ", "- ", "1. ", "[] ", "> " at the start of a plain line.
     if (e.inputType === 'insertText' && e.data === ' ' && block && kindOf(block) === 'NORMAL') {
@@ -360,6 +422,8 @@ export function richEditor({ readOnly = false, placeholder = '', onChange = () =
   el.addEventListener('keydown', e => {
     if (readOnly || !(e.ctrlKey || e.metaKey)) return;
     const k = e.key.toLowerCase();
+    if (k === 'z' && !e.altKey) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+    if (k === 'y' && !e.altKey) { e.preventDefault(); redo(); return; }
     if (k === 'b' && !e.altKey) { e.preventDefault(); cmd('bold'); }
     else if (k === 'i' && !e.altKey) { e.preventDefault(); cmd('italic'); }
     else if (k === 'u' && !e.altKey) { e.preventDefault(); cmd('underline'); }
@@ -406,7 +470,12 @@ export function richEditor({ readOnly = false, placeholder = '', onChange = () =
 
   const api = {
     node: el,
-    setMarkdown(text) { el.innerHTML = mdHtml(repair(text)); paintEmpty(); },
+    setMarkdown(text) {
+      el.innerHTML = mdHtml(repair(text));
+      paintEmpty();
+      clearTimeout(hist.timer);
+      Object.assign(hist, { past: [], future: [], cur: { html: el.innerHTML, at: 0 } });
+    },
     markdown: () => htmlMd(el),
     text: () => el.innerText || '',
     focusStart() { el.focus(); placeCaret(el.firstElementChild || el, false); },

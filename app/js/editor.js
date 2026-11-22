@@ -271,7 +271,9 @@ export async function openEditor({ uuid, type }, implFor, go) {
     root.style.setProperty('--card-surface', t ? `var(--${t})` : 'var(--surface)');
   }
 
-  function showMore() {
+  async function showMore() {
+    // Whether this note still waits to go up: "Sync now", or a greyed "Synced".
+    const stored = account.uid() && !readOnly ? await db.getNote(note.uuid) : null;
     const items = [];
     if (readOnly) {
       items.push({ text: 'Save a copy', onClick: () => saveCopy() });
@@ -298,6 +300,15 @@ export async function openEditor({ uuid, type }, implFor, go) {
             toast('Saved as a template. Find it under New or the Templates filter.');
           },
         }) });
+      }
+      if (account.uid()) {
+        const synced = !!stored && !stored.dirty && !['Unsaved changes', 'Saving…'].includes(syncStatus);
+        items.push({ text: synced ? 'Synced' : 'Sync now', disabled: synced, onClick: async () => {
+          clearTimeout(timer);
+          await (saving = saving.then(save));
+          sync.schedule(0);
+          toast('Syncing…');
+        } });
       }
       items.push({ text: 'Delete', danger: true, onClick: () => confirm('Delete this note?', null, 'Delete', () => remove(), true) });
     }

@@ -267,10 +267,11 @@ export function menu(anchor, items) {
   const m = h('div.menu', { role: 'menu' });
   for (const it of items) {
     if (!it) continue;
-    m.appendChild(h('button.menu-item' + (it.danger ? '.danger' : ''), {
+    const b = m.appendChild(h('button.menu-item' + (it.danger ? '.danger' : ''), {
       type: 'button', role: 'menuitem',
       onClick: () => { m.remove(); it.onClick(); },
     }, it.text));
+    if (it.disabled) b.disabled = true;
   }
   document.body.appendChild(m);
   const r = anchor.getBoundingClientRect();

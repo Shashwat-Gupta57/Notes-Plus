@@ -270,6 +270,7 @@ textarea.field { resize: vertical; min-height: 96px; }
 }
 .menu-item { display: block; width: 100%; padding: 10px 14px; border: 0; border-radius: 10px; background: transparent; text-align: left; cursor: pointer; }
 .menu-item:hover { background: var(--hover); }
+.menu-item:disabled { opacity: .4; cursor: default; background: transparent; }
 .menu-item.danger { color: var(--destructive); }
 .swatches { display: flex; flex-wrap: wrap; gap: 10px; padding-bottom: 8px; }
 .swatch { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--divider); cursor: pointer; }

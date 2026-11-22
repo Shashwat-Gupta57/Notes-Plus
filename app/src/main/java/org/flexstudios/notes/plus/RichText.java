@@ -74,8 +74,16 @@ final class RichText implements TextWatcher {
     @Nullable private java.util.function.Consumer<File> pictureTapped;
     private final Map<String, android.graphics.Bitmap> pictures = new HashMap<>();
     private final Set<String> pictureLoading = new HashSet<>();
+    /** Group 1: the name; then maybe a size and place ({@link PictureLine}). */
     private static final Pattern PICTURE_LINE = Pattern.compile(
-            "(?m)^!\\[\\[([^\\]/\\\\]+\\.(?:png|jpe?g|gif|webp|bmp))\\]\\]$", Pattern.CASE_INSENSITIVE);
+            "(?m)^!\\[\\[([^\\]|/\\\\]+\\.(?:png|jpe?g|gif|webp|bmp))((?:\\|[^\\]|]*)*)\\]\\]$", Pattern.CASE_INSENSITIVE);
+    /** The picture tapped once (outlined, with handles); a second tap offers what can be done with it. */
+    @Nullable private String selectedPicture;
+    /** A width being dragged (not yet written into the line). */
+    private final Map<String, Integer> liveWidth = new HashMap<>();
+    @Nullable private PictureSpan resizing;
+    private int resizeSign;
+    private float resizeX0, resizeW0;
 
     @SuppressLint("ClickableViewAccessibility")
     RichText(EditText edit, Runnable onChange) {
@@ -84,15 +92,21 @@ final class RichText implements TextWatcher {
         this.dp = edit.getResources().getDisplayMetrics().density;
         edit.addTextChangedListener(this);
         edit.setOnTouchListener((v, e) -> {
+            if (resizePicture(v, e)) return true;
             if (e.getAction() == MotionEvent.ACTION_UP && pictureTapped != null) {
-                File picture = pictureAt(e);
+                PictureSpan picture = pictureAt(e);
                 if (picture != null) {
-                    pictureTapped.accept(picture);
+                    tapPicture(picture);
                     MotionEvent cancel = MotionEvent.obtain(e);
                     cancel.setAction(MotionEvent.ACTION_CANCEL);
                     v.onTouchEvent(cancel);
                     cancel.recycle();
                     return true;
+                }
+                if (selectedPicture != null) {
+                    selectedPicture = null;
+                    Editable now = edit.getText();
+                    if (now != null) stylePictures(now);
                 }
             }
             if (e.getAction() == MotionEvent.ACTION_UP && linkTapped != null) {
@@ -497,18 +511,150 @@ final class RichText implements TextWatcher {
         for (PictureSpan p : e.getSpans(0, e.length(), PictureSpan.class)) e.removeSpan(p);
         if (android.text.TextUtils.indexOf(e, "![[") < 0) return;
         Matcher m = PICTURE_LINE.matcher(e);
+        int column = columnWidth();
         while (m.find()) {
-            String name = m.group(1);
-            android.graphics.Bitmap shown = pictures.get(name);
+            PictureLine line = PictureLine.parse(m.group());
+            if (line == null) continue;
+            android.graphics.Bitmap shown = pictures.get(line.name);
             if (shown != null) {
-                e.setSpan(new PictureSpan(shown, name), m.start(), m.end(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                Integer live = liveWidth.get(line.name);
+                e.setSpan(new PictureSpan(shown, line.name, live != null ? live : line.width, line.align, column,
+                        Math.round(320 * dp), line.name.equals(selectedPicture), dp), m.start(), m.end(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             } else {
-                loadPicture(name);
+                loadPicture(line.name);
             }
         }
     }
 
-    /** Decodes a picture to the editor's width (at most 320 dp high) off the main thread, then draws it. */
+    private int columnWidth() {
+        int width = edit.getWidth() - edit.getTotalPaddingLeft() - edit.getTotalPaddingRight();
+        return width > 0 ? width : edit.getResources().getDisplayMetrics().widthPixels - Math.round(48 * dp);
+    }
+
+    private boolean readOnly() {
+        return edit.getKeyListener() == null || !edit.isEnabled();
+    }
+
+    /** First tap: selected (outlined, with handles to resize). Next tap: what can be done with it. Read only: viewed. */
+    private void tapPicture(PictureSpan p) {
+        File file = pictureFile == null ? null : pictureFile.apply(p.name);
+        if (readOnly()) {
+            if (file != null && pictureTapped != null) pictureTapped.accept(file);
+            return;
+        }
+        if (!p.name.equals(selectedPicture)) {
+            selectedPicture = p.name;
+            Editable e = edit.getText();
+            if (e != null) stylePictures(e);
+            return;
+        }
+        String[] items = {"View", "Small (25%)", "Medium (50%)", "Large (75%)", "Full width", "As it comes",
+                "Left", "Centre", "Right", "Move up", "Move down", "Remove picture"};
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(edit.getContext())
+                .setTitle("Picture")
+                .setItems(items, (d, which) -> {
+                    switch (which) {
+                        case 0: if (file != null && pictureTapped != null) pictureTapped.accept(file); break;
+                        case 1: changePicture(p.name, 25, null); break;
+                        case 2: changePicture(p.name, 50, null); break;
+                        case 3: changePicture(p.name, 75, null); break;
+                        case 4: changePicture(p.name, 100, null); break;
+                        case 5: changePicture(p.name, 0, null); break;
+                        case 6: changePicture(p.name, -1, PictureLine.LEFT); break;
+                        case 7: changePicture(p.name, -1, PictureLine.CENTER); break;
+                        case 8: changePicture(p.name, -1, PictureLine.RIGHT); break;
+                        case 9: movePicture(p.name, -1); break;
+                        case 10: movePicture(p.name, 1); break;
+                        default: removePicture(p.name); break;
+                    }
+                })
+                .show();
+    }
+
+    /** Dragging a handle of the selected picture: its width follows, written into its line when let go. */
+    private boolean resizePicture(android.view.View v, MotionEvent e) {
+        int action = e.getActionMasked();
+        if (resizing == null) {
+            if (action != MotionEvent.ACTION_DOWN || selectedPicture == null || readOnly()) return false;
+            Editable text = edit.getText();
+            if (text == null) return false;
+            for (PictureSpan s : text.getSpans(0, text.length(), PictureSpan.class)) {
+                if (!s.name.equals(selectedPicture)) continue;
+                float x = e.getX() - edit.getTotalPaddingLeft() + edit.getScrollX();
+                float y = e.getY() - edit.getTotalPaddingTop() + edit.getScrollY();
+                int side = s.handleAt(x, y, 24 * dp);
+                if (side == 0) return false;
+                resizing = s;
+                resizeSign = side;
+                resizeX0 = e.getX();
+                resizeW0 = s.drawW;
+                if (v.getParent() != null) v.getParent().requestDisallowInterceptTouchEvent(true);
+                return true;
+            }
+            return false;
+        }
+        PictureSpan s = resizing;
+        if (action == MotionEvent.ACTION_MOVE) {
+            int both = PictureLine.CENTER.equals(s.align) ? 2 : 1;
+            float w = resizeW0 + resizeSign * both * (e.getX() - resizeX0);
+            liveWidth.put(s.name, Math.max(10, PictureLine.snap(w / Math.max(1, s.column) * 100)));
+            Editable text = edit.getText();
+            if (text != null) stylePictures(text);
+        } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            Integer w = liveWidth.remove(s.name);
+            resizing = null;
+            if (w != null) changePicture(s.name, w, null);
+        }
+        return true;
+    }
+
+    /** Rewrites a picture's line: {@code width} (-1: as it is), {@code align} (null: as it is). */
+    private void changePicture(String name, int width, @Nullable String align) {
+        Editable e = edit.getText();
+        if (e == null) return;
+        Matcher m = PICTURE_LINE.matcher(e);
+        while (m.find()) {
+            PictureLine line = PictureLine.parse(m.group());
+            if (line == null || !line.name.equals(name)) continue;
+            if (width >= 0) line.width = PictureLine.snap(width);
+            if (align != null) line.align = align;
+            e.replace(m.start(), m.end(), line.format());
+            return;
+        }
+    }
+
+    /** Up or down past the next line of words (or picture). */
+    private void movePicture(String name, int dir) {
+        java.util.List<String> lines = new java.util.ArrayList<>(java.util.Arrays.asList(markdown().split("\n", -1)));
+        int i = -1;
+        for (int k = 0; k < lines.size(); k++) {
+            PictureLine q = PictureLine.parse(lines.get(k));
+            if (q != null && q.name.equals(name)) { i = k; break; }
+        }
+        int j = i + dir;
+        while (j >= 0 && j < lines.size() && lines.get(j).trim().isEmpty()) j += dir;
+        if (i < 0 || j < 0 || j >= lines.size()) return;
+        String line = lines.remove(i);
+        lines.add(j, line);
+        setMarkdown(android.text.TextUtils.join("\n", lines));
+        onChange.run();
+    }
+
+    private void removePicture(String name) {
+        java.util.List<String> lines = new java.util.ArrayList<>(java.util.Arrays.asList(markdown().split("\n", -1)));
+        for (int k = 0; k < lines.size(); k++) {
+            PictureLine q = PictureLine.parse(lines.get(k));
+            if (q != null && q.name.equals(name)) {
+                lines.remove(k);
+                break;
+            }
+        }
+        selectedPicture = null;
+        setMarkdown(android.text.TextUtils.join("\n", lines));
+        onChange.run();
+    }
+
+    /** Decodes a picture to the editor's width off the main thread, then draws it (sized by its line). */
     private void loadPicture(String name) {
         if (pictureFile == null || !pictureLoading.add(name)) return;
         File file = pictureFile.apply(name);
@@ -516,9 +662,7 @@ final class RichText implements TextWatcher {
             pictureLoading.remove(name); // Not here yet (still downloading): the line shows; tried again later.
             return;
         }
-        int width = edit.getWidth() - edit.getTotalPaddingLeft() - edit.getTotalPaddingRight();
-        if (width <= 0) width = edit.getResources().getDisplayMetrics().widthPixels - Math.round(48 * dp);
-        final int maxW = width, maxH = Math.round(320 * dp);
+        final int maxW = columnWidth(), maxH = maxW * 4;
         AppDatabase.IO.execute(() -> {
             android.graphics.Bitmap shown = null;
             try {
@@ -552,7 +696,7 @@ final class RichText implements TextWatcher {
 
     /** The picture under a tap, or null. */
     @Nullable
-    private File pictureAt(MotionEvent ev) {
+    private PictureSpan pictureAt(MotionEvent ev) {
         Editable e = edit.getText();
         Layout layout = edit.getLayout();
         if (e == null || layout == null || pictureFile == null) return null;
@@ -560,35 +704,87 @@ final class RichText implements TextWatcher {
         float y = ev.getY() - edit.getTotalPaddingTop() + edit.getScrollY();
         for (PictureSpan p : e.getSpans(at, at, PictureSpan.class)) {
             int line = layout.getLineForOffset(e.getSpanStart(p));
-            if (y >= layout.getLineTop(line) && y <= layout.getLineBottom(line)) return pictureFile.apply(p.name);
+            if (y >= layout.getLineTop(line) && y <= layout.getLineBottom(line)) return p;
         }
         return null;
     }
 
     /** A picture line drawn as its picture. Not one of the styles kept in the Markdown: the line is the picture. */
     static final class PictureSpan extends android.text.style.ReplacementSpan {
-        final String name;
+        final String name, align;
+        final int column, drawW, drawH;
         private final android.graphics.Bitmap bitmap;
+        private final boolean selected;
+        private final float dp;
+        /** Where it was last drawn, in the layout's coordinates (for the handles). */
+        private float left, top;
+        private final Paint smooth = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
 
-        PictureSpan(android.graphics.Bitmap bitmap, String name) {
+        /** {@code width}: percent of the {@code column}, or 0 (as it comes: the column wide and {@code autoMaxH} high at most). */
+        PictureSpan(android.graphics.Bitmap bitmap, String name, int width, String align, int column, int autoMaxH, boolean selected, float dp) {
             this.bitmap = bitmap;
             this.name = name;
+            this.align = align;
+            this.column = Math.max(1, column);
+            this.selected = selected;
+            this.dp = dp;
+            int bw = Math.max(1, bitmap.getWidth()), bh = Math.max(1, bitmap.getHeight());
+            if (width > 0) {
+                drawW = Math.max(1, Math.round(this.column * width / 100f));
+            } else {
+                float f = Math.min(1f, Math.min(this.column / (float) bw, autoMaxH / (float) bh));
+                drawW = Math.max(1, Math.round(bw * f));
+            }
+            drawH = Math.max(1, Math.round(drawW * bh / (float) bw));
         }
 
         @Override
         public int getSize(@NonNull Paint paint, CharSequence text, int start, int end, @Nullable Paint.FontMetricsInt fm) {
             if (fm != null) {
                 Paint.FontMetricsInt font = paint.getFontMetricsInt();
-                fm.ascent = fm.top = -bitmap.getHeight() - font.descent;
-                fm.descent = fm.bottom = font.descent;
+                int pad = selected ? Math.round(8 * dp) : 0;
+                fm.ascent = fm.top = -drawH - font.descent - pad;
+                fm.descent = fm.bottom = font.descent + pad;
             }
-            return bitmap.getWidth();
+            return PictureLine.LEFT.equals(align) ? drawW : Math.max(drawW, column);
         }
 
         @Override
         public void draw(@NonNull Canvas canvas, CharSequence text, int start, int end, float x, int top, int y,
                          int bottom, @NonNull Paint paint) {
-            canvas.drawBitmap(bitmap, x, y - bitmap.getHeight(), null);
+            float l = x + (PictureLine.CENTER.equals(align) ? (column - drawW) / 2f : PictureLine.RIGHT.equals(align) ? column - drawW : 0);
+            float t = y - drawH;
+            left = l;
+            this.top = t;
+            canvas.drawBitmap(bitmap, null, new android.graphics.RectF(l, t, l + drawW, t + drawH), smooth);
+            if (!selected) return;
+            Paint line = new Paint(Paint.ANTI_ALIAS_FLAG);
+            line.setStyle(Paint.Style.STROKE);
+            line.setStrokeWidth(2 * dp);
+            line.setColor(0xFF0A84FF);
+            canvas.drawRect(l, t, l + drawW, t + drawH, line);
+            Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
+            float r = 7 * dp;
+            for (float[] c : handles(l, t)) {
+                dot.setColor(0xFFFFFFFF);
+                dot.setStyle(Paint.Style.FILL);
+                canvas.drawCircle(c[0], c[1], r, dot);
+                canvas.drawCircle(c[0], c[1], r, line);
+            }
+        }
+
+        private float[][] handles(float l, float t) {
+            float r = l + drawW, b = t + drawH, m = t + drawH / 2f;
+            return new float[][] {{l, t}, {r, t}, {l, b}, {r, b}, {l, m}, {r, m}};
+        }
+
+        /** -1 (a left handle), 1 (a right one) or 0, for a point in the layout's coordinates. */
+        int handleAt(float x, float y, float reach) {
+            float[][] hs = handles(left, top);
+            for (int i = 0; i < hs.length; i++) {
+                if (Math.hypot(x - hs[i][0], y - hs[i][1]) <= reach) return i % 2 == 0 ? -1 : 1;
+            }
+            return 0;
         }
     }
 

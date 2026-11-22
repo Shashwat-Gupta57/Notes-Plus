@@ -129,7 +129,7 @@ final class NoteData {
         }
     }
 
-    private static final java.util.regex.Pattern PICTURE_ITEM = java.util.regex.Pattern.compile("^!\\[\\[([^\\]/\\\\]+)\\]\\]$");
+    private static final java.util.regex.Pattern PICTURE_ITEM = java.util.regex.Pattern.compile("^!\\[\\[([^\\]|/\\\\]+)(?:\\|[^\\]]*)?\\]\\]$");
 
     static List<TodoItem> todos(String json) {
         List<TodoItem> items = new ArrayList<>();

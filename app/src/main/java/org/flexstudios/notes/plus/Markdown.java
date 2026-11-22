@@ -282,10 +282,12 @@ final class Markdown {
     static String plain(@Nullable String text) {
         if (text == null || text.isEmpty()) return "";
         StringBuilder out = new StringBuilder();
-        String[] lines = text.split("\n", -1);
-        for (int i = 0; i < lines.length; i++) {
-            if (i > 0) out.append('\n');
-            out.append(plainLine(lines[i]));
+        boolean first = true;
+        for (String line : text.split("\n", -1)) {
+            if (PictureLine.is(line)) continue; // Pictures aren't words.
+            if (!first) out.append('\n');
+            out.append(plainLine(line));
+            first = false;
         }
         return out.toString();
     }

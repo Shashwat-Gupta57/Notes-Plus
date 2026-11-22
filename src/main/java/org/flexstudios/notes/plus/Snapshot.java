@@ -22,7 +22,9 @@ import java.util.Map;
  */
 final class Snapshot {
 
-    static final int FORMAT_VERSION = 2;
+    static final int FORMAT_VERSION = 3;
+    /** How long a deletion is remembered: longer than restore points are kept (30 days). */
+    static final long REMOVED_KEEP_MS = 60L * 24 * 60 * 60 * 1000;
 
     String id;
     long createdAt;
@@ -31,11 +33,18 @@ final class Snapshot {
     final List<AlbumRecord> albums = new ArrayList<>();
     final List<MediaRecord> media = new ArrayList<>();
     JSONObject lockSettings = new JSONObject();
+    /**
+     * What was deleted, and when: item file names, and "album:" / "vault:" + uuid. Merging never
+     * brings these back, and a device that still has one deletes it at its next pull.
+     */
+    final Map<String, Long> removed = new HashMap<>();
 
     static final class VaultRecord {
         String uuid, name, lockType, lockValue, bgType, bgValue;
         boolean isMain;
         int sortOrder;
+        /** When this lock was set (0: before 19.9); with lock sync on, the newest wins. */
+        long lockAt;
     }
 
     static final class AlbumRecord {
@@ -102,6 +111,37 @@ final class Snapshot {
         }
     }
 
+    /**
+     * Makes this (just captured) restore point the next one after {@code previous}: its
+     * deletions plus this device's {@code marks}, less what this device {@code revived}; then
+     * everything else it holds ({@link #mergeFrom}); then the locks: the backup's stay unless
+     * {@code syncLocks} is on and this device's are newer.
+     */
+    void settle(Snapshot previous, java.util.Set<String> stored, Map<String, Long> marks,
+                java.util.Set<String> revived, boolean syncLocks, long now) {
+        if (previous != null) previous.removed.forEach((k, at) -> removed.merge(k, at, Math::max));
+        marks.forEach((k, at) -> removed.merge(k, at, Math::max));
+        for (String k : revived) removed.remove(k);
+        removed.values().removeIf(at -> at < now - REMOVED_KEEP_MS);
+        if (previous != null) {
+            Map<String, VaultRecord> before = new HashMap<>();
+            for (VaultRecord v : previous.vaults) if (v.uuid != null) before.put(v.uuid, v);
+            for (VaultRecord v : vaults) {
+                VaultRecord p = before.get(v.uuid);
+                if (p == null || p.lockType == null || p.lockValue == null) continue;
+                if (!syncLocks || p.lockAt > v.lockAt) {
+                    v.lockType = p.lockType;
+                    v.lockValue = p.lockValue;
+                    v.lockAt = p.lockAt;
+                }
+            }
+            mergeFrom(previous, stored);
+        }
+        media.removeIf(m -> removed.containsKey(m.fileName));
+        albums.removeIf(a -> removed.containsKey("album:" + a.uuid));
+        vaults.removeIf(v -> !v.isMain && removed.containsKey("vault:" + v.uuid));
+    }
+
     // ================================================================ capture
 
     /** The vaults as they stand now. The vault must be open (lock values are needed). */
@@ -120,6 +160,7 @@ final class Snapshot {
             r.lockValue = VaultCrypto.lockValue(v.uuid);
             r.isMain = v.main;
             r.sortOrder = v.sortOrder;
+            r.lockAt = v.lockChangedAt;
             r.bgType = v.bgType;
             r.bgValue = v.bgValue;
             snap.vaults.add(r);
@@ -164,6 +205,16 @@ final class Snapshot {
      * vault's lock is hashed and gets its wrap of the data key, so it opens with the lock it had.
      */
     void apply(VaultStore s, boolean replaceLocal) throws Exception {
+        apply(s, replaceLocal, false, java.util.Set.of());
+    }
+
+    /**
+     * As {@link #apply(VaultStore, boolean)}, and then: with {@code syncLocks}, a vault whose lock
+     * here is older than the backup's takes the backup's (unless another vault here has it);
+     * items, albums and empty vaults the backup says were deleted go from here too, except what
+     * this device has {@code revived} since.
+     */
+    void apply(VaultStore s, boolean replaceLocal, boolean syncLocks, java.util.Set<String> revived) throws Exception {
         Map<String, Integer> vaultId = new HashMap<>();
         for (VaultRecord r : vaults) {
             if (r.uuid == null) continue;
@@ -179,6 +230,7 @@ final class Snapshot {
                 v.name = r.name == null ? "Vault" : r.name;
                 v.lockType = r.lockType;
                 v.lockHash = VaultCrypto.hashLock(r.lockType, r.lockValue);
+                v.lockChangedAt = r.lockAt;
                 v.sortOrder = r.sortOrder;
                 v.bgType = r.bgType == null ? "DEFAULT" : r.bgType;
                 v.bgValue = remap(r.bgValue);
@@ -194,8 +246,16 @@ final class Snapshot {
                     if (r.lockValue != null && r.lockType != null) {
                         existing.lockType = r.lockType;
                         existing.lockHash = VaultCrypto.hashLock(r.lockType, r.lockValue);
+                        existing.lockChangedAt = r.lockAt;
                         VaultCrypto.wrapFor(existing.uuid, r.lockType, r.lockValue);
                     }
+                    s.updateVault(existing);
+                } else if (syncLocks && r.lockValue != null && r.lockType != null && r.lockAt > existing.lockChangedAt
+                        && !lockTaken(s, existing.id, r.lockType, r.lockValue)) {
+                    existing.lockType = r.lockType;
+                    existing.lockHash = VaultCrypto.hashLock(r.lockType, r.lockValue);
+                    existing.lockChangedAt = r.lockAt;
+                    VaultCrypto.wrapFor(existing.uuid, r.lockType, r.lockValue);
                     s.updateVault(existing);
                 }
                 vaultId.put(r.uuid, existing.id);
@@ -227,6 +287,21 @@ final class Snapshot {
             x.albumId = r.albumUuid == null ? null : albumId.get(r.albumUuid);
             s.insertSecret(x);
         }
+        // Deleted on another device: gone here too (without a mark of its own).
+        for (VaultStore.Secret x : s.allSecrets()) {
+            if (removed.containsKey(x.fileName) && !revived.contains(x.fileName)) VaultMedia.erase(x);
+        }
+        for (VaultStore.Album a : s.allAlbums()) {
+            String k = "album:" + a.uuid;
+            if (removed.containsKey(k) && !revived.contains(k)) s.deleteAlbum(a.id);
+        }
+        for (VaultStore.Vault v : s.vaults()) {
+            String k = "vault:" + v.uuid;
+            if (!v.main && removed.containsKey(k) && !revived.contains(k) && s.countFor(v.id) == 0) {
+                s.deleteVault(v.id);
+                VaultCrypto.forget(v.uuid);
+            }
+        }
         if (replaceLocal) {
             Vault.setAutoLockDelay(lockSettings.optLong("auto_lock_time", 0));
             Prefs.put(Vault.KEY_LOCK_BG_TYPE, lockSettings.optString("lock_bg_type", "DEFAULT"));
@@ -234,6 +309,14 @@ final class Snapshot {
             Prefs.put(Vault.KEY_LOCK_BG_BLUR, String.valueOf(lockSettings.optBoolean("lock_bg_blur")));
             Prefs.put(Vault.KEY_LOCK_BG_DIM, String.valueOf(lockSettings.optBoolean("lock_bg_dim")));
         }
+    }
+
+    /** Another vault here already opens with this lock (two vaults never share one). */
+    private static boolean lockTaken(VaultStore s, int except, String type, String value) {
+        for (VaultStore.Vault v : s.vaults()) {
+            if (v.id != except && v.lockHash != null && type.equals(v.lockType) && VaultCrypto.matches(v.lockHash, type, value)) return true;
+        }
+        return false;
     }
 
     /**
@@ -263,7 +346,7 @@ final class Snapshot {
             va.put(new JSONObject().put("uuid", orNull(r.uuid)).put("name", orNull(r.name))
                     .put("lockType", orNull(r.lockType)).put("lockValue", orNull(r.lockValue))
                     .put("isMain", r.isMain).put("sortOrder", r.sortOrder)
-                    .put("bgType", orNull(r.bgType)).put("bgValue", orNull(r.bgValue)));
+                    .put("bgType", orNull(r.bgType)).put("bgValue", orNull(r.bgValue)).put("lockAt", r.lockAt));
         }
         d.put("vaults", va);
         JSONArray aa = new JSONArray();
@@ -280,6 +363,9 @@ final class Snapshot {
                     .put("originalPath", orNull(r.originalPath)).put("sha256", orNull(r.sha256)));
         }
         d.put("media", ma);
+        JSONObject rm = new JSONObject();
+        removed.forEach(rm::put);
+        d.put("removed", rm);
         return d;
     }
 
@@ -303,6 +389,7 @@ final class Snapshot {
             r.sortOrder = o.optInt("sortOrder", i);
             r.bgType = str(o, "bgType");
             r.bgValue = str(o, "bgValue");
+            r.lockAt = o.optLong("lockAt");
             s.vaults.add(r);
         }
         JSONArray aa = d.optJSONArray("albums");
@@ -332,6 +419,8 @@ final class Snapshot {
             r.sha256 = str(o, "sha256");
             s.media.add(r);
         }
+        JSONObject rm = d.optJSONObject("removed");
+        if (rm != null) for (String k : rm.keySet()) if (rm.optLong(k) > 0) s.removed.put(k, rm.optLong(k));
         return s;
     }
 

@@ -99,8 +99,14 @@ final class VaultMedia {
         return out;
     }
 
-    /** Erases an item: its file, its thumbnail, its row. Blocking. */
+    /** Deletes an item and marks it, so the deletion reaches the backup (and every other device). Blocking. */
     static void remove(VaultStore.Secret s) {
+        erase(s);
+        VaultMarks.removed(s.fileName);
+    }
+
+    /** Erases an item: its file, its thumbnail, its row. Blocking. */
+    static void erase(VaultStore.Secret s) {
         try {
             Files.deleteIfExists(VaultCrypto.mediaDir().resolve(s.fileName));
         } catch (IOException e) {

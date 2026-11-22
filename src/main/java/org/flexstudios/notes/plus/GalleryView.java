@@ -866,6 +866,7 @@ final class GalleryView extends Screen {
                         }, ok -> loadAlbums())),
                 () -> Ui.dialog().title("Delete Album?").message("Items inside will not be deleted.")
                         .positive("Delete", () -> VaultStore.load(s -> {
+                            for (VaultStore.Album x : s.allAlbums()) if (x.id == a.id()) VaultMarks.removed("album:" + x.uuid);
                             s.deleteAlbum(a.id());
                             return true;
                         }, ok -> loadAlbums()))

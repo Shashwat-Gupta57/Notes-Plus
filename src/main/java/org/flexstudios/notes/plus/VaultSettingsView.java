@@ -124,6 +124,13 @@ final class VaultSettingsView extends Screen {
                                     Prefs.put(CloudBackup.PREF_SYNC_ON_START, String.valueOf(!onStart));
                                     build();
                                 }),
+                        row(Icons.LOCK, "tile_purple", "Sync vault locks across devices", CloudBackup.syncLocks()
+                                        ? "On: a lock changed on any device with this on becomes the lock everywhere"
+                                        : "Off: this computer's locks are its own",
+                                chevron(), () -> {
+                                    Prefs.put(CloudBackup.PREF_SYNC_LOCKS, String.valueOf(!CloudBackup.syncLocks()));
+                                    build();
+                                }),
                         row(Icons.CLOUD, "tile_blue", "Back up now", last == 0 ? "Not backed up from this computer yet"
                                         : "Last backup " + new java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale.getDefault())
                                         .format(new java.util.Date(last)),
@@ -278,12 +285,14 @@ final class VaultSettingsView extends Screen {
                     target.sortOrder = s.vaults().size();
                     target.lockType = type;
                     target.lockHash = VaultCrypto.hashLock(type, newLock);
+                    target.lockChangedAt = System.currentTimeMillis();
                     s.insertVault(target);
                 } else {
                     if (!name.isEmpty()) target.name = name;
                     if (newLock != null) {
                         target.lockType = type;
                         target.lockHash = VaultCrypto.hashLock(type, newLock);
+                        target.lockChangedAt = System.currentTimeMillis();
                     }
                     s.updateVault(target);
                 }
@@ -339,6 +348,7 @@ final class VaultSettingsView extends Screen {
             }
             if (stuck == 0) {
                 s.deleteVault(v.id);
+                VaultMarks.removed("vault:" + v.uuid);
                 Storage.deleteRecursive(VaultCrypto.dir().resolve("bg_vault_" + v.id));
                 try {
                     VaultCrypto.forget(v.uuid);

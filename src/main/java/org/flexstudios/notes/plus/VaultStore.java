@@ -43,6 +43,8 @@ final class VaultStore {
         String name, lockType, lockHash, uuid;
         boolean main;
         int sortOrder;
+        /** When the lock was last set: lock sync's newest-wins (0 before 19.9). */
+        long lockChangedAt;
         /** "DEFAULT", "COLOR", "IMAGE", "VIDEO" or "URL". */
         String bgType = "DEFAULT";
         String bgValue;
@@ -86,6 +88,11 @@ final class VaultStore {
             s.execute("CREATE INDEX IF NOT EXISTS index_secrets_albumId ON secrets (albumId)");
             s.execute("CREATE TABLE IF NOT EXISTS albums (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, "
                     + "vaultId INTEGER NOT NULL, coverFileName TEXT, uuid TEXT)");
+            try {
+                s.execute("ALTER TABLE vaults ADD COLUMN lockChangedAt INTEGER NOT NULL DEFAULT 0");
+            } catch (SQLException alreadyThere) {
+                // Added by an earlier start.
+            }
         }
     }
 
@@ -164,14 +171,14 @@ final class VaultStore {
 
     synchronized int insertVault(Vault v) {
         if (v.uuid == null) v.uuid = UUID.randomUUID().toString();
-        v.id = insert("INSERT INTO vaults (name, lockType, lockHash, isMain, sortOrder, uuid, bgType, bgValue) VALUES (?,?,?,?,?,?,?,?)",
-                v.name, v.lockType, v.lockHash, v.main, v.sortOrder, v.uuid, v.bgType, v.bgValue);
+        v.id = insert("INSERT INTO vaults (name, lockType, lockHash, isMain, sortOrder, uuid, bgType, bgValue, lockChangedAt) VALUES (?,?,?,?,?,?,?,?,?)",
+                v.name, v.lockType, v.lockHash, v.main, v.sortOrder, v.uuid, v.bgType, v.bgValue, v.lockChangedAt);
         return v.id;
     }
 
     synchronized void updateVault(Vault v) {
-        update("UPDATE vaults SET name = ?, lockType = ?, lockHash = ?, isMain = ?, sortOrder = ?, bgType = ?, bgValue = ? WHERE id = ?",
-                v.name, v.lockType, v.lockHash, v.main, v.sortOrder, v.bgType, v.bgValue, v.id);
+        update("UPDATE vaults SET name = ?, lockType = ?, lockHash = ?, isMain = ?, sortOrder = ?, bgType = ?, bgValue = ?, lockChangedAt = ? WHERE id = ?",
+                v.name, v.lockType, v.lockHash, v.main, v.sortOrder, v.bgType, v.bgValue, v.lockChangedAt, v.id);
     }
 
     synchronized void deleteVault(int id) {
@@ -194,6 +201,7 @@ final class VaultStore {
         v.uuid = r.getString("uuid");
         v.bgType = r.getString("bgType") == null ? "DEFAULT" : r.getString("bgType");
         v.bgValue = r.getString("bgValue");
+        v.lockChangedAt = r.getLong("lockChangedAt");
         return v;
     }
 

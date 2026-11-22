@@ -288,9 +288,11 @@ final class CloudBackup {
                 JSONObject e = index.get(r.fileName);
                 if (r.sha256 == null && e != null && !e.isNull("sha256")) r.sha256 = e.optString("sha256", null);
             }
-            // Add-only: what the newest restore point holds stays, whatever this computer has.
+            // What the newest restore point holds stays, whatever this computer has, except what was
+            // deleted (here, or on another device); this computer's marks go with it.
             Snapshot previous = newest(s);
-            if (previous != null) snapshot.mergeFrom(previous, index.keySet());
+            snapshot.settle(previous, index.keySet(), VaultMarks.removedMarks(), VaultMarks.revivedMarks(),
+                    syncLocks(), System.currentTimeMillis());
             writeEncrypted(s, snapshot.id + ".json", s.snapshots, snapshot.toJson());
 
             List<Summary> all = readSnapshotIndex(s);
@@ -306,6 +308,7 @@ final class CloudBackup {
             all.add(mine);
             List<Summary> kept = retain(all, System.currentTimeMillis());
             writeSnapshotIndex(s, kept);
+            VaultMarks.confirmed();
 
             progress.update(total, total, "Tidying up");
             collectGarbage(s, index, kept, all);
@@ -343,7 +346,7 @@ final class CloudBackup {
             for (Summary x : readSnapshotIndex(s)) if (latest == null || x.createdAt > latest.createdAt) latest = x;
             if (latest != null) {
                 try {
-                    restore(latest.id, false, progress);
+                    restore(latest.id, false, true, progress);
                 } catch (IOException partly) {
                     // Some items didn't come down; the rest are in. The backup still goes ahead.
                     if (partly.getMessage() == null || !partly.getMessage().contains("couldn't be restored")) throw partly;
@@ -379,6 +382,12 @@ final class CloudBackup {
     }
 
     static final String PREF_SYNC_ON_START = "vault_sync_on_start";
+    /** "Sync vault locks across devices": the newest lock of each vault wins everywhere it's on. */
+    static final String PREF_SYNC_LOCKS = "vault_sync_locks";
+
+    static boolean syncLocks() {
+        return "true".equals(Prefs.get(PREF_SYNC_LOCKS));
+    }
     private static volatile boolean syncedThisRun;
 
     // ================================================================ restore
@@ -399,6 +408,15 @@ final class CloudBackup {
      * backup's vault names, locks and wallpapers win.
      */
     static Backup.Result restore(String snapshotId, boolean replaceLocal, Backup.Progress progress) throws Exception {
+        return restore(snapshotId, replaceLocal, false, progress);
+    }
+
+    /**
+     * {@code pull}: the newest point, as part of a sync: what this computer deleted isn't brought
+     * back, and what the backup says was deleted goes from here. Otherwise (a restore point picked
+     * by hand) everything it brings back is marked as revived, so the next backups un-delete it.
+     */
+    private static Backup.Result restore(String snapshotId, boolean replaceLocal, boolean pull, Backup.Progress progress) throws Exception {
         return exclusive(progress, () -> {
             progress.update(0, 0, "Reading the restore point");
             Store s = new Store();
@@ -406,11 +424,13 @@ final class CloudBackup {
             if (doc == null) throw new IOException("That restore point is no longer on Drive");
             Snapshot snapshot = Snapshot.fromJson(doc);
             Map<String, JSONObject> index = loadIndex(s);
+            java.util.Set<String> deletedHere = pull ? VaultMarks.removedMarks().keySet() : java.util.Set.of();
 
             List<Snapshot.MediaRecord> missing = new ArrayList<>();
             long total = 0;
             for (Snapshot.MediaRecord r : snapshot.media) {
                 if (!Snapshot.safe(r.fileName) || Files.exists(VaultCrypto.mediaDir().resolve(r.fileName))) continue;
+                if (deletedHere.contains(r.fileName) || (pull && snapshot.removed.containsKey(r.fileName))) continue;
                 missing.add(r);
                 JSONObject e = index.get(r.fileName);
                 if (e != null) total += e.optLong("size");
@@ -462,7 +482,13 @@ final class CloudBackup {
                 downloadBackgrounds(s);
                 progress.update(total, total, "Updating your vaults");
                 snapshot.media.removeIf(r -> !Files.exists(VaultCrypto.mediaDir().resolve(r.fileName)));
-                snapshot.apply(VaultStore.get(), replaceLocal);
+                if (!pull) {
+                    // Picked by hand: what it brings back is wanted again, here and everywhere.
+                    for (Path f : written) VaultMarks.revived(f.getFileName().toString());
+                    for (Snapshot.AlbumRecord a : snapshot.albums) if (snapshot.removed.containsKey("album:" + a.uuid) || VaultMarks.removedMarks().containsKey("album:" + a.uuid)) VaultMarks.revived("album:" + a.uuid);
+                    for (Snapshot.VaultRecord v : snapshot.vaults) if (VaultMarks.removedMarks().containsKey("vault:" + v.uuid)) VaultMarks.revived("vault:" + v.uuid);
+                }
+                snapshot.apply(VaultStore.get(), replaceLocal, pull && syncLocks(), VaultMarks.revivedMarks());
                 written.clear(); // Rows point at them now; they stay.
             } finally {
                 // A failed or cancelled restore leaves no file without a row.

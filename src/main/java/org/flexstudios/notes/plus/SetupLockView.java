@@ -103,6 +103,7 @@ final class SetupLockView extends Screen {
                 }
                 main.lockType = input.type;
                 main.lockHash = VaultCrypto.hashLock(input.type, value);
+                main.lockChangedAt = System.currentTimeMillis();
                 if (main.id == 0) s.insertVault(main);
                 else s.updateVault(main);
                 VaultCrypto.create(main.uuid, input.type, value);

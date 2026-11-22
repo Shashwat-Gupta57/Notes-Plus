@@ -421,7 +421,7 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-Released: 43 / "19.7" everywhere (build file, `version.json`, desktop `pom.xml`, the web's `VERSION`, `?v=` and `sw.js` cache; tags `v19.7.0` Android, `v19.7` desktop). The next release bumps them all again (`version.json` last; it may carry `web.versionName`, which the web app compares with, so an Android-only release doesn't prompt the web).
+Released: 44 / "19.9" everywhere (build file, `version.json`, desktop `pom.xml`, the web's `VERSION`, `?v=` and `sw.js` cache; tags `v19.9.0` Android, `v19.9` desktop). The next release bumps them all again (`version.json` last; it may carry `web.versionName`, which the web app compares with, so an Android-only release doesn't prompt the web).
 16.1 was never published (its APK was never on R2); 16.4 follows 16.0.
 From 11.0 the APK is served from Cloudflare R2 (`releases` bucket, public at
 `https://releases.talken.in/android/Notes-Plus-<version>.apk`); from 16.6 every release is also a

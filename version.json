@@ -1,33 +1,33 @@
 {
-  "versionCode": 43,
-  "versionName": "19.7",
+  "versionCode": 44,
+  "versionName": "19.9",
   "forced": false,
-  "changelog": "Notes+ 19.7: hidden notes now have a lock. They open with your main lock (or the one set on another device), and you can give them their own from the hidden view. Install over this version; don't uninstall first.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-19.7.apk",
-  "sha256": "ca7a6c7f6654880bf3dbcec82f0f3ad414a39e6aa438ed4cf76ba8cb62654412",
+  "changelog": "Notes+ 19.9: Undo and Redo in text, journal and list notes, and Sync now in a note's menu. Sync improvements: update Notes+ on every device you use. Install over this version; don't uninstall first.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-19.9.apk",
+  "sha256": "009b447ba254840aa79429c69694953d2d970fe64754c8b2758abf16ef3a2721",
   "desktop": {
-    "versionName": "19.7",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-19.7.exe",
-    "sha256": "9fa93b240e066c2507f52127916a4f70f458bc80661cf5764d39414ab2859ba1",
-    "size": "78 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-19.7.zip",
-    "zipSha256": "805183a525ed6292fd4f84eb44d60641100de7f78a5effd6b2383ab21a10eb90",
-    "changelog": "Notes+ 19.7 for Windows: hidden notes have a lock, and only the newest downloaded update is kept (older copies are deleted)."
+    "versionName": "19.9",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-19.9.exe",
+    "sha256": "85139db4286a86c6cee72a07e9ff1e549ad8bef0fdc79c19002ce51ab8831ce4",
+    "size": "77 MB",
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-19.9.zip",
+    "zipSha256": "21875a82a992cf49054404450eb9a21ae6fc4aeea2f703b351f52c17f5bb054d",
+    "changelog": "Notes+ 19.9 for Windows: Ctrl+Z works in text notes again, the formatting bar stays at the top, and Sync now in a note's menu. Update Notes+ on every device you use."
   },
   "linux": {
-    "versionName": "19.7",
+    "versionName": "19.9",
     "url": "https://notes.talken.in/download.html#linux",
-    "deb": "https://releases.talken.in/linux/notes-plus_19.7_amd64.deb",
-    "debSha256": "63292c93e83810325135a69c91c8d2b92528afa820815b0c12e26aecd6b740c7",
-    "appImage": "https://releases.talken.in/linux/Notes-Plus-19.7-x86_64.AppImage",
-    "appImageSha256": "d0e86cf34871a39eac0058222423aedce882715324a8752b3ba5e7cb21a76974",
-    "tarGz": "https://releases.talken.in/linux/Notes-Plus-Linux-19.7.tar.gz",
-    "tarGzSha256": "9d8ada5671523b13220e3c5c5614684bdb217a46158485f868f00a3a47c80c82",
+    "deb": "https://releases.talken.in/linux/notes-plus_19.9_amd64.deb",
+    "debSha256": "57231e1b85e0fbf82c1fb464c592cddfa214aa8fb11a0dd4a26e1b64d7c0c510",
+    "appImage": "https://releases.talken.in/linux/Notes-Plus-19.9-x86_64.AppImage",
+    "appImageSha256": "90a3a06c82965d488aec0a912956f03ec59e97c00a3660df78587bc0f07a4281",
+    "tarGz": "https://releases.talken.in/linux/Notes-Plus-Linux-19.9.tar.gz",
+    "tarGzSha256": "b777cb4a74441ae47deb381e6539d5b4fc6dc7be58a2be98ec4a4300832cdeb9",
     "size": "75 MB",
-    "changelog": "Notes+ 19.7: the first Linux release, as a .deb, an AppImage and a .tar.gz."
+    "changelog": "Notes+ 19.9 for Linux: Ctrl+Z works in text notes again, the formatting bar stays at the top, and Sync now in a note's menu."
   },
   "web": {
-    "versionName": "19.8",
-    "changelog": "Notes+ on the web 19.8: a note made right after opening the app now syncs to your other devices. Notes that missed out before are offered to your account once."
+    "versionName": "19.9",
+    "changelog": "Notes+ on the web 19.9: undo that follows every edit in text notes, and Sync now in a note's menu."
   }
 }

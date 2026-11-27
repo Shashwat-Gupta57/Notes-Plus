@@ -149,7 +149,7 @@ final class Search {
      */
     static Snippet snippet(NoteEntity n, List<String> terms, int width) {
         if (terms.isEmpty() || locked(n) || n.getContent() == null) return null;
-        String words = NoteData.TEXT.equals(n.getType()) || NoteData.JOURNAL.equals(n.getType())
+        String words = NoteData.TEXT.equals(n.getType()) || NoteData.JOURNAL.equals(n.getType()) || NoteData.ULTIMATE.equals(n.getType())
                 ? Markdown.plain(n.getContent()) : n.getContent().replace("\n", " · "); // Items and ideas apart.
         words = NoteLinks.shown(words).replaceAll("\\s+", " ").trim();
         String lower = words.toLowerCase(Locale.ROOT);

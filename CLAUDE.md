@@ -271,6 +271,26 @@ deletes anything on Drive (the apps collect garbage) and never writes an empty k
 plainly; the website's home page only hints ("Private spaces, everywhere") and links to `docs.html#private-sync`,
 which explains sync, deleting, lock sync and the web vault in full but never how a space is opened.
 
+**Ultimate notes** (type `ULTIMATE`, `Ultimate.java` identical on the desktop, model.js `blocks`/`blocksContent` on the
+web, the same `UltimateTest` cases): `data` = `{"blocks":[…]}`, each block the data of the type it borrows plus `id`/`kind`:
+`text` (`md`, pictures as `![[…]]` lines), `list` (`items`), `mindmap` (`nodes`/`links`, `h` = height 160–1200, default 320),
+`audio` (`recordings`), `day` (`day` midnight ms, `mood`); unknown kinds are kept as they are. Any block may carry
+`indent` (0–4, `Ultimate.indent`): "inside" a list item = the list split after it, the element indented, the rest
+of the list after it (neighbours of the same kind and depth merge back, `mergeAt`). A mind-map idea may carry `blocks`
+(`MindNode.blocks`, raw JSON kept by `NoteData` on all three, so no editor drops it): its own page, opened in a panel
+(web side sheet, desktop dialog, Android bottom sheet) that is a non-root `UltimateBlocks`/`column`, to any depth; the
+map draws a badge (`Ultimate.insideSummary`) and its tap opens it. One page, no frames: an element's handle (hover;
+Android a faint ⋮⋮) nests, moves, adds below, removes; "/" alone on a line opens the kind menu and splits the words
+there (`RichBody.split`, Android `RichText.splitAtLine`). `content` includes what's inside ideas. `content` is every block's words
+as Markdown (`- [ ]` items, `- ` ideas, `🎙` recordings, `### <English day>`), which is what search, cards, links and older
+versions read (they open it as a text note and never touch `data`). The first block is always text; empty text blocks after
+it are dropped on save. Android: `NoteEditorActivity.setUpUltimate` hides `body` and hosts `UltimateBlocks` (its `rich`
+follows the text block in use; undo snapshots the whole blocks JSON); the add bar sits above the formatting row. Desktop:
+`NoteEditorView` hosts `UltimateBlocks` (its `body` follows the words in use). Web: `ed-ultimate.js` embeds the real list,
+mind map and audio editors with a sub-context each (`noDates`: no due dates in its checklists). No templates, reminders or
+widgets from them. `NoteLinks.renamed` renames inside text, list and mind map blocks. The `type` pattern in
+`database.rules.json` must include `ULTIMATE`, or pushes are refused.
+
 **Mind map colours**: `MindNode.color` is the idea's *branch* colour (its lines and outline, inherited
 downwards; on a central idea, its first-level branches), `MindNode.fill` its own colour, filling it (a central
 idea is yellow without one). Maps from before 19.0 coloured a central idea with `color` only: `NoteData.mindMap`
@@ -430,7 +450,7 @@ release). Install is offered from the foreground; it is never launched from the 
 `app/build.gradle.kts` (`versionCode`/`versionName`), `version.json`, and the git tag must
 be bumped **together** — the in-app updater compares `version.json`'s `versionCode` against
 the installed one, so a stale build file makes every user appear up to date.
-Released: 46 / "20.1" everywhere (build file, `version.json`, desktop `pom.xml`, the web's `VERSION`, `?v=` and `sw.js` cache; tags `v20.1.0` Android, `v20.1` desktop). The next release bumps them all again (`version.json` last; it may carry `web.versionName`, which the web app compares with, so an Android-only release doesn't prompt the web).
+Released: 47 / "21.0" everywhere (build file, `version.json`, desktop `pom.xml`, the web's `VERSION`, `?v=` and `sw.js` cache; tags `v21.0.0` Android, `v21.0` desktop). The next release bumps them all again (`version.json` last; it may carry `web.versionName`, which the web app compares with, so an Android-only release doesn't prompt the web).
 16.1 was never published (its APK was never on R2); 16.4 follows 16.0.
 From 11.0 the APK is served from Cloudflare R2 (`releases` bucket, public at
 `https://releases.talken.in/android/Notes-Plus-<version>.apk`); from 16.6 every release is also a

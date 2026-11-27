@@ -470,7 +470,13 @@ public class MindMapActivity extends NoteActivity {
 
             /** The picture of the selected idea was tapped. */
             void onViewPicture(NoteData.MindNode node);
+
+            /** The badge of what's inside an idea (Ultimate notes) was tapped. */
+            default void onOpenInside(NoteData.MindNode node) {}
         }
+
+        /** What's inside an idea, for its badge (Ultimate notes); null: no badges. */
+        java.util.function.Function<NoteData.MindNode, String> insideLabel;
 
         static final int[] PALETTE = {R.color.tile_blue, R.color.tile_green, R.color.tile_orange,
                 R.color.tile_purple, R.color.tile_red, R.color.tile_teal, R.color.tile_gray};
@@ -1213,6 +1219,11 @@ public class MindMapActivity extends NoteActivity {
                     if (listener != null) listener.onOpenLink(n);
                     return true;
                 }
+                if (insideLabel != null && n.blocks != null && Math.abs(x - rect.centerX()) < Math.max(rect.width() / 2, 40 * density)
+                        && Math.abs(y - rect.bottom) < 14 * density * Math.max(scale, 0.7f)) {
+                    if (listener != null) listener.onOpenInside(n);
+                    return true;
+                }
             }
             return false;
         }
@@ -1354,6 +1365,21 @@ public class MindMapActivity extends NoteActivity {
                 fill.setColor(color);
                 canvas.drawCircle(bx, cy, r, fill);
                 drawCentered(canvas, "+" + (count == null ? 0 : count), bx, cy, r);
+            }
+            if (insideLabel != null && n.blocks != null) {
+                // What's inside the idea: a pill on its bottom edge ("☑ 1/3 · 🎙 2").
+                String label = insideLabel.apply(n);
+                if (label == null || label.isEmpty()) label = "•••";
+                float k = Math.max(s, 0.6f);
+                labelPaint.setTextSize(11 * density * k);
+                labelPaint.setFakeBoldText(true);
+                float pw = labelPaint.measureText(label) + 16 * density * k, ph = 18 * density * k;
+                float cx = rect.centerX(), by = rect.bottom;
+                fill.setColor(ContextCompat.getColor(getContext(), R.color.tile_indigo));
+                canvas.drawRoundRect(cx - pw / 2, by - ph / 2, cx + pw / 2, by + ph / 2, ph / 2, ph / 2, fill);
+                labelPaint.setColor(0xFFFFFFFF);
+                Paint.FontMetrics fm = labelPaint.getFontMetrics();
+                canvas.drawText(label, cx - labelPaint.measureText(label) / 2, by - (fm.ascent + fm.descent) / 2, labelPaint);
             }
             if (n.hasLink()) {
                 fill.setColor(ContextCompat.getColor(getContext(), R.color.accent_blue));

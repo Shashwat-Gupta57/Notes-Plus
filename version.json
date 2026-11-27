@@ -1,33 +1,33 @@
 {
-  "versionCode": 46,
-  "versionName": "20.1",
+  "versionCode": 47,
+  "versionName": "21.0",
   "forced": false,
-  "changelog": "Notes+ 20.1: the top of every screen no longer sits under the status bar (and the bottom under the navigation bar) on Android 15 and later. Install over this version; don't uninstall first.",
-  "apkUrl": "https://releases.talken.in/android/Notes-Plus-20.1.apk",
-  "sha256": "979d1a41e19e8ade10c8167d1dfaa59a2fdb6250b95381d6325a6260a0055c4c",
+  "changelog": "Notes+ 21.0: Ultimate notes. Words, checklists, mind maps, voice notes, days and pictures on one page, and anything inside anything (type / to add one). Install over this version; don't uninstall first.",
+  "apkUrl": "https://releases.talken.in/android/Notes-Plus-21.0.apk",
+  "sha256": "f327531a0668ac228600c7c693c2cd9c8f4970298e21ec02925f99d2cee8eb3b",
   "desktop": {
-    "versionName": "20.1",
-    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-20.1.exe",
-    "sha256": "25380bda01d7787855db7e205cb8783985918383ba4ce2974fcf6c75a8153e28",
-    "size": "77 MB",
-    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-20.1.zip",
-    "zipSha256": "b898aa3fe93c0aaf8da9d18ba2529edae344dfbeaa5f0a1138a893765f564a4b",
-    "changelog": "Notes+ 20.1 for Windows: list items sit level with their tick boxes."
+    "versionName": "21.0",
+    "url": "https://releases.talken.in/desktop/Notes-Plus-Setup-21.0.exe",
+    "sha256": "1d3c4db030cd99d7321ed5914e9542675b1b167f8f877592c9921f0f754d3e80",
+    "size": "78 MB",
+    "zip": "https://releases.talken.in/desktop/Notes-Plus-Windows-21.0.zip",
+    "zipSha256": "0e19bdbd5066ed5a6342f032a4798823cbba86d4008d85fe25b5b3811f5e8956",
+    "changelog": "Notes+ 21.0 for Windows: Ultimate notes (everything on one page, anything inside anything), and the formatting bar now stays fixed and solid above the page."
   },
   "linux": {
-    "versionName": "20.1",
+    "versionName": "21.0",
     "url": "https://notes.talken.in/download.html#linux",
-    "deb": "https://releases.talken.in/linux/notes-plus_20.1_amd64.deb",
-    "debSha256": "583840201ba66ce2d76dbf0fac4e348849ea4cfb1c5b566e1b1258063febf21b",
-    "appImage": "https://releases.talken.in/linux/Notes-Plus-20.1-x86_64.AppImage",
-    "appImageSha256": "e1080ee0663e82e44625de1f34055618d84f7882418bcbc003695df2e34af3a1",
-    "tarGz": "https://releases.talken.in/linux/Notes-Plus-Linux-20.1.tar.gz",
-    "tarGzSha256": "2fec62a14a101c7e51165f20db14436e6ef0c7c94532a04309ee6b470f144370",
+    "deb": "https://releases.talken.in/linux/notes-plus_21.0_amd64.deb",
+    "debSha256": "41e230941622f324fb27dcc46a5142808c800e30ee0bbe22193d414a2c4d1f47",
+    "appImage": "https://releases.talken.in/linux/Notes-Plus-21.0-x86_64.AppImage",
+    "appImageSha256": "cd430da2fb4c4d4eec14810ead85dfda2a1e3370fb1b3bebabe3a07ddb859091",
+    "tarGz": "https://releases.talken.in/linux/Notes-Plus-Linux-21.0.tar.gz",
+    "tarGzSha256": "077d013cd3d225ebc2e50ff359ad199675a17f878ce2eac88220d981f2aa2db1",
     "size": "75 MB",
-    "changelog": "Notes+ 20.1 for Linux: list items sit level with their tick boxes."
+    "changelog": "Notes+ 21.0 for Linux: Ultimate notes (everything on one page, anything inside anything), and the formatting bar now stays fixed and solid above the page."
   },
   "web": {
-    "versionName": "20.1",
-    "changelog": "Notes+ on the web 20.1: small fixes."
+    "versionName": "21.0",
+    "changelog": "Notes+ on the web 21.0: Ultimate notes. Everything on one page, and anything inside anything."
   }
 }

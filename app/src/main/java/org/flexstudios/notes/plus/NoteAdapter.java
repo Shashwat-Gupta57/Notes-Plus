@@ -76,7 +76,7 @@ public class NoteAdapter extends ListAdapter<NoteEntity, RecyclerView.ViewHolder
         c.match.setText(marked(ctx, s.text, s.hits));
         c.match.setVisibility(View.VISIBLE);
         // Words: the piece around the match takes the place of the usual first lines.
-        if (NoteData.TEXT.equals(note.getType()) || NoteData.JOURNAL.equals(note.getType())) c.body.setVisibility(View.GONE);
+        if (NoteData.TEXT.equals(note.getType()) || NoteData.JOURNAL.equals(note.getType()) || NoteData.ULTIMATE.equals(note.getType())) c.body.setVisibility(View.GONE);
     }
 
     private static CharSequence marked(Context ctx, String text, List<int[]> hits) {

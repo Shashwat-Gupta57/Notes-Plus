@@ -67,7 +67,7 @@ import java.util.Locale;
  * </ul>
  */
 public class NoteEditorActivity extends NoteActivity {
-    private static final int PICK_MEDIA = 41;
+    private static final int PICK_MEDIA = 41, PICK_PICTURES = 42, MICROPHONE = 43;
     private static final String[] MOODS = {"😄", "🙂", "😐", "😔",
             "😢", "😡", "😴", "🤩", "❤️"};
 
@@ -83,6 +83,13 @@ public class NoteEditorActivity extends NoteActivity {
     private View listAdd;
     private TextView listProgress;
     private LinearProgressIndicator listProgressBar;
+
+    // Ultimate: its canvases; {@link #rich} follows the words in use.
+    private UltimateBlocks ultimate;
+    private View ultimateBar;
+    private Runnable afterMicrophone;
+    /** Where pictures picked for an Ultimate note go (the page, or what's inside an idea). */
+    private java.util.function.Consumer<List<String>> pictureTarget;
 
     // Journal
     private NoteData.Journal journal;
@@ -107,6 +114,7 @@ public class NoteEditorActivity extends NoteActivity {
         title.addTextChangedListener(simpleWatcher(this::markDirty));
         body.addTextChangedListener(simpleWatcher(this::markDirty));
         if (NoteData.LIST.equals(type)) setUpList(note);
+        else if (NoteData.ULTIMATE.equals(type)) setUpUltimate(note);
         else {
             rich = new RichText(body, this::markDirty);
             rich.setMarkdown(note.getContent());
@@ -150,6 +158,7 @@ public class NoteEditorActivity extends NoteActivity {
 
     private String snapshot() {
         if (NoteData.LIST.equals(type)) return NoteData.todosJson(items, wrapItems);
+        if (ultimate != null) return ultimate.json();
         return rich != null ? rich.markdown() : body.getText().toString();
     }
 
@@ -178,6 +187,9 @@ public class NoteEditorActivity extends NoteActivity {
             if (items.isEmpty()) items.add(new NoteData.TodoItem("", false));
             if (listAdapter != null) listAdapter.notifyDataSetChanged();
             updateProgress();
+        } else if (ultimate != null) {
+            rich = null;
+            ultimate.load(current[0], null);
         } else {
             if (rich != null) rich.setMarkdown(current[0]);
             else body.setText(current[0]);
@@ -215,7 +227,8 @@ public class NoteEditorActivity extends NoteActivity {
 
     @Override
     protected void onLinksLoaded() {
-        if (rich != null) rich.restyleLinks();
+        if (ultimate != null) ultimate.restyleLinks();
+        else if (rich != null) rich.restyleLinks();
     }
 
     @Override
@@ -234,6 +247,7 @@ public class NoteEditorActivity extends NoteActivity {
             note.setContent(text.toString().trim());
             return !kept.isEmpty() || !t.isEmpty();
         }
+        if (ultimate != null) return ultimate.collect(note);
         String words = (rich != null ? rich.markdown() : body.getText().toString()).trim();
         note.setContent(words);
         if (NoteData.JOURNAL.equals(type)) {
@@ -254,7 +268,7 @@ public class NoteEditorActivity extends NoteActivity {
                 ? "Edited " + new SimpleDateFormat("d MMM, HH:mm", Locale.getDefault()).format(new Date(note.getTimestamp()))
                 : "New " + NoteData.kind(type).label.toLowerCase(Locale.getDefault());
         String statusText = syncStatus != null && !syncStatus.isEmpty() ? "  ·  " + syncStatus : "";
-        if (NoteData.LIST.equals(type)) {
+        if (NoteData.LIST.equals(type) || ultimate != null) {
             footer.setText(edited + statusText);
             return;
         }
@@ -409,6 +423,10 @@ public class NoteEditorActivity extends NoteActivity {
     @Override
     protected void lockForReading() {
         super.lockForReading();
+        if (ultimate != null) {
+            ultimate.load(note.getData(), note.getContent()); // Again, read-only.
+            if (ultimateBar != null) ultimateBar.setVisibility(View.GONE);
+        }
         if (listAdd != null) listAdd.setVisibility(View.GONE); // A row of the list now: not always findable.
         for (int id : new int[]{R.id.listAdd, R.id.btnAddMedia, R.id.formatBar}) {
             View v = findViewById(id);
@@ -756,6 +774,140 @@ public class NoteEditorActivity extends NoteActivity {
         return chip;
     }
 
+    // ================================================================= ultimate
+
+    /** An Ultimate note: its canvases in place of the words, and the bar that adds them above the formatting row. */
+    private void setUpUltimate(NoteEntity note) {
+        body.setVisibility(View.GONE);
+        rich = null;
+        if (ultimate == null) {
+            ultimate = new UltimateBlocks(this, new UltimateBlocks.Host() {
+                @Override
+                public void withFolder(java.util.function.Consumer<File> then) {
+                    NoteEditorActivity.this.withFolder(then);
+                }
+
+                @Nullable
+                @Override
+                public File folder() {
+                    NoteEntity n = NoteEditorActivity.this.note;
+                    return n == null || n.getId() <= 0 ? null : NoteData.dir(NoteEditorActivity.this, n.getId());
+                }
+
+                @Override
+                public int noteId() {
+                    NoteEntity n = NoteEditorActivity.this.note;
+                    return n == null ? 0 : n.getId();
+                }
+
+                @Override
+                public boolean readOnly() {
+                    return readOnly;
+                }
+
+                @Override
+                public void changed() {
+                    markDirty();
+                }
+
+                @Override
+                public void setUpText(EditText field, RichText words) {
+                    words.setLinks(t -> NoteLinks.resolve(t, linkNotes) != null, NoteEditorActivity.this::showLink);
+                    words.setPictures(name -> folder() == null ? null : new File(folder(), name), file -> openMedia(file, false));
+                    if (!readOnly) LinkSuggest.attach(field, () -> linkNotes, this::noteId);
+                    field.setLineSpacing(0f, SecurityHelper.getAppPrefs(NoteEditorActivity.this).getFloat(PREF_SPACING, 1.25f));
+                    if (rich == null) rich = words;
+                }
+
+                @Override
+                public void textFocused(EditText field, RichText words) {
+                    rich = words;
+                }
+
+                @Override
+                public void openPicture(File file) {
+                    openMedia(file, false);
+                }
+
+                @Override
+                public void pickPictures(java.util.function.Consumer<List<String>> into) {
+                    pictureTarget = into;
+                    Intent pick = new Intent(Intent.ACTION_GET_CONTENT).setType("image/*")
+                            .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                            .addCategory(Intent.CATEGORY_OPENABLE);
+                    startActivityForResult(pick, PICK_PICTURES);
+                }
+
+                @Override
+                public void withMicrophone(Runnable then) {
+                    if (ContextCompat.checkSelfPermission(NoteEditorActivity.this, android.Manifest.permission.RECORD_AUDIO)
+                            == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        then.run();
+                        return;
+                    }
+                    afterMicrophone = then;
+                    requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, MICROPHONE);
+                }
+            });
+            ViewGroup page = (ViewGroup) body.getParent();
+            page.addView(ultimate, page.indexOfChild(body) + 1, new LinearLayout.LayoutParams(-1, -2));
+            View format = findViewById(R.id.formatBar);
+            ViewGroup root = (ViewGroup) format.getParent();
+            ultimateBar = ultimate.addBar();
+            root.addView(ultimateBar, root.indexOfChild(format), new LinearLayout.LayoutParams(-1, -2));
+        }
+        ultimate.load(note.getData(), note.getContent());
+        setUpFormatBar();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode != MICROPHONE) return;
+        Runnable then = afterMicrophone;
+        afterMicrophone = null;
+        if (results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED && then != null) then.run();
+        else Toast.makeText(this, "Notes+ needs the microphone to record", Toast.LENGTH_SHORT).show();
+    }
+
+    /** Pictures for an Ultimate note: copied into the note's folder, then into its words. */
+    private void addPictures(List<Uri> uris) {
+        withFolder(dir -> AppDatabase.IO.execute(() -> {
+            List<String> added = new ArrayList<>();
+            java.security.SecureRandom random = new java.security.SecureRandom();
+            for (Uri uri : uris) {
+                String mime = getContentResolver().getType(uri);
+                String ext = mime != null && mime.endsWith("png") ? ".png" : mime != null && mime.endsWith("gif") ? ".gif"
+                        : mime != null && mime.endsWith("webp") ? ".webp" : ".jpg";
+                String name = "IMG_" + System.currentTimeMillis() + "_" + String.format(Locale.ROOT, "%08x", random.nextInt()) + ext;
+                try (InputStream in = getContentResolver().openInputStream(uri);
+                     OutputStream out = new FileOutputStream(new File(dir, name))) {
+                    if (in == null) continue;
+                    VaultCrypto.copy(in, out);
+                    added.add(name);
+                } catch (Exception e) {
+                    android.util.Log.w("NoteEditor", "Could not add " + uri, e);
+                }
+            }
+            runOnUiThread(() -> {
+                if (pictureTarget != null && !added.isEmpty()) pictureTarget.accept(added);
+                if (added.size() < uris.size()) Toast.makeText(this, "Some pictures couldn't be added", Toast.LENGTH_SHORT).show();
+            });
+        }));
+    }
+
+    @Override
+    protected void onPause() {
+        if (ultimate != null) ultimate.pause();
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (ultimate != null) ultimate.destroy();
+        super.onDestroy();
+    }
+
     // ================================================================== journal
 
     private void setUpJournal(NoteEntity note) {
@@ -833,7 +985,7 @@ public class NoteEditorActivity extends NoteActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != PICK_MEDIA || resultCode != RESULT_OK || data == null) return;
+        if ((requestCode != PICK_MEDIA && requestCode != PICK_PICTURES) || resultCode != RESULT_OK || data == null) return;
         List<Uri> uris = new ArrayList<>();
         if (data.getClipData() != null) {
             for (int i = 0; i < data.getClipData().getItemCount(); i++) uris.add(data.getClipData().getItemAt(i).getUri());
@@ -841,6 +993,10 @@ public class NoteEditorActivity extends NoteActivity {
             uris.add(data.getData());
         }
         if (uris.isEmpty()) return;
+        if (requestCode == PICK_PICTURES) {
+            addPictures(uris);
+            return;
+        }
         withFolder(dir -> AppDatabase.IO.execute(() -> {
             List<String> added = new ArrayList<>();
             for (Uri uri : uris) {

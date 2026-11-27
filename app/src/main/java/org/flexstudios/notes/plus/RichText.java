@@ -162,6 +162,26 @@ final class RichText implements TextWatcher {
         }
     }
 
+    /**
+     * The Markdown up to the end of the caret's line, and after it (Ultimate notes: where something else
+     * goes in). The caret's line is left out when it's empty. One Markdown line per line of text.
+     */
+    String[] splitAtLine() {
+        String[] lines = markdown().split("\n", -1);
+        Editable e = edit.getText();
+        int caret = Math.max(0, edit.getSelectionStart()), line = 0;
+        for (int i = 0; e != null && i < Math.min(caret, e.length()); i++) if (e.charAt(i) == '\n') line++;
+        line = Math.min(line, lines.length - 1);
+        StringBuilder before = new StringBuilder(), after = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            if (i == line && lines[i].trim().isEmpty()) continue;
+            StringBuilder to = i <= line ? before : after;
+            if (to.length() > 0) to.append('\n');
+            to.append(lines[i]);
+        }
+        return new String[]{before.toString().trim(), after.toString().trim()};
+    }
+
     /** The whole text as Markdown. */
     String markdown() {
         Editable e = edit.getText();

@@ -47,6 +47,7 @@
     <color name="tile_red">#FFFF453A</color>
     <color name="tile_gray">#FF8E8E93</color>
     <color name="tile_teal">#FF40C8E0</color>
+    <color name="tile_indigo">#FF5E5CE6</color>
 
     <!-- Note card tints (light). values-night has darker, desaturated versions. -->
     <color name="note_yellow">#FFFFF4C2</color>

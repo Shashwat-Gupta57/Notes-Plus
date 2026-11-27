@@ -145,6 +145,36 @@ final class NoteLinks {
             NoteData.MindMap map = NoteData.mindMap(data);
             for (NoteData.MindNode node : map.nodes) node.text = renameIn(node.text, from, to);
             data = NoteData.mindMapJson(map);
+        } else if (NoteData.ULTIMATE.equals(n.getType())) {
+            // Its words, items and ideas, each canvas in its own shape (content is made from them, so it matches).
+            List<org.json.JSONObject> blocks = Ultimate.blocks(data);
+            for (int i = 0; i < blocks.size(); i++) {
+                org.json.JSONObject b = blocks.get(i);
+                try {
+                    switch (Ultimate.kind(b)) {
+                        case Ultimate.TEXT:
+                            b.put("md", renameIn(b.optString("md", ""), from, to));
+                            break;
+                        case Ultimate.LIST: {
+                            List<NoteData.TodoItem> items = NoteData.todos(b.toString());
+                            for (NoteData.TodoItem item : items) item.text = renameIn(item.text, from, to);
+                            blocks.set(i, Ultimate.block(b.optString("id"), Ultimate.LIST, NoteData.todosJson(items)));
+                            break;
+                        }
+                        case Ultimate.MINDMAP: {
+                            NoteData.MindMap map = NoteData.mindMap(b.toString());
+                            for (NoteData.MindNode node : map.nodes) node.text = renameIn(node.text, from, to);
+                            blocks.set(i, Ultimate.block(b.optString("id"), Ultimate.MINDMAP, NoteData.mindMapJson(map)).put("h", Ultimate.mapHeight(b)));
+                            break;
+                        }
+                        default:
+                            break;
+                    }
+                } catch (Exception ignored) {
+                    // Left as it was.
+                }
+            }
+            data = Ultimate.blocksJson(blocks);
         }
         return new String[]{next, data};
     }

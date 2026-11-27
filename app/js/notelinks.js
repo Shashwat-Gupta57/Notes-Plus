@@ -7,7 +7,7 @@
 // the CSS Highlight API (nothing is added to the text, so nothing can leak into the saved Markdown),
 // opened with Ctrl/Cmd+click (a plain click in a note sent to me, or a tap's bar), and "[[" offers titles.
 
-import { LIST, MINDMAP, todos, todosJson, wraps, mindMap, mindMapJson, kind } from './model.js';
+import { LIST, MINDMAP, ULTIMATE, todos, todosJson, wraps, mindMap, mindMapJson, blocks, blocksJson, kind } from './model.js';
 import { h, icon, snackbar } from './ui.js';
 
 export const LINK = /(?<!!)\[\[([^[\]|\n]+)(\|[^[\]\n]*)?\]\]/g;
@@ -78,6 +78,14 @@ export function renamed(n, from, to) {
     const map = mindMap(data);
     for (const x of map.nodes) x.text = renameIn(x.text, from, to);
     data = mindMapJson(map);
+  } else if (n.type === ULTIMATE) {
+    // Its words, items and ideas, each canvas in its own shape (content is made from them, so it matches).
+    data = blocksJson(blocks(data).map(b => {
+      if (b.kind === 'text') return { ...b, md: renameIn(b.md || '', from, to) };
+      if (b.kind === 'list') return { ...b, items: todos(JSON.stringify(b)).map(i => ({ ...i, text: renameIn(i.text, from, to) })) };
+      if (b.kind === 'mindmap') { const m = mindMap(JSON.stringify(b)); m.nodes.forEach(x => { x.text = renameIn(x.text, from, to); }); return { ...b, ...JSON.parse(mindMapJson(m)) }; }
+      return b;
+    }));
   }
   return { content: next, data };
 }

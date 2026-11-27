@@ -44,7 +44,7 @@ function fitSoon(ta) {
   toFit.add(ta);
 }
 
-function titleField(ctx, placeholder, onEnter) {
+export function titleField(ctx, placeholder, onEnter) {
   const t = autoGrow(h('textarea.title-field', { rows: 1, placeholder, readOnly: ctx.readOnly, maxlength: 500 }));
   t.value = ctx.note.title || '';
   t.addEventListener('input', () => ctx.changed());
@@ -60,7 +60,7 @@ const extOf = blob => ((blob.type || '').split('/')[1] || 'png').replace('jpeg',
  * Words with pictures between them: blocks of formatted words (rich.js, edited as they look,
  * kept as Markdown), and pictures, each a line of its own `![[IMG_….png]]`.
  */
-function richBody(ctx, content, placeholder) {
+export function richBody(ctx, content, placeholder, opts = {}) {
   const wrap = h('div.rich');
   const blocks = [];
   let moving = null; // A picture being dragged to another place.
@@ -76,6 +76,26 @@ function richBody(ctx, content, placeholder) {
     ed.setMarkdown(md);
     if (ctx.linkNotes) noteLinks.decorate(ed.node, ctx);
     const block = { kind: 'text', node: ed.node, ed, value: () => ed.markdown() };
+    // "/" alone on a line (Ultimate notes): the menu of what can go there.
+    if (opts.onSlash && !ctx.readOnly) ed.node.addEventListener('input', e => {
+      if (e.inputType !== 'insertText' || e.data !== '/') return;
+      const sel = getSelection();
+      if (!sel.rangeCount) return;
+      let line = sel.anchorNode;
+      while (line && line.parentNode !== ed.node) line = line.parentNode;
+      const text = line ? line.textContent : ed.node.textContent;
+      if ((text || '').replace(/\u200b/g, '').trim() !== '/') return;
+      const rect = (line || ed.node).getBoundingClientRect();
+      active = ed;
+      // The "/" goes (straight from its text: an editing command run inside this event would be ignored).
+      const clear = () => {
+        const s = getSelection(), at = s.anchorNode, off = s.anchorOffset;
+        if (at && at.nodeType === 3 && at.data[off - 1] === '/') at.deleteData(off - 1, 1);
+        else if (line) line.textContent = '';
+        if (line && !line.textContent) line.innerHTML = '<br>';
+      };
+      opts.onSlash({ left: rect.left, right: rect.left + 40, top: rect.top, bottom: rect.bottom }, clear);
+    });
     ed.node.addEventListener('paste', e => {
       const files = [...(e.clipboardData ? e.clipboardData.files : [])].filter(f => f.type.startsWith('image/'));
       if (!files.length || ctx.readOnly) return;
@@ -387,6 +407,17 @@ function richBody(ctx, content, placeholder) {
       return blocks.filter(b => b.kind === 'text').map(b => b.ed.text()).join(' ').trim().split(/\s+/).filter(Boolean).length;
     },
     focusEnd() { [...blocks].reverse().find(b => b.kind === 'text').ed.focusEnd(); },
+    /** The Markdown before and after the caret, pictures included (where something else goes in). */
+    split() {
+      const at = activeBlock(), i = blocks.indexOf(at);
+      const [a, b] = at.kind === 'text' ? at.ed.split() : [at.value(), ''];
+      const join = list => list.filter(x => x !== '').join('\n');
+      const before = join([...blocks.slice(0, i).map(x => x.value()), a]).replace(/\n+$/, '');
+      const after = join([b, ...blocks.slice(i + 1).map(x => x.value())]).replace(/^\n+/, '');
+      return [before, after];
+    },
+    /** Whether the caret (or the last focus) is in these words. */
+    focused: () => !!active && wrap.contains(document.activeElement),
     focusStart() { blocks.find(b => b.kind === 'text').ed.focusStart(); },
     addPicture(files) { [...files].forEach(f => insertPicture(f, activeBlock())); },
     editor: () => active || blocks.find(b => b.kind === 'text').ed,
@@ -394,13 +425,13 @@ function richBody(ctx, content, placeholder) {
   };
 }
 
-function pickFiles(accept, multiple, onFiles) {
+export function pickFiles(accept, multiple, onFiles) {
   const input = h('input', { type: 'file', accept, multiple });
   input.addEventListener('change', () => { if (input.files.length) onFiles(input.files); });
   input.click();
 }
 
-function footer(ctx, getExtraText) {
+export function footer(ctx, getExtraText) {
   const el = h('div.editor-footer');
   const update = () => {
     const extra = typeof getExtraText === 'function' ? getExtraText() : getExtraText;
@@ -413,7 +444,7 @@ function footer(ctx, getExtraText) {
   return el;
 }
 
-const editedLine = note => 'Edited ' + new Date(note.timestamp || Date.now())
+export const editedLine = note => 'Edited ' + new Date(note.timestamp || Date.now())
   .toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 // ========================================================= formatting
@@ -428,7 +459,7 @@ const BLOCK_NAMES = { NORMAL: 'Normal text', H1: 'Heading 1', H2: 'Heading 2', H
  * Word's formatting row: paragraph style, bold, italic, underline, strike, code, colour, lists,
  * tasks. Every button acts on the words themselves; the buttons light up for what the caret is on.
  */
-function formatBar(ctx, body) {
+export function formatBar(ctx, body) {
   if (ctx.readOnly) return null;
   const btn = (title, ic, onClick, label) =>
     h('button.fmt-btn', { type: 'button', title, onmousedown: e => { e.preventDefault(); onClick(); } }, ic ? icon(ic, 18) : null, label || null);
@@ -631,8 +662,11 @@ export function listEditor(ctx) {
     const del = ctx.readOnly ? null : h('button.item-remove', { type: 'button', title: 'Delete item' }, icon('close', 18));
     // Its day under the words, coloured by how near it is; the clock gives it one.
     const pill = h('button.due-pill', { type: 'button', hidden: true, disabled: ctx.readOnly });
-    const clock = ctx.readOnly ? null : h('button.item-clock', { type: 'button', title: 'Due date (Ctrl+D)', 'aria-label': 'Due date' }, icon('clock', 18));
-    const el = h('div.item' + (item.done ? '.done' : ''), handle, check, h('div.item-col', field, pill), clock, del);
+    const clock = ctx.readOnly || ctx.noDates ? null : h('button.item-clock', { type: 'button', title: 'Due date (Ctrl+D)', 'aria-label': 'Due date' }, icon('clock', 18));
+    const inside = ctx.onItemInside && !ctx.readOnly
+      ? h('button.item-inside', { type: 'button', title: 'Put something inside this item', 'aria-label': 'Put something inside this item' }, icon('add', 18)) : null;
+    if (inside) inside.addEventListener('click', () => ctx.onItemInside(items.indexOf(item), inside));
+    const el = h('div.item' + (item.done ? '.done' : ''), handle, check, h('div.item-col', field, pill), inside, clock, del);
     const showDue = animate => {
       const now = due.today(), s = due.status(item, now), was = !pill.hidden;
       pill.hidden = s === due.NONE;
@@ -642,7 +676,7 @@ export function listEditor(ctx) {
       pill.replaceChildren(icon('clock', 12), due.pill(item, now));
       if (animate && !was) pill.animate([{ opacity: 0, transform: 'scale(0.6)' }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'ease-out' });
     };
-    if (!ctx.readOnly) {
+    if (clock) {
       pill.addEventListener('click', () => openDue(item, pill, showDue));
       clock.addEventListener('click', () => openDue(item, clock, showDue));
     }
@@ -671,7 +705,7 @@ export function listEditor(ctx) {
     field.addEventListener('keydown', e => {
       const i = items.indexOf(item);
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setDone(!item.done); }
-      else if ((e.key === 'd' || e.key === 'D') && (e.ctrlKey || e.metaKey) && !ctx.readOnly) { e.preventDefault(); openDue(item, pill.hidden ? clock : pill, showDue); }
+      else if ((e.key === 'd' || e.key === 'D') && (e.ctrlKey || e.metaKey) && !ctx.readOnly && !ctx.noDates) { e.preventDefault(); openDue(item, pill.hidden ? clock : pill, showDue); }
       else if (e.key === 'Enter') { e.preventDefault(); addAt(i + 1); }
       else if (e.key === 'Backspace' && !field.value && items.length > 1) { e.preventDefault(); removeAt(i); focusItem(Math.max(0, i - 1), true); }
       else if (e.key === 'ArrowUp' && !wrapItems) { e.preventDefault(); focusItem(i - 1, true); }
@@ -893,6 +927,8 @@ export function listEditor(ctx) {
     wrap: () => wrapItems,
     setWrap(w) { wrapItems = w; render(); },
     focus(isNew) { if (isNew) title.focus(); },
+    items: () => items,
+    focusItem: i => focusItem(i, true),
   };
 }
 

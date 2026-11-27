@@ -14,6 +14,7 @@ export function mindMapEditor(ctx) {
   if (!map.nodes.length) map.nodes.push({ id: 1, parent: -1, text: '', x: 0, y: 0, color: 0, collapsed: false, link: 0, linkUuid: null, image: null, sub: '' });
   const pictures = new Map();
   const view = new MapView(map, pictures);
+  if (ctx.insideLabel) view.insideLabel = ctx.insideLabel;
   let scale = 1, tx = 0, ty = 0;
   let selected = -1, connectFrom = null;
   let width = 0, height = 0, ratio = 1;
@@ -304,10 +305,18 @@ export function mindMapEditor(ctx) {
       n.image && { text: 'Remove picture', onClick: () => { n.image = null; view.blocks.clear(); changedStructure(); } },
       { text: 'Connect to another idea…', onClick: () => { connectFrom = n; draw(); toast('Click the idea to connect to'); } },
       map.links.some(l => l[0] === n.id || l[1] === n.id) && { text: 'Remove its connections', onClick: () => { map.links = map.links.filter(l => l[0] !== n.id && l[1] !== n.id); changedStructure(); } },
+      ctx.inside && n.blocks && n.blocks.length && { text: 'Open what\'s inside', onClick: () => openInside(n) },
+      ctx.inside && { text: 'Put inside this idea…', onClick: () => ctx.insideMenu(n, anchor, () => openInside) },
       { text: 'Add another central idea', onClick: () => addRoot() },
       canRemove(n) && { text: root ? 'Delete this central idea and its ideas' : 'Delete branch', danger: true, onClick: () => removeBranch(n) },
     ];
     menu(anchor, items);
+  }
+
+  /** What's inside an idea (Ultimate notes): its canvases, open in a panel; the badge follows. */
+  function openInside(n, kind) {
+    select(n);
+    ctx.inside(n, kind, () => { view.blocks.clear(); view.refresh(); draw(); });
   }
 
   function tidy() {
@@ -387,7 +396,9 @@ export function mindMapEditor(ctx) {
       const m = toMap(last.x, last.y);
       const badge = view.hitBadge(m.x, m.y, scale);
       const linkHit = view.hitLink(m.x, m.y, scale);
-      if (badge) { badge.collapsed = !badge.collapsed; changedStructure(); }
+      const insideHit = ctx.inside ? view.hitInside(m.x, m.y, scale) : null;
+      if (insideHit) openInside(insideHit);
+      else if (badge) { badge.collapsed = !badge.collapsed; changedStructure(); }
       else if (linkHit) openLinked(linkHit);
       else {
         const hit = view.hit(m.x, m.y);
@@ -431,6 +442,7 @@ export function mindMapEditor(ctx) {
   }
 
   canvas.addEventListener('wheel', e => {
+    if (ctx.embedded && !e.ctrlKey && !e.metaKey) return;
     e.preventDefault();
     const p = local(e);
     if (e.ctrlKey || e.metaKey || Math.abs(e.deltaY) > 0 && !e.shiftKey && e.deltaMode === 0 && Math.abs(e.deltaX) < 1) zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.0015));

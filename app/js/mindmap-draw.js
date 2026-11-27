@@ -226,6 +226,17 @@ export class MapView {
     return null;
   }
 
+  /** The "inside" badge (under an idea holding canvases of its own) under a point, if any. */
+  hitInside(x, y, scale) {
+    const r = 12 / Math.max(scale, 0.7);
+    for (const n of this.map.nodes) {
+      if (this.hidden.has(n.id) || !n.blocks || !n.blocks.length) continue;
+      const g = this.geometry(n);
+      if (Math.abs(x - g.x) < Math.max(g.w / 2, 40) && Math.abs(y - (g.y + g.h / 2)) < r * 1.2) return n;
+    }
+    return null;
+  }
+
   /** The link badge (top-right corner) under a point, if any. */
   hitLink(x, y, scale) {
     const r = 14 / Math.max(scale, 0.7);
@@ -356,6 +367,19 @@ export class MapView {
         g.fillStyle = '#fff';
         g.font = `bold ${r * 1.05}px Roboto, sans-serif`;
         g.fillText('+' + (this.hiddenCount.get(n.id) || 0), bx, Y(n.y));
+      }
+      // What's inside the idea: a pill on its bottom edge ("☑ 1/3 · 🎙 2").
+      if (n.blocks && n.blocks.length && this.insideLabel) {
+        const label = this.insideLabel(n) || '•••';
+        g.font = `600 ${11 * Math.max(s, 0.6)}px Roboto, sans-serif`;
+        const pw = g.measureText(label).width + 16 * Math.max(s, 0.6), ph = 18 * Math.max(s, 0.6);
+        const px = X(n.x) - pw / 2, py = t + h - ph / 2;
+        g.fillStyle = css('tile-indigo') || '#5E5CE6';
+        g.beginPath();
+        g.roundRect ? g.roundRect(px, py, pw, ph, ph / 2) : g.rect(px, py, pw, ph);
+        g.fill();
+        g.fillStyle = '#fff';
+        g.fillText(label, X(n.x), py + ph / 2 + 0.5);
       }
       if (n.linkUuid || n.link) {
         g.fillStyle = accent;

@@ -10,14 +10,14 @@
 //   Live data             database, sign-in, Drive, version.json: never cached.
 //
 // Bump CACHE_NAME with every release (docs/Push to production.md), so the new files replace the old.
-const CACHE_NAME = 'notes-plus-pwa-v20.1';
+const CACHE_NAME = 'notes-plus-pwa-v21.0';
 
 const SHELL_ASSETS = [
   './',
   './index.html',
   './app.css',
   './manifest.webmanifest',
-  ...['account-ui', 'account', 'db', 'drive', 'due', 'ed-audio', 'ed-mindmap', 'ed-sketch', 'ed-text', 'editor',
+  ...['account-ui', 'account', 'db', 'drive', 'due', 'ed-audio', 'ed-mindmap', 'ed-sketch', 'ed-text', 'ed-ultimate', 'editor',
     'gallery', 'hiddenlock', 'home', 'importexport', 'interchange', 'links', 'notelinks', 'lock', 'main', 'md', 'mindmap-draw', 'model', 'palette', 'rich', 'share-ui',
     'masonry', 'reminders', 'search', 'sync', 'templates', 'theme', 'ui', 'zip',
     'picline', 'vault-crypto', 'vault-rules', 'vault-store', 'vault-sync', 'vault-ui'].map(m => `./js/${m}.js`),

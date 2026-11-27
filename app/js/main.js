@@ -20,13 +20,14 @@ import { forType as textEditors } from './ed-text.js';
 import { mindMapEditor } from './ed-mindmap.js';
 import { sketchEditor } from './ed-sketch.js';
 import { audioEditor } from './ed-audio.js';
-import { MINDMAP, SKETCH, AUDIO, KINDS } from './model.js';
+import { ultimateEditor } from './ed-ultimate.js';
+import { MINDMAP, SKETCH, AUDIO, ULTIMATE, KINDS } from './model.js';
 
 const app = document.getElementById('app');
 let current = null;
 let routing = Promise.resolve();
 
-const implFor = type => (type === MINDMAP ? mindMapEditor : type === SKETCH ? sketchEditor : type === AUDIO ? audioEditor
+const implFor = type => (type === MINDMAP ? mindMapEditor : type === SKETCH ? sketchEditor : type === AUDIO ? audioEditor : type === ULTIMATE ? ultimateEditor
   : textEditors[type] || textEditors.TEXT);
 
 /** Shows `screen` in place of the current one, leaving the address as it is. */

@@ -4,7 +4,7 @@
 
 import { plainLine, repair } from './md.js';
 
-export const TEXT = 'TEXT', LIST = 'LIST', MINDMAP = 'MINDMAP', JOURNAL = 'JOURNAL', SKETCH = 'SKETCH', AUDIO = 'AUDIO';
+export const TEXT = 'TEXT', LIST = 'LIST', MINDMAP = 'MINDMAP', JOURNAL = 'JOURNAL', SKETCH = 'SKETCH', AUDIO = 'AUDIO', ULTIMATE = 'ULTIMATE';
 
 export const KINDS = [
   { type: TEXT, label: 'Note', plural: 'Notes', description: 'Plain words, fast', icon: 'noteText', accent: 'tile-orange' },
@@ -13,6 +13,7 @@ export const KINDS = [
   { type: MINDMAP, label: 'Mind map', plural: 'Mind maps', description: 'Ideas and how they connect', icon: 'noteMindmap', accent: 'tile-blue' },
   { type: SKETCH, label: 'Sketch', plural: 'Sketches', description: 'Draw with your mouse, pen or finger', icon: 'noteSketch', accent: 'tile-red' },
   { type: AUDIO, label: 'Audio', plural: 'Audio', description: 'Record your voice', icon: 'noteAudio', accent: 'tile-teal' },
+  { type: ULTIMATE, label: 'Ultimate', plural: 'Ultimate', description: 'Words, lists, maps, voice and days in one', icon: 'noteUltimate', accent: 'tile-indigo' },
 ];
 
 export const kind = type => KINDS.find(k => k.type === type) || KINDS[0];
@@ -102,6 +103,8 @@ export function mindMap(json) {
     linkUuid: typeof o.linkUuid === 'string' && o.linkUuid ? o.linkUuid : null,
     image: typeof o.image === 'string' && o.image ? o.image : null,
     sub: typeof o.sub === 'string' ? o.sub : '',
+    // What's inside the idea (Ultimate notes): canvases of its own, kept as they are.
+    blocks: Array.isArray(o.blocks) && o.blocks.length ? o.blocks : null,
   }));
   const links = array(json, 'links').filter(p => Array.isArray(p) && p.length === 2).map(p => [Number(p[0]), Number(p[1])]);
   return { nodes, links, wrap: wraps(json) };
@@ -117,6 +120,7 @@ export function mindMapJson(map) {
     if (n.linkUuid) o.linkUuid = n.linkUuid;
     if (n.image) o.image = n.image;
     if (n.sub) o.sub = n.sub;
+    if (n.blocks && n.blocks.length) o.blocks = n.blocks;
     return o;
   });
   const o = { nodes, links: map.links.map(l => [l[0], l[1]]) };
@@ -168,6 +172,72 @@ export function recordingsJson(list) {
 export function formatDuration(ms) {
   const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+// -------------------------------------------------------------------- ultimate
+
+// An Ultimate note is a column of canvases, `{"blocks": [...]}`. Each block is the data of the type it
+// borrows from plus its `kind` and `id`: a list's `items`, a mind map's `nodes`/`links` (and `h`, its
+// height), an audio note's `recordings`; text keeps `md` (pictures as `![[…]]` lines in it), a day
+// keeps `day` (its midnight, ms) and `mood`. Kinds this version doesn't know are kept as they are.
+export const MAP_H = 320, MAP_MIN_H = 160, MAP_MAX_H = 1200;
+
+export const blockId = () => Array.from(crypto.getRandomValues(new Uint8Array(4)), x => x.toString(16).padStart(2, '0')).join('');
+
+export function blocks(json) {
+  return array(json, 'blocks').filter(b => b && typeof b === 'object' && !Array.isArray(b) && typeof b.kind === 'string')
+    .map(b => ({ ...b, id: typeof b.id === 'string' && b.id ? b.id : blockId() }));
+}
+
+export const blocksJson = list => JSON.stringify({ blocks: list });
+
+/** How far a canvas sits in (0–4): nested under the list item or words above it. */
+export const indentOf = b => Math.max(0, Math.min(4, Math.round(Number(b.indent) || 0)));
+
+/** A short summary of what's inside an idea, for its badge: "☑ 1/3 · 🎙 2". */
+export function insideSummary(list) {
+  const parts = [];
+  let items = 0, done = 0, recs = 0, maps = 0, words = 0, days = 0;
+  for (const b of list || []) {
+    if (b.kind === 'list') todos(JSON.stringify(b)).forEach(i => { if (i.text.trim()) { items++; if (i.done) done++; } });
+    else if (b.kind === 'audio') recs += recordings(JSON.stringify(b)).length;
+    else if (b.kind === 'mindmap') maps++;
+    else if (b.kind === 'text' && (b.md || '').trim()) words++;
+    else if (b.kind === 'day') days++;
+  }
+  if (items) parts.push(`☑ ${done}/${items}`);
+  if (recs) parts.push(`🎙 ${recs}`);
+  if (maps) parts.push(maps > 1 ? `◈ ${maps}` : '◈');
+  if (days) parts.push('📅');
+  if (words) parts.push('¶');
+  return parts.join(' · ');
+}
+
+export const mapHeight = b => Math.max(MAP_MIN_H, Math.min(MAP_MAX_H, Math.round(Number(b.h) || MAP_H)));
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** "Thursday, 26 November 2026": the same words on every device, whatever its language settings. */
+export function dayWords(ms) {
+  const d = new Date(ms);
+  return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/** The note's words as Markdown, for search, cards, links and older versions (which open it as a text note). */
+export function blocksContent(list) {
+  const out = [];
+  for (const b of list) {
+    const json = JSON.stringify(b);
+    if (b.kind === 'text') { if (typeof b.md === 'string' && b.md.trim()) out.push(b.md.trim()); }
+    else if (b.kind === 'list') todos(json).forEach(i => { if (i.text.trim()) out.push((i.done ? '- [x] ' : '- [ ] ') + i.text.trim()); });
+    else if (b.kind === 'mindmap') mindMap(json).nodes.forEach(n => {
+      for (const t of [n.text, n.sub]) if (t.trim()) out.push('- ' + t.trim());
+      if (n.blocks) { const inside = blocksContent(blocks(JSON.stringify({ blocks: n.blocks }))); if (inside) out.push(inside); }
+    });
+    else if (b.kind === 'audio') recordings(json).forEach(r => out.push('🎙 ' + (r.label.trim() || 'Recording')));
+    else if (b.kind === 'day' && Number(b.day)) out.push('### ' + dayWords(Number(b.day)) + (b.mood ? ' ' + b.mood : ''));
+  }
+  return out.join('\n');
 }
 
 // ---------------------------------------------------------- pictures in text

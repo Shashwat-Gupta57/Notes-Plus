@@ -6,7 +6,7 @@
 //
 // The apps' Search.java, case for case (the same tests).
 
-import { TEXT, LIST, JOURNAL, MINDMAP, SKETCH, todos, journal, mindMap, plain, PICTURE_LINE } from './model.js';
+import { TEXT, LIST, JOURNAL, MINDMAP, SKETCH, ULTIMATE, todos, journal, mindMap, plain, PICTURE_LINE } from './model.js';
 import * as lock from './lock.js';
 import * as due from './due.js';
 import { shown } from './notelinks.js';
@@ -94,7 +94,7 @@ export function marks(text, ts) {
 /** About `width` characters of the note's words around the first word found there, marked; or null. */
 export function snippet(n, ts, width) {
   if (!ts.length || locked(n) || !n.content) return null;
-  let words = n.type === TEXT || n.type === JOURNAL ? plain(n.content) : n.content.replace(/\n/g, ' · '); // Items and ideas apart.
+  let words = n.type === TEXT || n.type === JOURNAL || n.type === ULTIMATE ? plain(n.content) : n.content.replace(/\n/g, ' · '); // Items and ideas apart.
   words = shown(words).replace(/\s+/g, ' ').trim();
   const lower = words.toLowerCase();
   let at = -1;

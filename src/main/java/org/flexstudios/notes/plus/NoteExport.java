@@ -126,7 +126,7 @@ final class NoteExport {
             String type = o.optString("type", NoteData.TEXT);
             NoteEntity n = new NoteEntity(o.optString("title", ""), o.optString("content", ""),
                     o.optLong("edited", System.currentTimeMillis()));
-            n.setType(type.matches("TEXT|LIST|MINDMAP|JOURNAL|SKETCH|AUDIO") ? type : NoteData.TEXT);
+            n.setType(type.matches("TEXT|LIST|MINDMAP|JOURNAL|SKETCH|AUDIO|ULTIMATE") ? type : NoteData.TEXT);
             n.setData(o.has("data") ? o.optString("data") : null);
             n.setColor(o.optInt("color"));
             n.setPinned(o.optBoolean("pinned"));

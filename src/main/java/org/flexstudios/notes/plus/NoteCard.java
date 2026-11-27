@@ -114,7 +114,7 @@ final class NoteCard extends VBox {
         Search.Snippet s = Search.snippet(note, terms, 110);
         if (s == null) return;
         // Words: the piece around the match takes the place of the usual first lines.
-        if (NoteData.TEXT.equals(note.getType()) || NoteData.JOURNAL.equals(note.getType())) {
+        if (NoteData.TEXT.equals(note.getType()) || NoteData.JOURNAL.equals(note.getType()) || NoteData.ULTIMATE.equals(note.getType())) {
             inner.getChildren().removeIf(n -> n.getStyleClass().contains("card-body"));
         }
         javafx.scene.text.TextFlow flow = marked(s.text, s.hits, "card-match-text");

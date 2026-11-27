@@ -691,17 +691,17 @@
 .rich-dot { -fx-fill: -np-text-secondary; }
 .rich-quote-bar { -fx-background-color: -np-brand-yellow; -fx-background-radius: 2; }
 .rich-check { -fx-cursor: hand; }
-.pic-bar { -fx-background-color: -color-bg-overlay; -fx-background-radius: 14; -fx-padding: 3 4 3 4;
+.pic-bar { -fx-background-color: -np-app-surface; -fx-background-radius: 14; -fx-padding: 3 4 3 4;
   -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 14, 0, 0, 4); }
 .pic-chip { -fx-background-color: transparent; -fx-background-radius: 9; -fx-font-size: 12px; -fx-font-weight: bold;
-  -fx-padding: 5 9 5 9; -fx-text-fill: -color-fg-default; -fx-cursor: hand; }
-.pic-chip:hover { -fx-background-color: -color-bg-subtle; }
+  -fx-padding: 5 9 5 9; -fx-text-fill: -np-text-primary; -fx-cursor: hand; }
+.pic-chip:hover { -fx-background-color: -np-m3-hover; }
 .pic-bar .on { -fx-background-color: -np-brand-yellow; -fx-text-fill: black; -fx-background-radius: 9; }
-.pic-sep { -fx-min-width: 1; -fx-pref-width: 1; -fx-max-height: 20; -fx-pref-height: 20; -fx-background-color: -color-border-subtle; }
+.pic-sep { -fx-min-width: 1; -fx-pref-width: 1; -fx-max-height: 20; -fx-pref-height: 20; -fx-background-color: -np-divider; }
 .pic-size { -fx-background-color: rgba(0,0,0,0.6); -fx-background-radius: 8; -fx-text-fill: white; -fx-font-size: 12px;
   -fx-font-weight: bold; -fx-padding: 2 8 2 8; }
 .pic-handle { -fx-fill: white; -fx-stroke: -color-accent-emphasis; -fx-stroke-width: 2; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 4, 0, 0, 1); }
-.format-bar { -fx-background-color: -color-bg-overlay; -fx-background-radius: 12; -fx-border-color: -color-border-subtle; -fx-border-radius: 12; }
+.format-bar { -fx-background-color: -np-app-surface; -fx-background-radius: 12; -fx-border-color: -np-divider; -fx-border-radius: 12; -fx-padding: 2 6 2 6; }
 .format-text { -fx-font-size: 13px; -fx-padding: 4 10 4 10; -fx-background-radius: 8; }
 .format-on, .format-on:hover { -fx-background-color: -np-m3-secondary-container; -fx-background-radius: 8; }
 
@@ -712,3 +712,22 @@
 .wheel-band { -fx-background-color: -np-m3-hover; -fx-background-radius: 10; -fx-min-width: 60; -fx-min-height: 38; -fx-padding: 0 8 0 8; }
 .wheel-value { -fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: -np-text-primary; }
 .wheel-faint { -fx-font-size: 15px; -fx-text-fill: -np-text-secondary; -fx-opacity: 0.55; -fx-padding: 2 0 2 0; }
+
+/* ------------------------------------------------------------ ultimate notes */
+/* One page: elements flow together without frames; a handle shows beside one on hover. */
+.ult-handle { -fx-text-fill: -np-text-secondary; -fx-font-size: 15px; -fx-cursor: hand; }
+.ult-thread { -fx-background-color: derive(-np-tile-indigo, 0%); -fx-opacity: 0.4; -fx-background-radius: 1; }
+.ult-map { -fx-background-color: transparent; -fx-background-radius: 12; -fx-border-color: transparent; -fx-border-radius: 12; }
+.ult-map:hover { -fx-border-color: -np-divider; }
+.ult-grip { -fx-cursor: n-resize; }
+.ult-grip-bar { -fx-background-color: -np-text-secondary; -fx-background-radius: 3; -fx-min-width: 44; -fx-max-width: 44; -fx-min-height: 5; -fx-max-height: 5; -fx-opacity: 0.6; }
+.ult-record { -fx-background-color: rgba(255,69,58,0.14); -fx-background-radius: 100; -fx-text-fill: -np-tile-red; -fx-font-weight: bold;
+  -fx-font-size: 13px; -fx-padding: 6 14 6 10; -fx-graphic-text-gap: 6; -fx-cursor: hand; }
+.ult-record:hover { -fx-background-color: rgba(255,69,58,0.22); }
+.ult-rec-row { -fx-padding: 6 4 6 4; -fx-background-radius: 12; }
+.ult-rec-row:hover { -fx-background-color: -np-m3-hover; }
+.ult-inside { -fx-background-color: transparent; -fx-background: transparent; }
+.ult-bar { -fx-background-color: -np-app-surface; -fx-background-radius: 100; -fx-border-color: -np-divider; -fx-border-radius: 100;
+  -fx-padding: 5; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.22), 18, 0, 0, 4); }
+.ult-add { -fx-background-color: transparent; -fx-background-radius: 100; -fx-padding: 7 13 7 11; -fx-graphic-text-gap: 7; -fx-font-size: 13px; -fx-cursor: hand; -fx-text-fill: -np-text-primary; }
+.ult-add:hover { -fx-background-color: -np-m3-hover; }

@@ -101,6 +101,7 @@ final class Theme {
         def("tile_red", "#FF453A");
         def("tile_gray", "#8E8E93");
         def("tile_teal", "#40C8E0");
+        def("tile_indigo", "#5E5CE6");
 
         // Note card tints.
         def("note_yellow", "#FFF4C2", "#3D3624");

@@ -49,9 +49,12 @@ final class NoteEditorView extends NoteEditor {
 
     private final VBox column = new VBox();
     private final ScrollPane scroll;
-    private javafx.scene.Node formatRow;
+    /** The page and, above it, the formatting row, which never scrolls. */
+    private final javafx.scene.layout.BorderPane content;
     private final TextArea title = new TextArea();
     private RichBody body;
+    /** An Ultimate note's canvases (null for the other types); {@link #body} follows the words in use. */
+    private UltimateBlocks ultimate;
 
     @Override
     protected boolean dismissOverlay() {
@@ -85,6 +88,7 @@ final class NoteEditorView extends NoteEditor {
             if (e.getCode() == KeyCode.ENTER && !e.isShiftDown()) {
                 e.consume();
                 if (NoteData.LIST.equals(type)) focusItem(0, false);
+                else if (ultimate != null) ultimate.focusStart();
                 else body.focusStart();
             }
         });
@@ -112,15 +116,59 @@ final class NoteEditorView extends NoteEditor {
         footer.setMaxWidth(Double.MAX_VALUE);
         footer.setAlignment(Pos.CENTER);
 
-        // The formatting row stays at the top of the view once the page scrolls past it.
-        javafx.beans.InvalidationListener stick = o -> {
-            if (formatRow == null) return;
-            double scrolled = -scroll.getViewportBounds().getMinY();
-            formatRow.setTranslateY(Math.max(0, scrolled - formatRow.getLayoutY() - column.getLayoutY()));
-        };
-        scroll.viewportBoundsProperty().addListener(stick);
-        column.layoutBoundsProperty().addListener(stick);
-        javafx.scene.layout.BorderPane content = new javafx.scene.layout.BorderPane(scroll);
+        content = new javafx.scene.layout.BorderPane(scroll);
+        if (NoteData.ULTIMATE.equals(type)) {
+            ultimate = new UltimateBlocks(new UltimateBlocks.Host() {
+                @Override
+                public void withFolder(java.util.function.Consumer<java.nio.file.Path> then) {
+                    NoteEditorView.this.withFolder(then);
+                }
+
+                @Override
+                public java.nio.file.Path folder() {
+                    return note != null && note.getId() > 0 ? NoteData.dir(note.getId()) : null;
+                }
+
+                @Override
+                public int noteId() {
+                    return note == null ? 0 : note.getId();
+                }
+
+                @Override
+                public boolean readOnly() {
+                    return readOnly;
+                }
+
+                @Override
+                public java.util.function.Supplier<List<NoteEntity>> linkNotes() {
+                    return () -> linkNotes;
+                }
+
+                @Override
+                public ScrollPane scroll() {
+                    return scroll;
+                }
+
+                @Override
+                public void changed() {
+                    markDirty();
+                    updateFooter();
+                }
+
+                @Override
+                public void textFocused(RichBody words) {
+                    body = words;
+                    showFormat();
+                }
+            });
+            // The bar that adds canvases floats over the bottom of the page.
+            Node bar = ultimate.addBar();
+            StackPane over = new StackPane(scroll, bar);
+            StackPane.setAlignment(bar, Pos.BOTTOM_CENTER);
+            StackPane.setMargin(bar, new Insets(0, 0, 14, 0));
+            content.setCenter(over);
+            column.setPadding(new Insets(0, 0, 90, 0));
+        }
         content.setBottom(footer);
         syncStatus.addListener((o, a, b) -> updateFooter());
         setUpNote(content);
@@ -137,14 +185,21 @@ final class NoteEditorView extends NoteEditor {
                 : NoteData.LIST.equals(type) ? "List name" : "Title");
         column.getChildren().add(padded(title, new Insets(12, 20, 4, 20)));
         if (!NoteData.LIST.equals(type)) {
-            formatRow = padded(createFormatBar(), new Insets(0, 20, 6, 20));
-            formatRow.setViewOrder(-1); // Drawn (and clicked) above the words it floats over.
-            column.getChildren().add(formatRow);
+            // Fixed above the page (not in it), so it stays put and nothing scrolls under it.
+            HBox bar = createFormatBar();
+            bar.setMaxWidth(780);
+            bar.setPadding(new Insets(6, 20, 6, 20));
+            StackPane top = new StackPane(bar);
+            StackPane.setAlignment(bar, Pos.CENTER);
+            content.setTop(top);
         } else {
-            formatRow = null;
+            content.setTop(null);
         }
         if (NoteData.LIST.equals(type)) {
             column.getChildren().add(listSection(note));
+        } else if (ultimate != null) {
+            ultimate.load(note.getData(), note.getContent());
+            column.getChildren().add(ultimate);
         } else {
             body.setContent(note.getContent(), note.getId() > 0 ? NoteData.dir(note.getId()) : null);
             if (NoteData.JOURNAL.equals(type)) body.setPrompt("What happened today?");
@@ -181,6 +236,7 @@ final class NoteEditorView extends NoteEditor {
             note.setContent(text.toString().trim());
             return !kept.isEmpty() || !t.isEmpty();
         }
+        if (ultimate != null) return ultimate.collect(note);
         String words = body.getContent().trim();
         note.setContent(words);
         if (NoteData.JOURNAL.equals(type)) {
@@ -197,7 +253,7 @@ final class NoteEditorView extends NoteEditor {
                 : "New " + NoteData.kind(type).label().toLowerCase(Locale.getDefault());
         String status = syncStatus.get();
         String statusText = status != null && !status.isEmpty() ? "  ·  " + status : "";
-        if (NoteData.LIST.equals(type)) {
+        if (NoteData.LIST.equals(type) || ultimate != null) {
             footer.setText(edited + statusText);
             return;
         }
@@ -1105,10 +1161,24 @@ final class NoteEditorView extends NoteEditor {
         }
     }
 
+    /** Leaving finishes a recording in progress in an Ultimate note (and keeps it). */
+    @Override
+    void onDestroy() {
+        if (ultimate != null) ultimate.destroy();
+        super.onDestroy();
+    }
+
     /** A note sent to me: nothing to add, tick, reorder, re-date or paste in. */
     @Override
     protected void lockForReading() {
         super.lockForReading();
+        if (ultimate != null) {
+            ultimate.load(note.getData(), note.getContent()); // Again, read-only.
+            for (Node n : root.lookupAll(".ult-bar")) {
+                n.setVisible(false);
+                n.setManaged(false);
+            }
+        }
         if (body != null) {
             body.locked = true;
             body.setEditable(false);
@@ -1180,15 +1250,15 @@ final class NoteEditorView extends NoteEditor {
         spacing.setOnAction(e -> {
             VBox box = new VBox(10);
             box.getStyleClass().add("menu-popup");
-            box.setStyle("-fx-background-color: -color-bg-overlay; -fx-padding: 14px 18px; -fx-background-radius: 12px; -fx-border-color: -color-border-subtle; -fx-border-radius: 12px; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 16, 0, 0, 6);");
+            box.setStyle("-fx-background-color: -np-app-surface; -fx-padding: 14px 18px; -fx-background-radius: 12px; -fx-border-color: -np-divider; -fx-border-radius: 12px; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 16, 0, 0, 6);");
             box.setPrefWidth(240);
 
             Label titleLbl = new Label("Typography & Spacing");
-            titleLbl.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: -color-fg-primary;");
+            titleLbl.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: -np-text-primary;");
 
             double curLeading = RichArea.getLineSpacing();
             Label leadingLabel = new Label(String.format(Locale.US, "Leading (Line Spacing): %.1f px", curLeading));
-            leadingLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: -color-fg-secondary;");
+            leadingLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: -np-text-secondary;");
             javafx.scene.control.Slider leadingSlider = new javafx.scene.control.Slider(1.0, 16.0, curLeading);
             leadingSlider.valueProperty().addListener((obs, oldV, newV) -> {
                 body.lineSpacing(newV.doubleValue());
@@ -1197,7 +1267,7 @@ final class NoteEditorView extends NoteEditor {
 
             double curKerning = RichArea.getKerning();
             Label kerningLabel = new Label(String.format(Locale.US, "Kerning (Letter Spacing): %.1f px", curKerning));
-            kerningLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: -color-fg-secondary;");
+            kerningLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: -np-text-secondary;");
             javafx.scene.control.Slider kerningSlider = new javafx.scene.control.Slider(0.0, 6.0, curKerning);
             kerningSlider.valueProperty().addListener((obs, oldV, newV) -> {
                 body.kerning(newV.doubleValue());

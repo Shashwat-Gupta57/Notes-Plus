@@ -668,6 +668,9 @@ final class RichArea extends StyledTextArea<Markdown.Block, Markdown.Style> impl
         setMinHeight(h);
         setPrefHeight(h);
         setMaxHeight(h);
+        // The estimate changes during a layout pass, when a request to lay out the parents can be lost
+        // (an area inside a row of an Ultimate note stayed one line tall): asked again after the pass.
+        Platform.runLater(this::requestLayout);
     }
 
     /** The wheel scrolls the note's page; the area itself never scrolls. */

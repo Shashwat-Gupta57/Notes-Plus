@@ -41,6 +41,12 @@ final class MindMapCanvas extends Region {
     /** A map sent to me: look, pan, zoom and fold; nothing else. */
     boolean locked;
 
+    /** Inside a page (Ultimate notes): the wheel scrolls the page; Ctrl+wheel zooms. */
+    boolean embedded;
+
+    /** What's inside an idea, for its badge (Ultimate notes); null: no badges. */
+    java.util.function.Function<NoteData.MindNode, String> insideLabel;
+
     interface Listener {
         void onRename(NoteData.MindNode node);
 
@@ -54,6 +60,9 @@ final class MindMapCanvas extends Region {
 
         /** Right-click on ideas selected together: what can be done to all of them, at the pointer. */
         default void onGroupOptions(List<NoteData.MindNode> nodes, double sceneX, double sceneY) {}
+
+        /** The badge of what's inside an idea (Ultimate notes) was clicked. */
+        default void onOpenInside(NoteData.MindNode node) {}
     }
 
     static final String[] PALETTE = {"tile_blue", "tile_green", "tile_orange", "tile_purple", "tile_red",
@@ -892,6 +901,11 @@ final class MindMapCanvas extends Region {
                 if (listener != null) listener.onOpenLink(n);
                 return true;
             }
+            if (insideLabel != null && n.blocks != null && Math.abs(x - (rl + rr) / 2) < Math.max((rr - rl) / 2, 40)
+                    && Math.abs(y - rb) < 12 * Math.max(scale, 0.7)) {
+                if (listener != null) listener.onOpenInside(n);
+                return true;
+            }
         }
         return false;
     }
@@ -1086,6 +1100,19 @@ final class MindMapCanvas extends Region {
             g.fillOval(bx - r, cy - r, r * 2, r * 2);
             drawCentered(g, "+" + (count == null ? 0 : count), bx, cy, r);
         }
+        if (insideLabel != null && n.blocks != null) {
+            // What's inside the idea: a pill on its bottom edge ("☑ 1/3 · 🎙 2").
+            String label = insideLabel.apply(n);
+            if (label == null || label.isEmpty()) label = "•••";
+            Font f = Font.font("Roboto", FontWeight.BOLD, 11 * Math.max(s, 0.6));
+            double pw = textWidth(label, f) + 16 * Math.max(s, 0.6), ph = 18 * Math.max(s, 0.6);
+            double px = (rl + rr) / 2 - pw / 2, py = rb - ph / 2;
+            g.setFill(Theme.color("tile_indigo"));
+            g.fillRoundRect(px, py, pw, ph, ph, ph);
+            g.setFont(f);
+            g.setFill(Color.WHITE);
+            g.fillText(label, (rl + rr) / 2, rb);
+        }
         if (n.hasLink()) {
             g.setFill(Theme.color("accent_blue"));
             double br = r * 0.9;
@@ -1230,6 +1257,7 @@ final class MindMapCanvas extends Region {
 
     /** The wheel zooms around the pointer; a touchpad's two-finger scroll pans. */
     private void scrolled(ScrollEvent e) {
+        if (embedded && !e.isControlDown() && e.getTouchCount() == 0) return; // The page scrolls.
         if (e.getTouchCount() > 0 && !e.isControlDown()) {
             tx += e.getDeltaX();
             ty += e.getDeltaY();

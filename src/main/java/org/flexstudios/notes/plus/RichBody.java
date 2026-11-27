@@ -102,6 +102,14 @@ final class RichBody extends VBox {
         onCaret = r;
     }
 
+    /** The writing room under the last words (a text note's page); less where other things follow. */
+    private double room = 240;
+
+    void setRoom(double px) {
+        room = px;
+        refreshPrompts();
+    }
+
     void setPrompt(String p) {
         prompt = p;
         refreshPrompts();
@@ -143,6 +151,34 @@ final class RichBody extends VBox {
             else if (n instanceof Picture p) out.append(p.line.format());
         }
         return out.toString();
+    }
+
+    /** The Markdown before and after the caret, pictures included (where something else goes in). */
+    String[] split() {
+        RichArea a = active();
+        if (a == null) return new String[]{getContent(), ""};
+        int at = getChildren().indexOf(a), caret = Math.min(a.getCaretPosition(), a.getLength());
+        StringBuilder before = new StringBuilder(), after = new StringBuilder();
+        for (int i = 0; i < at; i++) line(before, getChildren().get(i));
+        String head = a.markdown(0, caret), rest = a.markdown(caret, a.getLength());
+        if (!head.isEmpty()) before.append(before.length() > 0 ? "\n" : "").append(head);
+        if (!rest.isEmpty()) after.append(rest);
+        for (int i = at + 1; i < getChildren().size(); i++) line(after, getChildren().get(i));
+        return new String[]{before.toString().replaceAll("\n+$", ""), after.toString().replaceAll("^\n+", "")};
+    }
+
+    private static void line(StringBuilder out, Node n) {
+        String s = n instanceof RichArea a ? a.markdown() : n instanceof Picture p ? p.line.format() : "";
+        if (s.isEmpty()) return;
+        if (out.length() > 0) out.append('\n');
+        out.append(s);
+    }
+
+    /** "/" typed alone on a line (Ultimate notes): told where, after the "/" is taken away. */
+    private java.util.function.Consumer<javafx.geometry.Point2D> onSlash;
+
+    void setOnSlash(java.util.function.Consumer<javafx.geometry.Point2D> r) {
+        onSlash = r;
     }
 
     /** Only the words, for counting. */
@@ -197,7 +233,7 @@ final class RichBody extends VBox {
         for (Node n : getChildren()) if (n instanceof RichArea a) a.setPrompt(empty && a == first ? prompt : null);
         // Sections between pictures stay small; the last one is the page's writing room.
         for (int i = 0; i < getChildren().size(); i++) {
-            if (getChildren().get(i) instanceof RichArea a) a.setMinRoom(i == getChildren().size() - 1 ? 240 : 0);
+            if (getChildren().get(i) instanceof RichArea a) a.setMinRoom(i == getChildren().size() - 1 ? room : 0);
         }
     }
 
@@ -230,6 +266,19 @@ final class RichBody extends VBox {
         });
         area.zoom(Zoom.level());
         area.addEventFilter(KeyEvent.KEY_PRESSED, e -> keys(area, e));
+        area.addEventHandler(KeyEvent.KEY_TYPED, e -> {
+            if (onSlash == null || locked || !"/".equals(e.getCharacter())) return;
+            Platform.runLater(() -> {
+                int p = area.getCurrentParagraph();
+                if (!area.getParagraph(p).getText().trim().equals("/")) return;
+                int caret = area.getCaretPosition();
+                if (caret > 0) area.deleteText(caret - 1, caret);
+                active = area;
+                javafx.geometry.Bounds b = area.getCaretBounds().orElse(area.localToScreen(area.getBoundsInLocal()));
+                javafx.geometry.Point2D at = area.getScene() == null ? null : area.getScene().getRoot().screenToLocal(b.getMinX(), b.getMaxY());
+                if (at != null) onSlash.accept(area.getScene().getRoot().localToScene(at));
+            });
+        });
         LinkSuggest.attach(area, () -> linkNotes.get());
         return area;
     }
@@ -319,6 +368,14 @@ final class RichBody extends VBox {
         for (File f : files) insert(target, caret, f, null);
         e.setDropCompleted(true);
         e.consume();
+    }
+
+    /** Pictures chosen from a file picker: where the caret is, or after the words. */
+    void addPictures(List<File> files) {
+        RichArea target = active();
+        if (target == null) return;
+        int caret = target.isFocused() ? target.getCaretPosition() : target.getLength();
+        for (File f : files) if (isPicture(f)) insert(target, caret, f, null);
     }
 
     /** Writes the picture into the note's folder, then splits {@code area} at {@code caret} around it. */

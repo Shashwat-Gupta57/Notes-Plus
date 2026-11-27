@@ -28,6 +28,7 @@ final class NoteData {
     static final String JOURNAL = "JOURNAL";
     static final String SKETCH = "SKETCH";
     static final String AUDIO = "AUDIO";
+    static final String ULTIMATE = "ULTIMATE";
 
     private NoteData() {}
 
@@ -43,6 +44,7 @@ final class NoteData {
             new Kind(MINDMAP, "Mind map", "Mind maps", "Ideas and how they connect", Icons.NOTE_MINDMAP, "tile_blue"),
             new Kind(SKETCH, "Sketch", "Sketches", "Draw with your mouse or pen", Icons.NOTE_SKETCH, "tile_red"),
             new Kind(AUDIO, "Audio", "Audio", "Record your voice", Icons.NOTE_AUDIO, "tile_teal"),
+            new Kind(ULTIMATE, "Ultimate", "Ultimate", "Words, lists, maps, voice and days in one", Icons.NOTE_ULTIMATE, "tile_indigo"),
     };
 
     static Kind kind(String type) {
@@ -183,6 +185,8 @@ final class NoteData {
         String image;
         /** Sub-text: more about the idea, drawn smaller under its text. Never null. */
         String sub = "";
+        /** What's inside the idea (Ultimate notes): a JSON array of canvases, kept as it is, or null. */
+        String blocks;
 
         MindNode(long id, long parent, String text, double x, double y) {
             this.id = id;
@@ -225,6 +229,8 @@ final class NoteData {
             n.linkUuid = o.optString("linkUuid", "").isEmpty() ? null : o.optString("linkUuid");
             n.image = o.optString("image", "").isEmpty() ? null : o.optString("image");
             n.sub = o.optString("sub", "");
+            JSONArray inside = o.optJSONArray("blocks");
+            n.blocks = inside == null || inside.length() == 0 ? null : inside.toString();
             map.nodes.add(n);
         }
         JSONArray links = array(json, "links");
@@ -249,6 +255,7 @@ final class NoteData {
             if (n.linkUuid != null) o.put("linkUuid", n.linkUuid);
             if (n.image != null) o.put("image", n.image);
             if (!n.sub.isEmpty()) o.put("sub", n.sub);
+            if (n.blocks != null) o.put("blocks", new JSONArray(n.blocks));
             array.put(o);
         }
         for (long[] l : map.links) links.put(new JSONArray().put(l[0]).put(l[1]));
